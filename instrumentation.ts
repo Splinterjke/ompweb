@@ -1,0 +1,83 @@
+import { restoreActiveRpcSessions } from "@/lib/rpc-manager";
+
+export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // Warm the effective network proxy into the process env before the first
+  // omp spawn / GitHub request: Bun's fetch (omp) and undici (GitHub client)
+  // ignore the system proxy without TUN mode, so we resolve the configured
+  // proxy (auto-detected or manual) once at startup. Lives here, not in
+  // next.config.ts — that file must stay free of app-code imports (it is
+  // transpiled outside the app bundle where lib/ does not exist).
+  void (async () => {
+    try {
+      const { resolveEffectiveProxy } = await import("@/lib/proxy-config");
+      const url = await resolveEffectiveProxy();
+      if (url) process.env.OMP_WEB_PROXY_URL = url;
+    } catch {
+      // Best-effort; lib/proxy-config consumers resolve on demand too.
+    }
+  })();
+
+  // Honor HTTP(S)_PROXY/NO_PROXY for server-side fetch (update checks, skill
+  // search, model connection tests). Node's built-in fetch ignores proxy env
+  // vars (NODE_USE_ENV_PROXY is Node 24+ only; engines floor is 22).
+  const { configureHttpDispatcher } = await import("@/lib/http-dispatcher");
+  configureHttpDispatcher();
+
+  // Startup diagnostics: agent dir. Kept to one line so it greps cleanly;
+  // failures here must never block boot.
+  try {
+    const { getAgentDir } = await import("@/lib/session-reader");
+    console.log(
+      `[omp-web] starting (agent-dir ${getAgentDir()})`,
+    );
+  } catch {
+    // Diagnostics are best-effort.
+  }
+
+  // A service restart tears down the in-memory RPC registry. The previous
+  // process snapshots its live sessions during SIGTERM; recreate those omp
+  // children before serving so conversations continue without a browser turn.
+  try {
+    await restoreActiveRpcSessions();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[omp-web] active-session restore failed: ${detail}`);
+  }
+  // Ship the repo's rebuild script in "Script schedulers" (manual launch) on
+  // first boot. Best-effort: a packaged install without the script skips it,
+  // and a pre-existing entry is never duplicated. scheduler-store is
+  // node-only (fs/os/path) and this file is also bundled for the edge
+  // runtime, so it is imported dynamically like the other node-only deps.
+  try {
+    const { ensureSeedSchedulers } = await import("@/lib/scheduler-store");
+    ensureSeedSchedulers();
+  } catch (error) {
+    console.warn(`[omp-web] scheduler seed skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Warm the shared utility omp process so the first models/auth request does
+  // not pay the multi-second cold spawn (measured 1.2-4s on a real install).
+  // Fire-and-forget: register() must not block boot, and a missing omp binary
+  // is reported per-request by the routes — log once here and move on.
+  // The shared process registers its own SIGINT/SIGTERM/exit disposal hook on
+  // first use (lib/omp/rpc-utility.ts), as the session registry does.
+  void (async () => {
+    try {
+      const { runUtilityCommand } = await import("@/lib/omp/rpc-utility");
+      await runUtilityCommand({ type: "get_state" });
+      const { getOmpVersion } = await import("@/lib/omp/omp-cli");
+      const version = await getOmpVersion();
+      console.log(`[omp-web] omp utility ready (${version ?? "version unknown"})`);
+    } catch (error) {
+      const { resolveOmpBin } = await import("@/lib/omp/omp-cli");
+      const bin = resolveOmpBin();
+      const detail = error instanceof Error ? error.message : String(error);
+      const hint = bin
+        ? `resolved ${bin}; repair with: omp update (or: bun install -g @oh-my-pi/pi-coding-agent@latest)`
+        : "omp binary not found; install oh-my-pi or set OMP_WEB_OMP_BIN";
+      console.warn(`[omp-web] omp utility warm-up failed (routes will retry on demand): ${detail} — ${hint}`);
+    }
+  })();
+}

@@ -1,0 +1,2114 @@
+"use client";
+
+ import { memo, useState, useId, useRef, useEffect, useMemo, useCallback, type ComponentProps } from "react";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive } from "lucide-react";
+import { MarkdownBody } from "./MarkdownBody";
+import { ClickableImage } from "./ImageLightbox";
+import { translate, useI18n, type Locale } from "@/lib/i18n";
+import { parseCompactionSummary } from "@/lib/compaction-summary";
+import { isEmptyThinkingBlock } from "@/lib/message-display";
+import { splitPathTokens } from "@/lib/markdown-path-links";
+import { resolveLocalFileHref } from "@/lib/file-links";
+ import { Tooltip, Collapsible, CollapsibleTrigger } from "./ui/primitives";
+ import { MessageCopyActions } from "./MessageCopyActions";
+ import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+ import { HubResultPanel } from "./MessageView-hub-panel";
+ import { getHubSendSummary, getHubJobs, getHubJobsHeader } from "./MessageView-tool-format";
+ import { parseUnifiedPatch, type SplitDiffCell } from "@/lib/patch";
+import { formatCompactNumber } from "@/lib/format";
+import type {
+  AgentMessage,
+  UserMessage,
+  AssistantMessage,
+  CustomMessage,
+  ToolResultMessage,
+  BashExecutionMessage,
+  AssistantContentBlock,
+  TextContent,
+  ImageContent,
+  ToolCallContent,
+  ThinkingContent,
+} from "@/lib/types";
+
+
+const MAX_THINKING_CACHE_ENTRIES = 100;
+const thinkingContentCache = new Map<string, Promise<string>>();
+const MAX_MARKDOWN_CHARS = 100_000;
+
+// Cap the user "sent" bubble's height so an abnormally long message does not
+// push the conversation off screen; overflow scrolls inside the bubble.
+const USER_BUBBLE_MAX_HEIGHT = 300;
+
+function formatMessageSize(chars: number): string {
+  return chars >= 1_000_000 ? `${(chars / 1_000_000).toFixed(1)} MB` : `${Math.round(chars / 1_000)} KB`;
+}
+
+export function SafeMarkdownBody({ children, className, ...props }: ComponentProps<typeof MarkdownBody>) {
+  const { t } = useI18n();
+  const [showRaw, setShowRaw] = useState(false);
+
+  if (children.length <= MAX_MARKDOWN_CHARS) {
+    return <MarkdownBody className={className} {...props}>{children}</MarkdownBody>;
+  }
+
+  if (!showRaw) {
+    return (
+      <button
+        type="button"
+        onClick={() => setShowRaw(true)}
+        style={{ display: "block", width: "100%", margin: "4px 0", padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text-muted)", cursor: "pointer", fontSize: 12, textAlign: "left" }}
+      >
+        {t("messageView.largeMessageReveal", { size: formatMessageSize(children.length) })}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className} style={{ maxHeight: 420, overflow: "auto", fontSize: 12, lineHeight: 1.5 }}>
+      <pre style={{ margin: 0, padding: "8px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+function loadThinkingContent(sessionId: string, entryId: string, blockIndex: number): Promise<string> {
+  const key = `${sessionId}:${entryId}:${blockIndex}`;
+  const cached = thinkingContentCache.get(key);
+  if (cached) {
+    thinkingContentCache.delete(key);
+    thinkingContentCache.set(key, cached);
+    return cached;
+  }
+
+  const request = fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/entries/${encodeURIComponent(entryId)}/thinking?blockIndex=${blockIndex}`,
+  ).then(async (response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json() as { thinking?: unknown };
+    if (typeof data.thinking !== "string") throw new Error(translate("messageView.invalidThinkingResponse"));
+    return data.thinking;
+  }).catch((error) => {
+    thinkingContentCache.delete(key);
+    throw error;
+  });
+
+  thinkingContentCache.set(key, request);
+  if (thinkingContentCache.size > MAX_THINKING_CACHE_ENTRIES) {
+    const oldestKey = thinkingContentCache.keys().next().value;
+    if (oldestKey) thinkingContentCache.delete(oldestKey);
+  }
+  return request;
+}
+
+interface Props {
+  message: AgentMessage;
+  isStreaming?: boolean;
+  toolResults?: Map<string, ToolResultMessage>;
+  modelNames?: Record<string, string>;
+  cwd?: string;
+  onOpenFile?: (filePath: string) => void;
+  entryId?: string;
+  /** Entry omp's `branch` command accepts for this message (a user entry). */
+  forkEntryId?: string;
+  onFork?: (entryId: string) => void;
+  forking?: boolean;
+  onNavigate?: (entryId: string) => void;
+  prevAssistantEntryId?: string;
+  onEditContent?: (content: string) => void;
+  showTimestamp?: boolean;
+  prevTimestamp?: number;
+  sessionId?: string;
+  toolCallsDefaultCollapsed?: boolean;
+  thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  /** True once the run is finished: tool calls with no committed result show
+   *  the done marker instead of a spinner (subagent transcripts). */
+  settled?: boolean;
+  /** omp-reported output throughput (get_state.tokensPerSecond), live while streaming. */
+  liveTokensPerSecond?: number | null;
+}
+
+function formatTime(ts: number | undefined, locale: Locale): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  const now = new Date();
+  const isToday = d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (isToday) return time;
+  const date = d.toLocaleDateString(locale, { month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+  return `${date} ${time}`;
+}
+
+function haveSameRelevantToolResults(
+  message: AgentMessage,
+  previous: Map<string, ToolResultMessage> | undefined,
+  next: Map<string, ToolResultMessage> | undefined,
+): boolean {
+  if (previous === next || message.role !== "assistant") return true;
+  for (const block of (message as AssistantMessage).content ?? []) {
+    if (block.type === "toolCall" && previous?.get(block.toolCallId) !== next?.get(block.toolCallId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isAssistantErrorMessage(message: AssistantMessage): boolean {
+  return message.stopReason === "error"
+    || message.stopReason === "aborted"
+    || message.errorMessage !== undefined
+    || message.errorStatus !== undefined
+    || message.errorCode !== undefined;
+}
+
+/** A user stop is not a model failure — the compact error row must not
+ *  render as an alert for it. */
+export function isInterruptedMessage(errorMessage?: string | null, stopReason?: string): boolean {
+  if (stopReason === "aborted") return true;
+  if (!errorMessage) return false;
+  const lower = errorMessage.toLowerCase().trim();
+  return (
+    lower === "interrupted by user" ||
+    lower === "interrupted" ||
+    lower === "generation stopped by user" ||
+    lower.startsWith("interrupted by user") ||
+    lower.startsWith("interrupted:") ||
+    lower === "aborted" ||
+    lower === "request aborted"
+  );
+}
+
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", settled = false, liveTokensPerSecond }: Props) {
+  if (message.role === "user") {
+    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} />;
+  }
+  if (message.role === "assistant") {
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} liveTokensPerSecond={liveTokensPerSecond} />;
+  }
+  if (message.role === "toolResult") {
+    // Rendered inline under its toolCall — skip standalone rendering if paired
+    return null;
+  }
+  if (message.role === "custom") {
+    const custom = message as CustomMessage;
+    if (custom.customType === "xdev-mount-notice") {
+      return null;
+    }
+    if (custom.customType === "compaction") {
+      return <CompactionMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+    }
+    if (custom.display === false) {
+      return <HiddenExtensionView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+    }
+    return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+  }
+  if (message.role === "bashExecution") {
+    return <BashExecutionView message={message as BashExecutionMessage} sessionId={sessionId} />;
+  }
+  return null;
+}, (prev, next) => {
+  return prev.message === next.message
+    && prev.isStreaming === next.isStreaming
+    && haveSameRelevantToolResults(prev.message, prev.toolResults, next.toolResults)
+    && prev.modelNames === next.modelNames
+    && prev.cwd === next.cwd
+    && prev.onOpenFile === next.onOpenFile
+    && prev.entryId === next.entryId
+    && prev.forkEntryId === next.forkEntryId
+    && prev.onFork === next.onFork
+    && prev.forking === next.forking
+    && prev.onNavigate === next.onNavigate
+    && prev.prevAssistantEntryId === next.prevAssistantEntryId
+    && prev.onEditContent === next.onEditContent
+    && prev.showTimestamp === next.showTimestamp
+    && prev.prevTimestamp === next.prevTimestamp
+    && prev.sessionId === next.sessionId
+    && prev.toolCallsDefaultCollapsed === next.toolCallsDefaultCollapsed
+    && prev.thinkingDisplayMode === next.thinkingDisplayMode
+    && prev.liveTokensPerSecond === next.liveTokensPerSecond
+    && prev.settled === next.settled;
+});
+
+/**
+ * "New session" (fork) action, shared by user and assistant messages.
+ *
+ * omp's `branch` command accepts a user-message entry only (an assistant entry
+ * answers "Invalid entry ID for branching"), so `entryId` is the branch point
+ * resolved by `resolveForkEntryIds` — for an assistant reply, the user prompt
+ * that started its turn.
+ */
+function ForkSessionButton({ entryId, onFork, forking }: {
+  entryId: string;
+  onFork: (entryId: string) => void;
+  forking?: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <Tooltip content={forking ? t("messageView.creatingSession") : t("messageView.newSessionTitle")}>
+      <button
+        onClick={() => { onFork(entryId); }}
+        disabled={forking}
+        aria-label={forking ? t("messageView.creatingSession") : t("messageView.newSessionTitle")}
+        style={{
+          display: "flex", alignItems: "center", gap: 4,
+          padding: "3px 8px", height: 24, minHeight: 24,
+          background: "none", border: "none",
+          borderRadius: 5,
+          color: forking ? "var(--accent)" : "var(--text-dim)",
+          cursor: forking ? "not-allowed" : "pointer",
+          fontSize: 11, fontWeight: 400,
+          whiteSpace: "nowrap",
+          transition: "color var(--dur-fast) var(--ease-out-warm)",
+        }}
+        onMouseEnter={(e) => { if (!forking) e.currentTarget.style.color = "var(--accent)"; }}
+        onMouseLeave={(e) => { if (!forking) e.currentTarget.style.color = "var(--text-dim)"; }}
+      >
+        <GitFork size={11} strokeWidth={1.8} />
+        {forking ? t("messageView.creating") : t("messageView.newSession")}
+      </button>
+    </Tooltip>
+  );
+}
+
+function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent }: {  message: UserMessage;
+  cwd?: string;
+  onOpenFile?: (filePath: string) => void;
+  entryId?: string;
+  onFork?: (entryId: string) => void;
+  forking?: boolean;
+  onNavigate?: (entryId: string) => void;
+  prevAssistantEntryId?: string;
+  onEditContent?: (content: string) => void;
+}) {
+  const { t, locale } = useI18n();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const content =
+    typeof message.content === "string"
+      ? message.content
+      : message.content
+          .filter((b): b is TextContent => b.type === "text")
+          .map((b) => b.text)
+          .join("\n");
+
+  const imageBlocks: ImageContent[] =
+    typeof message.content === "string"
+      ? []
+      : message.content.filter((b): b is ImageContent => b.type === "image");
+
+  const time = formatTime(message.timestamp, locale);
+  const canFork = !!entryId && !!onFork;
+  const canNavigate = !!prevAssistantEntryId && !!onNavigate;
+
+  return (
+    <div
+      style={{ marginBottom: 18, display: "flex", flexDirection: "column", alignItems: "flex-end", paddingRight: 6 }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", maxWidth: "85%", minWidth: 0 }}>
+        <div
+          className="chat-message-card"
+          style={{
+            maxWidth: "100%",
+            minWidth: 0,
+            background: "var(--user-bg)",
+            border: "1px solid color-mix(in srgb, var(--accent) 28%, transparent)",
+            borderRadius: "var(--radius-card)",
+            boxShadow: "var(--shadow-card)",
+            padding: "8px 12px",
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: "var(--text)",
+            wordBreak: "break-word",
+            maxHeight: USER_BUBBLE_MAX_HEIGHT,
+            overflowY: "auto",
+          }}
+        >
+          {imageBlocks.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: content ? 8 : 0 }}>
+              {imageBlocks.map((img, i) => {
+                // lib/types.ts ImageContent uses {source:{type,data,media_type,url}}
+                // pi-ai on-disk format uses flat {data, mimeType} — handle both
+                const flat = img as unknown as { data?: string; mimeType?: string };
+                const src = img.source
+                  ? img.source.type === "base64"
+                    ? `data:${img.source.media_type};base64,${img.source.data}`
+                    : img.source.url ?? ""
+                  : flat.data
+                    ? `data:${flat.mimeType};base64,${flat.data}`
+                    : "";
+                return (
+                  <ClickableImage
+                    key={i}
+                    src={src}
+                    alt=""
+                    style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid color-mix(in srgb, var(--accent) 18%, transparent)" }}
+                  />
+                );
+              })}
+            </div>
+          )}
+ {content && <div data-message-text ref={bodyRef}><SafeMarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{content}</SafeMarkdownBody></div>}
+        </div>
+
+        {/* Bottom row: action buttons + timestamp — inside the bubble's column,
+            spanning its width, so the timestamp aligns with its right edge. */}
+          <div style={{
+            display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end",
+            gap: 6, marginTop: 3, width: "100%",
+          }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+            <MessageCopyActions texts={[content]} bodyRef={bodyRef} />
+          </div>
+          {(canFork || canNavigate) && (
+            <div
+              style={{
+                display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 3,
+              }}
+            >
+              {canNavigate && (
+                <Tooltip content={t("messageView.editFromHereTitle")}>
+                  <button
+                    onClick={() => { onNavigate!(prevAssistantEntryId!); onEditContent?.(content); }}
+                    aria-label={t("messageView.editFromHereTitle")}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "3px 8px", height: 24, minHeight: 24,
+                      background: "none", border: "none",
+                      borderRadius: 5,
+                      color: "var(--text-dim)",
+                      cursor: "pointer",
+                      fontSize: 11, fontWeight: 400,
+                      whiteSpace: "nowrap",
+                      transition: "color var(--dur-fast) var(--ease-out-warm)",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
+                  >
+                    <CornerUpLeft size={11} strokeWidth={1.8} />
+                    {t("messageView.editFromHere")}
+                  </button>
+                </Tooltip>
+              )}
+              {canFork && (
+                <ForkSessionButton entryId={entryId!} onFork={onFork!} forking={forking} />
+              )}
+            </div>
+          )}
+          {time && <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{time}</span>}
+          </div>
+      </div>
+    </div>
+  );
+}
+function AssistantMessageView({
+  message,
+  isStreaming,
+  toolResults,
+  modelNames,
+  cwd,
+  onOpenFile,
+  showTimestamp,
+  prevTimestamp,
+  sessionId,
+  entryId,
+  forkEntryId,
+  onFork,
+  forking,
+  toolCallsDefaultCollapsed,
+  thinkingDisplayMode = "auto",
+  liveTokensPerSecond,
+  settled = false,
+}: {
+  message: AssistantMessage;
+  isStreaming?: boolean;
+  toolResults?: Map<string, ToolResultMessage>;
+  modelNames?: Record<string, string>;
+  cwd?: string;
+  onOpenFile?: (filePath: string) => void;
+  showTimestamp?: boolean;
+  prevTimestamp?: number;
+  sessionId?: string;
+  entryId?: string;
+  /** User entry omp's `branch` command accepts for this reply. */
+  forkEntryId?: string;
+  onFork?: (entryId: string) => void;
+  forking?: boolean;
+  toolCallsDefaultCollapsed: boolean;
+  thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  liveTokensPerSecond?: number | null;
+  settled?: boolean;
+}) {
+  const { t, locale } = useI18n();
+  const time = showTimestamp ? formatTime(message.timestamp, locale) : null;
+  const texts = (message.content ?? []).filter((block): block is TextContent => block.type === "text").map((block) => block.text);
+  const canFork = !!forkEntryId && !!onFork;
+  const blockItems = (message.content ?? [])
+    .map((block, originalIndex) => ({ block, originalIndex }))
+    .filter(({ block }) => !isEmptyThinkingBlock(block, { isStreaming }));
+  const blocks = blockItems.map(({ block }) => block);
+  const hasActivityBlocks = blocks.some((block) => block.type === "thinking" || block.type === "toolCall");
+  const isInterrupted = isInterruptedMessage(message.errorMessage, message.stopReason);
+  // 消息内最新内容块的原始索引：思考块只有在"流式输出且是最新块"时才自动
+  // 展开，下一轮工具调用/文本到达后自动收起。
+  const latestBlockIndex = blockItems.length > 0 ? blockItems[blockItems.length - 1].originalIndex : -1;
+  const blockItemsRef = useRef(blockItems);
+  blockItemsRef.current = blockItems;
+  const [errorExpanded, setErrorExpanded] = useState(false);
+
+
+  // Streaming-based timing for thinking blocks
+  const blockStartTimesRef = useRef<Map<number, number>>(new Map());
+  const [streamingDurations, setStreamingDurations] = useState<Map<number, number>>(new Map());
+
+  // Thinking duration derived from file timestamps: time from prev message end to this message end
+  // This is the total generation time (thinking + any text before first tool call)
+  const thinkingDurationFromFile = useMemo<number | undefined>(() => {
+    if (!message.timestamp || !prevTimestamp) return undefined;
+    const secs = Math.round((message.timestamp - prevTimestamp) / 1000);
+    return secs > 0 ? secs : undefined;
+  }, [message.timestamp, prevTimestamp]);
+
+  // Tool call durations derived from session file timestamps (accurate for completed messages)
+  // assistant message timestamp = when generation ended = when tools started running
+  // toolResult timestamp = when tool execution finished
+  const toolCallDurations = useMemo<Map<string, number>>(() => {
+    const map = new Map<string, number>();
+    if (!toolResults || !message.timestamp) return map;
+    for (const [callId, result] of toolResults) {
+      if (result.timestamp && message.timestamp) {
+        const secs = Math.round((result.timestamp - message.timestamp) / 1000);
+        if (secs > 0) map.set(callId, secs);
+      }
+    }
+    return map;
+  }, [toolResults, message.timestamp]);
+  useEffect(() => {
+    if (!isStreaming) {
+      // Finalise any un-finished thinking block durations on stream end
+      const now = new Date().getTime();
+      setStreamingDurations((prev: Map<number, number>) => {
+        const next = new Map(prev);
+        for (const [idx, start] of blockStartTimesRef.current) {
+          if (!next.has(idx)) next.set(idx, Math.round((now - start) / 1000));
+        }
+        return next;
+      });
+      return;
+    }
+    const tick = () => {
+      const items = blockItemsRef.current;
+      const now = Date.now();
+
+      // Record start time for each block the first time we see it
+      items.forEach(({ originalIndex }) => {
+        if (!blockStartTimesRef.current.has(originalIndex)) blockStartTimesRef.current.set(originalIndex, now);
+      });
+
+      // When a non-last block has a successor already started, finalise its duration
+      setStreamingDurations((prev: Map<number, number>) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (let i = 0; i < items.length - 1; i++) {
+          const originalIndex = items[i].originalIndex;
+          const nextOriginalIndex = items[i + 1].originalIndex;
+          if (!next.has(originalIndex) && blockStartTimesRef.current.has(originalIndex)) {
+            const start = blockStartTimesRef.current.get(originalIndex)!;
+            const nextStart = blockStartTimesRef.current.get(nextOriginalIndex) ?? now;
+            next.set(originalIndex, Math.round((nextStart - start) / 1000));
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    };
+    const id = setInterval(tick, 300);
+    tick();
+    return () => clearInterval(id);
+  }, [isStreaming]);
+
+  if (blocks.length === 0 && !isStreaming) {
+    if (!isAssistantErrorMessage(message)) return null;
+    if (isInterruptedMessage(message.errorMessage, message.stopReason)) {
+      return (
+        <div className="chat-message chat-message-error-compact" role="status">
+          <div
+            data-message-interrupted="true"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "2px 0",
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              lineHeight: 1.35,
+            }}
+          >
+            <CircleSlash size={13} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0 }} />
+            <span>{t("messageView.interruptedByUser")}</span>
+          </div>
+        </div>
+      );
+    }
+    const status = message.errorStatus !== undefined ? String(message.errorStatus) : "error";
+    const detail = message.errorMessage?.trim() || "The model request failed.";
+    const summary = detail.split(/\r?\n/, 1)[0].trim() || "The model request failed.";
+    return (
+      <div className="chat-message chat-message-error-compact" role="alert">
+        <div
+          data-message-error="true"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            minWidth: 0,
+            whiteSpace: "pre-wrap",
+            overflowWrap: "anywhere",
+            padding: "2px 0",
+            color: "var(--status-error)",
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            lineHeight: 1.35,
+          }}
+        >
+          <CircleAlert size={13} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0, margin: "1px 6px 0 0" }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <button
+              type="button"
+              onClick={() => setErrorExpanded((value) => !value)}
+              aria-expanded={errorExpanded}
+              aria-controls={entryId ? `message-error-${entryId}` : undefined}
+              style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: 0, border: "none", background: "transparent", color: "inherit", cursor: "pointer", textAlign: "left", font: "inherit" }}
+            >
+              {errorExpanded ? <ChevronDown size={11} aria-hidden="true" /> : <ChevronRight size={11} aria-hidden="true" />}
+              <span style={{ fontWeight: 650, flexShrink: 0 }}>Error: {status}</span>
+              {!errorExpanded && <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-muted)" }}>{summary}</span>}
+            </button>
+            {errorExpanded && <div id={entryId ? `message-error-${entryId}` : undefined} style={{ marginTop: 5, color: "var(--status-error)", overflowWrap: "anywhere" }}>{detail}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="chat-message"
+      style={{ marginBottom: 6 }}
+    >
+      {/* Model label */}
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--text-dim)",
+          marginBottom: 4,
+          display: hasActivityBlocks ? "none" : "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        {message.provider && (
+          <span>{modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}</span>
+        )}
+        {isStreaming && (() => {
+          let chars = 0;
+          for (const b of blocks) {
+            if (b.type === "text") chars += (b as TextContent).text?.length ?? 0;
+            else if (b.type === "thinking") chars += (b as ThinkingContent).thinking?.length ?? 0;
+          }
+          const est = Math.round(chars / 4);
+          return (
+            <>
+
+              {est > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }} title={t("messageView.estimatedTokens")}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 400 }}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
+                    </svg>
+                    {est}
+                  </span>
+                  {liveTokensPerSecond != null && (() => {
+                    // Speed tiers use the semantic status tokens as TEXT color
+                    // (theme-adaptive, AA-verified) over a subtle tint — the
+                    // old hardcoded palette failed AA for white-on-fill.
+                    const tier = liveTokensPerSecond >= 50 ? "success" : liveTokensPerSecond >= 30 ? "renamed" : liveTokensPerSecond >= 15 ? "warning" : "error";
+                    const tone = `var(--status-${tier})`;
+                    return (
+                      <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 4, background: `color-mix(in srgb, ${tone} 14%, var(--bg-panel))`, color: tone, fontSize: 11, fontWeight: 400 }}>
+                        {t("messageView.tokensPerSecond", { tps: liveTokensPerSecond.toFixed(1) })}
+                      </span>
+                    );
+                  })()}
+                </span>
+              )}
+            </>
+          );
+        })()}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {/* Stable key per block index: streaming instances (no entryId yet)
+            and the committed message must reuse the same component instance,
+            otherwise ThinkingBlock remounts on commit and loses the expanded
+            state (the "thinking flash" bug). */}
+        {blockItems.map(({ block, originalIndex }) => (
+          <BlockView key={`${originalIndex}`} block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} />
+        ))}
+        {isInterrupted && !isStreaming && (
+          <div
+            data-message-interrupted="true"
+            role="status"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 9px",
+              border: "1px solid color-mix(in srgb, var(--text-muted) 25%, var(--border))",
+              borderRadius: "var(--radius-control)",
+              background: "color-mix(in srgb, var(--text-muted) 6%, var(--bg-panel))",
+              color: "var(--text-muted)",
+              fontSize: 12,
+              lineHeight: 1.45,
+            }}
+          >
+            <CircleSlash size={14} strokeWidth={1.8} aria-hidden="true" style={{ flexShrink: 0 }} />
+            <span>{t("messageView.interruptedByUser")}</span>
+          </div>
+        )}
+      </div>
+
+      {!isStreaming && (texts.some((text) => text.trim()) || time || canFork) && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
+          {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+          {time && <span style={{ fontSize: 10, color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; settled?: boolean }) {
+  if (block.type === "text") {
+    return <TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} />;
+  }
+  if (block.type === "thinking") {
+    return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} isStreaming={isStreaming} isLatestBlock={isLatestBlock} thinkingDisplayMode={thinkingDisplayMode} />;
+  }
+  if (block.type === "toolCall") {
+    const tc = block as ToolCallContent;
+    const result = toolResults?.get(tc.toolCallId);
+    const duration = toolCallDurations?.get(tc.toolCallId);
+    return <ToolCallBlock block={tc} result={result} duration={duration} isStreaming={isStreaming} defaultCollapsed={toolCallsDefaultCollapsed} onOpenFile={onOpenFile} cwd={cwd} settled={settled} />;
+  }
+  return null;
+}
+
+// Every message_update frame delivers freshly parsed block objects, so the
+// block memos below compare content (text/thinking strings, tool call ids)
+// instead of object identity: finished blocks of the streaming message then
+// skip their ReactMarkdown re-parse and only the actively growing block
+// re-renders per frame.
+const TextBlock = memo(function TextBlock({ block, isStreaming, cwd, onOpenFile }: { block: TextContent; isStreaming?: boolean; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+  return <SafeMarkdownBody isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile}>{block.text}</SafeMarkdownBody>;
+}, (prev, next) => (
+  prev.block.text === next.block.text
+  && prev.isStreaming === next.isStreaming
+  && prev.cwd === next.cwd
+  && prev.onOpenFile === next.onOpenFile
+));
+
+const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex, isStreaming, isLatestBlock = false, thinkingDisplayMode = "auto" }: {
+  block: ThinkingContent;
+  duration?: number;
+  sessionId?: string;
+  entryId?: string;
+  blockIndex: number;
+  isStreaming?: boolean;
+  /** Whether this block is the newest content block of the message. */
+  isLatestBlock?: boolean;
+  thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+}) {
+  const { t } = useI18n();
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const [content, setContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const prefetchStartedRef = useRef(false);
+
+  // 自动展开规则（用户手动切换优先）：
+  // 只有在「流式输出中 且 这是消息内最新内容块」时思考块才自动展开；
+  // 下一轮工具调用或文本输出到达（块不再是最新）、或流式结束（提交/重试
+  // 重置）后自动收起。旧实现用 latch 永久展开，重试/多轮思考时出现一排
+  // 半截「思考」块无法收起。
+  const isAutoExpanded = useMemo(() => {
+    if (thinkingDisplayMode === "expanded") return true;
+    if (thinkingDisplayMode === "collapsed") return false;
+    return Boolean(isStreaming && isLatestBlock && !block.deferred);
+  }, [thinkingDisplayMode, isStreaming, isLatestBlock, block.deferred]);
+
+  const expanded = userToggled !== null ? userToggled : isAutoExpanded;
+
+  // Deferred thinking keeps the first session payload light, but an empty
+  // expanded shell is misleading and makes the user click twice (open, then
+  // wait for the body). Prefetch once when the row mounts so a later click is
+  // instant while preserving the default-collapsed presentation.
+  useEffect(() => {
+    if (!block.deferred || content !== null || prefetchStartedRef.current || !sessionId || !entryId) return;
+    prefetchStartedRef.current = true;
+    setLoading(true);
+    void loadThinkingContent(sessionId, entryId, blockIndex)
+      .then((text) => setContent(text))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  }, [block.deferred, blockIndex, content, entryId, sessionId]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setUserToggled(nextOpen);
+    if (!nextOpen || !block.deferred || content !== null || loading) return;
+    if (!sessionId || !entryId) {
+      setError(t("messageView.thinkingUnavailable"));
+      return;
+    }
+
+    prefetchStartedRef.current = true;
+    setLoading(true);
+    setError(null);
+    void loadThinkingContent(sessionId, entryId, blockIndex)
+      .then((text) => setContent(text))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <div className="activity-row" data-activity-operation="true">
+      <Collapsible open={expanded} onOpenChange={handleOpenChange}>
+        <CollapsibleTrigger className="activity-row-trigger">
+          <span className="activity-row-indicator" aria-hidden>
+            <Brain size={12} strokeWidth={1.8} className={isStreaming ? "thinking-icon-active" : undefined} />
+          </span>
+          <span className="activity-row-tool">{t("messageView.thinking")}</span>
+          <span className="activity-row-preview" />
+          {duration !== undefined && (
+            <span className="activity-row-duration">{t("messageView.durationSeconds", { seconds: duration })}</span>
+          )}
+          <ChevronDown
+            size={11}
+            strokeWidth={1.8}
+            aria-hidden
+            style={{
+              flexShrink: 0,
+              transform: expanded ? "none" : "rotate(-90deg)",
+              transition: "transform var(--dur-fast) var(--ease-out-warm)",
+            }}
+          />
+        </CollapsibleTrigger>
+        <div className="activity-collapsible-wrapper" data-open={expanded ? "true" : "false"}>
+          <div className="activity-collapsible-inner">
+            <div className="tool-call-details">
+              <div
+                className={`tool-call-output${error ? " tool-call-output-error" : ""}`}
+                style={{
+                  whiteSpace: "pre-wrap",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "var(--chat-font-mono, 10.5px)",
+                  lineHeight: 1.45,
+                  color: error ? "var(--status-error)" : "var(--text-muted)",
+                }}
+              >
+                <pre className="tool-call-output-text">
+                  {(() => {
+                    if (loading) return t("messageView.loadingThinking");
+                    if (error) return error;
+                    const text = block.deferred ? content : block.thinking;
+                    if (!text) return "";
+                    const MAX_THINKING_LENGTH = 100_000;
+                    if (text.length > MAX_THINKING_LENGTH) {
+                      return text.slice(0, MAX_THINKING_LENGTH) + `\n\n... (Thinking truncated, ${text.length - MAX_THINKING_LENGTH} characters hidden) ...`;
+                    }
+                    return text;
+                  })()}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Collapsible>
+    </div>
+  );
+}, (prev, next) => (
+  prev.block.thinking === next.block.thinking
+  && prev.block.deferred === next.block.deferred
+  && prev.duration === next.duration
+  && prev.sessionId === next.sessionId
+  && prev.entryId === next.entryId
+  && prev.blockIndex === next.blockIndex
+  && prev.isStreaming === next.isStreaming
+  && prev.isLatestBlock === next.isLatestBlock
+  && prev.thinkingDisplayMode === next.thinkingDisplayMode
+));
+
+
+/** 工具调用是否携带 skill 内容（skill 工具本身，或读取 skill 目录/SKILL.md
+ *  的 read/grep/bash）：这类结果又长又高频，无论全局"工具默认展开"设置
+ *  如何都强制默认收起，只保留一行摘要。 */
+function isSkillResultText(text: string): boolean {
+  // omp commonly reads skills through a generic read/grep/bash call. In that
+  // shape the tool input is just a file/query/command and the only reliable
+  // signal is the returned content (for example "# .agents/skills/" followed
+  // by "### SKILL.md"). Keep the matcher conservative so ordinary markdown
+  // files are not unexpectedly collapsed.
+  return /(?:^|[\s/#])(?:.agents|.claude|.omp|.codex)\/skills(?:[\s/#]|$)/i.test(text)
+    || /(?:^|[\s/])SKILL\.md(?:$|[\s:#])/i.test(text)
+    || /(?:^|\n)---\s*\n(?=[\s\S]{0,600}?(?:^|\n)(?:name|description):)/i.test(text);
+}
+
+function isSkillContentTool(block: ToolCallContent, resultText?: string | null): boolean {
+  if (block.toolName === "skill" || block.toolName === "Skill" || block.toolName === "skills") return true;
+  if (resultText && isSkillResultText(resultText)) return true;
+  if (block.toolName !== "read" && block.toolName !== "grep" && block.toolName !== "bash") return false;
+  const input = block.input as Record<string, unknown> | undefined;
+  const path = typeof input?.path === "string" ? input.path
+    : typeof input?.file_path === "string" ? input.file_path
+    : typeof input?.query === "string" ? input.query
+    : typeof input?.command === "string" ? input.command : "";
+  return /(^|\/)(\.agents|\.claude|\.omp|\.codex)\/skills\/|(^|\/)skills\/|SKILL\.md$/i.test(path);
+}
+
+const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isStreaming, defaultCollapsed = true, onOpenFile, cwd, settled = false }: { block: ToolCallContent; result?: ToolResultMessage; duration?: number; isStreaming?: boolean; defaultCollapsed?: boolean; onOpenFile?: (filePath: string) => void; cwd?: string; settled?: boolean }) {
+  const { t } = useI18n();
+  const [inputExpanded, setInputExpanded] = useState(false);
+  const inputId = useId();
+  // executing (see lib/types.ts); the committed toolResult replaces them.
+  const isRunning = result?.partial === true;
+  const resultText = result
+    ? (typeof result.content === "string"
+        ? result.content
+        : (Array.isArray(result.content) ? result.content : [])
+            .filter((b): b is { type: "text"; text: string } => b.type === "text" && typeof b.text === "string")
+            .map((b) => b.text)
+            .join("\n"))
+    : null;
+  // toolResult image blocks (computer screenshots, charts, …) render below
+  // the text output; a base64/url image block is the same ImageContent shape
+  // user/assistant messages carry (lib/types.ts).
+  const resultImages: ImageContent[] = result && Array.isArray(result.content)
+    ? result.content.filter((b): b is ImageContent => b.type === "image" && (imageSource(b as ImageContent) !== ""))
+    : [];
+  const skillContentTool = isSkillContentTool(block, resultText);
+  // skill 内容行强制收起（即使全局默认展开）；其余按 defaultCollapsed。
+  // A nullable override lets a late-arriving tool result change a generic
+  // read/grep/bash row to collapsed without taking control away from a user
+  // who already explicitly opened or closed it.
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const expanded = userToggled !== null
+    ? userToggled
+    : skillContentTool ? false : (Boolean(isStreaming) || isRunning) && !defaultCollapsed;
+  const resultIsEmpty = resultText === null ? false : (resultText.trim() === "(no output)" || resultText.trim() === "");
+  const isError = result?.isError ?? false;
+  const resultDiff = expanded && result && !isError ? getResultDiff(result) : null;
+  const resultMeta = getToolResultMeta(result);
+  const command = formatToolCommand(block);
+  // Outgoing steering (`hub` op send) and the job roster (`hub` op jobs) get
+  // the TUI's row titles: `IRC → X` and `waiting on N jobs`.
+  const isHub = block.toolName === "hub";
+  const hubSend = isHub ? getHubSendSummary(block.input) : null;
+  const hubJobs = isHub ? getHubJobs(result?.details) : null;
+  const hubReceiptOutcome = (() => {
+    const receipts = (result?.details as { receipts?: Array<{ outcome?: unknown }> } | undefined)?.receipts;
+    if (!Array.isArray(receipts) || receipts.length === 0) return null;
+    const outcomes = receipts.map((receipt) => (typeof receipt?.outcome === "string" ? receipt.outcome : null));
+    if (outcomes.some((outcome) => outcome === null || outcome !== outcomes[0])) return null;
+    return outcomes[0];
+  })();
+  const hubTool = hubSend
+    ? `IRC → ${hubSend.to.join(", ")}`
+    : hubJobs
+      ? getHubJobsHeader(hubJobs)
+      : null;
+  const hubPreview = hubSend
+    ? (hubSend.snippet || hubSend.to.join(", "))
+    : hubJobs
+      ? hubJobs.map((job) => job.label).join(" · ")
+      : null;
+  return (
+    <div className="activity-row" data-activity-operation="true">
+        <Collapsible open={expanded} onOpenChange={setUserToggled}>
+        <CollapsibleTrigger className="activity-row-trigger">
+          <span className={`activity-row-indicator${isError ? " activity-row-indicator-error" : ""}`} aria-hidden>
+            {isError ? <CircleAlert size={12} strokeWidth={1.8} /> : !isRunning && (result || settled) ? <Check size={12} strokeWidth={2} /> : <LoaderCircle size={12} strokeWidth={1.8} className="activity-row-spinner" />}
+          </span>
+          <span className={`activity-row-tool${isError ? " activity-row-tool-error" : ""}`}>{hubTool ?? block.toolName}</span>
+          <span className="activity-row-preview">{hubPreview ?? getToolPreview(block)}</span>
+          {duration !== undefined && (
+            <span className="activity-row-duration">{t("messageView.durationSeconds", { seconds: duration })}</span>
+          )}
+          <ChevronDown
+            size={11}
+            strokeWidth={1.8}
+            aria-hidden
+            style={{
+              flexShrink: 0,
+              transform: expanded ? "none" : "rotate(-90deg)",
+              transition: "transform var(--dur-fast) var(--ease-out-warm)",
+            }}
+          />
+        </CollapsibleTrigger>
+        {resultMeta && <div className="activity-row-secondary">{resultMeta}</div>}
+        <div className="activity-collapsible-wrapper" data-open={expanded ? "true" : "false"}>
+          <div className="activity-collapsible-inner">
+            <div className={`tool-call-details${isError ? " tool-call-details-error" : ""}`}>
+              <div className="tool-call-command">
+                <span className="tool-call-command-prompt" aria-hidden>$</span>
+                <code>{command}</code>
+                <button
+                  type="button"
+                  className="tool-call-input-toggle"
+                  aria-expanded={inputExpanded}
+                  aria-controls={inputId}
+                  onClick={() => setInputExpanded((value) => !value)}
+                >
+                  {t(inputExpanded ? "messageView.collapseInput" : "messageView.showFullInput")}
+                </button>
+              </div>
+              <div id={inputId} hidden={!inputExpanded} className="tool-call-input">
+                {inputExpanded && (
+                  block.input && typeof block.input === "object" && !Array.isArray(block.input) && Object.keys(block.input).length > 0 ? (
+                    <dl>
+                      {Object.entries(block.input).map(([key, value]) => (
+                        <div key={key}>
+                          <dt>{key === "i" ? "intent" : key}</dt>
+                          <dd><pre>{typeof value === "string" ? value : safeJson(value)}</pre></dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : <pre>{safeJson(block.input)}</pre>
+                )}
+              </div>
+              <HubResultPanel input={block.input} result={result} />
+              {/* In-message subagent summaries were removed (5.1): the live
+                  roster lives in ComposerPanels above the composer, where it
+                  does not duplicate the transcript. */}
+              {isRunning && (resultText ?? "").trim() === "" ? (
+                // No output yet: say so instead of the "(no output)" marker that
+                // would claim the tool finished with nothing.
+                <div data-tool-running="true" style={{ color: "var(--text-dim)", fontSize: 12 }}>
+                  {t("chatWindow.runningTool")}
+                </div>
+              ) : result && !(hubJobs || (hubSend && !isError)) ? (
+                resultDiff ? (
+                  <PairedDiffResult diff={resultDiff} />
+                ) : (
+                  <PairedResult text={formatToolOutput(resultText ?? "", block.toolName)} isEmpty={resultIsEmpty} isError={isError} onOpenFile={onOpenFile} cwd={cwd} />
+                )
+              ) : null}
+              {resultImages.length > 0 && (
+                <div style={{ display: "grid", gap: 8, padding: "6px 2px 2px" }}>
+                  {resultImages.map((img, i) => {
+                    const src = imageSource(img);
+                    if (!src) return null;
+                    return (
+                      <ClickableImage
+                        key={i}
+                        src={src}
+                        alt={`${block.toolName} result image ${i + 1}`}
+                        style={{ maxWidth: "min(100%, 560px)", maxHeight: 420, objectFit: "contain", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)" }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Collapsible>
+    </div>
+  );
+}, (prev, next) => (
+  prev.block.toolCallId === next.block.toolCallId
+  && prev.block.toolName === next.block.toolName
+  && prev.block.input === next.block.input
+  && prev.result === next.result
+  && prev.duration === next.duration
+  && prev.defaultCollapsed === next.defaultCollapsed
+  && prev.settled === next.settled
+));
+
+interface ResultDiff {
+  text: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getResultDiff(result: ToolResultMessage): ResultDiff | null {
+  const details = (result as ToolResultMessage & { details?: unknown }).details;
+  if (typeof details !== "object" || details === null || Array.isArray(details)) return null;
+  const record = details as Record<string, unknown>;
+  const patch = typeof record.patch === "string" ? record.patch : null;
+  if (patch) return { text: patch };
+  const diff = typeof record.diff === "string" ? record.diff : null;
+  if (diff) return { text: diff };
+  return null;
+}
+
+function PairedDiffResult({ diff }: { diff: ResultDiff }) {
+  return (
+    <div
+      style={{
+        borderTop: "1px solid color-mix(in srgb, var(--status-success) 15%, transparent)",
+        background: "var(--bg)",
+      }}
+    >
+      <SplitPatchView text={diff.text} />
+    </div>
+  );
+}
+
+function SplitPatchView({ text }: { text: string }) {
+  const { t } = useI18n();
+  const allFiles = useMemo(() => parseUnifiedPatch(text), [text]);
+  if (!allFiles) return <PatchTextView text={text} />;
+
+  let rowCount = 0;
+  const MAX_ROWS = 800;
+  let truncatedRows = 0;
+
+  const files = allFiles.map((file) => {
+    if (rowCount >= MAX_ROWS) {
+      truncatedRows += file.rows.length;
+      return null;
+    }
+    if (rowCount + file.rows.length > MAX_ROWS) {
+      const allowed = MAX_ROWS - rowCount;
+      truncatedRows += file.rows.length - allowed;
+      rowCount += allowed;
+      return { ...file, rows: file.rows.slice(0, allowed) };
+    }
+    rowCount += file.rows.length;
+    return file;
+  }).filter((f): f is NonNullable<typeof f> => f !== null);
+
+  const showFileHeaders = files.length > 1;
+
+  return (
+    <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--bg)" }}>
+      {files.map((file, fileIndex) => (
+        <div
+          key={fileIndex}
+          style={{
+            minWidth: 0,
+            borderTop: fileIndex === 0 ? "none" : "1px solid var(--border)",
+            fontFamily: "var(--font-mono)",
+            fontSize: 12,
+            lineHeight: 1.55,
+          }}
+        >
+          {showFileHeaders && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                position: "sticky",
+                top: 0,
+                zIndex: 1,
+                background: "var(--bg-panel)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <SplitDiffHeader title={file.oldPath || t("messageView.diffBefore")} side="left" />
+              <SplitDiffHeader title={file.newPath || t("messageView.diffAfter")} side="right" />
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+            {file.rows.map((row, rowIndex) => {
+              if (row.type === "hunk") {
+                return null;
+              }
+
+              return (
+                <div key={rowIndex} style={{ display: "contents" }}>
+                  <SplitDiffCellView cell={row.left} side="left" />
+                  <SplitDiffCellView cell={row.right} side="right" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {truncatedRows > 0 && (
+        <div style={{ padding: "8px 10px", color: "var(--text-dim)", textAlign: "center", background: "var(--bg-subtle)" }}>
+          ... {truncatedRows} more lines truncated ...
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right" }) {
+  return (
+    <div
+      title={title}
+      style={{
+        padding: "5px 10px",
+        color: "var(--text-dim)",
+        borderRight: side === "left" ? "1px solid var(--border)" : "none",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {title}
+    </div>
+  );
+}
+
+function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" | "right" }) {
+  const bg =
+    cell.type === "added"
+      ? "color-mix(in srgb, var(--status-success) 12%, transparent)"
+      : cell.type === "removed"
+      ? "color-mix(in srgb, var(--status-error) 13%, transparent)"
+      : cell.type === "empty"
+      ? "var(--bg-subtle)"
+      : "transparent";
+  const marker =
+    cell.type === "added" ? "+" : cell.type === "removed" ? "-" : " ";
+  const markerColor =
+    cell.type === "added" ? "var(--status-success)" : cell.type === "removed" ? "var(--status-error)" : "var(--text-dim)";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        minWidth: 0,
+        background: bg,
+        borderRight: side === "left" ? "1px solid var(--border)" : "none",
+      }}
+    >
+      <span
+        style={{
+          width: 42,
+          padding: "0 6px",
+          textAlign: "right",
+          color: "var(--text-dim)",
+          userSelect: "none",
+          background: "var(--bg-panel)",
+          borderRight: "1px solid var(--border)",
+          flexShrink: 0,
+        }}
+      >
+        {cell.lineNo ?? ""}
+      </span>
+      <span
+        style={{
+          width: 18,
+          padding: "0 5px",
+          color: markerColor,
+          userSelect: "none",
+          fontWeight: cell.type === "context" || cell.type === "empty" ? 400 : 700,
+          flexShrink: 0,
+        }}
+      >
+        {marker}
+      </span>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: "0 10px 0 0",
+          color: cell.type === "empty" ? "var(--text-dim)" : "var(--text)",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {cell.text || "\u00a0"}
+      </span>
+    </div>
+  );
+}
+
+function PatchTextView({ text }: { text: string }) {
+  const allLines = text.split(/\r?\n/);
+  const MAX_LINES = 800;
+  const lines = allLines.slice(0, MAX_LINES);
+  const truncatedCount = allLines.length - lines.length;
+
+  return (
+    <div style={{ maxHeight: 520, overflowY: "auto", overflowX: "hidden", fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.55, minWidth: 0 }}>
+      {lines.map((line, i) => {
+        const kind =
+          line.startsWith("@@") ? "hunk" :
+          line.startsWith("+") && !line.startsWith("+++") ? "added" :
+          line.startsWith("-") && !line.startsWith("---") ? "removed" :
+          "context";
+        const bg =
+          kind === "added" ? "color-mix(in srgb, var(--status-success) 12%, transparent)" :
+          kind === "removed" ? "color-mix(in srgb, var(--status-error) 13%, transparent)" :
+          kind === "hunk" ? "color-mix(in srgb, var(--accent) 12%, transparent)" :
+          "transparent";
+        const color =
+          kind === "added" ? "var(--status-success)" :
+          kind === "removed" ? "var(--status-error)" :
+          kind === "hunk" ? "var(--accent)" :
+          "var(--text)";
+
+        return (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              background: bg,
+              borderLeft: kind === "added"
+                ? "3px solid var(--status-success)"
+                : kind === "removed"
+                ? "3px solid var(--status-error)"
+                : kind === "hunk"
+                ? "3px solid var(--accent)"
+                : "3px solid transparent",
+            }}
+          >
+            <span
+              style={{
+                width: 48,
+                padding: "0 8px",
+                color: "var(--text-dim)",
+                background: "var(--bg-panel)",
+                borderRight: "1px solid var(--border)",
+                textAlign: "right",
+                userSelect: "none",
+                flexShrink: 0,
+              }}
+            >
+              {i + 1}
+            </span>
+            <span style={{ padding: "0 10px", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color }}>
+              {line || "\u00a0"}
+            </span>
+          </div>
+        );
+      })}
+      {truncatedCount > 0 && (
+        <div style={{ padding: "8px 10px", color: "var(--text-dim)", textAlign: "center", background: "var(--bg-subtle)" }}>
+          ... {truncatedCount} more lines truncated ...
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PairedResult({ text, isEmpty, isError, onOpenFile, cwd }: {
+  text: string;
+  isEmpty: boolean;
+  isError: boolean;
+  onOpenFile?: (filePath: string) => void;
+  cwd?: string;
+}) {
+  const { t } = useI18n();
+  const MAX_TEXT_LENGTH = 100_000;
+  const isTruncated = text.length > MAX_TEXT_LENGTH;
+  const displayText = isTruncated ? text.slice(0, MAX_TEXT_LENGTH) : text;
+
+  // Paths in tool output become clickable (open in the right panel), matching
+  // the message-text behavior.
+  const rendered = useMemo(() => {
+    if (isEmpty || !onOpenFile || !displayText) return null;
+    const tokens = splitPathTokens(displayText);
+    if (tokens.length === 1 && !tokens[0].isPath) return null;
+    return tokens.map((token, i) => {
+      if (!token.isPath) return token.text;
+      const filePath = resolveLocalFileHref(token.text, cwd);
+      if (!filePath) return token.text;
+      return (
+        <a
+          key={i}
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            onOpenFile(filePath);
+          }}
+          style={{ color: "var(--accent)", textDecoration: "underline", cursor: "pointer" }}
+        >
+          {token.text}
+        </a>
+      );
+    });
+  }, [displayText, isEmpty, onOpenFile, cwd]);
+
+  return (
+    <div className={`tool-call-output${isError ? " tool-call-output-error" : ""}`}>
+      <pre className="tool-call-output-text" data-tool-output="true">
+        {isEmpty ? t("messageView.noOutput") : rendered ?? displayText}
+        {isTruncated && `\n\n... (Output truncated, ${text.length - MAX_TEXT_LENGTH} characters hidden) ...`}
+      </pre>
+    </div>
+  );
+}
+
+
+/**
+ * Compaction marker rendered like the "Interrupted" hidden extension: a
+ * centered pill ("Compaction" + the maintenance method recorded on the
+ * entry, for omp >= 17.4) that expands into the compaction summary below it.
+ */
+function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+  const { t, locale } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const { copied, copy: copyContent } = useCopyFeedback();
+  const summary = getMessageText(message.content);
+  const parsedSummary = useMemo(() => parseCompactionSummary(summary), [summary]);
+  const preview = useMemo(() => {
+    const normalized = parsedSummary.body.replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    return normalized.length > 92 ? `${normalized.slice(0, 92)}…` : normalized;
+  }, [parsedSummary.body]);
+  const time = formatTime(message.timestamp, locale);
+  // omp ≥17.4 compaction entries carry the maintenance method and the real
+  // post-compaction token count; older sessions only have tokensBefore.
+  const details = (message.details ?? null) as { tokensBefore?: unknown; tokensAfter?: unknown; method?: unknown } | null;
+  const tokensBefore = typeof details?.tokensBefore === "number" ? details.tokensBefore : null;
+  const tokensAfter = typeof details?.tokensAfter === "number" ? details.tokensAfter : null;
+  const entryMethod = typeof details?.method === "string" && details.method ? details.method : null;
+  const shownStrategy = entryMethod;
+
+  return (
+    <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}>
+      <div className="hidden-extension-shell" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+          <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? t("messageView.collapse") : t("messageView.expand")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              maxWidth: "78%",
+              padding: "4px 10px",
+              border: "1px dashed color-mix(in srgb, var(--border) 88%, transparent)",
+              borderRadius: 999,
+              background: "color-mix(in srgb, var(--bg-subtle) 92%, var(--bg))",
+              color: "var(--text-dim)",
+              cursor: "pointer",
+              fontSize: "var(--chat-font-ui, 11px)",
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Archive size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.85 }} />
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "var(--chat-font-ui, 11px)", textTransform: "capitalize" }}>
+              {t("messageView.compactionLabel")}
+            </span>
+            {shownStrategy && (
+              <span style={{ padding: "1px 7px", borderRadius: 4, background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "var(--chat-font-small, 11px)", fontFamily: "var(--font-mono)", fontWeight: 600, flexShrink: 0 }}>
+                {shownStrategy}
+              </span>
+            )}
+            {preview ? (
+              <>
+                <span style={{ width: 3, height: 3, borderRadius: 999, background: "var(--text-dim)", opacity: 0.5, flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "var(--chat-font-ui, 11px)" }}>{preview}</span>
+              </>
+            ) : null}
+            <ChevronRight size={11} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: expanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+          </button>
+          <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
+        </div>
+        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: 10, fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
+        {expanded ? (
+          <div
+            style={{
+              marginTop: 6,
+              width: "100%",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              background: "var(--bg)",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "11px 13px 12px" }}>
+              {tokensBefore !== null && tokensAfter !== null && (
+                <div style={{ marginBottom: 6, color: "var(--text-muted)", fontSize: "var(--chat-font-small, 11px)" }}>
+                  {t("messageView.compactionTokenDelta", {
+                    before: formatCompactNumber(tokensBefore, locale),
+                    after: formatCompactNumber(tokensAfter, locale),
+                  })}
+                </div>
+              )}
+              <div style={{ marginBottom: 8, color: "var(--text)", fontSize: 14, lineHeight: 1.5 }}>{t("messageView.compactionDescription")}</div>
+              {parsedSummary.body
+                ? <MarkdownBody className="markdown-compaction-message" cwd={cwd} onOpenFile={onOpenFile}>{parsedSummary.body}</MarkdownBody>
+                : <span style={{ color: "var(--text-dim)", fontSize: 12 }}>{t("messageView.noSummary")}</span>}
+              <CompactionFileMetadata readFiles={parsedSummary.readFiles} modifiedFiles={parsedSummary.modifiedFiles} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 9px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+              {summary ? (
+                <button
+                  onClick={() => copyContent(parsedSummary.body || summary)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "3px 7px",
+                    border: "none",
+                    background: "none",
+                    color: copied ? "var(--accent)" : "var(--text-dim)",
+                    cursor: "pointer",
+                    fontSize: 11,
+                  }}
+                >
+                  {copied ? <Check size={11} strokeWidth={1.8} /> : <Copy size={11} strokeWidth={1.8} />}
+                  {copied ? t("messageView.copied") : t("messageView.copy")}
+                </button>
+              ) : null}
+              <button
+                onClick={() => setExpanded(false)}
+                style={{
+                  marginLeft: "auto",
+                  padding: "3px 7px",
+                  border: "none",
+                  background: "none",
+                  color: "var(--text-dim)",
+                  cursor: "pointer",
+                  fontSize: 11,
+                }}
+              >
+                {t("messageView.collapse")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+function CompactionFileMetadata({ readFiles, modifiedFiles }: { readFiles: string[]; modifiedFiles: string[] }) {
+  const { t } = useI18n();
+  const total = readFiles.length + modifiedFiles.length;
+  if (total === 0) return null;
+
+  const parts = [];
+  if (readFiles.length > 0) parts.push(t("messageView.filesReadCount", { count: readFiles.length }));
+  if (modifiedFiles.length > 0) parts.push(t("messageView.filesModifiedCount", { count: modifiedFiles.length }));
+
+  return (
+    <details className="compaction-file-details">
+      <summary>{t("messageView.fileContext", { parts: parts.join(", ") })}</summary>
+      {modifiedFiles.length > 0 && <CompactionFileList title={t("messageView.modifiedFiles")} files={modifiedFiles} />}
+      {readFiles.length > 0 && <CompactionFileList title={t("messageView.readFiles")} files={readFiles} />}
+    </details>
+  );
+}
+
+function CompactionFileList({ title, files }: { title: string; files: string[] }) {
+  return (
+    <div className="compaction-file-section">
+      <div className="compaction-file-title">{title}</div>
+      <ul className="compaction-file-list">
+        {files.map((file) => (
+          <li key={file}>{file}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function stripHiddenWrappers(text: string): string {
+  let t = text.trim();
+  t = t.replace(/^<!--[\s\S]*?-->\s*/, "").trim();
+  const outer = t.match(/^<([a-zA-Z0-9_-]+)(?:\s[^>]*)?>\s*([\s\S]*?)\s*<\/\1>\s*$/);
+  if (outer) return outer[2].trim();
+  return t;
+}
+
+function friendlyHiddenLabel(customType: string, t: (key: string) => string): string {
+  const map: Record<string, string> = {
+    "mid-run-todo-nudge": "Todo reminder",
+    "todo-error-reminder": "Todo reminder",
+    "resolve-reminder": "Pending preview",
+    "interrupted-thinking": "Interrupted",
+    "autoresearch-resume": "Resume hint",
+    "plan-mode-context": "Plan context",
+    "plan-mode-reference": "Plan reference",
+    "goal-mode-context": "Goal context",
+    "goal-continuation": "Goal continuation",
+    "goal-budget-limit": "Budget limit",
+    "thinking-loop-redirect": "Loop guard",
+    "image-attachment-description": "Image note",
+    "extension_debug": "Extension",
+    "lsp-late-diagnostic": "Diagnostics",
+  };
+  if (map[customType]) return map[customType];
+  if (!customType) return t("messageView.extensionType");
+  return customType.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+  const { t, locale } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const { copied, copy: copyContent } = useCopyFeedback();
+  const rawText = getMessageText(message.content);
+  const images = getMessageImages(message.content);
+  const cleanText = useMemo(() => stripHiddenWrappers(rawText), [rawText]);
+  const preview = useMemo(() => {
+    const normalized = cleanText.replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    return normalized.length > 92 ? `${normalized.slice(0, 92)}…` : normalized;
+  }, [cleanText]);
+  const hasDetails = message.details !== undefined;
+  const detailsText = hasDetails ? safeJson(message.details) : "";
+  const label = friendlyHiddenLabel(message.customType, t);
+  const time = formatTime(message.timestamp, locale);
+
+  return (
+    <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}>
+      <div className="hidden-extension-shell" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+          <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? t("messageView.collapse") : t("messageView.expand")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              maxWidth: "78%",
+              padding: "4px 10px",
+              border: "1px dashed color-mix(in srgb, var(--border) 88%, transparent)",
+              borderRadius: 999,
+              background: "color-mix(in srgb, var(--bg-subtle) 92%, var(--bg))",
+              color: "var(--text-dim)",
+              cursor: "pointer",
+              fontSize: "var(--chat-font-ui, 11px)",
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <EyeOff size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.85 }} />
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "var(--chat-font-ui, 11px)" }}>
+              {label}
+            </span>
+            {preview ? (
+              <>
+                <span style={{ width: 3, height: 3, borderRadius: 999, background: "var(--text-dim)", opacity: 0.5, flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "var(--chat-font-ui, 11px)" }}>{preview}</span>
+              </>
+            ) : null}
+            <ChevronRight size={11} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: expanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+          </button>
+          <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
+        </div>
+        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: 10, fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
+        {expanded ? (
+          <div
+            style={{
+              marginTop: 6,
+              width: "100%",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              overflow: "hidden",
+              background: "var(--bg-subtle)",
+            }}
+          >
+            <div style={{ padding: "8px 10px" }}>
+              {images.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: cleanText ? 8 : 0 }}>
+                  {images.map((img, i) => {
+                    const src = imageSource(img);
+                    if (!src) return null;
+                    return (
+                      <ClickableImage
+                        key={i}
+                        src={src}
+                        alt=""
+                        style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              {cleanText ? (
+                <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>
+                  {cleanText}
+                </MarkdownBody>
+              ) : (
+                <span style={{ color: "var(--text-dim)", fontSize: 12 }}>{t("messageView.noMessage")}</span>
+              )}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 9px",
+                borderTop: "1px solid var(--border)",
+                background: "var(--bg-panel)",
+              }}
+            >
+              {(cleanText || detailsText) ? (
+                <button
+                  onClick={() => copyContent(cleanText || detailsText)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "3px 7px",
+                    border: "none",
+                    background: "none",
+                    color: copied ? "var(--accent)" : "var(--text-dim)",
+                    cursor: "pointer",
+                    fontSize: 11,
+                  }}
+                >
+                  {copied ? <Check size={11} strokeWidth={1.8} /> : <Copy size={11} strokeWidth={1.8} />}
+                  {copied ? t("messageView.copied") : t("messageView.copy")}
+                </button>
+              ) : null}
+              {hasDetails ? (
+                <button
+                  onClick={() => setDetailsExpanded((v) => !v)}
+                  style={{
+                    marginLeft: "auto",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "3px 7px",
+                    border: "none",
+                    background: "none",
+                    color: "var(--text-dim)",
+                    cursor: "pointer",
+                    fontSize: 11,
+                  }}
+                >
+                  {detailsExpanded ? t("messageView.hideDetails") : t("messageView.showDetails")}
+                  <ChevronDown size={11} strokeWidth={1.8} style={{ transform: detailsExpanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setExpanded(false)}
+                  style={{
+                    marginLeft: "auto",
+                    padding: "3px 7px",
+                    border: "none",
+                    background: "none",
+                    color: "var(--text-dim)",
+                    cursor: "pointer",
+                    fontSize: 11,
+                  }}
+                >
+                  {t("messageView.collapse")}
+                </button>
+              )}
+            </div>
+            {hasDetails && detailsExpanded ? (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: "9px 10px",
+                  borderTop: "1px solid var(--border)",
+                  backgroundColor: "var(--bg)",
+                  color: "var(--text-muted)",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  maxHeight: 360,
+                  overflow: "auto",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                {detailsText}
+              </pre>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+  const { t, locale } = useI18n();
+  const [contentExpanded, setContentExpanded] = useState(true);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const { copied, copy: copyContent } = useCopyFeedback();
+  const text = getMessageText(message.content);
+  const images = getMessageImages(message.content);
+  const hasDetails = message.details !== undefined;
+  const detailsText = hasDetails ? safeJson(message.details) : "";
+  const isIrc = IRC_CUSTOM_TYPES.has(message.customType);
+  const ircEnvelope = isIrc ? parseIrcEnvelope(text) : null;
+  const displayText = ircEnvelope ? ircEnvelope.body : text;
+  const title = isIrc
+    ? (ircEnvelope?.sender ?? formatCustomType(message.customType))
+    : message.customType === "advisor"
+      ? t("messageView.advisorLabel")
+      : formatCustomType(message.customType);
+  const time = formatTime(message.timestamp, locale);
+
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          overflow: "hidden",
+          background: "var(--bg)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "7px 10px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--bg-panel)",
+            color: "var(--text-muted)",
+            fontSize: 12,
+          }}
+        >
+          <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 650 }}>
+            {isIrc && message.customType === "irc:incoming" ? `← ${title}` : title}
+          </span>
+          {time && <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: 10 }}>{time}</span>}
+        </div>
+
+        {contentExpanded ? (
+          <div style={{ padding: "6px 9px" }}>
+            {images.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: displayText ? 8 : 0 }}>
+                {images.map((img, i) => {
+                  const src = imageSource(img);
+                  if (!src) return null;
+                  return (
+                    <ClickableImage
+                      key={i}
+                      src={src}
+                      alt=""
+                      style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            {displayText ? <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{displayText}</MarkdownBody> : <span style={{ color: "var(--text-dim)", fontSize: 12 }}>{t("messageView.noMessage")}</span>}
+          </div>
+        ) : (
+          <button
+            onClick={() => setContentExpanded(true)}
+            style={{
+              display: "block",
+              width: "100%",
+              padding: "8px 10px",
+              border: "none",
+              background: "transparent",
+              color: "var(--text-dim)",
+              cursor: "pointer",
+              fontSize: 12,
+              textAlign: "left",
+            }}
+          >
+            {displayText ? previewText(displayText) : t("messageView.showExtensionMessage")}
+          </button>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "4px 9px",
+            borderTop: "1px solid var(--border)",
+            background: "var(--bg-subtle)",
+          }}
+        >
+          {text || detailsText ? (
+            <button
+              onClick={() => copyContent(displayText || detailsText)}
+              style={{
+                padding: "3px 7px",
+                border: "none",
+                background: "none",
+                color: copied ? "var(--accent)" : "var(--text-dim)",
+                cursor: "pointer",
+                fontSize: 11,
+              }}
+            >
+              {copied ? t("messageView.copied") : t("messageView.copy")}
+            </button>
+          ) : null}
+          {hasDetails && (
+            <button
+              onClick={() => {
+                setDetailsExpanded((v) => !v);
+              }}
+              style={{
+                marginLeft: "auto",
+                padding: "3px 7px",
+                border: "none",
+                background: "none",
+                color: "var(--text-dim)",
+                cursor: "pointer",
+                fontSize: 11,
+              }}
+            >
+              {detailsExpanded ? t("messageView.hideDetails") : t("messageView.showDetails")}
+            </button>
+          )}
+        </div>
+
+        {hasDetails && detailsExpanded && (
+          <pre
+            style={{
+              margin: 0,
+              padding: "9px 10px",
+              borderTop: "1px solid var(--border)",
+              backgroundColor: "var(--bg)",
+              color: "var(--text-muted)",
+              fontSize: 12,
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              maxHeight: 360,
+              overflow: "auto",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {detailsText}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getMessageText(content: CustomMessage["content"] | UserMessage["content"]): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((b): b is TextContent => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+}
+
+function getMessageImages(content: CustomMessage["content"] | UserMessage["content"]): ImageContent[] {
+  if (typeof content === "string") return [];
+  return content.filter((b): b is ImageContent => b.type === "image");
+}
+
+function imageSource(img: ImageContent): string {
+  const flat = img as unknown as { data?: string; mimeType?: string };
+  if (img.source) {
+    return img.source.type === "base64"
+      ? `data:${img.source.media_type};base64,${img.source.data}`
+      : img.source.url ?? "";
+  }
+  return flat.data ? `data:${flat.mimeType};base64,${flat.data}` : "";
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatCustomType(type: string): string {
+  return type || translate("messageView.extensionType");
+}
+
+// Peer IRC messages are persisted as custom_message entries whose content is
+// an envelope: "<irc>\nIncoming IRC message from agent `Name`:\n<body>". The
+// card title must show the SENDER, not the raw customType.
+const IRC_CUSTOM_TYPES = new Set(["irc:incoming", "irc:autoreply", "irc:relay"]);
+
+function parseIrcEnvelope(content: string): { sender: string | null; body: string } {
+  const lines = content.split("\n");
+  let sender: string | null = null;
+  let bodyStart = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = lines[i].match(/agent\s*`([^`]+)`/);
+    if (match) {
+      sender = match[1];
+      bodyStart = i + 1;
+      break;
+    }
+  }
+  return { sender, body: lines.slice(bodyStart).join("\n").trim() };
+}
+
+function previewText(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return translate("messageView.showExtensionMessage");
+  return normalized.length > 140 ? `${normalized.slice(0, 140)}...` : normalized;
+}
+
+
+function getToolPreview(block: ToolCallContent): string {
+  const input = block.input;
+  if (!input || typeof input !== "object") return "";
+  const keys = Object.keys(input);
+  if (keys.length === 0) return "";
+
+  // Common tool input patterns
+  if ("command" in input) return String(input.command).slice(0, 120);
+  if ("path" in input) return String(input.path).slice(0, 120);
+  if ("file_path" in input) return String(input.file_path).slice(0, 120);
+  if ("pattern" in input) return String(input.pattern).slice(0, 120);
+  if ("query" in input) return String(input.query).slice(0, 120);
+
+  const first = input[keys[0]];
+  return String(first).slice(0, 120);
+}
+function formatToolCommand(block: ToolCallContent): string {
+  const input = block.input;
+  if (input && typeof input.command === "string") return input.command;
+  if (input && typeof input.path === "string") return `${block.toolName} ${input.path}`;
+  if (input && typeof input.file_path === "string") return `${block.toolName} ${input.file_path}`;
+  if (input && typeof input.query === "string") return `${block.toolName} ${input.query}`;
+  try {
+    return `${block.toolName} ${JSON.stringify(input)}`;
+  } catch {
+    return block.toolName;
+  }
+}
+
+function formatToolOutput(text: string, toolName: string): string {
+  if (!isReadToolName(toolName)) return text;
+  return text
+    .split("\n")
+    .map((line) => line.replace(/^\s*\d+:\s?/, ""))
+    .join("\n");
+}
+
+function isReadToolName(toolName: string): boolean {
+  const name = toolName.toLowerCase();
+  return name === "read" || name.endsWith(".read") || name.endsWith("_read");
+}
+
+function getToolResultMeta(result: ToolResultMessage | undefined): string | null {
+  if (!result || !isRecord(result.details)) return null;
+  const details = result.details;
+  const usage = isRecord(details.usage) ? details.usage : details;
+  const readNumber = (...keys: string[]): number | undefined => {
+    for (const key of keys) {
+      const value = usage[key];
+      if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+    }
+    return undefined;
+  };
+  const input = readNumber("input", "inputTokens", "input_tokens");
+  const output = readNumber("output", "outputTokens", "output_tokens");
+  const cacheRead = readNumber("cacheRead", "cache_read", "cacheReadTokens");
+  const cacheWrite = readNumber("cacheWrite", "cache_write", "cacheWriteTokens");
+  const parts = [
+    input ? `in ${formatCompactNumber(input)}` : null,
+    output ? `out ${formatCompactNumber(output)}` : null,
+    cacheRead ? `cache R ${formatCompactNumber(cacheRead)}` : null,
+    cacheWrite ? `cache W ${formatCompactNumber(cacheWrite)}` : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function BashExecutionView({ message, sessionId }: { message: BashExecutionMessage; sessionId?: string }) {
+  const { t } = useI18n();
+  const [fullOutput, setFullOutput] = useState<{ phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; output: string } | null>(null);
+  // Bumped on every message change; an in-flight fetch from the previous
+  // message must not write into the reused component instance.
+  const fullOutputGenRef = useRef(0);
+  // Branch navigation can swap a different bashExecution message into the same
+  // index; the component instance is reused, so drop any loaded full output
+  // (and its "ready" re-load guard) whenever the message identity changes.
+  useEffect(() => {
+    fullOutputGenRef.current += 1;
+    setFullOutput(null);
+  }, [message.command, message.fullOutputPath, message.output, message.timestamp]);
+  const isPending = !message.output && message.exitCode === undefined && !message.cancelled;
+  const isError = message.cancelled || (message.exitCode !== undefined && message.exitCode !== 0);
+
+  // Reuse the existing ToolCallBlock so user-run bash looks identical to an
+  // agent-run bash tool call: same header, collapse behavior, result pane.
+  // Synthesize an equivalent ToolCallContent + ToolResultMessage pair.
+  const toolName = message.excludeFromContext ? "bash (local)" : "bash";
+  const block: ToolCallContent = {
+    type: "toolCall",
+    toolCallId: `bash-${message.timestamp ?? ""}`,
+    toolName,
+    input: { command: message.command },
+  };
+  const result: ToolResultMessage | undefined = isPending
+    ? undefined
+    : {
+        role: "toolResult",
+        toolCallId: block.toolCallId,
+        toolName,
+        content: message.output ? [{ type: "text", text: message.output }] : [],
+        isError,
+        timestamp: message.timestamp,
+      };
+
+  // Large executions record their full output to a temp file (fullOutputPath);
+  // fetch it through the guarded bash-output route instead of re-reading the
+  // truncated session payload.
+  const loadFullOutput = useCallback(async () => {
+    if (!message.fullOutputPath || !sessionId || fullOutput?.phase === "ready") return;
+    const gen = fullOutputGenRef.current;
+    setFullOutput({ phase: "loading" });
+    try {
+      const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}`);
+      const data = await res.json() as { success?: boolean; data?: { output?: string }; error?: string };
+      if (fullOutputGenRef.current !== gen) return;
+      if (!res.ok || !data.success) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setFullOutput({ phase: "ready", output: data.data?.output ?? "" });
+    } catch (e) {
+      if (fullOutputGenRef.current !== gen) return;
+      setFullOutput({ phase: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }, [message.fullOutputPath, sessionId, fullOutput?.phase]);
+
+  const downloadUrl = message.fullOutputPath && sessionId
+    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}&download=1`
+    : null;
+
+  return (
+    <div style={{ margin: "6px 0" }}>
+      <ToolCallBlock block={block} result={result} />
+      {downloadUrl && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
+          {fullOutput?.phase !== "ready" && (
+            <button
+              type="button"
+              disabled={fullOutput?.phase === "loading"}
+              onClick={() => void loadFullOutput()}
+              style={{ padding: 0, border: "none", background: "none", color: "var(--accent)", cursor: fullOutput?.phase === "loading" ? "default" : "pointer", fontSize: 12, opacity: fullOutput?.phase === "loading" ? 0.6 : 1, fontFamily: "inherit" }}
+            >
+              {fullOutput?.phase === "loading" ? t("messageView.fullOutputLoading") : t("messageView.viewFullOutput")}
+            </button>
+          )}
+          <a href={downloadUrl} download style={{ color: "var(--text-dim)", fontSize: 12, textDecoration: "none" }}>
+            {t("messageView.fullOutputDownload")}
+          </a>
+        </div>
+      )}
+      {fullOutput?.phase === "ready" && (
+        <div style={{ maxHeight: 420, overflow: "auto", marginTop: 6, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)" }}>
+          <pre style={{ margin: 0, padding: "8px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>
+            {fullOutput.output}
+          </pre>
+        </div>
+      )}
+      {fullOutput?.phase === "error" && (
+        <div style={{ marginTop: 6, fontSize: 12, color: "var(--status-error)" }}>{fullOutput.message}</div>
+      )}
+    </div>
+  );
+}

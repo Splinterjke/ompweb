@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "agentmcp": {
+      "type": "stdio",
+      "command": "python3",
+      "args": [
+        "vendor/agent-mcp/mcp_server.py"
+      ],
+      "enabled": false
+    }
+  }
+}

@@ -1,0 +1,387 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BarChart3, ChevronRight, Eye, EyeOff, Gauge, LoaderCircle, RefreshCw, Settings2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { formatCompactNumber } from "@/lib/format";
+import type { ProviderUsageReport, ProviderUsageWindow } from "@/lib/provider-usage-types";
+import { prewarmStatsData } from "./usage/UsageDashboardModal";
+import { SeparatorHandle } from "./SeparatorHandle";
+import { SectionChevron } from "./SectionChevron";
+import type { RefObject } from "react";
+const USAGE_VISIBLE_ACCOUNTS_KEY = "omp-web:usage-visible-accounts";
+
+
+type WindowKey = "fiveHour" | "sevenDay" | "monthly";
+const WINDOW_KEYS: Array<{ key: WindowKey; label: string }> = [
+  { key: "fiveHour", label: "5h" },
+  { key: "sevenDay", label: "7d" },
+  { key: "monthly", label: "mo" },
+];
+
+interface UsageSummary {
+  today?: number;
+  week?: number;
+  month?: number;
+  total?: number;
+}
+
+function windowText(window: ProviderUsageWindow | undefined, prefix: string): string | null {
+  if (!window) return null;
+  const percent = Math.round(window.percent);
+  const reset = window.resetMinutes !== undefined
+    ? ` (${window.resetMinutes}m)`
+    : window.resetHours !== undefined
+      ? ` (${window.resetHours}h)`
+      : "";
+  return `${prefix} ${percent}%${reset}`;
+}
+
+/**
+ * Sidebar usage panel: total token usage buckets (today/week/month/total)
+ * aggregated from local session files, plus per-account rate-limit rows
+ * (5h/7d/monthly) from omp usage. Lives in the sidebar footer.
+ */
+export function UsageSidebarPanel({
+  open,
+  onOpenChange,
+  height,
+  resize,
+  headerRef,
+  anyDragging,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  height: number;
+  resize: {
+    dragging: boolean;
+    start: (e: { clientY: number; preventDefault: () => void }) => void;
+    handleKeyDown: (e: { key: string; preventDefault: () => void }) => void;
+    reset: () => void;
+  };
+  headerRef: RefObject<HTMLDivElement | null>;
+  anyDragging: boolean;
+}) {
+  const { t, locale } = useI18n();
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+  const [reports, setReports] = useState<ProviderUsageReport[] | null>(null);
+  const [error, setError] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [manageAccounts, setManageAccounts] = useState(false);
+  const [hiddenAccounts, setHiddenAccounts] = useState<Set<string>>(new Set());
+  const loadedRef = useRef(false);
+
+  const load = useCallback((isBackground = false) => {
+    if (!isBackground) {
+      setError(false);
+      setRefreshing(true);
+    }
+    const startedAt = Date.now();
+    void Promise.all([
+      fetch("/api/usage-summary").then((res) => (res.ok ? res.json() as Promise<UsageSummary> : null)),
+      fetch("/api/provider-usage").then((res) => (res.ok ? res.json() as Promise<{ reports: ProviderUsageReport[] }> : null)),
+    ])
+      .then(([sum, usage]) => {
+        if (sum) setSummary(sum);
+        if (usage?.reports) setReports(usage.reports);
+        if (sum || usage) setError(false);
+        setUpdatedAt(Date.now());
+      })
+      .catch(() => {
+        if (!isBackground) setError(true);
+      })
+      .finally(() => {
+        if (!isBackground) {
+          const remaining = 350 - (Date.now() - startedAt);
+          window.setTimeout(() => setRefreshing(false), Math.max(0, remaining));
+        }
+      });
+  }, []);
+
+  // Pre-warm stats on mount after app startup finishes
+  useEffect(() => {
+    const initTimer = window.setTimeout(() => {
+      prewarmStatsData();
+    }, 350);
+    return () => window.clearTimeout(initTimer);
+  }, []);
+
+  // Poll usage when sidebar panel is expanded
+  useEffect(() => {
+    if (!open) return;
+    void load(true);
+
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      void load(true);
+    }, 2000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden && open) {
+        void load(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [open, load]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(USAGE_VISIBLE_ACCOUNTS_KEY) || "[]") as unknown;
+      if (Array.isArray(saved)) setHiddenAccounts(new Set(saved.filter((value): value is string => typeof value === "string")));
+    } catch { /* ignore malformed/private storage */ }
+  }, []);
+
+  const accountKey = useCallback((report: ProviderUsageReport, index: number) => `${report.provider}:${report.accountLabel ?? report.accountIndex ?? index + 1}`, []);
+  const toggleAccount = useCallback((key: string) => {
+    setHiddenAccounts((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { window.localStorage.setItem(USAGE_VISIBLE_ACCOUNTS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Keep the body mounted briefly after close so the exit animation can play.
+  useEffect(() => {
+    if (open) {
+      setClosing(false);
+      return;
+    }
+    if (!loadedRef.current) return;
+    setClosing(true);
+    const timer = window.setTimeout(() => setClosing(false), 180);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+
+  const limited = (reports ?? []).filter((r) => !r.noLimits);
+  const hasAny = limited.length > 0;
+
+  return (
+    <div style={{ flexShrink: 0 }}>
+      {open && (
+        <SeparatorHandle
+          label={t("sidebar.usage")}
+          ariaLabel={t("sessionSidebar.resizeSection", { name: t("sidebar.usage") })}
+          dragging={resize.dragging}
+          onMouseDown={resize.start}
+          onDoubleClick={resize.reset}
+          onKeyDown={resize.handleKeyDown}
+        />
+      )}
+      <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, height: open || closing ? height : undefined, overflow: "hidden", transition: anyDragging ? "none" : "height var(--dur-med) var(--ease-out-warm)" }}>
+        <div ref={headerRef} className="sidebar-section-header" style={{ display: "flex", alignItems: "center", flexShrink: 0, borderTop: "1px solid var(--border)", paddingRight: 6, transition: "background var(--dur-fast) var(--ease-out-warm)" }}>
+        <button
+          type="button"
+          className="sidebar-section-title"
+          onClick={() => onOpenChange(!open)}
+          aria-expanded={open}
+          title={t("sidebar.usage")}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            padding: "0 4px 0 12px",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+          }}
+        >
+          <Gauge size={14} strokeWidth={2} aria-hidden="true" style={{ color: "var(--accent)", flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("sidebar.usage")}</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+          }}
+          aria-label={t("sidebar.usageAnalytics")}
+          title={t("sidebar.usageAnalytics")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 26,
+            height: 26,
+            marginRight: 6,
+            padding: 0,
+            flexShrink: 0,
+            lineHeight: 0,
+            background: "none",
+            border: "none",
+            borderRadius: "var(--radius-control)",
+            color: "var(--text-dim)",
+            cursor: "pointer",
+            transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
+          }}
+          onMouseEnter={(e) => { prewarmStatsData(); e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.background = "none"; }}
+        >
+          <BarChart3 size={12} aria-hidden="true" />
+        </button>
+        <SectionChevron open={open} />
+      </div>
+
+      {(open || closing) && (
+        <div
+          className={open ? "animate-slide-down" : "animate-slide-down-out"}
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 10 }}
+        >
+          {error && (
+            <span style={{ fontSize: 11, color: "var(--status-error)" }}>{t("sidebar.usageEmpty")}</span>
+          )}
+          {!error && !summary && (
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageLoading")}</span>
+          )}
+          {summary && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+              {([
+                ["usageToday", summary.today ?? 0],
+                ["usageWeek", summary.week ?? 0],
+                ["usageMonth", summary.month ?? 0],
+                ["usageTotal", summary.total ?? 0],
+              ] as Array<[string, number]>).map(([key, value]) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2, padding: "6px 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
+                  <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{t(`sidebar.${key}`)}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{formatCompactNumber(value, locale)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>{t("sidebar.usageLimits")}</div>
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+              }}
+              onMouseEnter={() => prewarmStatsData()}
+              aria-label={t("sidebar.usageAnalytics")}
+              title={t("sidebar.usageAnalytics")}
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: 22,
+                height: 22,
+                padding: 0,
+                border: "1px solid var(--border)",
+                borderRadius: 5,
+                background: "var(--bg-panel)",
+                color: "var(--text-dim)",
+                cursor: "pointer",
+              }}
+            >
+              <BarChart3 size={12} aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => setManageAccounts((value) => !value)} aria-expanded={manageAccounts} aria-label={t("sidebar.usageManageAccounts")} title={t("sidebar.usageManageAccounts")} style={{ display: "grid", placeItems: "center", width: 22, height: 22, padding: 0, border: "1px solid var(--border)", borderRadius: 5, background: manageAccounts ? "var(--bg-selected)" : "var(--bg-panel)", color: manageAccounts ? "var(--accent)" : "var(--text-dim)", cursor: "pointer" }}><Settings2 size={12} aria-hidden="true" /></button>
+          </div>
+          {manageAccounts && (reports ?? []).length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "6px 7px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-subtle)" }}>
+              <div style={{ fontSize: 10, color: "var(--text-dim)", lineHeight: 1.4 }}>{t("sidebar.usageManageHint")}</div>
+              {(reports ?? []).map((report, index) => {
+                const key = accountKey(report, index);
+                const hidden = hiddenAccounts.has(key);
+                return <button key={`manage-${key}`} type="button" onClick={() => toggleAccount(key)} aria-pressed={!hidden} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 24, padding: "2px 3px", border: 0, background: "transparent", color: hidden ? "var(--text-dim)" : "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 10.5, opacity: hidden ? 0.65 : 1 }}>
+                  {hidden ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{report.provider} · {report.accountLabel ?? t("appShell.account", { number: report.accountIndex ?? index + 1 })}</span>
+                </button>;
+              })}
+            </div>
+          )}
+          {(reports ?? []).length === 0 && !error && (
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
+          )}
+          {(reports ?? []).map((report, index) => ({ report, index, key: accountKey(report, index) })).filter(({ key }) => !hiddenAccounts.has(key)).map(({ report, index, key }) => (
+            <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                <span style={{ fontWeight: 500, color: "var(--text)" }}>{report.provider}</span>
+                {report.accountLabel ? (
+                  <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{report.accountLabel}</span>
+                ) : (
+                  <span style={{ color: "var(--text-dim)" }}>{t("appShell.account", { number: report.accountIndex ?? index + 1 })}</span>
+                )}
+                {report.plan && <span style={{ color: "var(--text-dim)" }}>{report.plan}</span>}
+              </div>
+              {report.noLimits ? (
+                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+                  {WINDOW_KEYS.map(({ key, label: prefix }) => {
+                    const window = report[key] as ProviderUsageWindow | undefined;
+                    const text = windowText(window, prefix);
+                    if (!text || !window) return null;
+                    const percent = Math.round(window.percent);
+                    const color = percent >= 80 ? "var(--status-error)" : percent >= 50 ? "var(--status-warning, #c98a1b)" : undefined;
+                    return <span key={key} style={color ? { color } : undefined}>{text}</span>;
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+          {(reports ?? []).length > 0 && (reports ?? []).every((report, index) => hiddenAccounts.has(accountKey(report, index))) && (
+            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageAllHidden")}</span>
+          )}
+          {hasAny && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => load(false)}
+                  disabled={refreshing}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "none", background: "none", color: "var(--text-dim)", cursor: refreshing ? "default" : "pointer", fontSize: 11, padding: 0 }}
+                >
+                  {refreshing ? <LoaderCircle size={12} strokeWidth={2} className="icon-spin" aria-hidden="true" /> : <RefreshCw size={12} strokeWidth={2} aria-hidden="true" />}
+                  {refreshing ? t("sidebar.usageUpdating") : t("sidebar.usageRefresh")}
+                </button>
+                {updatedAt && (<span style={{ fontSize: 10, color: "var(--text-dim)" }}>{t("sidebar.usageUpdated", { time: new Date(updatedAt).toLocaleTimeString(locale) })}</span>)}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+                }}
+                onMouseEnter={() => prewarmStatsData()}
+                aria-label={t("sidebar.usageAnalytics")}
+                title={t("sidebar.usageAnalytics")}
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  width: 22,
+                  height: 22,
+                  padding: 0,
+                  borderRadius: 5,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-panel)",
+                  color: "var(--text-dim)",
+                  cursor: "pointer",
+                }}
+              >
+                <BarChart3 size={12} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}
+

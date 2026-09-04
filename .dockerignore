@@ -1,0 +1,6 @@
+node_modules
+.next
+crates/target
+.git
+vendor/ompweb-host
+*.tsbuildinfo

@@ -1,0 +1,99 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+coverage/
+
+# next.js
+/.next/
+/.next-dev/
+/out/
+/build
+/dist
+.turbo/
+.cache/
+
+# rendered / generated artifacts (mockups, screenshots, images)
+/output/
+/mockups/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+.logs/
+*.log
+/.next-dev.log
+/.next-dev-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# editor / IDE
+.idea/
+*.swp
+*.swo
+*~
+.factory.claude/worktrees/
+
+# editor/agent tooling
+.claude/
+.vscode/
+.pi/
+
+# ephemeral / temp dirs (auto-generated, not tracked)
+.tmp/
+tmp/
+tmp-agents/
+tmp-agents-test/
+.agent-teams/
+.freebuff/
+.jspace/
+
+# Claude Code UX artifacts
+.ux/
+
+# windows
+Thumbs.db
+Desktop.ini
+
+# local tooling cruft
+/.commandcode/
+/patch-paths.mjs
+dist-desktop/
+
+# 5.0 baseline generated fixtures (node scripts/gen-session-fixtures.mjs)
+.baseline-fixtures/
+
+# security scanner workspace (never commit)
+.mimosa/
+
+# rust build artifacts
+crates/target/
+# staged host binary for desktop packaging (scripts/stage-host.mjs)
+build-resources/
+# staged host binary for the npm package (scripts/stage-host.mjs --vendor);
+# the publish workflow stages it per-platform before packing
+vendor/ompweb-host/

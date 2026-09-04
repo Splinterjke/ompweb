@@ -1,0 +1,47 @@
+services:
+  omp:
+    container_name: omp-docker
+    build: .
+    volumes:
+      - pip-cache:/root/.cache/pip
+      - omp-bin:/root/.local/bin
+      - cargo-cache:/usr/local/cargo
+      - rustup-cache:/usr/local/rustup
+      - bun-cache:/root/.bun
+      - chrome-agent-bin:/root/.chrome-agent
+      - npm-cache:/root/.npm
+      - ./:/work/ompweb
+      - type: bind
+        source: c:/users/dev/.omp # optionaly bind your existing .omp store into container from local `~/.omp` (Linux) or `c:/users/{user}/.omp`
+        target: /root/.omp
+        bind:
+          create_host_path: false
+    environment:
+      - TERM
+      - LANG
+      - LC_ALL
+      - LLAMA_CPP_BASE_URL=http://127.0.0.1:8080
+      - OMP_WEB_PASSWORD=asdf1234
+      # Hosts the LAN browser is allowed to reach ompweb on the LAN.
+      # REQUIRED for phone pairing via the QR: after switching to a LAN IP,
+      # the Host check (isApiRequestHostAllowed) rejects non-loopback hosts
+      # unless they are listed here. Set to this machine's LAN IP (or a
+      # domain), e.g. "192.168.1.2" or "omp.example.com". Multiple values:
+      # comma-separated, e.g. "192.168.1.2,omp.example.com".
+      - OMP_WEB_ALLOWED_HOSTS=
+    stdin_open: true
+    tty: true
+    ports:
+      - "6767:6767"
+      - "30177:30177"
+      - "30178:30178"
+      - "30179:30179"
+
+volumes:
+  pip-cache:
+  omp-bin:
+  cargo-cache:
+  rustup-cache:
+  bun-cache:
+  chrome-agent-bin:
+  npm-cache:

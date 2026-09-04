@@ -1,0 +1,201 @@
+{
+  "name": "@Splinterjke/ompweb",
+  "version": "5.1.9",
+  "description": "Web UI for the oh-my-pi (omp) coding agent",
+  "homepage": "https://github.com/Splinterjke/ompweb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Splinterjke/ompweb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Splinterjke/ompweb/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "ompweb": "bin/omp-web.js",
+    "ompweb-desktop": "bin/omp-web-desktop.js"
+  },
+  "files": [
+    "bin",
+    ".next",
+    "!.next/cache",
+    "!.next/dev",
+    "!.next/standalone",
+    "!.next/diagnostics",
+    "!.next/types",
+    "!.next/trace",
+    "!.next/trace-build",
+    "!.next/**/*.map",
+    "public",
+    "next.config.ts",
+    "package.json",
+    "templates",
+    "vendor/ompweb-host"
+  ],
+  "scripts": {
+    "dev": "node --require ./bin/request-peer-preload.js ./node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 30178",
+    "dev:lan": "node --require ./bin/request-peer-preload.js ./node_modules/next/dist/bin/next dev -H 0.0.0.0 -p 30178",
+    "build": "node scripts/clean-dev-types.mjs && next build --webpack && node scripts/postbuild-static.mjs",
+    "start": "node --require ./bin/request-peer-preload.js ./node_modules/next/dist/bin/next start -H 127.0.0.1 -p 30177",
+    "start:lan": "node --require ./bin/request-peer-preload.js ./node_modules/next/dist/bin/next start -H 0.0.0.0 -p 30177",
+    "test": "node scripts/audit-client-api.mjs --check && node --experimental-strip-types --test lib/*.test.mjs lib/omp/*.test.mjs lib/contracts/*.test.mjs components/*.test.mjs components/ui/*.test.mjs components/agents/*.test.mjs components/terminal/*.test.mjs components/panels/*.test.mjs hooks/*.test.mjs bin/*.test.mjs desktop/*.test.mjs",
+    "bench:session": "node scripts/perf-session-bench.mjs",
+    "host:build": "node scripts/build-host.mjs",
+    "host:stage": "node scripts/stage-host.mjs",
+    "host:stage:vendor": "node scripts/stage-host.mjs --vendor",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "prepack": "node scripts/verify-host-package.mjs && npm run build",
+    "release:check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "desktop:start": "electron .",
+    "desktop:build": "npm run build && npm run host:build && npm run host:stage && electron-builder --mac",
+    "desktop:build:win": "npm run build && npm run host:build && npm run host:stage && electron-builder --win",
+    "desktop:build:all": "npm run build && npm run host:build && npm run host:stage && electron-builder -mwl"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "cmdk": "^1.1.1",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^1.27.0",
+    "next": "16.3.0",
+    "node-pty": "^1.2.0-beta.15",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-syntax-highlighter": "^16.1.1",
+    "undici": "8.10.0",
+    "ws": "^8.21.3",
+    "yaml": "^2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^25",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/ws": "^8.18.1",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "jiti": "^2.7.0",
+    "katex": "^0.16.47",
+    "mammoth": "^1.12.0",
+    "mermaid": "^11.14.0",
+    "postcss": "^8",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5"
+  },
+  "main": "desktop/main.js",
+  "build": {
+    "appId": "io.github.Splinterjke.ompweb",
+    "productName": "OmpWeb",
+    "files": [
+      "desktop/**",
+      "bin/**",
+      "next.config.ts",
+      "package.json",
+      "public/**"
+    ],
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "public/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "OmpWeb",
+      "artifactName": "OmpWeb-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "executableName": "ompweb"
+    },
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": [
+          "**/*",
+          "!**/node_modules/**",
+          "!**/dist-desktop/**",
+          "!**/win-arm64-unpacked/**"
+        ]
+      },
+      {
+        "from": ".next/standalone/.next",
+        "to": "standalone/.next"
+      },
+      {
+        "from": ".next/standalone/.omp",
+        "to": "standalone/.omp"
+      },
+      {
+        "from": ".next/standalone/crates",
+        "to": "standalone/crates"
+      },
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "standalone/node_modules"
+      },
+      {
+        "from": ".next/static",
+        "to": "standalone/.next/static"
+      },
+      {
+        "from": "public",
+        "to": "standalone/public"
+      },
+      {
+        "from": "templates/desktop/splash.mp4",
+        "to": "splash.mp4"
+      },
+      {
+        "from": "build-resources/host",
+        "to": "bin"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Splinterjke",
+        "repo": "ompweb",
+        "private": false
+      }
+    ],
+    "npmRebuild": false
+  },
+  "author": "Splinterjke"
+}

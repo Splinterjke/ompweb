@@ -1,0 +1,415 @@
+/**
+ * The skill hub panel: catalog grouped by tags + source collections,
+ * search and filter, per-group tri-state switches with conflict dialogs,
+ * upstream source tracking, market sources, disabled re-enable,
+ * detail inspection, YAML format repair, and scaffold wizard.
+ */
+
+import { useState } from 'react'
+import { Blocks } from 'lucide-react'
+import type { WritableRoot } from '@/lib/skill-hub/protocol'
+import type { SkillHubApi } from './api'
+import { tt } from './helpers'
+import { PRIVATE_SOURCE, type SortKey } from './grouping'
+import { dotStyle, relativeTimeText } from './format'
+import { SkillDetailView } from './SkillDetailView'
+import { TagEditorView } from './TagEditorView'
+import { SourcesView } from './SourcesView'
+import { ScenesView } from './ScenesView'
+import { MarketView } from './MarketView'
+import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs'
+import { useSkillHub } from './useSkillHub'
+import css from './panel.module.css'
+
+export interface SkillHubPanelProps {
+  api: SkillHubApi
+  cwd?: string
+}
+
+export function SkillHubPanel(props: SkillHubPanelProps) {
+  const hub = useSkillHub(props.api, props.cwd)
+  const [workspaceDraft, setWorkspaceDraft] = useState('')
+  const {
+    catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
+    formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
+    workspace, setWorkspace,
+    sourcesState, tagBusy, sourceOptions, filtered,
+    conflictDialog, confirmDialog, deleteSkillDialog, deleteGroupDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
+    syncBusy, editingTag, editName, membersDraft, editSearch, uses, groupsState, sourceCheck, checkingSource, syncingSource,
+    showLegend, editMode,
+    setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormRoot, setFormMessage, setTab,
+    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog,
+    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditingTag, setEditName, setMembersDraft, setEditSearch,
+    setShowLegend, setEditMode,
+    checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
+    runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag, enableDisabled,
+  } = hub
+  const { shortenedCount, fixingPaths, clearListFilters } = hub
+
+  if (detail !== null) {
+    const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name) ?? (
+      !detail.enabled ? {
+        name: detail.name,
+        description: detail.description,
+        root: (detail.source as WritableRoot) || 'user-agents',
+        path: detail.path || '',
+        disabledAt: detail.updatedAt ?? 0,
+      } : undefined
+    )
+    return (
+      <SkillDetailView
+        detail={detail}
+        hubConfig={hubConfig}
+        uses={uses}
+        groupsState={groupsState}
+        sourcesState={sourcesState}
+        sourceCheck={sourceCheck}
+        checkingSource={checkingSource}
+        syncingSource={syncingSource}
+        loading={detailLoading}
+        disabled={disabledRecord !== undefined}
+        onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
+        onBack={() => { setDetail(null) }}
+        onCheck={(repo) => { void checkSources(repo) }}
+        onSync={requestSync}
+        onFollowDelete={requestDelete}
+        onFixDiagnostic={detail.path ? (path) => { void hub.fixDiagnostic(path) } : undefined}
+        isFixingDiagnostic={detail.path ? fixingPaths.has(detail.path) : false}
+      />
+    )
+  }
+
+  if (editingTag !== null) {
+    return (
+      <TagEditorView
+        tag={editingTag}
+        editName={editName}
+        membersDraft={membersDraft}
+        editSearch={editSearch}
+        catalog={catalog}
+        tagBusy={tagBusy}
+        onBack={() => { setEditingTag(null) }}
+        onEditName={setEditName}
+        onEditSearch={setEditSearch}
+        onToggleMember={(name, checked) => {
+          setMembersDraft((previous) => {
+            const next = new Set(previous)
+            if (checked) next.add(name)
+            else next.delete(name)
+            return next
+          })
+        }}
+        onRename={() => { void saveTag(editingTag.id, editName, null) }}
+        onDelete={() => { void deleteTag(editingTag.id) }}
+        onSaveMembers={() => { void saveTag(editingTag.id, editName, [...membersDraft]) }}
+      />
+    )
+  }
+
+  const updateTitle = ((): string | undefined => {
+    if (updateState.status === 'checking') return tt('update.checking')
+    if (updateState.status === 'error') return tt('update.error', { error: updateState.message })
+    if (updateState.status === 'ready') {
+      const data = updateState.data
+      if (data.error !== undefined) return tt('update.error', { error: data.error })
+      if (data.updateAvailable) return tt('update.available', { version: data.latestVersion ?? '', current: data.currentVersion })
+      if (data.latestVersion === null) return tt('update.unavailable')
+      return tt('update.upToDate', { version: data.latestVersion })
+    }
+    return undefined
+  })()
+
+  return (
+    <div className={css.panel}>
+      <div className={css.header}>
+        <h2 className={css.title} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Blocks size={18} style={{ color: 'var(--accent, #e5534b)' }} />
+          {tt('panel.title')}
+          {catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}
+        </h2>
+        {catalog !== null
+          ? <span className={css.headerCount}>
+              {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
+              {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
+            </span>
+          : null}
+        {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
+        {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type="button" className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
+        <span className={css.actions}>
+          <button type="button" className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button>
+          {updateState.status === 'ready' && updateState.data.updateAvailable && updateState.data.url !== null
+            ? <a className={css.updateLink} href={updateState.data.url} target="_blank" rel="noreferrer">{tt('update.newVersion', { version: updateState.data.latestVersion ?? '' })}</a>
+            : null}
+        </span>
+      </div>
+
+      <div className={css.subbar}>
+        <span className={css.segmented}>
+          <button type="button" className={css.segBtn + (tab === 'sources' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('sources') }}>{tt('view.sources')}</button>
+          <button type="button" className={css.segBtn + (tab === 'scenes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scenes') }}>{tt('view.scenes')}</button>
+          <button type="button" className={css.segBtn + (tab === 'market' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('market'); void loadMarket() }}>{tt('view.market')}</button>
+        </span>
+        <span className={css.workspaceBox}>
+          <input
+            className={css.search + ' ' + css.workspaceInput}
+            value={workspaceDraft}
+            placeholder={workspace !== '' ? workspace : tt('panel.workspacePlaceholder')}
+            title={tt('panel.workspaceHint')}
+            onChange={(event) => { setWorkspaceDraft(event.target.value) }}
+            onKeyDown={(event) => { if (event.key === 'Enter') setWorkspace((event.target as HTMLInputElement).value.trim()) }}
+          />
+          {workspace !== ''
+            ? <button type="button" className={css.opBtn} title={tt('panel.workspaceClear')} onClick={() => { setWorkspace(''); setWorkspaceDraft('') }}>✕</button>
+            : null}
+        </span>
+        <button type="button" className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
+        <span className={css.actions}>
+          <button type="button" className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
+        </span>
+      </div>
+
+      {showForm ? (
+        <form className={css.form} onSubmit={(event) => { void create(event) }}>
+          <p className={css.hintLine}>{tt('form.capabilityHint')}</p>
+          <div className={css.formRow}>
+            <label className={css.formLabel}>{tt('form.name')}</label>
+            <input className={css.input} value={formName} onChange={(event) => { setFormName(event.target.value) }} placeholder="code-review" />
+          </div>
+          <div className={css.formRow}>
+            <label className={css.formLabel}>{tt('form.desc')}</label>
+            <input className={css.input} value={formDesc} onChange={(event) => { setFormDesc(event.target.value) }} placeholder={tt('form.descPlaceholder')} />
+          </div>
+          <div className={css.formRow}>
+            <label className={css.formLabel}>{tt('form.root')}</label>
+            <select className={css.select} value={formRoot} onChange={(event) => { setFormRoot(event.target.value as WritableRoot) }}>
+              <option value="user-agents">{tt('root.user-agents')}</option>
+              <option value="user-omp">{tt('root.user-omp')}</option>
+              <option value="user-dsh">{tt('root.user-dsh')}</option>
+              <option value="user-codex">{tt('root.user-codex')}</option>
+              {workspace ? (
+                <>
+                  <option value="project-agents">{tt('root.project-agents')}</option>
+                  <option value="project-omp">{tt('root.project-omp')}</option>
+                </>
+              ) : null}
+            </select>
+          </div>
+          {formMessage !== null ? <div className={formMessage.kind === 'error' ? css.formError : css.formSuccess}>{formMessage.text}</div> : null}
+          <div className={css.buttons}>
+            <button type="submit" className={css.button + ' ' + css.primary} disabled={formBusy}>{formBusy ? tt('form.busy') : tt('form.submit')}</button>
+            <button type="button" className={css.button} onClick={() => { setShowForm(false); setFormMessage(null) }}>{tt('form.cancel')}</button>
+          </div>
+        </form>
+      ) : null}
+
+      {loadError !== null ? (
+        <div className={css.errorBanner}>
+          <span>{loadError}</span>
+          <button type="button" className={css.button} onClick={() => { setLoadError(null) }}>{tt('err.dismiss')}</button>
+        </div>
+      ) : null}
+
+      {successBanner !== null ? (
+        <div className={css.successBanner}>
+          <span>{successBanner}</span>
+          <button type="button" className={css.button} onClick={() => { setSuccessBanner(null) }}>{tt('err.dismiss')}</button>
+        </div>
+      ) : null}
+
+      {showLegend ? (
+        <div className={css.legend}>
+          <span className={css.legendItem}><span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} />{tt('legend.model')}</span>
+          <span className={css.legendItem}><span className={css.dot + ' ' + css.dotUser} style={dotStyle(hubConfig?.dotUserColor)} />{tt('legend.user')}</span>
+          <span className={css.legendHint}>{tt('legend.hint')}</span>
+        </div>
+      ) : null}
+
+      {loading ? <div className={css.empty}>{tt('panel.loading')}</div> : null}
+
+      {detailLoading ? <div className={css.empty}>{tt('detail.loading')}</div> : null}
+
+      {tab === 'market' ? (
+        <MarketView hub={hub} />
+      ) : catalog !== null ? (
+        <>
+          <div className={css.filterBar}>
+            {tab === 'sources' ? (
+              <>
+                <span className={css.segmented}>
+                  <button type="button" className={css.segBtn + (skillView === 'flat' ? ' ' + css.segBtnActive : '')} onClick={() => { setSkillView('flat') }}>{tt('view.flat')}</button>
+                  <button type="button" className={css.segBtn + (skillView === 'groups' ? ' ' + css.segBtnActive : '')} onClick={() => { setSkillView('groups') }}>{tt('view.grouped')}</button>
+                </span>
+                <select className={css.select} value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value) }}>
+                  <option value="all">{tt('filter.allSources')}</option>
+                  {sourceOptions.map((source) => {
+                    const label = source === PRIVATE_SOURCE ? tt('filter.private') : source === 'user-codex' ? tt('src.user-codex') : source === 'user-agents' ? tt('src.user-agents') : source === 'user-omp' ? tt('src.user-omp') : source === 'user-dsh' ? tt('src.user-dsh') : source;
+                    return <option key={source} value={source}>{label}</option>;
+                  })}
+                </select>
+              </>
+            ) : null}
+            <select className={css.select} value={sortKey} onChange={(event) => { setSortKey(event.target.value as SortKey) }}>
+              <option value="name">{tt('sort.name')}</option>
+              <option value="added">{tt('sort.added')}</option>
+              <option value="uses">{tt('sort.uses')}</option>
+            </select>
+            <select className={css.select} value={hub.invocationFilter} onChange={(event) => { hub.setInvocationFilter(event.target.value as 'all' | 'model' | 'user') }}>
+              <option value="all">{tt('filter.invocationAll')}</option>
+              <option value="model">{tt('filter.modelOnly')}</option>
+              <option value="user">{tt('filter.userOnly')}</option>
+            </select>
+            <input className={css.search} value={search} onChange={(event) => { setSearch(event.target.value) }} placeholder={tt('panel.search')} />
+            <button type="button" className={css.button + (editMode ? ' ' + css.primary : '')} style={{ marginLeft: 'auto' }} onClick={() => setEditMode((v) => !v)}>{editMode ? tt('panel.done') : tt('panel.edit')}</button>
+          </div>
+          {catalog !== null && (filtered.length !== catalog.skills.length || hub.invocationFilter !== 'all' || sourceFilter !== 'all') ? (
+            <div className={css.hintLine} style={{ margin: '2px 2px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span>{tt('filter.showing', { shown: filtered.length, total: catalog.skills.length, filtered: hub.invocationFilter !== 'all' || sourceFilter !== 'all' ? tt('filter.filteredSuffix') : '' })}</span>
+              {shortenedCount > 0 ? <span title={tt('filter.shortened', { count: shortenedCount })}>{tt('filter.shortened', { count: shortenedCount })}</span> : null}
+            </div>
+          ) : null}
+
+          {filtered.length === 0 && search.trim() !== '' ? <div className={css.empty}>{tt('panel.empty')}</div> : null}
+          {filtered.length === 0 && search.trim() === '' && catalog.skills.length === 0 && catalog.disabled.length === 0 && catalog.diagnostics.length === 0
+            ? <div className={css.empty}>{tt('panel.emptyAll')}</div>
+            : null}
+
+          {tab === 'sources' ? <SourcesView hub={hub} /> : <ScenesView hub={hub} />}
+
+          {sourcesState !== null && sourcesState.trash.length > 0 ? (
+            <section className={css.section}>
+              <div className={css.sectionTitle + ' ' + css.sectionHeadRow}>
+                <span className={css.sectionTitleFill}>{tt('source.trash')}</span>
+                <button type="button" className={css.opBtn + ' ' + css.opDanger} disabled={tagBusy} onClick={() => { setConfirmClearTrash(true) }}>{tt('source.clearTrash')}</button>
+              </div>
+              {sourcesState.trash.map((entry) => (
+                <div key={entry.name} className={css.row + ' ' + css.rowStatic}>
+                  <div className={css.rowMain}>
+                    <div className={css.rowName}>{entry.name}</div>
+                    <div className={css.rowDesc}>{relativeTimeText(entry.movedAt)}</div>
+                  </div>
+                  <button type="button" className={css.opBtn} disabled={tagBusy} onClick={() => { void restoreTrash(entry.name) }}>{tt('source.restore')}</button>
+                </div>
+              ))}
+            </section>
+          ) : null}
+
+          {catalog.diagnostics.length > 0 ? (
+            <section className={css.section}>
+              <div className={css.sectionTitle}>{tt('panel.diagnostics')}</div>
+              {catalog.diagnostics.map((entry) => (
+                <div key={entry.path} className={css.diagRow} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className={css.diagPath}>{entry.path}</div>
+                    <div className={css.diagReason}>{entry.reason}</div>
+                  </div>
+                  {entry.fixable === true ? (
+                    <button
+                      type="button"
+                      className={css.opBtn}
+                      disabled={fixingPaths.has(entry.path)}
+                      onClick={() => { void hub.fixDiagnostic(entry.path) }}
+                      style={{ flex: 'none', alignSelf: 'center' }}
+                    >{fixingPaths.has(entry.path) ? tt('diag.fixing') : tt('diag.fix')}</button>
+                  ) : null}
+                </div>
+              ))}
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {conflictDialog !== null ? (
+        <ConflictDialog
+          dialog={conflictDialog}
+          tags={groupsState?.tags ?? []}
+          collections={groupsState?.collections ?? []}
+          onClose={() => { setConflictDialog(null) }}
+          onKeepOn={() => { void resolveConflict(false) }}
+          onCloseAll={() => { void resolveConflict(true) }}
+        />
+      ) : null}
+
+      {confirmDialog !== null ? (
+        <ConfirmDialog
+          title={confirmDialog.kind === 'sync' ? tt('source.syncConfirmTitle') : tt('source.deleteConfirmTitle')}
+          text={confirmDialog.kind === 'sync' ? tt('source.syncConfirmText') : tt('source.deleteConfirmText')}
+          items={confirmDialog.skills}
+          confirmLabel={confirmDialog.kind === 'sync' ? tt('source.sync') : tt('source.followDelete')}
+          danger={confirmDialog.kind === 'delete'}
+          onCancel={() => { setConfirmDialog(null) }}
+          onConfirm={() => { void runConfirmed() }}
+        />
+      ) : null}
+
+      {branchChoice !== null ? (
+        <BranchChoiceDialog
+          choice={branchChoice}
+          busy={branchBusy}
+          onSelect={(selected) => { setBranchChoice({ ...branchChoice, selected }) }}
+          onCancel={() => { setBranchChoice(null) }}
+          onConfirm={() => { void confirmBranchChoice() }}
+        />
+      ) : null}
+
+      {hub.versionDialog !== null ? (
+        <VersionChoiceDialog
+          choice={hub.versionDialog}
+          busy={hub.versionBusy}
+          onSelect={(selected) => { hub.setVersionDialog({ ...hub.versionDialog!, selected }) }}
+          onCustom={(custom) => { hub.setVersionDialog({ ...hub.versionDialog!, custom }) }}
+          onCancel={() => { hub.setVersionDialog(null) }}
+          onConfirm={() => { void hub.confirmVersionDialog() }}
+        />
+      ) : null}
+
+      {marketSyncDialog !== null ? (
+        <MarketSyncDialog
+          dialog={marketSyncDialog}
+          busy={syncBusy}
+          onToggle={(name, checked) => {
+            const next = new Set(marketSyncDialog.selected)
+            if (checked) next.add(name)
+            else next.delete(name)
+            setMarketSyncDialog({ ...marketSyncDialog, selected: next })
+          }}
+          onCancel={() => { setMarketSyncDialog(null) }}
+          onConfirm={() => { void confirmMarketSync() }}
+        />
+      ) : null}
+
+      {deleteSkillDialog !== null ? (
+        <ConfirmDialog
+          title={tt('delete.confirmTitle')}
+          text={tt('delete.confirmText', { name: deleteSkillDialog })}
+          confirmLabel={tt('delete.confirm')}
+          danger
+          onCancel={() => { setDeleteSkillDialog(null) }}
+          onConfirm={() => { void runDeleteSkill() }}
+        />
+      ) : null}
+
+      {deleteGroupDialog !== null ? (
+        <ConfirmDialog
+          title={tt('source.deleteGroupTitle')}
+          text={tt('source.deleteGroupText', { name: deleteGroupDialog.name, count: deleteGroupDialog.skillNames.length })}
+          items={deleteGroupDialog.skillNames}
+          confirmLabel={tt('source.deleteGroup')}
+          danger
+          onCancel={() => { setDeleteGroupDialog(null) }}
+          onConfirm={() => { void runDeleteGroup() }}
+        />
+      ) : null}
+
+      {confirmClearTrash ? (
+        <ConfirmDialog
+          title={tt('source.clearTrashConfirmTitle')}
+          text={tt('source.clearTrashConfirmText')}
+          confirmLabel={tt('source.clearTrashConfirm')}
+          danger
+          onCancel={() => { setConfirmClearTrash(false) }}
+          onConfirm={() => { void clearTrash() }}
+        />
+      ) : null}
+    </div>
+  )
+}
