@@ -316,7 +316,7 @@ export function EventActionModal({
             <TextInput value={name} onChange={setName} placeholder={t("chatActions.namePlaceholder")} />
           </Field>
 
-          {/* 2nd line: event selection (7 checkboxes, 2-column wrap grid) */}
+          {/* 2nd line: event selection (9 checkboxes, 2-column wrap grid) */}
           <Field label={t("chatActions.events")} required hint={t("chatActions.eventsHint")}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px" }}>
               {CHAT_EVENT_TYPES.map((ev) => (

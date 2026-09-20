@@ -1881,5 +1881,6 @@
   "appShell.exitStay": "留まる",
   "appShell.exitNativeBackTitle": "「戻る」を押すか、アプリを閉じてください",
   "appShell.exitNativeBackDescription": "このブラウザーではアプリを自動で閉じられません。終了を確認しました。「戻る」をもう一度押すか、アプリを閉じてください。下書きを編集すると警告が再び有効になります。",
-  "tabBar.git": "Git"
+  "tabBar.git": "Git",
+  "chatActions.event.context_compacted": "コンテキスト圧縮"
 }

@@ -93,7 +93,11 @@ export function dispatchChatEvent(type: ChatEventType, payload: ChatEventPayload
  *  - task_completed              ← tool_execution_end for the `todo` tool, when
  *                                   a get_state.todoPhases diff shows a task
  *                                   transitioned non-completed → completed
- *
+ *  - context_compacted             ← auto_compaction_end frame, or a manual
+ *                                   `compact` command that succeeded (omp
+ *                                   rejects "nothing to compact"; compaction
+ *                                   never emits a terminal agent_end, so it
+ *                                   is not a conversation_completed)
  * `payload` carries at least `sessionId` (plus the session display name for
  * the notification defaults and `emitToSession` for the notification frame's
  * per-session delivery). Extra keys are ignored by the executors.

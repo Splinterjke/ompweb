@@ -540,6 +540,10 @@ export class AgentSessionWrapper {
         // event.result.estimatedTokensAfter for the banner.
         patchEstimatedTokensAfter(event.result);
         invalidateSessionListCache();
+        // Chat event action: context_compacted (a compaction finished).
+        // Compaction is not a conversation turn — it emits no terminal
+        // agent_end, so conversation_completed never fires for it.
+        dispatchChatEvent("context_compacted", this.chatEventPayload());
         break;
       case "session_info_update":
         if (typeof event.title === "string") this._sessionName = event.title;
@@ -1340,6 +1344,10 @@ export class AgentSessionWrapper {
                 ...(command.customInstructions ? { customInstructions: command.customInstructions } : {}),
               });
               patchEstimatedTokensAfter(result);
+              // Chat event action: context_compacted. sendCommand rejects on a
+              // failed response (e.g. "Nothing to compact"), so this only
+              // fires when compaction actually happened.
+              dispatchChatEvent("context_compacted", this.chatEventPayload());
               return result;
             } finally {
               this.compacting = false;

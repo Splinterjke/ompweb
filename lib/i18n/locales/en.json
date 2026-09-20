@@ -1915,5 +1915,6 @@
   "appShell.exitStay": "Stay",
   "appShell.exitNativeBackTitle": "Use Back or close the app to leave",
   "appShell.exitNativeBackDescription": "This browser cannot close the app automatically. Your exit is confirmed; press Back again or close the app. Editing a draft restores the warning.",
-  "tabBar.git": "Git"
+  "tabBar.git": "Git",
+  "chatActions.event.context_compacted": "Context compacted"
 }
