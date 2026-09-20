@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { recordBackendError } from "@/lib/backend-errors";
+import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { checkoutGitBranch } from "@/lib/git-changes";
 
@@ -18,8 +19,11 @@ export async function POST(request: NextRequest) {
       try {
         return NextResponse.json({ success: true, ...(await hostClient.git.checkout([...roots], cwd, branch)) });
       } catch (error) {
-        recordBackendError("git_checkout_failed", error instanceof Error ? error.message : String(error));
-        const code = typeof (error as { code?: unknown } | null)?.code === "string" ? (error as { code: string }).code : "git_checkout_failed";
+        // Non-repo is a normal situation, not a backend failure.
+        if (!isNonRepositoryError(error)) {
+          recordBackendError("git_checkout_failed", error instanceof Error ? error.message : String(error));
+        }
+        const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_checkout_failed";
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 400 });
       }
     }

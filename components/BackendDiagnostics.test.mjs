@@ -54,6 +54,24 @@ test("healthOf: session-domain failures warn once and error from two", () => {
   assert.equal(healthOf({ ...base, backendErrors: [scan, scan] }), "error");
 });
 
+test("healthOf: benign non-repo git entries never degrade, real git failures do", () => {
+  // A non-git workspace used to record git_* entries with the "not a git
+  // repository" detail; those are benign and must not warn or error — even a
+  // pile of them (the banner's Recovery queue is gated on health, so it stays
+  // hidden too).
+  const benign = { at: 1, kind: "git_diff_failed", detail: "not a git repository" };
+  const benign2 = { at: 2, kind: "git_status_failed", detail: "not a git repository" };
+  assert.equal(healthOf({ ...base, backendErrors: [benign] }), "ok");
+  assert.equal(healthOf({ ...base, backendErrors: [benign, benign2, benign, benign2] }), "ok");
+  // A REAL git failure (timeout / git_failed) is not benign and still degrades.
+  const real = { at: 3, kind: "git_status_failed", detail: "git operation timed out" };
+  assert.equal(healthOf({ ...base, backendErrors: [benign, real] }), "warn");
+  assert.equal(healthOf({ ...base, backendErrors: [real, real] }), "error");
+  // A real non-git failure still degrades alongside the benign noise.
+  const scan = { at: 4, kind: "session_scan_failed", detail: "x" };
+  assert.equal(healthOf({ ...base, backendErrors: [benign, benign2, scan] }), "warn");
+});
+
 test("shouldAutoFix: cooldown gates repeated auto-repair", () => {
   const now = 1_000_000;
   // 从未尝试过（0）→ 允许。

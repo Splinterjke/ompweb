@@ -24,6 +24,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { isBenignNonRepoEntry } from "@/lib/git-nonrepo";
 
 export interface DiagnosticsData {
   server: { node: string; platform: string; arch: string; uptimeSeconds: number; tools?: Record<string, boolean> };
@@ -167,6 +168,11 @@ function maybeAutoFix(): void {
 // Display order for the ownership coverage badges (doc 16 nine domains).
 const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "settings", "commands", "remote"] as const;
 
+// Benign non-repo git entries (a plain folder is a legitimate workspace) are
+// excluded from the health math so a non-git workspace can never flip the
+// banner to Degraded — even stale ones recorded before the routes learned to
+// skip them. Real git failures (timeouts, `git_failed: …`) still degrade.
+
 /**
  * Overall health. Beyond omp installation: a missing Rust host binary (rust
  * mode) is a hard failure — every agent/session mutation fails closed; host
@@ -177,7 +183,7 @@ const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "setti
 export function healthOf(d: DiagnosticsData): BackendHealth {
   if (!d.omp.installed) return "error";
   if (d.rustHost && d.rustHost.mode !== "node" && !d.rustHost.available) return "error";
-  const backendErrors = d.backendErrors ?? [];
+  const backendErrors = (d.backendErrors ?? []).filter((e) => !isBenignNonRepoEntry(e));
   if (backendErrors.some((e) => e.kind === "host_unavailable" || e.kind === "host_crash")) return "error";
   const failures = d.rpc.recentFailures?.length ?? 0;
   if (failures >= 2) return "error";

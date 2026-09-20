@@ -1,9 +1,10 @@
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
-import { getGitStatus } from "@/lib/git-changes";
 import { recordBackendError } from "@/lib/backend-errors";
+import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
+import { getGitStatus } from "@/lib/git-changes";
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,8 +38,12 @@ export async function GET(request: NextRequest) {
       try {
         return NextResponse.json(await hostClient.git.status([...allowedRoots], cwd));
       } catch (error) {
-        recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
-        const code = typeof (error as { code?: unknown } | null)?.code === "string" ? (error as { code: string }).code : "git_status_failed";
+        // A non-repo is a normal situation, not a backend failure — recording
+        // it would degrade the whole app for every non-git workspace.
+        if (!isNonRepositoryError(error)) {
+          recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
+        }
+        const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_status_failed";
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
       }
     }

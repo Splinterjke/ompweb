@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { recordBackendError } from "@/lib/backend-errors";
+import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { listGitBranches } from "@/lib/git-changes";
 
@@ -15,8 +16,11 @@ export async function GET(request: NextRequest) {
       try {
         return NextResponse.json({ branches: await hostClient.git.branches([...roots], cwd) });
       } catch (error) {
-        recordBackendError("git_branches_failed", error instanceof Error ? error.message : String(error));
-        const code = typeof (error as { code?: unknown } | null)?.code === "string" ? (error as { code: string }).code : "git_branches_failed";
+        // Non-repo is a normal situation (empty branch list), not a failure.
+        if (!isNonRepositoryError(error)) {
+          recordBackendError("git_branches_failed", error instanceof Error ? error.message : String(error));
+        }
+        const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_branches_failed";
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 400 });
       }
     }

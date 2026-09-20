@@ -1,0 +1,47 @@
+// A git operation against a directory that is not a git repository is a
+// normal situation (plain folders are common workspaces), not a backend
+// failure. The Rust host signals it with the structured `not_a_git_repository`
+// error code; the Node fallback throws a plain Error("Not a Git repository").
+// Neither may be recorded in the backend error ring — doing so degrades the
+// whole app ("Degraded" banner + Recovery queue) for every file open in a
+// non-git workspace.
+export function isNonRepositoryError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return code === "not_a_git_repository" ||
+    (typeof message === "string" && message === "Not a Git repository");
+}
+
+// Git route kinds that can carry a non-repo entry. Only used to scope the
+// benign-entry check below (a non-repo message from any other domain is
+// treated as a real failure).
+const GIT_ERROR_KINDS = [
+  "git_status_failed",
+  "git_branches_failed",
+  "git_checkout_failed",
+  "git_commit_failed",
+  "git_push_failed",
+  "git_diff_failed",
+];
+
+// The exact ring `detail` produced when a git op hits a non-repo. The Rust
+// host maps NotARepository to this message; the route layer now skips
+// recording it, so this only matters for entries that landed in the ring
+// before that fix (within the retention window) or from an unfixed path.
+// Real failures — timeouts, `git_failed: …` — carry different details and
+// are left to degrade health as intended.
+const NON_REPO_DETAIL = "not a git repository";
+
+/**
+ * True for a backend-error-ring entry that is a benign non-repo git failure,
+ * safe to exclude from health. Used as defense-in-depth: even a stale
+ * non-repo entry (recorded before the routes learned to skip it) must not
+ * flip the banner to Degraded.
+ */
+export function isBenignNonRepoEntry(entry: { kind?: unknown; detail?: unknown }): boolean {
+  return (
+    typeof entry.kind === "string" &&
+    GIT_ERROR_KINDS.includes(entry.kind) &&
+    entry.detail === NON_REPO_DETAIL
+  );
+}

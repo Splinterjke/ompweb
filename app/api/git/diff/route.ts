@@ -3,6 +3,7 @@ import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWi
 import { getGitFileDiff } from "@/lib/git-changes";
 import { getCommitFileDiff } from "@/lib/git-log";
 import { recordBackendError } from "@/lib/backend-errors";
+import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
 // Two diff modes:
@@ -37,6 +38,11 @@ export async function GET(request: NextRequest) {
       try {
         return NextResponse.json(await getCommitFileDiff(cwd, commitHash, commitFile));
       } catch (error) {
+        // A non-repo is a normal situation, not a backend failure: the
+        // commit-file diff simply cannot be computed.
+        if (isNonRepositoryError(error)) {
+          return NextResponse.json({ supported: false });
+        }
         recordBackendError("git_diff_failed", error instanceof Error ? error.message : String(error));
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code: "git_diff_failed" }, { status: 400 });
       }
@@ -56,6 +62,11 @@ export async function GET(request: NextRequest) {
       try {
         return NextResponse.json(await hostClient.git.diff([...allowedRoots], cwd, filePath));
       } catch (error) {
+        // Non-repo workspaces are common and legitimate; a file diff is
+        // simply unavailable, mirroring the Node path's { supported: false }.
+        if (isNonRepositoryError(error)) {
+          return NextResponse.json({ supported: false });
+        }
         recordBackendError("git_diff_failed", error instanceof Error ? error.message : String(error));
         const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_diff_failed";
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
