@@ -7,6 +7,7 @@ import { RpcCommandError, RpcCommandTimeoutError, type RpcFrame } from "./omp/rp
 import { createRpcProcess, type RpcProcessLike } from "./omp/rust-rpc-process";
 import { readNativeSettings } from "./omp/settings-config";
 import { cacheSessionPath, invalidateSessionListCache, readSessionHeader } from "./session-reader";
+import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { PRESET_FULL } from "./tool-presets";
 import type {
   BashResultInfo,
@@ -494,6 +495,8 @@ export class AgentSessionWrapper {
         if (this._sessionFile && !existsSync(this._sessionFile)) {
           this.signalWhenSessionFileAppears();
         }
+        // Chat event action: user_prompt_sent (one per submitted prompt).
+        dispatchChatEvent("user_prompt_sent", this.chatEventPayload());
         break;
       case "agent_end":
         if (event.isTerminal !== false) {
@@ -503,6 +506,10 @@ export class AgentSessionWrapper {
           this.awaitingAgentStartDeadline = 0;
           this.continuationGraceUntil = 0;
           invalidateSessionListCache();
+          clearChatActionRunState(this._sessionId);
+          // Chat event action: conversation_completed (the same signal the
+          // built-in completion notification uses).
+          dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
         } else {
           this.continuationGraceUntil = Date.now() + NON_TERMINAL_CONTINUATION_GRACE_MS;
         }
@@ -541,8 +548,56 @@ export class AgentSessionWrapper {
             ...(typeof event.code === "string" ? { errorCode: event.code } : {}),
             ...(typeof event.status === "number" || typeof event.status === "string" ? { errorStatus: event.status } : {}),
           });
+          // Chat event action: provider_api_error (deduped per run against
+          // the level:error notice frames; auto_retry_start is a retry, not
+          // a failure — never dispatched here).
+          dispatchChatEvent("provider_api_error", this.chatEventPayload());
           notifyRunningChange();
           return;
+        }
+        break;
+      }
+      case "notice": {
+        // level:error notices are the other provider_api_error source (e.g.
+        // the model request failed and omp reported it as a notice instead of
+        // a failed prompt response).
+        if (event.level === "error") {
+          dispatchChatEvent("provider_api_error", this.chatEventPayload());
+        }
+        break;
+      }
+      case "message_end": {
+        // Completed message commit: the content-block discriminator
+        // ({ type: "thinking" } / { type: "text" } entries in the content
+        // array, verified against real session files) decides which chat
+        // events fire. assistant_text fires for the final turn's text too —
+        // intended per the plan.
+        const message = event.message as { role?: string; content?: unknown } | undefined;
+        if (message && typeof message === "object") {
+          const content = Array.isArray(message.content) ? message.content : [];
+          let hasThinking = false;
+          let hasText = false;
+          for (const block of content) {
+            if (typeof block !== "object" || block === null) continue;
+            const b = block as { type?: unknown };
+            if (b.type === "thinking") hasThinking = true;
+            else if (b.type === "text") hasText = true;
+          }
+          if (hasThinking) dispatchChatEvent("thinking_completed", this.chatEventPayload());
+          if (message.role === "assistant" && hasText) {
+            dispatchChatEvent("assistant_text", this.chatEventPayload());
+          }
+        }
+        break;
+      }
+      case "subagent_lifecycle": {
+        // Terminal subagent statuses (completed/failed/aborted) are the
+        // subagent_completed event; the client's parseSubagentLifecycle
+        // uses the same statuses.
+        const payload = event.payload as Record<string, unknown> | undefined;
+        const status = typeof payload?.status === "string" ? payload.status : "";
+        if (status === "completed" || status === "failed" || status === "aborted") {
+          dispatchChatEvent("subagent_completed", this.chatEventPayload());
         }
         break;
       }
@@ -750,6 +805,30 @@ export class AgentSessionWrapper {
       }
     }
   }
+  /** Build the payload handed to the chat-event dispatcher: the session id,
+   *  its display name (notification defaults), and a per-session frame
+   *  relay (the notification executor uses it to reach the session's own
+   *  SSE stream; it returns how many listeners received the frame). */
+  private chatEventPayload(frame?: Record<string, unknown>): ChatEventPayload {
+    const payload: ChatEventPayload = { sessionId: this._sessionId };
+    if (this._sessionName) payload.sessionName = this._sessionName;
+    if (frame) {
+      payload.emitToSession = (f) => {
+        let count = 0;
+        for (const l of this.listeners) {
+          try {
+            l(f as AgentEvent);
+            count += 1;
+          } catch {
+            // A throwing subscriber must not block the other streams.
+          }
+        }
+        return count;
+      };
+    }
+    return payload;
+  }
+
 
   private sessionFileSignalTimer: NodeJS.Timeout | null = null;
 
@@ -1134,6 +1213,8 @@ export class AgentSessionWrapper {
           // tracks a live turn that ends with its own agent_end.
           this.promptRunning = false;
         });
+        // Chat event action: conversation_interrupted (command accepted by omp).
+        dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
         return null;
 
       case "get_state": {
@@ -1325,6 +1406,9 @@ export class AgentSessionWrapper {
               type === "abort_and_prompt" ? PROMPT_ACK_TIMEOUT_MS : undefined,
             );
             if (type === "set_thinking_level") invalidateSessionListCache();
+            // Chat event action: conversation_interrupted (the interrupt half
+            // of abort_and_prompt was accepted).
+            if (type === "abort_and_prompt") dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
             return result ?? null;
           } catch (error) {
             if (type === "abort_and_prompt" && (error instanceof RpcCommandTimeoutError || (error instanceof Error && error.name === "RpcCommandTimeoutError"))) {

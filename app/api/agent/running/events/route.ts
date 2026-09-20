@@ -1,5 +1,6 @@
 import { getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
 import { subscribeSessionFileChanges, getExternallyActiveIds } from "@/lib/session-watcher";
+import { subscribeChatEventActions } from "@/lib/chat-event-action-bus";
 import { subscribeUiRefresh, wasUiUpdated } from "@/lib/ui-refresh-bus";
 import { SERVER_STARTED_AT } from "@/lib/npm-update";
 
@@ -30,7 +31,16 @@ export async function GET(req: Request) {
           // controller already closed — cleanup below drops the subscription.
         }
       });
-
+      // Notification-type chat event actions broadcast here so a browser
+      // tab attached only to the sidebar still receives them (the session's
+      // own stream covers the attached tab; this is the catch-all).
+      const unsubscribeChatActions = subscribeChatEventActions((frame) => {
+        try {
+          encode(frame);
+        } catch {
+          // controller already closed — cleanup below drops the subscription.
+        }
+      });
       // Boot epoch (pull-based restart detection): every (re)connecting client is
       // told the server's boot epoch. After a restart the SSE drops, EventSource
       // auto-reconnects to the NEW process, and the fresh epoch differs from the
@@ -108,6 +118,7 @@ export async function GET(req: Request) {
         unsubscribeFiles();
         clearInterval(externalHeartbeat);
         unsubscribeRefresh();
+        unsubscribeChatActions();
         try { controller.close(); } catch { /* already closed */ }
       };
       streamCleanup = cleanup;

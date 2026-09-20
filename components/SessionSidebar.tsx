@@ -20,6 +20,7 @@ import { comparableProjectPath } from "@/lib/comparable-path";
 import { Archive, Check, ChevronDown, ChevronRight, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
+import { EventActionsPanel } from "./EventActionsPanel";
 import { UsageSidebarPanel } from "./UsageSidebarPanel";
 import { SeparatorHandle } from "./SeparatorHandle";
 import { SectionChevron } from "./SectionChevron";
@@ -72,6 +73,10 @@ interface Props {
    *  the reaper's refresh POST lands), so the parent uses this to show the
    *  "Refresh page" button. */
   onUiUpdated?: () => void;
+  /** Fired when a chat event action of the notification type fires (SSE
+   *  `chat_event_action` frame from the running stream) so the parent can
+   *  render the browser notification. */
+  onChatEventAction?: (frame: { sessionId: string; title: string; message: string }) => void;
   /** Open the GitGraph for the given workspace (path). */
   onOpenGitGraph?: (path: string) => void;
   /** Reports the workspace list + current selection so the new-session composer
@@ -599,7 +604,7 @@ function OmpWebTitle() {
     </button>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onOpenGitGraph, updateAvailable, settingsOpen }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -661,6 +666,15 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     }
   });
   const [usageHeight, setUsageHeight] = useState<number>(() => readStoredSectionHeight("omp-web:usage-section-height"));
+  const [eventActionsOpen, setEventActionsOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("omp-web:event-actions-panel-open") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [eventActionsHeight, setEventActionsHeight] = useState<number>(() => readStoredSectionHeight("omp-web:event-actions-section-height"));
   const setSchedOpenPersist = useCallback((next: boolean) => {
     setSchedOpen(next);
     try {
@@ -677,9 +691,18 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       /* ignore */
     }
   }, []);
+  const setEventActionsOpenPersist = useCallback((next: boolean) => {
+    setEventActionsOpen(next);
+    try {
+      window.localStorage.setItem("omp-web:event-actions-panel-open", next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const schedHeaderRef = useRef<HTMLDivElement>(null);
   const usageHeaderRef = useRef<HTMLDivElement>(null);
+  const eventActionsHeaderRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
@@ -750,19 +773,31 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     set: (v: number) => setSchedHeight(v),
   };
   const schedPartner = explorerRendered ? explorerSectionPartner : flexPartner;
-  const usagePartner = schedOpen
-    ? schedSectionPartner
-    : explorerRendered
-      ? explorerSectionPartner
-      : flexPartner;
+  const eventActionsSectionPartner = {
+    getHeight: () => eventActionsHeight,
+    getMin: () => {
+      const h = eventActionsHeaderRef.current?.getBoundingClientRect().height;
+      return h ? Math.ceil(h) + SECTION_MIN_CONTENT : SECTION_MIN_HEIGHT;
+    },
+    set: (v: number) => setEventActionsHeight(v),
+  };
+  const eventActionsPartner = schedOpen ? schedSectionPartner : explorerRendered ? explorerSectionPartner : flexPartner;
+  const usagePartner = eventActionsOpen
+    ? eventActionsSectionPartner
+    : schedOpen
+      ? schedSectionPartner
+      : explorerRendered
+        ? explorerSectionPartner
+        : flexPartner;
 
   const explorerResize = useAdjacentSectionResize(explorerHeight, setExplorerHeight, EXPLORER_HEIGHT_KEY, explorerHeaderRef, flexPartner);
   const schedResize = useAdjacentSectionResize(schedHeight, setSchedHeight, "omp-web:schedulers-section-height", schedHeaderRef, schedPartner);
+  const eventActionsResize = useAdjacentSectionResize(eventActionsHeight, setEventActionsHeight, "omp-web:event-actions-section-height", eventActionsHeaderRef, eventActionsPartner);
   const usageResize = useAdjacentSectionResize(usageHeight, setUsageHeight, "omp-web:usage-section-height", usageHeaderRef, usagePartner);
   // While any section is being dragged, suspend the height transition on every
   // resizable section so the transfer (this section grows, partner shrinks)
   // tracks the pointer instead of lagging behind a 220ms ease.
-  const anyDragging = explorerResize.dragging || schedResize.dragging || usageResize.dragging;
+  const anyDragging = explorerResize.dragging || schedResize.dragging || eventActionsResize.dragging || usageResize.dragging;
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Once the SSE stream has delivered a frame it is the source of truth for
@@ -915,6 +950,10 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           externallyRunning?: string[];
           startedAt?: number;
           updated?: boolean;
+          actionId?: string;
+          sessionId?: string;
+          title?: string;
+          message?: string;
         };
         if (data.type === "server_boot") {
           // The server tells us its boot epoch on (re)connect. If it differs
@@ -943,6 +982,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           if (data.externallyRunning?.length) markExternallyRunning(data.externallyRunning);
         } else if (data.type === "externally-running") {
           if (data.externallyRunning?.length) markExternallyRunning(data.externallyRunning);
+        } else if (data.type === "chat_event_action") {
+          // A notification-type chat event action fired server-side; forward
+          // it so the parent renders the browser notification (clicking it
+          // selects the originating session).
+          onChatEventAction?.({ sessionId: data.sessionId ?? "", title: data.title ?? "", message: data.message ?? "" });
         }
       } catch {
         // ignore malformed frames
@@ -954,7 +998,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       clearTimeout(pendingRefreshRef.current);
       source.close();
     };
-  }, [loadSessions, scheduleRefresh, markExternallyRunning, onServerRestarted, onUiUpdated]);
+  }, [loadSessions, scheduleRefresh, markExternallyRunning, onServerRestarted, onUiUpdated, onChatEventAction]);
 
   useEffect(() => {
     const previous = previousRunningSessionIdsRef.current;
@@ -2197,15 +2241,23 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
 
       {/* When the Workspaces list is collapsed nothing else grows, so a
           spacer absorbs the free space and keeps the pinned footer (Schedulers
-          / Usage / Settings) flush with the bottom of the sidebar. */}
+          / Chat event actions / Usage / Settings) flush with the bottom. */}
       {!workspacesOpen && <div style={{ flex: "1 1 0", minHeight: 0 }} />}
-      {/* Pinned footer: Usage panel + Settings */}
+      {/* Pinned footer: Schedulers / Chat event actions / Usage / Settings */}
       <SchedulersPanel
         open={schedOpen}
         onOpenChange={setSchedOpenPersist}
         height={schedHeight}
         resize={schedResize}
         headerRef={schedHeaderRef}
+        anyDragging={anyDragging}
+      />
+      <EventActionsPanel
+        open={eventActionsOpen}
+        onOpenChange={setEventActionsOpenPersist}
+        height={eventActionsHeight}
+        resize={eventActionsResize}
+        headerRef={eventActionsHeaderRef}
         anyDragging={anyDragging}
       />
       <UsageSidebarPanel

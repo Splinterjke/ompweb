@@ -163,7 +163,9 @@ app/api/
   agent/new/route.ts              POST { cwd, message, toolNames?, provider?, modelId? }
   agent/[id]/route.ts             GET state | POST any RPC command
   agent/[id]/events/route.ts      GET SSE stream
-  agent/running/events/route.ts   GET SSE stream of currently-running session ids
+  agent/running/events/route.ts   GET SSE stream of currently-running session ids + `chat_event_action` frames
+  chat-event-actions/route.ts     GET/POST named actions fired on chat events
+  chat-event-actions/[id]/route.ts  GET/PATCH/DELETE a single action
   auth/**                         provider list, login/logout, API keys (via RPC)
   cwd/validate/route.ts           POST validate/select a cwd
   default-cwd/route.ts            POST create ~/omp-cwd-YYYYMMDD
@@ -184,7 +186,11 @@ app/api/
 lib/
   omp/                 shared omp foundations (paths, CLI probe, RpcProcess)
   agent-client.ts      typed fetch helper for /api/agent commands
-  draft-store.ts       local draft persistence helpers
+  chat-event-action-types.ts  ChatEventType + ActionSpec union (notification/http/bash/scheduled)
+  chat-event-action-store.ts  persistence (~/.omp/agent/chat-event-actions.json), validation, per-event cache
+  chat-event-action-bus.ts  globalThis relay for `chat_event_action` frames (running-stream SSE)
+  chat-event-actions-executors.ts  run each action type (never throws, records lastRun)
+  chat-event-actions-dispatcher.ts  event → enabled actions, per-run dedupe
   file-access.ts       allowed file roots for /api/files and worktrees
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
@@ -217,6 +223,8 @@ components/
   ImageLightbox.tsx   click-to-preview lightbox for chat images (ClickableImage)
   BranchNavigator.tsx in-session branch switcher
   ChatMinimap.tsx     scroll minimap alongside the message list
+  EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
+  EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
   MarkdownBody.tsx    markdown renderer
   ModelsConfig.tsx    modal for models/auth configuration
   McpConfig.tsx       project MCP server editor (Settings → MCP tab)
@@ -442,6 +450,30 @@ handled or safely ignored.
 - `ensureSeedSchedulers` resolves the script from `process.cwd()` (the dev repo
   root or the `/opt/ompweb` install root), so it matches where the engine's
   `spawn` sets `cwd: path.dirname(script)`.
+
+### Chat event actions (`lib/chat-event-action*.ts`, `/api/chat-event-actions`)
+- Named actions fired on 7 chat lifecycle events (`thinking_completed`, `assistant_text`,
+  `subagent_completed`, `user_prompt_sent`, `conversation_completed`,
+  `conversation_interrupted`, `provider_api_error`). Action types: `notification`,
+  `http`, `bash`, `scheduled` (triggers a manual script scheduler).
+- Persistence mirrors the scheduler store: atomic temp-file + rename at
+  `~/.omp/agent/chat-event-actions.json`. `loadActionsForEvent(type)` is cached on
+  `globalThis.__ompChatActionCache` and invalidated on every save — a new action must
+  be visible to the next dispatch immediately, so never add a save path that skips the
+  cache invalidation.
+- **Dispatch lives in `rpc-manager.ts` `handleFrame`/`send()` — one `dispatchChatEvent()`
+  call per frame case.** NEVER add a frame case that matches a chat event without a
+  `dispatchChatEvent` call, or the action silently never fires. `user_prompt_sent`
+  resets the per-run `provider_api_error` dedupe (`clearChatActionRunState`) so an error
+  in a new run fires again; a terminal `agent_end` also clears it.
+- Executors (`chat-event-actions-executors.ts`) never throw — every failure is recorded
+  as a `lastRun` (`ok:false` + detail) so the UI can surface it. `scheduled` records
+  `"scheduler busy"` when the target manual run is already running (not an error).
+- Notification delivery is dual-path: per-session SSE (`chatEventPayload().emitToSession`,
+  counts attached listeners) plus a globalThis bus (`chat-event-action-bus.ts`) relayed
+  over the running-stream SSE (`agent/running/events`). `ok` is true only if at least one
+  was delivered; the browser renders it via `AppShell` → `showBrowserNotification` and
+  clicking selects the originating session.
 
 ### Completion sound
 - `hooks/useAudio.ts` stores the toggle in `localStorage` and reuses one `AudioContext`.

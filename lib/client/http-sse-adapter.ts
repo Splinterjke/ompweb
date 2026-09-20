@@ -6,6 +6,7 @@
 import type {
   AgentClient,
   AgentSessionEvents,
+  ChatEventActionClient,
   EventSubscription,
   OmpwebClient,
   SessionClient,
@@ -25,6 +26,7 @@ import type {
 } from "./types";
 import type { ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
+import type { ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 import type { SessionInfo } from "@/lib/types";
 import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
 import type { NativeSettings } from "@/lib/omp/settings-config";
@@ -328,6 +330,37 @@ class HttpSchedulerClient implements SchedulerClient {
     return { ok: true, path: body.path, shell: body.shell };
   }
 }
+
+/** Chat event actions — /api/chat-event-actions* answer raw bodies like the
+ *  git routes. */
+class HttpChatEventActionClient implements ChatEventActionClient {
+  async list(): Promise<{ actions: ChatEventAction[] }> {
+    const body = await rawRequest<{ actions?: ChatEventAction[]; error?: string }>("/api/chat-event-actions", { cache: "no-store" });
+    return { actions: body.actions ?? [] };
+  }
+  async create(input: ChatEventActionInput): Promise<{ action: ChatEventAction }> {
+    const body = await rawRequest<{ action?: ChatEventAction; error?: string; code?: string }>("/api/chat-event-actions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!body.action) throw toClientError(body, 500);
+    return { action: body.action };
+  }
+  async update(id: string, input: ChatEventActionPatch): Promise<{ action: ChatEventAction }> {
+    const body = await rawRequest<{ action?: ChatEventAction; error?: string; code?: string }>(`/api/chat-event-actions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!body.action) throw toClientError(body, 500);
+    return { action: body.action };
+  }
+  async remove(id: string): Promise<{ success: boolean }> {
+    await rawRequest<{ error?: string }>(`/api/chat-event-actions/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return { success: true };
+  }
+}
 /** Native OMP settings (GET /api/omp-settings) — the config.yml shape, read-only. */
 class HttpOmpSettingsClient implements OmpSettingsClient {
   async list(): Promise<{ path: string; settings: NativeSettings }> {
@@ -345,5 +378,6 @@ export function createHttpSseClient(): OmpwebClient {
     ompSettings: new HttpOmpSettingsClient(),
     nativeSettings: new HttpNativeSettingsClient(),
     schedulers: new HttpSchedulerClient(),
+    chatActions: new HttpChatEventActionClient(),
   };
 }

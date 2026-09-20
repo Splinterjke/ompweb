@@ -34,7 +34,7 @@ import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { showCompletionNotification } from "@/lib/browser-notifications";
+import { showBrowserNotification, showCompletionNotification } from "@/lib/browser-notifications";
 import type { ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -994,6 +994,32 @@ export function AppShell() {
       void Notification.requestPermission().then((permission) => { if (permission === "granted") notify(); });
     }
   }, [handleSelectSession, selectedSession, t]);
+  // Chat event actions of the "notification" type fire server-side (even with
+  // no tab open); the running stream relays the frame here. Clicking the
+  // notification selects the originating session (fetched by id, like the
+  // file-mention handler above).
+  const handleChatEventAction = useCallback(
+    (frame: { sessionId: string; title: string; message: string }) => {
+      if (!frame.sessionId || !("Notification" in window)) return;
+      const notify = () => {
+        showBrowserNotification(frame.title, frame.message, () => {
+          window.focus();
+          void fetch(`/api/sessions/${encodeURIComponent(frame.sessionId)}`)
+            .then((res) => (res.ok ? (res.json() as Promise<SessionInfo>) : null))
+            .then((info) => {
+              if (info) handleSelectSession(info);
+            })
+            .catch(() => {});
+        });
+      };
+      if (Notification.permission === "granted") notify();
+      else if (Notification.permission === "default") {
+        void Notification.requestPermission().then((permission) => { if (permission === "granted") notify(); });
+      }
+    },
+    [handleSelectSession],
+  );
+
 
   const handleAutoName = useCallback(async () => {
     const sessionId = selectedSession?.id;
@@ -1319,6 +1345,7 @@ export function AppShell() {
         onAtMentions={handleAtMentions}
         onServerRestarted={handleServerRestarted}
         onUiUpdated={handleUiUpdated}
+        onChatEventAction={handleChatEventAction}
         onOpenSettings={() => setSettingsTab("general")}
         onOpenGitGraph={handleOpenGitGraph}
         onOpenRemote={() => setSettingsTab("remote")}

@@ -5,6 +5,7 @@
 import type {
   AgentClient,
   AgentSessionEvents,
+  ChatEventActionClient,
   EventSubscription,
   GitClient,
   GitHubStatusPayload,
@@ -229,8 +230,25 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
     },
   };
 
+  // Fixture chat event actions: no network — render tests only need the
+  // surface (the panel lists an empty roster).
+  const chatActions: ChatEventActionClient = {
+    async list() {
+      return { actions: [] };
+    },
+    async create() {
+      throw new Error("chatActions create not supported in fixtures");
+    },
+    async update() {
+      throw new Error("chatActions update not supported in fixtures");
+    },
+    async remove() {
+      throw new Error("chatActions remove not supported in fixtures");
+    },
+  };
+
   return {
-    client: { agent, sessions: sessionApi, system, git, ompSettings, nativeSettings, schedulers },
+    client: { agent, sessions: sessionApi, system, git, ompSettings, nativeSettings, schedulers, chatActions },
     fixtures,
   };
 }

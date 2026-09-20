@@ -10,6 +10,7 @@ import type { GitHubRepoStatus } from "@/lib/github";
 import type { NativeSettings } from "@/lib/omp/settings-config";
 import type { ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
+import type { ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 
 /** Unified error shape (doc 01 contract rule 3): UI branches on `code`. */
 export interface ClientError {
@@ -174,6 +175,22 @@ export interface SchedulerClient {
   validateScript(script: string): Promise<{ ok: boolean; path?: string; shell?: string }>;
 }
 
+/** Chat event actions (chat-event-actions.json): named actions fired on chat
+ *  lifecycle events. Store CRUD only — firing happens server-side in the RPC
+ *  frame loop; the client only receives notification frames over SSE. All
+ *  routes answer raw bodies (no {success,data} envelope). */
+export interface ChatEventActionClient {
+  /** GET /api/chat-event-actions. */
+  list(): Promise<{ actions: ChatEventAction[] }>;
+  /** POST /api/chat-event-actions — create; 400 with a stable code on
+   *  validation failure (name/events/http/bash/scheduled). */
+  create(input: ChatEventActionInput): Promise<{ action: ChatEventAction }>;
+  /** PATCH /api/chat-event-actions/[id] — any subset, re-validated. */
+  update(id: string, input: ChatEventActionPatch): Promise<{ action: ChatEventAction }>;
+  /** DELETE /api/chat-event-actions/[id]. */
+  remove(id: string): Promise<{ success: boolean }>;
+}
+
 export interface OmpwebClient {
   agent: AgentClient;
   sessions: SessionClient;
@@ -182,4 +199,5 @@ export interface OmpwebClient {
   ompSettings: OmpSettingsClient;
   nativeSettings: NativeSettingsClient;
   schedulers: SchedulerClient;
+  chatActions: ChatEventActionClient;
 }
