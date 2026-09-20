@@ -1844,6 +1844,8 @@
   "chatActions.httpUrl": "URL",
   "chatActions.httpBody": "Body",
   "chatActions.httpBodyHint": "Sent with POST and PUT",
+  "chatActions.httpBodyVars": "Variables replaced from the firing event:\n$session_name — session name (title)\n$session_id — session id\n$last_reply — last assistant reply (full text)",
+  "chatActions.httpBodyVarsHint": "Available body variables",
   "chatActions.httpContentType": "Body type",
   "chatActions.httpHeaders": "Headers",
   "chatActions.httpHeadersHint": "One per line, e.g. Content-Type: application/json",

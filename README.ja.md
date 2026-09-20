@@ -29,21 +29,23 @@ ompweb はローカル omp ランタイム用のブラウザワークスペー�
 | Git パネル（変更ファイル）<br>![](screenshots/rightpanel-git.png) | Goal & Subagents ハブ（展開）<br>![](screenshots/composer-goal-subagents.png) |
 | サイドチャットパネル<br>![](screenshots/rightpanel-sidechat.png) | サイドチャット（空のステート）<br>![](screenshots/rightpanel-sidechat-empty.png) |
 | ファイルパネル<br>![](screenshots/rightpanel-files.png) | チャットミニマップのホバーツールチップ<br>![](screenshots/minimap-tooltip.png) |
-| サービスエラー復旧キュー<br>![](screenshots/service-error-recovery.png) | テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) |
-| スケジューラ編集ダイアログ<br>![](screenshots/scheduler-edit-modal.png) | テーマパレット — 静的<br>![](screenshots/themepalette-static.png) |
+| サービスエラー復旧キュー<br>![](screenshots/service-error-recovery.png) | チャットイベントアクション<br>![](screenshots/chat-event-actions-section.png) |
+| チャットイベントアクションのモダール<br>![](screenshots/chat-event-actions-modals.png) | スケジューラ編集ダイアログ<br>![](screenshots/scheduler-edit-modal.png) |
+| 組み込みターミナル（開いた状態）<br>![](screenshots/embedded-terminal.png) | テーマパレット — 静的<br>![](screenshots/themepalette-static.png) |
 | テーマパレット — フローティング<br>![](screenshots/themepalette-flowing.png) | テーマパレット — モーション<br>![](screenshots/themepalette-motion.png) |
-| テーマパレット — フォント<br>![](screenshots/themepalette-font.png) | 設定 — インターフェースと動作<br>![](screenshots/settings-interface-behavior.png) |
-| 設定 — セキュリティと承認<br>![](screenshots/settings-safety-approvals.png) | 設定 — AI モデルデフォルト<br>![](screenshots/settings-ai-model-defaults.png) |
-| 設定 — エージェントとインテリジェンス<br>![](screenshots/settings-agent-intelligence.png) | 設定 — エージェント<br>![](screenshots/settings-agents.png) |
-| 設定 — 拡張機能とツール<br>![](screenshots/settings-extensions-tools.png) | 設定 — OMP ネイティブ<br>![](screenshots/settings-omp-native.png) |
-| 設定 — リモートアクセス<br>![](screenshots/settings-remote-access.png) | 設定 — スキルハブ<br>![](screenshots/settings-skill-hub.png) |
-| 設定 — システムと更新<br>![](screenshots/settings-system-updates.png) | 設定 — 検索<br>![](screenshots/settings-search.png) |
-| 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) | テーマ: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
+| テーマパレット — フォント<br>![](screenshots/themepalette-font.png) | テーマパレット — UI フォントスケーリング<br>![](screenshots/theme-palette-ui-scale-settings.png) |
+| 設定 — インターフェースと動作<br>![](screenshots/settings-interface-behavior.png) | 設定 — セキュリティと承認<br>![](screenshots/settings-safety-approvals.png) |
+| 設定 — AI モデルデフォルト<br>![](screenshots/settings-ai-model-defaults.png) | 設定 — エージェントとインテリジェンス<br>![](screenshots/settings-agent-intelligence.png) |
+| 設定 — エージェント<br>![](screenshots/settings-agents.png) | 設定 — 拡張機能とツール<br>![](screenshots/settings-extensions-tools.png) |
+| 設定 — OMP ネイティブ<br>![](screenshots/settings-omp-native.png) | 設定 — リモートアクセス<br>![](screenshots/settings-remote-access.png) |
+| 設定 — スキルハブ<br>![](screenshots/settings-skill-hub.png) | 設定 — システムと更新<br>![](screenshots/settings-system-updates.png) |
+| 設定 — 検索<br>![](screenshots/settings-search.png) | 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) |
+| テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) | テーマ: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
 | テーマ: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | テーマ: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
 | テーマ: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | テーマ: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
 | テーマ: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | テーマ: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
 | テーマ: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | テーマ: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| テーマ: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | 組み込みターミナル（開いた状態）<br>![](screenshots/embedded-terminal.png) |
+| テーマ: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | モバイル: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 | テーマ: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | テーマ: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
 | テーマ: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | テーマ: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
 | テーマ: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | テーマ: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
@@ -68,7 +70,6 @@ ompweb はローカル omp ランタイム用のブラウザワークスペー�
 | モバイル: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | モバイル: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
 | モバイル: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | モバイル: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
 | モバイル: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | モバイル: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
-| モバイル: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 </details>
 
 ## 🐳 Docker で実行

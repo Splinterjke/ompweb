@@ -29,21 +29,23 @@ ompweb предоставляет браузерное рабочее прост
 | Git-панель (изменённые файлы)<br>![](screenshots/rightpanel-git.png) | Хаб Goal & Subagents (развёрнут)<br>![](screenshots/composer-goal-subagents.png) |
 | Боковая панель чата<br>![](screenshots/rightpanel-sidechat.png) | Боковой чат (пустое состояние)<br>![](screenshots/rightpanel-sidechat-empty.png) |
 | Панель файлов<br>![](screenshots/rightpanel-files.png) | Всплывающая подсказка миникарты чата<br>![](screenshots/minimap-tooltip.png) |
-| Очередь восстановления при ошибке сервиса<br>![](screenshots/service-error-recovery.png) | Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
-| Диалог редактирования планировщика<br>![](screenshots/scheduler-edit-modal.png) | Палитра тем — статичная<br>![](screenshots/themepalette-static.png) |
+| Очередь восстановления при ошибке сервиса<br>![](screenshots/service-error-recovery.png) | Действия чат-событий<br>![](screenshots/chat-event-actions-section.png) |
+| Модальные окна действий чат-событий<br>![](screenshots/chat-event-actions-modals.png) | Диалог редактирования планировщика<br>![](screenshots/scheduler-edit-modal.png) |
+| Встроенный терминал (открыт)<br>![](screenshots/embedded-terminal.png) | Палитра тем — статичная<br>![](screenshots/themepalette-static.png) |
 | Палитра тем — текучая<br>![](screenshots/themepalette-flowing.png) | Палитра тем — анимация<br>![](screenshots/themepalette-motion.png) |
-| Палитра тем — шрифт<br>![](screenshots/themepalette-font.png) | Настройки — интерфейс и поведение<br>![](screenshots/settings-interface-behavior.png) |
-| Настройки — безопасность и разрешения<br>![](screenshots/settings-safety-approvals.png) | Настройки — параметры ИИ-моделей по умолчанию<br>![](screenshots/settings-ai-model-defaults.png) |
-| Настройки — агент и интеллект<br>![](screenshots/settings-agent-intelligence.png) | Настройки — агенты<br>![](screenshots/settings-agents.png) |
-| Настройки — расширения и инструменты<br>![](screenshots/settings-extensions-tools.png) | Настройки — нативные настройки OMP<br>![](screenshots/settings-omp-native.png) |
-| Настройки — удалённый доступ<br>![](screenshots/settings-remote-access.png) | Настройки — центр навыков<br>![](screenshots/settings-skill-hub.png) |
-| Настройки — система и обновления<br>![](screenshots/settings-system-updates.png) | Настройки — поиск<br>![](screenshots/settings-search.png) |
-| Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) | Тема: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
+| Палитра тем — шрифт<br>![](screenshots/themepalette-font.png) | Палитра тем — масштаб UI-шрифта<br>![](screenshots/theme-palette-ui-scale-settings.png) |
+| Настройки — интерфейс и поведение<br>![](screenshots/settings-interface-behavior.png) | Настройки — безопасность и разрешения<br>![](screenshots/settings-safety-approvals.png) |
+| Настройки — параметры ИИ-моделей по умолчанию<br>![](screenshots/settings-ai-model-defaults.png) | Настройки — агент и интеллект<br>![](screenshots/settings-agent-intelligence.png) |
+| Настройки — агенты<br>![](screenshots/settings-agents.png) | Настройки — расширения и инструменты<br>![](screenshots/settings-extensions-tools.png) |
+| Настройки — нативные настройки OMP<br>![](screenshots/settings-omp-native.png) | Настройки — удалённый доступ<br>![](screenshots/settings-remote-access.png) |
+| Настройки — центр навыков<br>![](screenshots/settings-skill-hub.png) | Настройки — система и обновления<br>![](screenshots/settings-system-updates.png) |
+| Настройки — поиск<br>![](screenshots/settings-search.png) | Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) |
+| Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) | Тема: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
 | Тема: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | Тема: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
 | Тема: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | Тема: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
 | Тема: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | Тема: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
 | Тема: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | Тема: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| Тема: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Встроенный терминал (открыт)<br>![](screenshots/embedded-terminal.png) |
+| Тема: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Моб.: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 | Тема: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | Тема: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
 | Тема: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | Тема: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
 | Тема: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | Тема: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
@@ -68,7 +70,6 @@ ompweb предоставляет браузерное рабочее прост
 | Моб.: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | Моб.: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
 | Моб.: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | Моб.: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
 | Моб.: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | Моб.: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
-| Моб.: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 </details>
 
 ## 🐳 Запуск в Docker

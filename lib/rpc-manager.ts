@@ -354,6 +354,9 @@ export class AgentSessionWrapper {
   private _sessionId = "";
   private _sessionFile = "";
   private _sessionName: string | undefined;
+  /** Most recent assistant text reply (captured at message_end) — fed to
+   *  chat event actions as the $last_reply variable. */
+  private _lastAssistantReply: string | null = null;
   private proc: RpcProcessLike;
   readonly cwd: string;
   /** Whether the child was spawned with --advisor. The flag is spawn-time
@@ -596,6 +599,16 @@ export class AgentSessionWrapper {
           }
           if (hasThinking) dispatchChatEvent("thinking_completed", this.chatEventPayload());
           if (message.role === "assistant" && hasText) {
+            // Capture the latest assistant text so $last_reply can be
+            // substituted into event actions fired later in this run.
+            const texts: string[] = [];
+            for (const block of content) {
+              if (typeof block === "object" && block !== null) {
+                const b = block as { type?: unknown; text?: unknown };
+                if (b.type === "text" && typeof b.text === "string" && b.text.trim() !== "") texts.push(b.text);
+              }
+            }
+            if (texts.length > 0) this._lastAssistantReply = texts.join("\n");
             dispatchChatEvent("assistant_text", this.chatEventPayload());
           }
         }
@@ -848,6 +861,7 @@ export class AgentSessionWrapper {
   private chatEventPayload(frame?: Record<string, unknown>): ChatEventPayload {
     const payload: ChatEventPayload = { sessionId: this._sessionId };
     if (this._sessionName) payload.sessionName = this._sessionName;
+    if (this._lastAssistantReply) payload.lastAssistantReply = this._lastAssistantReply;
     if (frame) {
       payload.emitToSession = (f) => {
         let count = 0;

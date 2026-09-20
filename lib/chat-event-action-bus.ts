@@ -20,7 +20,15 @@ export interface ChatEventActionFrame {
   message: string;
 }
 
-type Send = (frame: ChatEventActionFrame) => void;
+/** A chat action executed (real or Test-button): the client refreshes the
+ *  action list so the new lastRun (status dot + detail) shows without a
+ *  reload. The authoritative value lives in the store; this is a nudge. */
+export interface ChatActionRunFrame {
+  type: "chat_action_run";
+  actionId: string;
+}
+
+type Send = (frame: ChatEventActionFrame | ChatActionRunFrame) => void;
 
 const REGISTRY_KEY = "ompweb:chat-event-action-bus" as const;
 
@@ -49,7 +57,7 @@ export function subscribeChatEventActions(send: Send): () => void {
  * Returns the number of streams that received it (0 = no browser attached to
  * the running stream).
  */
-export function broadcastChatEventAction(frame: ChatEventActionFrame): number {
+function broadcast(frame: ChatEventActionFrame | ChatActionRunFrame): number {
   let delivered = 0;
   for (const send of registry().sends) {
     try {
@@ -60,4 +68,14 @@ export function broadcastChatEventAction(frame: ChatEventActionFrame): number {
     }
   }
   return delivered;
+}
+
+export function broadcastChatEventAction(frame: ChatEventActionFrame): number {
+  return broadcast(frame);
+}
+
+/** Push a chat_action_run nudge to every connected running-events stream so
+ *  an open action panel refreshes the just-executed action's lastRun. */
+export function broadcastChatActionRun(actionId: string): number {
+  return broadcast({ type: "chat_action_run", actionId });
 }

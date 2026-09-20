@@ -29,21 +29,23 @@ ompweb provides a browser workspace for your local omp runtime: session browsing
 | Git panel (changed files)<br>![](screenshots/rightpanel-git.png) | Goal & Subagents hub (expanded)<br>![](screenshots/composer-goal-subagents.png) |
 | Side chat panel<br>![](screenshots/rightpanel-sidechat.png) | Side chat (empty state)<br>![](screenshots/rightpanel-sidechat-empty.png) |
 | Files panel<br>![](screenshots/rightpanel-files.png) | Chat minimap hover tooltip<br>![](screenshots/minimap-tooltip.png) |
-| Service-error recovery queue<br>![](screenshots/service-error-recovery.png) | Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
-| Scheduler edit dialog<br>![](screenshots/scheduler-edit-modal.png) | Theme Palette — Static<br>![](screenshots/themepalette-static.png) |
+| Service-error recovery queue<br>![](screenshots/service-error-recovery.png) | Chat event actions<br>![](screenshots/chat-event-actions-section.png) |
+| Chat events actions modals<br>![](screenshots/chat-event-actions-modals.png) | Scheduler edit dialog<br>![](screenshots/scheduler-edit-modal.png) |
+| Embedded terminal (open)<br>![](screenshots/embedded-terminal.png) | Theme Palette — Static<br>![](screenshots/themepalette-static.png) |
 | Theme Palette — Flowing<br>![](screenshots/themepalette-flowing.png) | Theme Palette — Motion<br>![](screenshots/themepalette-motion.png) |
-| Theme Palette — Font<br>![](screenshots/themepalette-font.png) | Settings — Interface & Behavior<br>![](screenshots/settings-interface-behavior.png) |
-| Settings — Safety & Approvals<br>![](screenshots/settings-safety-approvals.png) | Settings — AI Model Defaults<br>![](screenshots/settings-ai-model-defaults.png) |
-| Settings — Agent & Intelligence<br>![](screenshots/settings-agent-intelligence.png) | Settings — Agents<br>![](screenshots/settings-agents.png) |
-| Settings — Extensions & Tools<br>![](screenshots/settings-extensions-tools.png) | Settings — OMP Native<br>![](screenshots/settings-omp-native.png) |
-| Settings — Remote Access<br>![](screenshots/settings-remote-access.png) | Settings — Skill Hub<br>![](screenshots/settings-skill-hub.png) |
-| Settings — System & Updates<br>![](screenshots/settings-system-updates.png) | Settings — search<br>![](screenshots/settings-search.png) |
-| Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) | Theme: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
+| Theme Palette — Font<br>![](screenshots/themepalette-font.png) | Theme Palette - UI Font Scale<br>![](screenshots/theme-palette-ui-scale-settings.png) |
+| Settings — Interface & Behavior<br>![](screenshots/settings-interface-behavior.png) | Settings — Safety & Approvals<br>![](screenshots/settings-safety-approvals.png) |
+| Settings — AI Model Defaults<br>![](screenshots/settings-ai-model-defaults.png) | Settings — Agent & Intelligence<br>![](screenshots/settings-agent-intelligence.png) |
+| Settings — Agents<br>![](screenshots/settings-agents.png) | Settings — Extensions & Tools<br>![](screenshots/settings-extensions-tools.png) |
+| Settings — OMP Native<br>![](screenshots/settings-omp-native.png) | Settings — Remote Access<br>![](screenshots/settings-remote-access.png) |
+| Settings — Skill Hub<br>![](screenshots/settings-skill-hub.png) | Settings — System & Updates<br>![](screenshots/settings-system-updates.png) |
+| Settings — search<br>![](screenshots/settings-search.png) | Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) |
+| Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) | Theme: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
 | Theme: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | Theme: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
 | Theme: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | Theme: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
 | Theme: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | Theme: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
 | Theme: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | Theme: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| Theme: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Embedded terminal (open)<br>![](screenshots/embedded-terminal.png) |
+| Theme: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Mobile: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 | Theme: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | Theme: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
 | Theme: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | Theme: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
 | Theme: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | Theme: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
@@ -68,7 +70,6 @@ ompweb provides a browser workspace for your local omp runtime: session browsing
 | Mobile: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | Mobile: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
 | Mobile: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | Mobile: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
 | Mobile: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | Mobile: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
-| Mobile: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
 </details>
 
 ## 🐳 Running in Docker

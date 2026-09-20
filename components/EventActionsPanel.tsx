@@ -108,6 +108,33 @@ export function EventActionsPanel({
     load();
   }, [open, load]);
 
+  // Live lastRun: the executors broadcast a `chat_action_run` nudge over the
+  // running-events stream after every execution (real or Test). The store is
+  // the source of truth — the nudge only triggers a re-read, so a missed
+  // frame costs nothing (next open / CRUD refreshes anyway).
+  useEffect(() => {
+    if (!open) return;
+    const source = new EventSource("/api/agent/running/events");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    source.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { type?: string; actionId?: string };
+        if (data.type === "chat_action_run" && data.actionId) {
+          // Coalesce: several actions can fire in one event; one re-read
+          // covers them all.
+          clearTimeout(timer);
+          timer = setTimeout(() => load(), 150);
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    };
+    return () => {
+      clearTimeout(timer);
+      source.close();
+    };
+  }, [open, load]);
+
   const toggleEnabled = useCallback(
     async (entry: ChatEventAction) => {
       setToggleBusyId(entry.id);

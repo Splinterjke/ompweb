@@ -1839,6 +1839,8 @@
   "chatActions.httpUrl": "URL",
   "chatActions.httpBody": "请求体",
   "chatActions.httpBodyHint": "随 POST 和 PUT 发送",
+  "chatActions.httpBodyVars": "从触发事件中替换的变量：\n$session_name — 会话名称（标题）\n$session_id — 会话 ID\n$last_reply — 最后一条助手回复（全文）",
+  "chatActions.httpBodyVarsHint": "可用的请求体变量",
   "chatActions.httpContentType": "请求体类型",
   "chatActions.httpHeaders": "请求头",
   "chatActions.httpHeadersHint": "每行一个，例如 Content-Type: application/json",

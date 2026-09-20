@@ -5,7 +5,7 @@ import { getAgentDir } from "./omp/paths";
 import { repairedChildPath } from "./omp/omp-cli";
 import { triggerManualRun } from "./scheduler-engine";
 import { recordActionRun } from "./chat-event-action-store";
-import { broadcastChatEventAction } from "./chat-event-action-bus";
+import { broadcastChatActionRun, broadcastChatEventAction } from "./chat-event-action-bus";
 import type { ActionSpec, ChatActionRun, ChatEventAction } from "./chat-event-action-types";
 
 // ============================================================================
@@ -28,6 +28,9 @@ export interface ChatEventPayload {
   sessionId: string;
   /** Session display name (best-effort; the notification defaults use it). */
   sessionName?: string;
+  /** The assistant's most recent text reply in this session (best-effort;
+   *  captured at message_end). Available to actions as $last_reply. */
+  lastAssistantReply?: string;
   /** Push a frame onto this session's own SSE stream. Returns the number of
    *  listeners that received it. Absent (or a no-op returning 0) when the
    *  session wrapper is gone — the running-stream broadcast is still
@@ -44,8 +47,32 @@ function record(action: ChatEventAction, ok: boolean, detail?: string): void {
   } catch {
     // lastRun is cosmetic; never let a store error surface from an executor.
   }
+  // Nudge open panels so the fresh lastRun renders without a reload. A
+  // delivery failure (no browser attached) is harmless — the store has it.
+  try {
+    broadcastChatActionRun(action.id);
+  } catch {
+    /* bus gone */
+  }
 }
 
+/* ─────────────────────────── event-data variables ─────────────────────────── */
+
+/**
+ * Substitute $event-data variables in an action field. Supported:
+ * $session_name, $session_id, $last_reply. Unknown $names are left as-is
+ * (a typo in a body is user content, not an error). No variable in the
+ * string -> the original is returned untouched (zero-copy fast path).
+ */
+export function interpolateEventVars(value: string, payload: ChatEventPayload): string {
+  if (!value.includes("$")) return value;
+  const vars: Record<string, string> = {
+    session_name: payload.sessionName ?? "",
+    session_id: payload.sessionId,
+    last_reply: payload.lastAssistantReply ?? "",
+  };
+  return value.replace(/\$([a-z_]+)/g, (whole, name: string) => (name in vars ? vars[name] : whole));
+}
 /* ─────────────────────────── http ─────────────────────────── */
 
 /** Parse a user-supplied header block: "Name: value" per line. Blank and
@@ -70,12 +97,13 @@ const CONTENT_TYPES = { json: "application/json", xml: "application/xml", text: 
 async function executeHttp(action: ChatEventAction, payload: ChatEventPayload): Promise<void> {
   const spec = action.action;
   if (spec.type !== "http") return;
-  void payload;
   try {
     const headers = parseHeaderLines(spec.headers ?? "");
     let body: string | undefined;
     if (spec.body) {
-      body = spec.body;
+      // $event-data variables ($session_name, $session_id, $last_reply) are
+      // substituted from the firing event's payload.
+      body = interpolateEventVars(spec.body, payload);
       if ((spec.method === "POST" || spec.method === "PUT") && !headers["content-type"]) {
         headers["Content-Type"] = CONTENT_TYPES[spec.bodyContentType ?? "json"];
       }

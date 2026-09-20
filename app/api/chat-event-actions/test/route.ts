@@ -61,7 +61,10 @@ export async function POST(req: Request) {
     saveChatEventActionFile(file);
 
     try {
-      executeChatAction(action, { sessionId: "test", sessionName: "Test" });
+      // The throwaway payload still carries sample event data so $session_name /
+      // $session_id / $last_reply substitute during a Test run (the real values
+      // arrive only for live events).
+      executeChatAction(action, { sessionId: "test", sessionName: "Test", lastAssistantReply: "Test reply" });
       const run = await waitForRun(action.id);
       return NextResponse.json({ ok: run.ok, ...(run.detail ? { detail: run.detail } : {}) });
     } finally {

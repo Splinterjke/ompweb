@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { LoaderCircle, X } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "./ui/primitives";
+import { Info, LoaderCircle, X } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle, Tooltip } from "./ui/primitives";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { Field, Select, TextInput } from "./ui/field";
 import { detailNode, toast } from "./ui/toast";
@@ -412,7 +412,28 @@ export function EventActionModal({
                       );
                     })}
                   </div>
-                  <Field label={t("chatActions.httpBody")}>
+                  <Field
+                    label={
+                      <>
+                        {t("chatActions.httpBody")}
+                        <Tooltip
+                          content={
+                            <span style={{ display: "block", whiteSpace: "pre-line" }}>{t("chatActions.httpBodyVars")}</span>
+                          }
+                          side="top"
+                        >
+                          <button
+                            type="button"
+                            aria-label={t("chatActions.httpBodyVarsHint")}
+                            title={t("chatActions.httpBodyVarsHint")}
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 14, height: 14, padding: 0, border: "none", borderRadius: "50%", background: "none", color: "var(--text-dim)", cursor: "help" }}
+                          >
+                            <Info size={12} aria-hidden="true" />
+                          </button>
+                        </Tooltip>
+                      </>
+                    }
+                  >
                     <TextArea value={body} onChange={setBody} rows={3} mono placeholder="{&quot;key&quot;: &quot;value&quot;}" />
                   </Field>
                 </>
