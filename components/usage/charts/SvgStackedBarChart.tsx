@@ -81,7 +81,7 @@ export function SvgStackedBarChart({
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 cursor: "pointer",
                 opacity: hoveredIndex !== null && !isHovered ? 0.45 : 1,
                 transition: "opacity var(--dur-fast) var(--ease-out-warm)",
@@ -100,7 +100,7 @@ export function SvgStackedBarChart({
               <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text)" }}>
                 {valueFormatter(seg.value)}
               </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
                 ({pct}%)
               </span>
             </div>

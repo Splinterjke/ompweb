@@ -1122,7 +1122,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   if (error) {
     return (
-      <div role="alert" className="flex h-full items-center justify-center" style={{ color: "var(--accent-strong)", padding: "0 16px", textAlign: "center", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+      <div role="alert" className="flex h-full items-center justify-center" style={{ color: "var(--accent-strong)", padding: "0 16px", textAlign: "center", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
         {error}
       </div>
     );
@@ -1226,7 +1226,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                   borderRadius: "var(--radius-control)", background: "var(--bg-subtle)",
                 }}
               >
-                <span style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+                <span style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
                   {showPreCompactionHistory ? t("chatWindow.fullHistoryVisible") : t("chatWindow.compactedHistoryNotice")}
                 </span>
                 <button
@@ -1234,7 +1234,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                   onClick={togglePreCompactionHistory}
                   style={{
                     flexShrink: 0, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)",
-                    background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   }}
                 >
                   {showPreCompactionHistory ? t("chatWindow.returnToCompactHistory") : t("chatWindow.viewPreCompactionHistory")}
@@ -1295,11 +1295,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                   border: "1px solid color-mix(in srgb, var(--status-success) 25%, transparent)",
                   borderRadius: "var(--radius-control)",
                   background: "color-mix(in srgb, var(--status-success) 4%, transparent)",
-                  color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 }}
               >
                 <span aria-hidden className="live-status-dot live-pulse inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span style={{ color: "var(--status-success)", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{tool.name}</span>
+                <span style={{ color: "var(--status-success)", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{tool.name}</span>
               </div>
             ))}
 
@@ -1418,10 +1418,10 @@ function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text:
             borderRadius: "var(--radius-control)",
             background: "color-mix(in srgb, var(--accent) 7%, var(--bg))",
             color: "var(--text-muted)",
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           }}
         >
-          <span style={{ color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{status.key}</span>
+          <span style={{ color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{status.key}</span>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{renderAnsiLine(status.text, status.key)}</span>
         </div>
       ))}
@@ -1440,7 +1440,7 @@ function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: st
           role="group"
           aria-label={widget.key}
           title={widget.key}
-          style={{ margin: 0, padding: "8px 9px", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)" }}
+          style={{ margin: 0, padding: "8px 9px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)" }}
         >
           {widget.lines.map((line, index, allLines) => (
             <Fragment key={index}>
@@ -1495,7 +1495,7 @@ function NoticeShelf({ notices, floating = false, align = "left" }: { notices: N
               width: "fit-content",
               maxWidth: "min(100%, 620px)",
               boxShadow: floating ? "var(--shadow-pop)" : "var(--shadow-card)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1.35,
               transformOrigin: "top center",
               animation: notice.exiting
@@ -1629,7 +1629,7 @@ function ExtensionCustomPanel({
           }}
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 650 }}>{t("chatWindow.extensionPanel")}</div>
+          <div style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 650 }}>{t("chatWindow.extensionPanel")}</div>
           <button
             onClick={() => onInput(request, "\x03")}
             style={{
@@ -1639,7 +1639,7 @@ function ExtensionCustomPanel({
               background: "var(--bg-panel)",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             }}
           >
             {t("chatWindow.close")}
@@ -1654,7 +1654,7 @@ function ExtensionCustomPanel({
             background: "var(--bg-panel)",
             color: "var(--text)",
             fontFamily: "var(--font-mono)",
-            fontSize: "calc(13px * var(--ui-font-scale, 1))",
+            fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
             lineHeight: 1.45,
             whiteSpace: "pre",
           }}

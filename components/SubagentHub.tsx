@@ -134,7 +134,7 @@ function ActivityLine({ subagent }: { subagent: SubagentInfo }) {
         display: "flex",
         minWidth: 0,
         overflow: "hidden",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
         fontFamily: "var(--font-mono)",
         color: retryActive ? "var(--accent)" : "var(--text-dim)",
         lineHeight: 1.4,
@@ -168,7 +168,7 @@ function ActivityPreview({ events }: { events: SubagentActivityEvent[] | undefin
         overflow: "hidden",
         color: "var(--text-dim)",
         fontFamily: "var(--font-mono)",
-        fontSize: "calc(12px * var(--ui-font-scale, 1))",
+        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
         lineHeight: 1.4,
         wordBreak: "keep-all",
       }}
@@ -222,7 +222,7 @@ function SubagentRow({
         color: live ? "var(--text)" : "var(--text-dim)",
         opacity: live ? 1 : 0.72,
         fontFamily: "inherit",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
         textAlign: "left",
         cursor: "pointer",
         wordBreak: "keep-all",
@@ -239,7 +239,7 @@ function SubagentRow({
     >
       <span style={{ display: "flex", minWidth: 0, alignItems: "center", gap: 6 }}>
         <SubagentStatusIcon status={subagent.status} live={live} size={14} strokeWidth={1.8} />
-        <span style={{ flexShrink: 0, color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 650 }}>
+        <span style={{ flexShrink: 0, color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
           {subagent.agent}
         </span>
         <span
@@ -248,18 +248,18 @@ function SubagentRow({
         >
           {task}
         </span>
-        <span style={{ flexShrink: 0, color: live ? "var(--text-muted)" : "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+        <span style={{ flexShrink: 0, color: live ? "var(--text-muted)" : "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
           {stateLabel}
         </span>
         {historyLabel && (
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
             {historyLabel}
           </span>
         )}
         {subagent.detached && (
           <span
             aria-hidden
-            style={{ flexShrink: 0, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}
+            style={{ flexShrink: 0, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
           >
             ⤴
           </span>
@@ -368,11 +368,12 @@ export function SubagentHub({
     >
       <button
         type="button"
-        className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs text-text-muted"
+        className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-text-muted"
         aria-expanded={!collapsed}
         onClick={() => setCollapsed((value) => !value)}
         title={collapsed ? t("chatWindow.subagentHub.expand") : t("chatWindow.subagentHub.collapse")}
         style={{
+          fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           border: "none",
           borderBottom: collapsed ? "none" : "thin solid var(--border)",
           background: "transparent",
@@ -416,7 +417,7 @@ export function SubagentHub({
           }}
         >
           {subagents.length === 0 ? (
-            <div style={{ padding: "12px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "center", wordBreak: "keep-all" }}>
+            <div style={{ padding: "12px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", wordBreak: "keep-all" }}>
               {t("chatWindow.subagentHub.empty")}
             </div>
           ) : (

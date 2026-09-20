@@ -10,7 +10,7 @@ import type { GitHubRepoStatus } from "@/lib/github";
 import type { NativeSettings } from "@/lib/omp/settings-config";
 import type { ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
-import type { ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
+import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 
 /** Unified error shape (doc 01 contract rule 3): UI branches on `code`. */
 export interface ClientError {
@@ -189,6 +189,9 @@ export interface ChatEventActionClient {
   update(id: string, input: ChatEventActionPatch): Promise<{ action: ChatEventAction }>;
   /** DELETE /api/chat-event-actions/[id]. */
   remove(id: string): Promise<{ success: boolean }>;
+  /** POST /api/chat-event-actions/test — run one spec once, return its
+   *  outcome. Optional (fixture/remote adapters may omit it). */
+  test?(input: { action: ActionSpec }): Promise<{ ok: boolean; detail?: string }>;
 }
 
 export interface OmpwebClient {

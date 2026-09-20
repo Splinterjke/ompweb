@@ -26,7 +26,7 @@ import type {
 } from "./types";
 import type { ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
-import type { ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
+import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 import type { SessionInfo } from "@/lib/types";
 import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
 import type { NativeSettings } from "@/lib/omp/settings-config";
@@ -359,6 +359,15 @@ class HttpChatEventActionClient implements ChatEventActionClient {
   async remove(id: string): Promise<{ success: boolean }> {
     await rawRequest<{ error?: string }>(`/api/chat-event-actions/${encodeURIComponent(id)}`, { method: "DELETE" });
     return { success: true };
+  }
+  async test(input: { action: ActionSpec }): Promise<{ ok: boolean; detail?: string }> {
+    const body = await rawRequest<{ ok?: boolean; detail?: string; error?: string; code?: string }>("/api/chat-event-actions/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (typeof body.ok !== "boolean") throw toClientError(body, 500);
+    return { ok: body.ok, ...(body.detail ? { detail: body.detail } : {}) };
   }
 }
 /** Native OMP settings (GET /api/omp-settings) — the config.yml shape, read-only. */

@@ -76,12 +76,12 @@ export function CommandPalette({ onSelectSession, onNewSession, currentModel }: 
     <div role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 2000, background: "color-mix(in srgb, var(--text) 22%, transparent)", paddingTop: "20vh" }}>
       <Command label={t("commandPalette.label")} role="dialog" aria-modal="true" shouldFilter style={{ width: "min(92vw, 560px)", maxHeight: "min(70vh, 560px)", margin: "0 auto", overflow: "hidden", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-modal)", boxShadow: "var(--shadow-modal)", animation: "ui-scale-in var(--dur-med) var(--ease-out-warm)" }}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-          <Command.Input autoFocus placeholder={t("commandPalette.placeholder")} style={{ width: "100%", border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(15px * var(--ui-font-scale, 1))" }} />
+          <Command.Input autoFocus placeholder={t("commandPalette.placeholder")} style={{ width: "100%", border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(15px * var(--ui-font-scale-lg, 1))" }} />
         </div>
         <Command.List style={{ padding: "8px", overflowY: "auto", maxHeight: "min(55vh, 440px)" }}>
-          <Command.Empty style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>{loading ? "Loading sessions..." : t("commandPalette.empty")}</Command.Empty>
+          <Command.Empty style={{ padding: 20, textAlign: "center", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>{loading ? "Loading sessions..." : t("commandPalette.empty")}</Command.Empty>
           <Command.Group heading={t("commandPalette.sessions")}>
-            {sessions.map((session) => <Command.Item key={session.id} value={`${session.name ?? session.id} ${session.cwd}`} onSelect={() => choose(() => onSelectSession(session))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: "var(--radius-control)", color: "var(--text)", cursor: "pointer" }}><MessageSquare size={15} color="var(--accent)" /><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.name || session.id}</span><span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{relativeTime(session.modified, locale)}</span></Command.Item>)}
+            {sessions.map((session) => <Command.Item key={session.id} value={`${session.name ?? session.id} ${session.cwd}`} onSelect={() => choose(() => onSelectSession(session))} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: "var(--radius-control)", color: "var(--text)", cursor: "pointer" }}><MessageSquare size={15} color="var(--accent)" /><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.name || session.id}</span><span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{relativeTime(session.modified, locale)}</span></Command.Item>)}
           </Command.Group>
           <Command.Group heading={t("commandPalette.actions")}>
             <Command.Item
@@ -143,10 +143,10 @@ export function CommandPalette({ onSelectSession, onNewSession, currentModel }: 
             </Command.Item>
           </Command.Group>
           <Command.Group heading={t("commandPalette.models")}>
-            <Command.Item value={currentModel ?? t("commandPalette.currentModel")} disabled style={{ padding: "9px 10px", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>{t("commandPalette.currentModel")}: {currentModel ?? t("commandPalette.notAvailable")}</Command.Item>
+            <Command.Item value={currentModel ?? t("commandPalette.currentModel")} disabled style={{ padding: "9px 10px", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>{t("commandPalette.currentModel")}: {currentModel ?? t("commandPalette.notAvailable")}</Command.Item>
           </Command.Group>
         </Command.List>
-        <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{t("commandPalette.hints")}</div>
+        <div style={{ borderTop: "1px solid var(--border)", padding: "8px 14px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("commandPalette.hints")}</div>
       </Command>
     </div>, document.body,
   );

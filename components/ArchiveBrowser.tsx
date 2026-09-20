@@ -118,7 +118,7 @@ function StatusBadge({ status }: { status?: ArchivedSessionInfo["status"] }) {
         alignItems: "center",
         padding: "1px 6px",
         borderRadius: "var(--radius-control)",
-        fontSize: "calc(10px * var(--ui-font-scale, 1))",
+        fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
         fontWeight: 600,
         fontFamily: "var(--font-mono)",
         textTransform: "uppercase",
@@ -178,10 +178,10 @@ export function MetadataRow({
         <Icon size={14} aria-hidden="true" />
       </div>
       <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
-        <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginBottom: 2 }}>{label}</div>
         <div
           style={{
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             color: "var(--text)",
             fontFamily: mono ? "var(--font-mono)" : "inherit",
             overflow: "hidden",
@@ -379,10 +379,10 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                 <Archive size={17} strokeWidth={2} aria-hidden="true" />
               </div>
               <div>
-                <DialogTitle style={{ margin: 0, fontSize: "calc(17px * var(--ui-font-scale, 1))", lineHeight: 1.2 }}>
+                <DialogTitle style={{ margin: 0, fontSize: "calc(17px * var(--ui-font-scale-lg, 1))", lineHeight: 1.2 }}>
                   {t("archiveBrowser.title")}
                 </DialogTitle>
-                <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginTop: 2 }}>
+                <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", marginTop: 2 }}>
                   {t("archiveBrowser.description")}
                 </div>
               </div>
@@ -430,7 +430,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                   background: "var(--bg-panel)",
                   color: "var(--text-muted)",
                   cursor: "pointer",
-                  fontSize: "calc(16px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(16px * var(--ui-font-scale-lg, 1))",
                   lineHeight: 1,
                   padding: 0,
                 }}
@@ -468,7 +468,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                 borderRadius: "var(--radius-control)",
                 background: "var(--bg-panel)",
                 color: "var(--text)",
-                fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+                fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
                 outline: "none",
                 transition: "border-color var(--dur-fast)",
               }}
@@ -513,7 +513,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                 justifyContent: "center",
                 gap: 12,
                 color: "var(--text-dim)",
-                fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
               }}
             >
               <RefreshCw size={22} strokeWidth={2} className="icon-spin" aria-hidden="true" />
@@ -547,10 +547,10 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                 <AlertCircle size={20} strokeWidth={2} aria-hidden="true" />
               </div>
               <div style={{ maxWidth: 420 }}>
-                <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>
+                <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>
                   {t("archiveBrowser.loadFailed", { detail: "" }).replace(/:\s*$/, "")}
                 </div>
-                <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", wordBreak: "break-word" }}>
+                <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", wordBreak: "break-word" }}>
                   {error}
                 </div>
               </div>
@@ -566,7 +566,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                   background: "var(--accent-strong)",
                   color: "var(--on-accent)",
                   border: "none",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -602,10 +602,10 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
               >
                 <Archive size={22} strokeWidth={1.8} aria-hidden="true" />
               </div>
-              <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
+              <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>
                 {t("archiveBrowser.noArchives")}
               </div>
-              <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", maxWidth: 320 }}>
+              <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", maxWidth: 320 }}>
                 {t("archiveBrowser.noArchivesDescription")}
               </div>
             </div>
@@ -626,7 +626,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                 <div
                   style={{
                     padding: "8px 12px",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 600,
                     color: "var(--text-dim)",
                     borderBottom: "1px solid var(--border)",
@@ -654,7 +654,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                         padding: "32px 16px",
                         textAlign: "center",
                         color: "var(--text-dim)",
-                        fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                       }}
                     >
                       <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--text-muted)" }}>
@@ -709,7 +709,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                           >
                             <span
                               style={{
-                                fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+                                fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
                                 fontWeight: isSelected ? 600 : 500,
                                 color: isSelected ? "var(--accent)" : "var(--text)",
                                 overflow: "hidden",
@@ -723,7 +723,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                             {relativeTime && (
                               <span
                                 style={{
-                                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                                  fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                                   color: "var(--text-dim)",
                                   flexShrink: 0,
                                   fontVariantNumeric: "tabular-nums",
@@ -739,7 +739,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                               display: "flex",
                               alignItems: "center",
                               gap: 6,
-                              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                               color: "var(--text-dim)",
                               overflow: "hidden",
                             }}
@@ -762,7 +762,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                               display: "flex",
                               alignItems: "center",
                               gap: 8,
-                              fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+                              fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
                               color: "var(--text-muted)",
                               marginTop: 2,
                             }}
@@ -818,7 +818,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                           <h3
                             style={{
                               margin: 0,
-                              fontSize: "calc(16px * var(--ui-font-scale, 1))",
+                              fontSize: "calc(16px * var(--ui-font-scale-lg, 1))",
                               fontWeight: 600,
                               color: "var(--text)",
                               wordBreak: "break-word",
@@ -834,7 +834,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                         </div>
                         <div
                           style={{
-                            fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
                             color: "var(--text-muted)",
                             fontFamily: "var(--font-mono)",
                             wordBreak: "break-all",
@@ -857,7 +857,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                           background: "var(--accent-strong)",
                           color: "var(--on-accent)",
                           border: "none",
-                          fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                           fontWeight: 600,
                           cursor: restoringKey !== null ? "wait" : "pointer",
                           opacity: restoringKey !== null ? 0.7 : 1,
@@ -887,7 +887,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                         borderRadius: "var(--radius-control)",
                         background: "var(--bg-panel)",
                         border: "1px solid var(--border)",
-                        fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                         color: "var(--text-muted)",
                         lineHeight: 1.45,
                       }}
@@ -969,7 +969,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <div
                         style={{
-                          fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                           fontWeight: 600,
                           color: "var(--text-dim)",
                           textTransform: "uppercase",
@@ -984,7 +984,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                           borderRadius: "var(--radius-card)",
                           background: "var(--bg-panel)",
                           border: "1px solid var(--border)",
-                          fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
                           lineHeight: 1.55,
                           color: selectedArchive.firstMessage.trim()
                             ? "var(--text)"
@@ -1009,7 +1009,7 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                       alignItems: "center",
                       justifyContent: "center",
                       color: "var(--text-dim)",
-                      fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                       padding: 24,
                       textAlign: "center",
                     }}

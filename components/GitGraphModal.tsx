@@ -126,7 +126,7 @@ function GraphStrip({ chars, height, colors, prevChars, nextChars }: {
 function DiffLines({ diff }: { diff: string }) {
   const lines = useMemo(() => diff.split("\n"), [diff]);
   return (
-    <pre style={{ margin: 0, padding: "8px 0", overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.5, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg)" }}>
+    <pre style={{ margin: 0, padding: "8px 0", overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg)" }}>
       {lines.map((line, i) => {
         let color: string | undefined;
         let background: string | undefined;
@@ -349,9 +349,9 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           <GitBranch size={15} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden="true" />
-          <DialogTitle style={{ fontSize: "calc(15px * var(--ui-font-scale, 1))", margin: 0, flex: 1 }}>{t("gitGraph.title")}</DialogTitle>
+          <DialogTitle style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", margin: 0, flex: 1 }}>{t("gitGraph.title")}</DialogTitle>
           {!loading && commitCount > 0 && (
-            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
               {commitCount} {t("gitGraph.commits")}
             </span>
           )}
@@ -379,20 +379,20 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
         </div>
 
         {!cwd ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             {t("gitGraph.loadError", { error: "no workspace" })}
           </div>
         ) : loading && !payload ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             <LoaderCircle size={14} strokeWidth={1.8} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />
             {t("gitGraph.loading")}
           </div>
         ) : error ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))", overflowWrap: "anywhere" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", overflowWrap: "anywhere" }}>
             {t("gitGraph.loadError", { error })}
           </div>
         ) : commitCount === 0 ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             {t("gitGraph.empty")}
           </div>
         ) : (
@@ -456,7 +456,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                             flexShrink: 0,
                             padding: "1px 7px",
                             borderRadius: 4,
-                            fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                             fontFamily: "var(--font-mono)",
                             fontWeight: 600,
                             color: "var(--on-accent)",
@@ -477,7 +477,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                             flexShrink: 0,
                             padding: "1px 6px",
                             borderRadius: 4,
-                            fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                             fontFamily: "var(--font-mono)",
                             color: "var(--text-muted)",
                             background: "var(--bg-subtle)",
@@ -491,17 +491,17 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                         </span>
                       ))}
                       {commit.isMerge && (
-                        <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }} title={t("gitGraph.merge")}>
+                        <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }} title={t("gitGraph.merge")}>
                           ⑂
                         </span>
                       )}
-                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)" }} title={commit.hash}>
+                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)" }} title={commit.hash}>
                         {commit.shortHash}
                       </span>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: "calc(13px * var(--ui-font-scale, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)" }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)" }}>
                         {commit.subject}
                       </span>
-                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {commit.author}
                       </span>
                     </div>
@@ -543,16 +543,16 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
                   <GitCommitHorizontal size={14} strokeWidth={1.8} style={{ color: "var(--accent)", marginTop: 2 }} aria-hidden="true" />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, overflowWrap: "anywhere", lineHeight: 1.4 }}>{t("gitGraph.commit")}: {selected.subject}</div>
+                    <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, overflowWrap: "anywhere", lineHeight: 1.4 }}>{t("gitGraph.commit")}: {selected.subject}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5 }}>
-                      <code style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", whiteSpace: "nowrap", overflowX: "auto", flex: 1, minWidth: 0, scrollbarWidth: "thin" }}>{selected.hash}</code>
+                      <code style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", whiteSpace: "nowrap", overflowX: "auto", flex: 1, minWidth: 0, scrollbarWidth: "thin" }}>{selected.hash}</code>
                       <button
                         type="button"
                         onClick={() => void copyHash(selected)}
                         title={t("gitGraph.copyHash")}
                         aria-label={t("gitGraph.copyHash")}
                         className="ui-focus-ring"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", border: "1px solid var(--border)", borderRadius: 4, background: "none", color: copied ? "var(--accent)" : "var(--text-dim)", cursor: "pointer", fontSize: "calc(10px * var(--ui-font-scale, 1))", flexShrink: 0 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", border: "1px solid var(--border)", borderRadius: 4, background: "none", color: copied ? "var(--accent)" : "var(--text-dim)", cursor: "pointer", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}
                       >
                         {copied ? <Check size={10} strokeWidth={2} aria-hidden="true" /> : <Copy size={10} strokeWidth={1.8} aria-hidden="true" />}
                         {copied ? t("gitGraph.copied") : t("gitGraph.copyHash")}
@@ -573,7 +573,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                     <X size={13} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                 </div>
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", flexShrink: 0 }}>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>
                   <span style={{ color: "var(--text-dim)" }}>{t("gitGraph.parents")}</span>
                   <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
                     {selected.parents.length > 0 ? selected.parents.map((p) => p.slice(0, 7)).join(" ") : "—"}
@@ -585,14 +585,14 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                 </div>
                 {selected.body && (
                   <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, maxHeight: "30%", overflow: "auto" }}>
-                    <pre style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.55, color: "var(--text)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.body}</pre>
+                    <pre style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.55, color: "var(--text)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.body}</pre>
                   </div>
                 )}
-                <div style={{ padding: "10px 14px 4px", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 650, color: "var(--text-dim)", flexShrink: 0 }}>
+                <div style={{ padding: "10px 14px 4px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650, color: "var(--text-dim)", flexShrink: 0 }}>
                   {t("gitGraph.files")} ({selected.files.length})
                 </div>
                 <div style={{ flex: 1, overflow: "auto", padding: "4px 10px 14px" }}>
-                  {selected.files.length === 0 && <div style={{ padding: "8px 4px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("gitGraph.noDiff")}</div>}
+                  {selected.files.length === 0 && <div style={{ padding: "8px 4px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("gitGraph.noDiff")}</div>}
                   {selected.files.map((file) => (
                     <button
                       key={file.path}
@@ -610,16 +610,16 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                         background: diff?.file === file.path ? "var(--bg-selected)" : "none",
                         color: "var(--text)",
                         cursor: "pointer",
-                        fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                         textAlign: "left",
                       }}
                     >
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                         {file.path}
                       </span>
-                      {file.additions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--status-success)" }}>+{file.additions}</span>}
-                      {file.deletions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>-{file.deletions}</span>}
-                      {file.additions === null && file.deletions === null && <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("gitGraph.binaryFile")}</span>}
+                      {file.additions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-success)" }}>+{file.additions}</span>}
+                      {file.deletions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>-{file.deletions}</span>}
+                      {file.additions === null && file.deletions === null && <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("gitGraph.binaryFile")}</span>}
                     </button>
                   ))}
                 </div>
@@ -659,21 +659,21 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                 style={{ width: diffWidth, minWidth: DIFF_MIN_WIDTH, flexShrink: 0, borderLeft: "none", display: "flex", flexDirection: "column", minHeight: 0, background: "var(--bg)" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, minWidth: 0 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: diff ? "var(--text-muted)" : "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: diff ? "var(--text-muted)" : "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {diff ? diff.file : t("gitGraph.selectFile")}
                   </span>
                   {diffLoading && <LoaderCircle size={12} strokeWidth={1.8} style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} aria-hidden="true" />}
                 </div>
                 <div style={{ flex: 1, overflow: "auto", padding: "8px 10px" }}>
-                  {diffError && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error: diffError })}</div>}
+                  {diffError && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error: diffError })}</div>}
                   {diffLoading && !diffError && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
                       {t("gitGraph.diffLoading")}
                     </div>
                   )}
                   {diff && !diffLoading && !diffError && (
                     diff.binary ? (
-                      <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.binaryFile")}</div>
+                      <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.binaryFile")}</div>
                     ) : (
                       <DiffLines diff={diff.diff} />
                     )

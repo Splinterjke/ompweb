@@ -40,7 +40,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
   }).filter((phase) => phase.tasks.length > 0);
   const isTruncated = displayedPhases.reduce((count, phase) => count + phase.tasks.length, 0) < tasks.length;
 
-  const headerRowClass = "flex items-center gap-2 px-3 py-2 text-xs text-text-muted";
+  const headerRowClass = "flex items-center gap-2 px-3 py-2 text-text-muted";
   const headerBorderClass = collapsed ? "" : "border-b border-border";
   const progressSpan = (
     <span
@@ -69,7 +69,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
           onClick={() => setCollapsed((value) => !value)}
           title={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}
           className={`${headerRowClass} ${headerBorderClass} w-full cursor-pointer text-left`}
-          style={{ background: "none" }}
+          style={{ background: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
         >
           <ListChecks size={15} strokeWidth={1.8} aria-hidden />
           <strong className="font-medium text-text">{t("chatWindow.todoList")}</strong>
@@ -86,7 +86,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
           />
         </button>
       ) : (
-        <div className={`${headerRowClass} ${headerBorderClass}`}>
+        <div className={`${headerRowClass} ${headerBorderClass}`} style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
           <ListChecks size={15} strokeWidth={1.8} aria-hidden />
           <strong className="font-medium text-text">{t("chatWindow.todoList")}</strong>
           {progressSpan}
@@ -100,12 +100,12 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
       <div className="grid gap-3 overflow-y-auto px-3 py-2.5 animate-slide-down" style={{ maxHeight: "min(40vh, 320px)" }}>
         {displayedPhases.map((phase, phaseIndex) => (
           <div key={phase.id ?? `${phase.name}-${phaseIndex}`} className="grid gap-1.5">
-            <div className="text-[11px] font-medium text-text-muted">{phase.name}</div>
+            <div className="font-medium text-text-muted" style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{phase.name}</div>
             <div className="grid gap-1.5">
               {phase.tasks.map((task, taskIndex) => (
                 <div
                   key={task.id ?? `${task.content}-${taskIndex}`}
-                  className="flex min-w-0 items-start gap-2 text-[13px] text-text"
+                  className="flex min-w-0 items-start gap-2 text-text" style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}
                   aria-label={`${t(`chatWindow.todoStatus.${task.status}`)}: ${task.content}`}
                 >
                   <span className="mt-0.5 shrink-0"><TodoStatusIcon status={task.status} /></span>
@@ -114,7 +114,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
                       {task.content}
                     </span>
                     {task.blocker && (
-                      <span className="mt-0.5 block text-[11px] text-text-muted">
+                      <span className="mt-0.5 block text-text-muted" style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                         {t("chatWindow.todoBlocker", { blocker: task.blocker })}
                       </span>
                     )}
@@ -128,7 +128,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
       {(isTruncated || expanded) && (
         <button
           type="button"
-          className="border-t border-border px-3 py-2 text-left text-xs text-accent hover:text-accent-hover"
+          className="border-t border-border px-3 py-2 text-left text-accent hover:text-accent-hover" style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
           onClick={() => setExpanded((value) => !value)}
         >
           {expanded ? t("chatWindow.todoShowLess") : t("chatWindow.todoShowAll")}

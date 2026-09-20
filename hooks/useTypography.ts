@@ -39,9 +39,12 @@ export const FONT_PRESETS: FontPresetOption[] = [
 export interface TypographyConfig {
   fontPreset: FontPreset;
   chatFontSize: number; // in px
-  /** UI font scale (1 = default). Multiplies the app's UI font sizes and
-   * icon sizes (NOT the chat content, which is driven by --chat-font-size). */
-  uiFontScale: number;
+  /** Scale for large UI text (font sizes >= 12px). 1 = default. */
+  uiFontScaleLg: number;
+  /** Scale for small UI text (< 12px) and icons. 1 = default. Multiplies
+   *  the app's UI font sizes (NOT the chat content, which is driven by
+   *  --chat-font-size). */
+  uiFontScaleSm: number;
 }
 
 const STORAGE_KEY = "omp-typography-config";
@@ -55,8 +58,15 @@ function subscribe(cb: () => void): () => void {
 const DEFAULT_CONFIG: TypographyConfig = {
   fontPreset: "sans",
   chatFontSize: 14,
-  uiFontScale: 1,
+  uiFontScaleLg: 1,
+  uiFontScaleSm: 1,
 };
+
+/** Migrate a single legacy `uiFontScale` value (pre-split) to a per-scale
+ * default. Absent/invalid -> 1. */
+function parseLegacyScale(value: unknown): number {
+  return typeof value === "number" && value > 0 ? value : 1;
+}
 
 let cachedConfig: TypographyConfig = DEFAULT_CONFIG;
 let hasInitialized = false;
@@ -72,10 +82,14 @@ function getClientSnapshot(): TypographyConfig {
         cachedConfig = {
           fontPreset: parsed.fontPreset || "sans",
           chatFontSize: Number(parsed.chatFontSize) || 14,
-          uiFontScale:
-            typeof parsed.uiFontScale === "number" && parsed.uiFontScale > 0
-              ? parsed.uiFontScale
-              : 1,
+          uiFontScaleLg:
+            typeof parsed.uiFontScaleLg === "number" && parsed.uiFontScaleLg > 0
+              ? parsed.uiFontScaleLg
+              : parseLegacyScale(parsed.uiFontScale),
+          uiFontScaleSm:
+            typeof parsed.uiFontScaleSm === "number" && parsed.uiFontScaleSm > 0
+              ? parsed.uiFontScaleSm
+              : parseLegacyScale(parsed.uiFontScale),
         };
       }
     } catch {}
@@ -95,7 +109,8 @@ function applyTypographyToDom(config: TypographyConfig) {
   root.style.setProperty("--app-font-family", preset.fontFamily);
   root.style.setProperty("--chat-font-size", `${config.chatFontSize}px`);
   root.style.setProperty("--chat-line-height", `${Math.round(config.chatFontSize * 1.65)}px`);
-  root.style.setProperty("--ui-font-scale", String(config.uiFontScale));
+  root.style.setProperty("--ui-font-scale-lg", String(config.uiFontScaleLg));
+  root.style.setProperty("--ui-font-scale-sm", String(config.uiFontScaleSm));
   root.setAttribute("data-font-preset", config.fontPreset);
 }
 
@@ -123,18 +138,24 @@ export function useTypography() {
     updateTypography({ chatFontSize: size });
   }, [updateTypography]);
 
-  const setUiFontScale = useCallback((scale: number) => {
-    updateTypography({ uiFontScale: scale });
+  const setUiFontScaleLg = useCallback((scale: number) => {
+    updateTypography({ uiFontScaleLg: scale });
+  }, [updateTypography]);
+
+  const setUiFontScaleSm = useCallback((scale: number) => {
+    updateTypography({ uiFontScaleSm: scale });
   }, [updateTypography]);
 
   return {
     config,
     fontPreset: config.fontPreset,
     chatFontSize: config.chatFontSize,
-    uiFontScale: config.uiFontScale,
+    uiFontScaleLg: config.uiFontScaleLg,
+    uiFontScaleSm: config.uiFontScaleSm,
     setFontPreset,
     setChatFontSize,
-    setUiFontScale,
+    setUiFontScaleLg,
+    setUiFontScaleSm,
     updateTypography,
   };
 }

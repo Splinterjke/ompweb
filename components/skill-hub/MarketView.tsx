@@ -103,7 +103,7 @@ export function MarketView(props: { hub: SkillHubState }) {
           </div>
         </div>
         <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-          <button type="button" className={css.button + ' ' + css.primary} style={{ padding: '4px 10px', fontSize: "calc(12px * var(--ui-font-scale, 1))" }} disabled={scanning} onClick={() => { void scanRepo(record.repo) }}>
+          <button type="button" className={css.button + ' ' + css.primary} style={{ padding: '4px 10px', fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }} disabled={scanning} onClick={() => { void scanRepo(record.repo) }}>
             {scanning ? tt('market.scanning') : tt('market.scan')}
           </button>
           <button
@@ -245,9 +245,9 @@ export function MarketView(props: { hub: SkillHubState }) {
                               onChange={(e) => setRepoSearch(e.target.value)}
                               placeholder="搜索技能名…"
                             />
-                            <button type="button" className={css.button + (repoFilter === 'all' ? ' ' + css.primary : '')} style={{ padding: '6px 10px', fontSize: "calc(12px * var(--ui-font-scale, 1))" }} onClick={() => setRepoFilter('all')}>全部 {entries.length}</button>
+                            <button type="button" className={css.button + (repoFilter === 'all' ? ' ' + css.primary : '')} style={{ padding: '6px 10px', fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }} onClick={() => setRepoFilter('all')}>全部 {entries.length}</button>
                             {roots.map((root) => (
-                              <button key={root} type="button" className={css.button + (repoFilter === root ? ' ' + css.primary : '')} style={{ padding: '6px 10px', fontSize: "calc(12px * var(--ui-font-scale, 1))" }} onClick={() => setRepoFilter(root)}>{root} {counts.get(root) ?? 0}</button>
+                              <button key={root} type="button" className={css.button + (repoFilter === root ? ' ' + css.primary : '')} style={{ padding: '6px 10px', fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }} onClick={() => setRepoFilter(root)}>{root} {counts.get(root) ?? 0}</button>
                             ))}
                           </div>
                         )
@@ -255,9 +255,9 @@ export function MarketView(props: { hub: SkillHubState }) {
                       <div className={css.hintLine} style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                         <span>已选 {selected.length}/{entries.length} · {formatBytes(selectedBytes)} · 显示 {paged.length}/{filtered.length}（过滤后）</span>
                         <span style={{ display: 'flex', gap: 6 }}>
-                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale, 1))" }} onClick={() => { setRepoSelected(new Set(filtered.filter((e) => !isExisting(e)).slice(0, visibleCount).map((e) => e.path))) }}>全选当前显示</button>
-                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale, 1))" }} onClick={() => { setRepoSelected(new Set(entries.filter((e) => !isExisting(e)).map((e) => e.path))) }}>全选全部 {entries.filter(e => !isExisting(e)).length}</button>
-                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale, 1))" }} onClick={() => { setRepoSelected(new Set()) }}>{tt('repo.clearAll')}</button>
+                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }} onClick={() => { setRepoSelected(new Set(filtered.filter((e) => !isExisting(e)).slice(0, visibleCount).map((e) => e.path))) }}>全选当前显示</button>
+                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }} onClick={() => { setRepoSelected(new Set(entries.filter((e) => !isExisting(e)).map((e) => e.path))) }}>全选全部 {entries.filter(e => !isExisting(e)).length}</button>
+                          <button type="button" className={css.button} style={{ padding: '4px 8px', fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }} onClick={() => { setRepoSelected(new Set()) }}>{tt('repo.clearAll')}</button>
                         </span>
                       </div>
 
@@ -305,7 +305,7 @@ export function MarketView(props: { hub: SkillHubState }) {
                               <div className={css.scanProgressTrack}>
                                 <div className={css.scanProgressFill} style={{ width: `${pct}%` }} />
                               </div>
-                              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", opacity: 0.75, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
+                              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: 0.75, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
                             </div>
                             <div className={css.hintLine}>
                               {formatBytes(repoResult.downloadedBytes)} / {formatBytes(repoResult.totalBytes)}

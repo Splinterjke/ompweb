@@ -196,13 +196,13 @@ export function healthOf(d: DiagnosticsData): BackendHealth {
 
 function Row({ label, ok, detail, action }: { label: string; ok: boolean; detail: string; action?: ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(11.5px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5 }}>
       <span
         aria-hidden="true"
         style={{ width: 7, height: 7, borderRadius: "50%", background: ok ? "var(--status-success)" : "var(--status-error)", flexShrink: 0 }}
       />
       <span style={{ color: "var(--text-muted)", minWidth: 78, flexShrink: 0 }}>{label}</span>
-      <code style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+      <code style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
         {detail}
       </code>
       {action}
@@ -245,7 +245,7 @@ function ActionButton({ onClick, disabled, icon, label, tone }: { onClick: () =>
         background: accent ? "var(--accent)" : "var(--bg)",
         color: accent ? "var(--on-accent)" : "var(--text)",
         border: accent ? "none" : "1px solid var(--border)",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1,
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1,
       }}
     >
       {icon}
@@ -326,7 +326,7 @@ function RevealButton({ path, label = "Reveal" }: { path?: string | null; label?
         border: "1px solid var(--border)",
         background: "var(--bg-subtle)",
         color: "var(--text-muted)",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
         cursor: busy ? "default" : "pointer",
         opacity: busy ? 0.6 : 1,
         whiteSpace: "nowrap",
@@ -461,7 +461,7 @@ function BackendDiagnosticsPopoverView() {
     <div style={{ minWidth: 300, maxWidth: 380, padding: 8, display: "flex", flexDirection: "column", gap: 7 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 4px" }}>
         <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: healthColor, flexShrink: 0 }} />
-        <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
+        <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>
           {health === null ? t("diagnostics.refreshing") : health === "ok" ? t("diagnostics.healthy") : health === "warn" ? t("diagnostics.warning") : t("diagnostics.error")}
         </span>
         <button
@@ -475,8 +475,8 @@ function BackendDiagnosticsPopoverView() {
           <RefreshCw size={11} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
         </button>
       </div>
-      {error && <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)", padding: "0 4px" }}>{t("diagnostics.error")}: {error}</div>}
-      {success && <div role="status" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-success)", padding: "0 4px" }}><Check size={11} aria-hidden="true" />{success}</div>}
+      {error && <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", padding: "0 4px" }}>{t("diagnostics.error")}: {error}</div>}
+      {success && <div role="status" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-success)", padding: "0 4px" }}><Check size={11} aria-hidden="true" />{success}</div>}
       {diag && (
         <>
           {(() => {
@@ -495,7 +495,7 @@ function BackendDiagnosticsPopoverView() {
               proxyMissing ? { key: "proxy", title: "Proxy not active", detail: "Auto proxy mode is on but no endpoint is available; check your proxy client or switch to manual config.", action: <ActionButton onClick={() => refreshDetails()} disabled={refreshing} icon={<RefreshCw size={11} />} label={t("diagnostics.refresh")} tone="quiet" /> } : null,
             ].filter(Boolean) as Array<{ key: string; title: string; detail: string; action?: ReactNode }>;
             if (!issues.length) return null;
-            return <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "4px", border: "1px solid color-mix(in srgb, var(--status-warning) 40%, var(--border))", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--status-warning) 5%, var(--bg))" }}><span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--status-warning)", textTransform: "uppercase" }}>Recovery queue</span>{issues.map((issue) => <div key={issue.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center", padding: "5px 2px" }}><div><div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 650, color: "var(--text)" }}>{issue.title}</div><div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.35 }}>{issue.detail}</div></div>{issue.action}</div>)}</div>;
+            return <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "4px", border: "1px solid color-mix(in srgb, var(--status-warning) 40%, var(--border))", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--status-warning) 5%, var(--bg))" }}><span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--status-warning)", textTransform: "uppercase" }}>Recovery queue</span>{issues.map((issue) => <div key={issue.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center", padding: "5px 2px" }}><div><div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650, color: "var(--text)" }}>{issue.title}</div><div style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", lineHeight: 1.35 }}>{issue.detail}</div></div>{issue.action}</div>)}</div>;
           })()}
           <Row
             label={t("diagnostics.omp")}
@@ -568,7 +568,7 @@ function BackendDiagnosticsPopoverView() {
           )}
           {diag.backendOwnership && Object.keys(diag.backendOwnership).length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "2px 4px" }}>
-              <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("diagnostics.coverage")}</span>
+              <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("diagnostics.coverage")}</span>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {DOMAIN_ORDER.filter((domain) => diag.backendOwnership![domain] !== undefined).map((domain) => {
                   const authority = diag.backendOwnership![domain];
@@ -580,7 +580,7 @@ function BackendDiagnosticsPopoverView() {
                       style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
                         padding: "2px 7px", borderRadius: 999,
-                        fontSize: "calc(10px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)",
+                        fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)",
                         border: `1px solid ${isRust ? "color-mix(in srgb, var(--status-success) 35%, var(--border))" : "var(--border)"}`,
                         background: isRust ? "color-mix(in srgb, var(--status-success) 10%, var(--bg))" : "var(--bg-subtle)",
                         color: isRust ? "var(--status-success)" : "var(--text-dim)",
@@ -595,9 +595,9 @@ function BackendDiagnosticsPopoverView() {
           )}
           {backendErrors.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "2px 4px" }}>
-              <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--status-error)", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("diagnostics.backendErrors")}</span>
+              <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--status-error)", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("diagnostics.backendErrors")}</span>
               {backendErrors.slice(-5).reverse().map((entry, index) => (
-                <div key={`${entry.at}-${index}`} style={{ display: "flex", gap: 6, fontSize: "calc(10.5px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>
+                <div key={`${entry.at}-${index}`} style={{ display: "flex", gap: 6, fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>
                   <code style={{ fontFamily: "var(--font-mono)", color: "var(--status-error)", flexShrink: 0 }}>{entry.kind}</code>
                   <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.detail}</span>
                 </div>
@@ -840,7 +840,7 @@ function BackendDiagnosticsFullView() {
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.2 }}>
+              <span style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.2 }}>
                 {health === null
                   ? t("diagnostics.refreshing")
                   : health === "ok"
@@ -851,7 +851,7 @@ function BackendDiagnosticsFullView() {
               </span>
               <span
                 style={{
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   fontWeight: 600,
                   padding: "2px 8px",
                   borderRadius: 999,
@@ -863,7 +863,7 @@ function BackendDiagnosticsFullView() {
                 {health?.toUpperCase() ?? "CHECKING"}
               </span>
             </div>
-            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <Clock size={12} aria-hidden="true" />
                 {isZh ? "自动轮询: 每 30 秒" : "Polling: every 30s"}
@@ -891,7 +891,7 @@ function BackendDiagnosticsFullView() {
               background: "var(--accent)",
               color: "var(--on-accent)",
               border: "none",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               fontWeight: 600,
               cursor: actionBusy ? "default" : "pointer",
               opacity: actionBusy ? 0.7 : 1,
@@ -915,7 +915,7 @@ function BackendDiagnosticsFullView() {
               background: "var(--bg-subtle)",
               color: "var(--text)",
               border: "1px solid var(--border)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               fontWeight: 600,
               cursor: restarting || actionBusy ? "default" : "pointer",
               opacity: restarting || actionBusy ? 0.7 : 1,
@@ -939,7 +939,7 @@ function BackendDiagnosticsFullView() {
               background: "var(--bg-subtle)",
               color: "var(--text)",
               border: "1px solid var(--border)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               fontWeight: 500,
               cursor: !diag ? "default" : "pointer",
               transition: "all var(--dur-fast)",
@@ -987,7 +987,7 @@ function BackendDiagnosticsFullView() {
             background: "color-mix(in srgb, var(--status-error) 10%, var(--bg-panel))",
             border: "1px solid color-mix(in srgb, var(--status-error) 30%, var(--border))",
             color: "var(--status-error)",
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           }}
         >
           <AlertTriangle size={15} aria-hidden="true" />
@@ -1006,7 +1006,7 @@ function BackendDiagnosticsFullView() {
             background: "color-mix(in srgb, var(--status-success) 10%, var(--bg-panel))",
             border: "1px solid color-mix(in srgb, var(--status-success) 30%, var(--border))",
             color: "var(--status-success)",
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           }}
         >
           <Check size={15} aria-hidden="true" />
@@ -1025,14 +1025,14 @@ function BackendDiagnosticsFullView() {
 
         const issues = [
           missingOmp ? { key: "omp", title: "OMP engine missing", detail: "No omp executable found on the system path; agent core functionality is limited.", action: undefined } : null,
-          hostDown || hostCrash ? { key: "host", title: "Rust Host daemon abnormal", detail: "Host is not ready or has crashed; repair will clean up orphan processes and restart.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.repair")}</button> } : null,
-          orphan ? { key: "orphan", title: `${diag.rpc.orphanRustHosts} orphan Host processes detected`, detail: "Orphan processes may hold session locks or PTYs.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: "pointer" }}>Clean up orphans</button> } : null,
-          rpcFailed ? { key: "rpc", title: `${diag.rpc.recentFailures?.length} recent RPC session failures`, detail: "May be caused by abnormal termination of model child processes; restarting RPC restores all dropped channels.", action: <button type="button" onClick={() => void restartRpc()} disabled={restarting || actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", border: "1px solid var(--border)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.restartRpc")}</button> } : null,
+          hostDown || hostCrash ? { key: "host", title: "Rust Host daemon abnormal", detail: "Host is not ready or has crashed; repair will clean up orphan processes and restart.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.repair")}</button> } : null,
+          orphan ? { key: "orphan", title: `${diag.rpc.orphanRustHosts} orphan Host processes detected`, detail: "Orphan processes may hold session locks or PTYs.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>Clean up orphans</button> } : null,
+          rpcFailed ? { key: "rpc", title: `${diag.rpc.recentFailures?.length} recent RPC session failures`, detail: "May be caused by abnormal termination of model child processes; restarting RPC restores all dropped channels.", action: <button type="button" onClick={() => void restartRpc()} disabled={restarting || actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", border: "1px solid var(--border)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.restartRpc")}</button> } : null,
           ...otherInstances.map((port) => ({
             key: `instance-${port}`,
             title: `Port-conflicting instance detected (127.0.0.1:${port})`,
             detail: "Another ompweb instance is running; concurrent session read/write contention or lock conflicts may occur.",
-            action: <button type="button" onClick={() => void stopOtherInstance(port)} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--status-error) 15%, var(--bg))", color: "var(--status-error)", border: "1px solid var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: "pointer" }}>Close this instance</button>,
+            action: <button type="button" onClick={() => void stopOtherInstance(port)} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--status-error) 15%, var(--bg))", color: "var(--status-error)", border: "1px solid var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>Close this instance</button>,
           })),
         ].filter(Boolean) as Array<{ key: string; title: string; detail: string; action?: ReactNode }>;
 
@@ -1050,7 +1050,7 @@ function BackendDiagnosticsFullView() {
               border: "1px solid color-mix(in srgb, var(--status-warning) 30%, var(--border))",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--status-warning)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--status-warning)", textTransform: "uppercase", letterSpacing: 0.5 }}>
               <ShieldAlert size={15} aria-hidden="true" />
               <span>{isZh ? "系统自愈就绪队列 (Recovery Queue)" : "Recovery Queue"}</span>
             </div>
@@ -1070,8 +1070,8 @@ function BackendDiagnosticsFullView() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 650, color: "var(--text)" }}>{issue.title}</div>
-                    <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginTop: 2 }}>{issue.detail}</div>
+                    <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 650, color: "var(--text)" }}>{issue.title}</div>
+                    <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", marginTop: 2 }}>{issue.detail}</div>
                   </div>
                   {issue.action}
                 </div>
@@ -1103,19 +1103,19 @@ function BackendDiagnosticsFullView() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Server size={14} aria-hidden="true" />
               {isZh ? "系统与环境" : "System & Env"}
             </span>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--status-success)" }} />
           </div>
           <div>
-            <div style={{ fontSize: "calc(22px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
+            <div style={{ fontSize: "calc(22px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
               {diag ? formatUptime(diag.server.uptimeSeconds, isZh) : "—"}
             </div>
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? "持续运行时间" : "Uptime"}</div>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? "持续运行时间" : "Uptime"}</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "var(--text-muted)" }}>Node.js / Arch:</span>
               <code style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>{diag?.server ? `${diag.server.node} (${diag.server.arch})` : "—"}</code>
@@ -1145,7 +1145,7 @@ function BackendDiagnosticsFullView() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Terminal size={14} aria-hidden="true" />
               {isZh ? "OMP 核心引擎" : "OMP Engine"}
             </span>
@@ -1159,14 +1159,14 @@ function BackendDiagnosticsFullView() {
             />
           </div>
           <div>
-            <div style={{ fontSize: "calc(22px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
+            <div style={{ fontSize: "calc(22px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
               {diag?.omp.installed ? (diag.omp.version ?? "Ready") : (isZh ? "未安装" : "Missing")}
             </div>
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>
               {diag?.omp.installed ? (isZh ? "CLI 引擎版本" : "CLI Engine Version") : (isZh ? "需安装 omp CLI" : "CLI Required")}
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "var(--text-muted)" }}>Install status:</span>
               <span style={{ color: diag?.omp.installed ? "var(--status-success)" : "var(--status-error)", fontWeight: 600 }}>
@@ -1202,7 +1202,7 @@ function BackendDiagnosticsFullView() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Cpu size={14} aria-hidden="true" />
               {isZh ? "Rust Host 守护进程" : "Rust Host IPC"}
             </span>
@@ -1216,14 +1216,14 @@ function BackendDiagnosticsFullView() {
             />
           </div>
           <div>
-            <div style={{ fontSize: "calc(22px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
+            <div style={{ fontSize: "calc(22px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
               {diag?.rustHost?.available ? (isZh ? "运行中" : "Available") : (isZh ? "未就绪" : "Unavailable")}
             </div>
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>
               {diag?.rustHost?.mode ? `${isZh ? "运行模式" : "Mode"}: ${diag.rustHost.mode}` : "—"}
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "var(--text-muted)" }}>IPC protocol:</span>
               <code style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>TCP 127.0.0.1</code>
@@ -1255,7 +1255,7 @@ function BackendDiagnosticsFullView() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Activity size={14} aria-hidden="true" />
               {isZh ? "RPC 会话与服务" : "Sessions & Port"}
             </span>
@@ -1269,12 +1269,12 @@ function BackendDiagnosticsFullView() {
             />
           </div>
           <div>
-            <div style={{ fontSize: "calc(22px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
+            <div style={{ fontSize: "calc(22px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
               {diag?.rpc.activeSessions ?? 0} {isZh ? "活跃" : "Active"}
             </div>
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? "活动 RPC 会话" : "Active RPC Sessions"}</div>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? "活动 RPC 会话" : "Active RPC Sessions"}</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "var(--text-muted)" }}>Web binding:</span>
               <code style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>127.0.0.1:{diag?.web.port ?? "—"}</code>
@@ -1309,11 +1309,11 @@ function BackendDiagnosticsFullView() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Network size={15} aria-hidden="true" />
             <span>{isZh ? "运行服务拓扑与网络流 (Runtime Architecture Topology)" : "Runtime Topology"}</span>
           </div>
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
             {diag?.proxy.effective ? `Proxy: ${diag.proxy.effective}` : (isZh ? "网络: 直连模式" : "Network: Direct")}
           </span>
         </div>
@@ -1340,15 +1340,15 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>Web UI Client</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Web UI Client</span>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-success)" }} />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Next.js Client / Electron</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Next.js Client / Electron</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
             <ArrowRight size={14} aria-hidden="true" />
-            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>SSE / Fetch</span>
+            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>SSE / Fetch</span>
           </div>
 
           {/* Node 2: Web Server */}
@@ -1364,15 +1364,15 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>Next.js Server</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Next.js Server</span>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-success)" }} />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Port {diag?.web.port ?? "30178"} · Node {diag?.server.node}</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Port {diag?.web.port ?? "30178"} · Node {diag?.server.node}</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
             <ArrowRight size={14} aria-hidden="true" />
-            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>Local TCP</span>
+            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>Local TCP</span>
           </div>
 
           {/* Node 3: Rust Host */}
@@ -1388,7 +1388,7 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>Rust Host Daemon</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Rust Host Daemon</span>
               <span
                 style={{
                   width: 6,
@@ -1398,12 +1398,12 @@ function BackendDiagnosticsFullView() {
                 }}
               />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>ompweb-host supervisor</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>ompweb-host supervisor</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
             <ArrowRight size={14} aria-hidden="true" />
-            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>NDJSON stdio</span>
+            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>NDJSON stdio</span>
           </div>
 
           {/* Node 4: OMP Engine */}
@@ -1419,7 +1419,7 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>OMP Engine Process</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>OMP Engine Process</span>
               <span
                 style={{
                   width: 6,
@@ -1429,7 +1429,7 @@ function BackendDiagnosticsFullView() {
                 }}
               />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>omp --mode rpc-ui</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>omp --mode rpc-ui</span>
           </div>
         </div>
       </div>
@@ -1448,11 +1448,11 @@ function BackendDiagnosticsFullView() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <FolderOpen size={15} aria-hidden="true" />
             <span>{isZh ? "核心系统路径与文件定位 (System Paths & Inspection)" : "Core System Paths"}</span>
           </div>
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
             {isZh ? "支持一键在访达中高亮显示或复制完整绝对路径" : "Click to reveal in file manager"}
           </span>
         </div>
@@ -1506,15 +1506,15 @@ function BackendDiagnosticsFullView() {
                 }}
               >
                 <div style={{ minWidth: 160, flexShrink: 0 }}>
-                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 650, color: "var(--text)" }}>{item.label}</div>
-                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{item.desc}</div>
+                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 650, color: "var(--text)" }}>{item.label}</div>
+                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{item.desc}</div>
                 </div>
 
                 <code
                   title={item.path!}
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     color: "var(--text)",
                     background: "var(--bg)",
                     padding: "4px 8px",
@@ -1553,11 +1553,11 @@ function BackendDiagnosticsFullView() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Layers size={15} aria-hidden="true" />
             <span>{isZh ? "9 域后端权威与迁移状态 (Backend Authority Matrix)" : "Backend Authority Matrix"}</span>
           </div>
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
             backend-ownership.yaml (doc 15 / doc 16)
           </span>
         </div>
@@ -1589,15 +1589,15 @@ function BackendDiagnosticsFullView() {
               >
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <code style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{domain}</code>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>({isZh ? info?.labelZh : info?.labelEn})</span>
+                    <code style={{ fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{domain}</code>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>({isZh ? info?.labelZh : info?.labelEn})</span>
                   </div>
-                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? info?.descZh : info?.descEn}</div>
+                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? info?.descZh : info?.descEn}</div>
                 </div>
 
                 <span
                   style={{
-                    fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 700,
                     fontFamily: "var(--font-mono)",
                     padding: "2px 8px",
@@ -1630,12 +1630,12 @@ function BackendDiagnosticsFullView() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <FileCode size={15} aria-hidden="true" />
             <span>{isZh ? "后端错误环记录控制台 (Error Ring Console)" : "Backend Error Console"}</span>
             <span
               style={{
-                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+                fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
                 fontWeight: 600,
                 padding: "1px 6px",
                 borderRadius: 999,
@@ -1661,7 +1661,7 @@ function BackendDiagnosticsFullView() {
                 background: "var(--bg-subtle)",
                 color: "var(--text)",
                 border: "1px solid var(--border)",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 fontWeight: 500,
                 cursor: "pointer",
               }}
@@ -1682,7 +1682,7 @@ function BackendDiagnosticsFullView() {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               color: "var(--status-success)",
             }}
           >
@@ -1702,7 +1702,7 @@ function BackendDiagnosticsFullView() {
                   borderRadius: "var(--radius-control)",
                   background: "color-mix(in srgb, var(--status-error) 6%, var(--bg))",
                   border: "1px solid color-mix(in srgb, var(--status-error) 25%, var(--border))",
-                  fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
                   lineHeight: 1.5,
                 }}
               >
@@ -1711,14 +1711,14 @@ function BackendDiagnosticsFullView() {
                     fontFamily: "var(--font-mono)",
                     color: "var(--status-error)",
                     fontWeight: 700,
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     flexShrink: 0,
                   }}
                 >
                   [{entry.kind}]
                 </code>
                 <span style={{ color: "var(--text)", flex: 1, wordBreak: "break-all" }}>{entry.detail}</span>
-                <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
+                <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
                   {new Date(entry.at).toLocaleTimeString()}
                 </span>
               </div>
@@ -1827,7 +1827,7 @@ export function BackendStatusButton() {
         <Activity size={13} strokeWidth={2} aria-hidden="true" />
         <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: color, border: "1.5px solid var(--bg-panel)" }} />
         {health === "error" && (
-          <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--status-error)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "7em" }}>{t("diagnostics.error")}</span>
+          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--status-error)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "7em" }}>{t("diagnostics.error")}</span>
         )}
       </button>
       {open && (
@@ -1892,7 +1892,7 @@ export function BackendHealthBanner() {
         display: "flex", alignItems: "center", gap: 8, flexShrink: 0, position: "relative",
         padding: "5px 10px", borderBottom: "1px solid var(--border)",
         background: "color-mix(in srgb, var(--status-error) 8%, var(--bg-panel))",
-        fontSize: "calc(11.5px * var(--ui-font-scale, 1))", color: "var(--text)",
+        fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", color: "var(--text)",
       }}
     >
       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: health === "warn" ? "var(--status-warning)" : "var(--status-error)", flexShrink: 0 }} />
@@ -1900,7 +1900,7 @@ export function BackendHealthBanner() {
         {health === "warn" ? t("diagnostics.warning") : t("diagnostics.error")}
       </span>
       <span style={{ color: "var(--text-muted)" }}>{health === "warn" ? t("diagnostics.bannerHintWarn") : t("diagnostics.bannerHint")}</span>
-      <button type="button" onClick={refresh} disabled={refreshing} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(11px * var(--ui-font-scale, 1))", cursor: refreshing ? "default" : "pointer", opacity: refreshing ? 0.65 : 1 }}>
+      <button type="button" onClick={refresh} disabled={refreshing} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", cursor: refreshing ? "default" : "pointer", opacity: refreshing ? 0.65 : 1 }}>
         <RefreshCw size={10} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
         {refreshing ? t("diagnostics.refreshing") : t("diagnostics.refresh")}
       </button>
@@ -1908,7 +1908,7 @@ export function BackendHealthBanner() {
         type="button"
         onClick={() => void restart()}
         disabled={restarting}
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: restarting ? "default" : "pointer", opacity: restarting ? 0.6 : 1 }}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, cursor: restarting ? "default" : "pointer", opacity: restarting ? 0.6 : 1 }}
       >
         <RotateCcw size={10} aria-hidden="true" />
         {restarting ? t("diagnostics.restarting") : t("diagnostics.restartRpc")}
@@ -1916,12 +1916,12 @@ export function BackendHealthBanner() {
       <button
         type="button"
         onClick={() => setShowDetails((v) => !v)}
-        style={{ display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", cursor: "pointer" }}
+        style={{ display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", cursor: "pointer" }}
       >
         {showDetails ? t("diagnostics.hideDetails") : t("diagnostics.showDetails")}
       </button>
       {restartError && <span style={{ color: "var(--status-error)" }}>{restartError}</span>}
-      {restartSuccess && <span role="status" style={{ color: "var(--status-success)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{t("diagnostics.restartSuccess")}</span>}
+      {restartSuccess && <span role="status" style={{ color: "var(--status-success)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("diagnostics.restartSuccess")}</span>}
       {showDetails && (
         <div style={{ position: "absolute", top: "100%", right: 10, zIndex: 1100, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-pop)" }}>
           <BackendDiagnosticsBody />

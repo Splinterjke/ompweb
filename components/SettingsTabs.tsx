@@ -201,10 +201,10 @@ export function SettingsTabs({
               <Icon size={16} aria-hidden="true" style={{ marginTop: collapsed ? 0 : 2, flexShrink: 0, color: selected ? "var(--accent)" : "currentColor" }} />
               {!collapsed && (
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: selected ? 600 : 500, lineHeight: 1.3, color: selected ? "var(--text)" : "inherit" }}>
+                  <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: selected ? 600 : 500, lineHeight: 1.3, color: selected ? "var(--text)" : "inherit" }}>
                     {displayLabel}
                   </div>
-                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {displayDescription}
                   </div>
                 </div>
@@ -242,12 +242,12 @@ export function SettingsTabs({
             disabled={disabled}
             onClick={() => onSelect(id)}
             onKeyDown={(event) => onKeyDown(event, enabledIndex)}
-            style={{ display: "inline-flex", alignItems: "flex-start", gap: 5, padding: "6px 9px", border: "none", borderRadius: "var(--radius-control)", background: selected ? "var(--bg-selected)" : "transparent", color: selected ? "var(--text)" : "var(--text-muted)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, fontSize: "calc(12px * var(--ui-font-scale, 1))", whiteSpace: "nowrap", textAlign: "left", minWidth: 150 }}
+            style={{ display: "inline-flex", alignItems: "flex-start", gap: 5, padding: "6px 9px", border: "none", borderRadius: "var(--radius-control)", background: selected ? "var(--bg-selected)" : "transparent", color: selected ? "var(--text)" : "var(--text-muted)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", whiteSpace: "nowrap", textAlign: "left", minWidth: 150 }}
           >
             <Icon size={13} aria-hidden="true" />
             <span style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
               <span style={{ fontWeight: selected ? 600 : 500 }}>{displayLabel}</span>
-              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 400, lineHeight: 1.25 }}>{displayDescription}</span>
+              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 400, lineHeight: 1.25 }}>{displayDescription}</span>
             </span>
           </button>
         );

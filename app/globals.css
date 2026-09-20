@@ -1340,7 +1340,8 @@ body {
      app's hardcoded UI font sizes and icon sizes. Distinct from the chat
      scale above: it never touches the --chat-font-* vars, so the transcript
      stays controlled by the Chat Font Size setting. */
-  --ui-font-scale: 1;
+  --ui-font-scale-lg: 1;
+  --ui-font-scale-sm: 1;
 }
 
 pre, code {
@@ -1353,7 +1354,7 @@ pre, code {
    transform (rotating chevrons, spinners) keep it — they simply don't scale,
    which is the safe degradation. */
 svg.lucide {
-  transform: scale(var(--ui-font-scale, 1));
+  transform: scale(var(--ui-font-scale-sm, 1));
 }
 
 /* Serif display utility: opt-in via class on headings, titles, empty states. */
@@ -1484,7 +1485,7 @@ svg.lucide {
   border-collapse: separate;
   border-spacing: 0;
   min-width: 100%;
-  font-size: calc(13px * var(--ui-font-scale));
+  font-size: calc(13px * var(--ui-font-scale-lg));
 }
 .markdown-body th, .markdown-body td {
   border: 0;
@@ -1571,7 +1572,7 @@ svg.lucide {
 
 /* Subagent transcript dialog — compact text sizing for raw agent output */
 .markdown-subagent-text {
-  font-size: calc(13px * var(--ui-font-scale));
+  font-size: calc(13px * var(--ui-font-scale-lg));
   line-height: 1.55;
 }
 .markdown-subagent-text p { margin: 0 0 6px; }
@@ -1604,7 +1605,7 @@ svg.lucide {
   padding-top: 8px;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
 }
 .compaction-file-details summary {
   cursor: pointer;
@@ -1654,7 +1655,7 @@ svg.lucide {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   color: var(--text-dim);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1678,7 +1679,7 @@ svg.lucide {
   color: var(--text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   line-height: 1.25;
 }
 .markdown-code-action:hover:not(:disabled) {
@@ -1717,7 +1718,7 @@ svg.lucide {
   justify-content: center;
   gap: 8px;
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   animation: pulse 1.4s ease-in-out infinite;
 }
 .mermaid-block-loading::after {
@@ -1732,7 +1733,7 @@ svg.lucide {
 .mermaid-block-error {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1787,7 +1788,7 @@ svg.lucide {
   overflow: hidden;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1852,7 +1853,7 @@ svg.lucide {
   height: 22px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   line-height: 22px;
   text-align: center;
   user-select: none;
@@ -1886,7 +1887,7 @@ svg.lucide {
   }
 
   .mermaid-zoom-title {
-    font-size: calc(10px * var(--ui-font-scale));
+    font-size: calc(10px * var(--ui-font-scale-sm));
   }
 
   .mermaid-zoom-viewport {
@@ -1952,7 +1953,7 @@ svg.lucide {
   overflow: hidden;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2017,7 +2018,7 @@ svg.lucide {
   height: 22px;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   line-height: 22px;
   text-align: center;
   user-select: none;
@@ -2045,7 +2046,7 @@ svg.lucide {
   }
 
   .image-lightbox-title {
-    font-size: calc(10px * var(--ui-font-scale));
+    font-size: calc(10px * var(--ui-font-scale-sm));
   }
 
   .image-lightbox-viewport {
@@ -2112,7 +2113,7 @@ svg.lucide {
   border: 0;
   border-left: 1px solid var(--border);
   font: inherit;
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   font-weight: 500;
   letter-spacing: 0;
   cursor: pointer;
@@ -2355,7 +2356,7 @@ svg.lucide {
     height: 28px !important;
     padding-inline: 8px !important;
     border-radius: 6px !important;
-    font-size: calc(11px * var(--ui-font-scale)) !important;
+    font-size: calc(11px * var(--ui-font-scale-sm)) !important;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2391,7 +2392,7 @@ svg.lucide {
   padding: 12px 16px;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: calc(13px * var(--ui-font-scale));
+  font-size: calc(13px * var(--ui-font-scale-lg));
   margin: 12px 0;
 }
 .markdown-file-preview code {
@@ -2591,7 +2592,7 @@ span.token.table {
   border-radius: var(--radius-control);
   background: var(--bg-subtle);
   color: var(--text);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   font-weight: 500;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm);
@@ -2634,7 +2635,7 @@ span.token.table {
 }
 .picker-panel-title {
   color: var(--text);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   font-weight: 650;
   letter-spacing: .01em;
 }
@@ -2642,7 +2643,7 @@ span.token.table {
   margin-left: auto;
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: calc(10px * var(--ui-font-scale));
+  font-size: calc(10px * var(--ui-font-scale-sm));
   font-variant-numeric: tabular-nums;
 }
 .picker-search {
@@ -2666,7 +2667,7 @@ span.token.table {
   min-width: 0;
   padding: 0;
   color: var(--text);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   background: transparent;
   border: 0;
   outline: 0;
@@ -2682,7 +2683,7 @@ span.token.table {
   min-height: 25px;
   padding: 3px 8px 2px;
   color: var(--text-dim);
-  font-size: calc(10px * var(--ui-font-scale));
+  font-size: calc(10px * var(--ui-font-scale-sm));
   font-weight: 650;
   letter-spacing: .055em;
   text-transform: uppercase;
@@ -2702,7 +2703,7 @@ span.token.table {
   background: transparent;
   border: 0;
   border-radius: 8px;
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   transition: background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm);
 }
 .picker-row:hover,
@@ -2730,7 +2731,7 @@ span.token.table {
   margin-left: auto;
   overflow: hidden;
   color: var(--text-dim);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2756,7 +2757,7 @@ span.token.table {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 7px;
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   transition: background-color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm);
 }
 .picker-thinking-card:hover,
@@ -2779,7 +2780,7 @@ span.token.table {
   min-height: 25px;
   padding: 3px 9px;
   color: var(--text-dim);
-  font-size: calc(10px * var(--ui-font-scale));
+  font-size: calc(10px * var(--ui-font-scale-sm));
   border-top: 1px solid var(--border);
 }
 /* Mobile: the reasoning options become wrapped compact chips instead of a
@@ -2799,7 +2800,7 @@ span.token.table {
     min-height: 28px;
     gap: 5px;
     padding: 4px 9px;
-    font-size: calc(11.5px * var(--ui-font-scale));
+    font-size: calc(11.5px * var(--ui-font-scale-sm));
   }
   .picker-panel-header {
     min-height: 30px;
@@ -3086,7 +3087,7 @@ html.dark .dropdown-surface :is(select, option) {
   color: var(--text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
   text-align: left;
   transition: background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm);
 }
@@ -3201,7 +3202,7 @@ html.dark .dropdown-surface :is(select, option) {
   line-height: 1;
   font-family: var(--font-mono);
   font-weight: 800;
-  font-size: calc(13.5px * var(--ui-font-scale));
+  font-size: calc(13.5px * var(--ui-font-scale-lg));
 }
 
 .omp-solo-o {
@@ -3375,7 +3376,7 @@ html.dark .dropdown-surface :is(select, option) {
 .tool-call-input {
   padding: 8px;
   border-bottom: 1px solid var(--border);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(12px * var(--ui-font-scale-lg));
 }
 .tool-call-input dl, .tool-call-input dd, .tool-call-input pre {
   margin: 0;
@@ -3723,7 +3724,7 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   border-radius: var(--radius-control);
   background: none;
   color: var(--text-muted);
-  font-size: calc(11px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale-sm));
   cursor: pointer;
 }
 .message-copy-action:hover {

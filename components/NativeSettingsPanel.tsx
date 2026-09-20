@@ -151,7 +151,7 @@ function NativeSettingsRow({ row, saving, onSave, onReset }: { row: NativeSettin
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           {friendlyTitle && (
-            <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
+            <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>
               {friendlyTitle}
             </span>
           )}
@@ -163,14 +163,14 @@ function NativeSettingsRow({ row, saving, onSave, onReset }: { row: NativeSettin
           </span>
         </div>
         {description && (
-          <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: "calc(10.5px * var(--ui-font-scale, 1))", lineHeight: 1.4 }}>
+          <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.4 }}>
             {description}
           </div>
         )}
       </div>
       <div>
         {row.type === "boolean" ? (
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text)", fontSize: "calc(11.5px * var(--ui-font-scale, 1))", cursor: readOnly || saving ? "default" : "pointer" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", cursor: readOnly || saving ? "default" : "pointer" }}>
             <input
               type="checkbox"
               aria-label={row.key}
@@ -188,7 +188,7 @@ function NativeSettingsRow({ row, saving, onSave, onReset }: { row: NativeSettin
               value={String(row.value ?? "")}
               disabled={readOnly || saving}
               onChange={(e) => onSave(row.key, e.target.value)}
-              style={{ width: "100%", minHeight: 32, padding: "4px 28px 4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", appearance: "none", fontSize: "calc(11.5px * var(--ui-font-scale, 1))" }}
+              style={{ width: "100%", minHeight: 32, padding: "4px 28px 4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", appearance: "none", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}
             >
               <option value="">{isZh ? "— 默认 / 未指定 —" : "—"}</option>
               {enumOptions.map((option) => (
@@ -346,7 +346,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
       {/* 顶部操作工具栏 */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between", flexWrap: "wrap", padding: "8px 12px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
         <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, flexShrink: 0 }}>
-          <strong style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+          <strong style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             {t("settingsTabs.native.label") ?? (isZh ? "OMP 原生设置" : "OMP Native Settings")}
           </strong>
           <span style={{ color: "var(--text-dim)", font: "11px var(--font-mono)" }}>
@@ -359,13 +359,13 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t("settingsConfig.searchSettings") ?? (isZh ? "搜索设置项（支持键名、中文说明或分类）…" : "Search settings…")}
-            style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale, 1))" }}
+            style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))" }}
           />
           <button
             type="button"
             onClick={() => void load(true)}
             disabled={refreshing}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: "5px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: refreshing ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, padding: "5px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: refreshing ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
           >
             <RefreshCw size={12} className={refreshing ? "animate-spin" : undefined} />
             {t("ompSettings.refresh") ?? (isZh ? "刷新" : "Refresh")}
@@ -374,7 +374,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
             <button
               type="button"
               onClick={onOpenStandalone}
-              style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, padding: "5px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11.5px * var(--ui-font-scale, 1))" }}
+              style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, padding: "5px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}
             >
               {t("ompSettings.openWindow") ?? (isZh ? "在独立窗口打开" : "Open in separate window")}
             </button>
@@ -385,7 +385,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
               onClick={onClose}
               aria-label={t("common.close") ?? "关闭"}
               title={t("common.close") ?? "关闭"}
-              style={{ padding: 5, border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(18px * var(--ui-font-scale, 1))", cursor: "pointer" }}
+              style={{ padding: 5, border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}
             >
               ×
             </button>
@@ -419,7 +419,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
                 background: activeGroup === group ? "var(--bg-selected)" : "transparent",
                 color: activeGroup === group ? "var(--text)" : "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
                 fontWeight: activeGroup === group ? 600 : 400,
               }}
             >
@@ -450,7 +450,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
               background: activeSub === null ? "var(--bg-selected)" : "transparent",
               color: "var(--text)",
               cursor: "pointer",
-              fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
               fontWeight: activeSub === null ? 600 : 400,
             }}
           >
@@ -477,7 +477,7 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
                   background: activeSub === sub ? "var(--bg-selected)" : "transparent",
                   color: activeSub === sub ? "var(--text)" : "var(--text-muted)",
                   cursor: "pointer",
-                  fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
                   fontWeight: activeSub === sub ? 600 : 400,
                 }}
               >
@@ -490,24 +490,24 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
 
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "8px 14px" }}>
           {error ? (
-            <div role="alert" style={{ color: "var(--status-error)", padding: 12, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</div>
+            <div role="alert" style={{ color: "var(--status-error)", padding: 12, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>
           ) : rows === null ? (
-            <div role="status" aria-live="polite" style={{ color: "var(--text-dim)", padding: 16, fontSize: "calc(12px * var(--ui-font-scale, 1))", display: "flex", alignItems: "center", gap: 8 }}>
+            <div role="status" aria-live="polite" style={{ color: "var(--text-dim)", padding: 16, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "flex", alignItems: "center", gap: 8 }}>
               <RefreshCw size={13} className="animate-spin" aria-hidden="true" />
               {isZh ? "正在加载 OMP 设置…" : isJa ? "OMP 設定を読み込み中…" : "Loading OMP settings…"}
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ color: "var(--text-dim)", padding: 16, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+            <div style={{ color: "var(--text-dim)", padding: 16, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
               {isZh ? "没有匹配的设置。" : "No settings match the filter."}
             </div>
           ) : (
             <section aria-label={`${sectionLabel} settings`}>
-              <h3 style={{ margin: "4px 0 2px", fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 650 }}>
+              <h3 style={{ margin: "4px 0 2px", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 650 }}>
                 {sectionLabel}
-                {activeSub && <span style={{ marginLeft: 6, color: "var(--text-muted)", fontWeight: 500, fontSize: "calc(12.5px * var(--ui-font-scale, 1))" }}>· {translateSubgroup(locale, activeSub)}</span>}
+                {activeSub && <span style={{ marginLeft: 6, color: "var(--text-muted)", fontWeight: 500, fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))" }}>· {translateSubgroup(locale, activeSub)}</span>}
                 <span style={{ marginLeft: 8, color: "var(--text-dim)", font: "10px var(--font-mono)" }}>{filtered.length}</span>
               </h3>
-              <p style={{ margin: "0 0 8px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+              <p style={{ margin: "0 0 8px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                 {searching
                   ? (isZh ? "按键名、中文标题与说明筛选全部 OMP 配置项。" : isJa ? "キー名と説明から OMP schema 全体を検索します。" : "Search the complete OMP schema by key and description.")
                   : explanationOf(activeGroup, locale)}

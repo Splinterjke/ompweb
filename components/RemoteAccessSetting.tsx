@@ -138,9 +138,9 @@ export function RemoteAccessSetting() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
-        <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.remoteAccess")}</h3>
-        <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.remoteAccessDesc")}</p>
-        <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.lanSecurityWarning")}</p>
+        <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.remoteAccess")}</h3>
+        <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.remoteAccessDesc")}</p>
+        <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.lanSecurityWarning")}</p>
       </div>
 
       {/* Pairing state / QR */}
@@ -148,13 +148,13 @@ export function RemoteAccessSetting() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Smartphone size={16} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden="true" />
-            <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.pairedDevices")}</span>
+            <span style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.pairedDevices")}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={issueToken} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", cursor: "pointer" }}>
+            <button type="button" onClick={issueToken} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}>
               {t("settingsConfig.showPairingQr")}
             </button>
-            <button type="button" onClick={revokeAll} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))", cursor: "pointer" }}>
+            <button type="button" onClick={revokeAll} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}>
               {t("settingsConfig.revokeAll")}
             </button>
           </div>
@@ -163,7 +163,7 @@ export function RemoteAccessSetting() {
         {qr && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+              <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
                 {t("settingsConfig.qrExpires", { minutes: Math.max(1, Math.round((qr.expiresAt - Date.now()) / 60_000)) })}
               </span>
               <button type="button" onClick={() => setQr(null)} aria-label={t("chatWindow.close")} style={{ border: "none", background: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2 }}>
@@ -172,7 +172,7 @@ export function RemoteAccessSetting() {
             </div>
             <QRCodeSVG value={qr.qrData} size={200} level="M" />
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
-              <code style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-muted)", wordBreak: "break-all", maxWidth: "100%" }}>{qr.phoneUrl}</code>
+              <code style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--font-mono)", color: "var(--text-muted)", wordBreak: "break-all", maxWidth: "100%" }}>{qr.phoneUrl}</code>
               <button
                 type="button"
                 onClick={() => navigator.clipboard?.writeText(qr.phoneUrl).catch(() => undefined)}
@@ -182,7 +182,7 @@ export function RemoteAccessSetting() {
                 <Copy size={14} aria-hidden="true" />
               </button>
             </div>
-            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
               {t("settingsConfig.qrHint")} <RefreshCw size={11} style={{ display: "inline", verticalAlign: -1 }} aria-hidden="true" /> {t("settingsConfig.qrRefreshHint")}
             </span>
 
@@ -194,7 +194,7 @@ export function RemoteAccessSetting() {
                 : diagnostics.virtualAddresses;
               const loopbackBound = Boolean(diagnostics.hostname && /^(127\.|localhost|::1)/i.test(diagnostics.hostname));
               return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-subtle)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-subtle)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
                   <span>{t("settingsConfig.pairDiagnostics")}</span>
                   {loopbackBound && (
                     <span style={{ color: "var(--status-error)" }}>{t("settingsConfig.pairLoopbackWarning")}</span>
@@ -206,7 +206,7 @@ export function RemoteAccessSetting() {
                       {lanIps.map(({ address }) => (
                         <code
                           key={address}
-                          style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--accent)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}
+                          style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--accent)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}
                           onClick={() => navigator.clipboard?.writeText(`http://${address}:${diagnostics.port}`).catch(() => undefined)}
                           title={t("appShell.copyLink")}
                         >
@@ -226,10 +226,10 @@ export function RemoteAccessSetting() {
             })()}
 
             {isWindows && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-subtle)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-subtle)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
                 <span>{t("settingsConfig.firewallHint")}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <code style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "calc(10.5px * var(--ui-font-scale, 1))", wordBreak: "break-all", color: "var(--text)" }}>{firewallCommand}</code>
+                  <code style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", wordBreak: "break-all", color: "var(--text)" }}>{firewallCommand}</code>
                   <button
                     type="button"
                     onClick={() => navigator.clipboard?.writeText(firewallCommand).catch(() => undefined)}
@@ -246,7 +246,7 @@ export function RemoteAccessSetting() {
 
         {tunnelUrl && (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
               <span style={{ color: "var(--text-muted)" }}>{t("settingsConfig.tunnelUrl")}</span>
               <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent)", wordBreak: "break-all" }}>{tunnelUrl}</code>
               <button
@@ -258,14 +258,14 @@ export function RemoteAccessSetting() {
                 <Copy size={14} aria-hidden="true" />
               </button>
             </div>
-            <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.tunnelDevWarning")}</p>
+            <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.tunnelDevWarning")}</p>
           </div>
         )}
 
         {/* Device list */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(data?.devices.length ?? 0) === 0 ? (
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("settingsConfig.noDevices")}</span>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>{t("settingsConfig.noDevices")}</span>
           ) : (
             data?.devices.map((device) => (
               <div key={device.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg)" }}>
@@ -273,15 +273,15 @@ export function RemoteAccessSetting() {
                   aria-hidden="true"
                   style={{ width: 8, height: 8, borderRadius: "50%", background: device.online ? "var(--status-ok, #2e9e5b)" : "var(--text-dim)", flexShrink: 0 }}
                 />
-                <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 500 }}>{device.name}</span>
-                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 500 }}>{device.name}</span>
+                <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                   {new Date(device.lastActiveAt).toLocaleString()}
                 </span>
                 <span style={{ flex: 1 }} />
                 <button
                   type="button"
                   onClick={() => revokeDevice(device.id)}
-                  style={{ border: "none", background: "none", color: "var(--status-error)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", display: "inline-flex", alignItems: "center", gap: 4 }}
+                  style={{ border: "none", background: "none", color: "var(--status-error)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", display: "inline-flex", alignItems: "center", gap: 4 }}
                 >
                   <ShieldOff size={12} aria-hidden="true" />
                   {t("settingsConfig.revoke")}
@@ -295,28 +295,28 @@ export function RemoteAccessSetting() {
       {/* Config fields */}
       {config && (
         <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 12 }}>
-          <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.remoteBehavior")}</span>
+          <span style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.remoteBehavior")}</span>
           <Check
             checked={config.requirePairingForLan}
             onChange={(v) => updateConfig({ requirePairingForLan: v })}
             label={t("settingsConfig.requirePairingForLan")}
             disabled={busy}
           />
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.requirePairingForLanDesc")}</span>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.requirePairingForLanDesc")}</span>
           <Check
             checked={config.autoTunnel}
             onChange={(v) => updateConfig({ autoTunnel: v })}
             label={t("settingsConfig.autoTunnel")}
             disabled={busy}
           />
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.autoTunnelDesc")}</span>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.autoTunnelDesc")}</span>
           <Check
             checked={config.mobileEnterToSend}
             onChange={(v) => updateConfig({ mobileEnterToSend: v })}
             label={t("settingsConfig.mobileEnterToSend")}
             disabled={busy}
           />
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.mobileEnterToSendDesc")}</span>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -6 }}>{t("settingsConfig.mobileEnterToSendDesc")}</span>
           {NUM_FIELDS.map(({ key, min, step }) => (
             <Field key={key} label={t(`settingsConfig.${key}`)} hint={String(config[key])}>
               <input
@@ -330,7 +330,7 @@ export function RemoteAccessSetting() {
                     updateConfig({ [key]: value } as Partial<PairingConfig>);
                   }
                 }}
-                style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
+                style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
               />
             </Field>
           ))}
@@ -344,7 +344,7 @@ export function RemoteAccessSetting() {
                   updateConfig({ cookieName: value });
                 }
               }}
-              style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
+              style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
             />
           </Field>
           <Field label={t("settingsConfig.publicUrl")} hint={config.publicUrl ?? t("settingsConfig.publicUrlHint")}>
@@ -358,11 +358,11 @@ export function RemoteAccessSetting() {
                 }
               }}
               placeholder="https://example.com"
-              style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
+              style={{ width: "100%", padding: "6px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
             />
           </Field>
           <div>
-            <button type="button" onClick={startTunnel} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", cursor: "pointer" }}>
+            <button type="button" onClick={startTunnel} disabled={busy} className="btn-secondary" style={{ height: 30, padding: "0 12px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}>
               {t("settingsConfig.startTunnel")}
             </button>
           </div>
@@ -370,7 +370,7 @@ export function RemoteAccessSetting() {
       )}
 
       {error && (
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)" }}>
           {error === "tunnel" ? t("settingsConfig.tunnelFailed") : t("settingsConfig.saveFailed")}
         </div>
       )}

@@ -329,7 +329,7 @@ export function SchedulersPanel({
             border: "none",
             cursor: "pointer",
             textAlign: "left",
-            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
             fontWeight: 600,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
@@ -391,14 +391,14 @@ export function SchedulersPanel({
           style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
         >
           {loadError && (
-            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{t("schedulers.loadError")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>{t("schedulers.loadError")}</span>
           )}
           {!loadError && !loadedRef.current && (
-            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("schedulers.loading")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("schedulers.loading")}</span>
           )}
           {!loadError && list.length === 0 && (
             <>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("schedulers.empty")}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("schedulers.empty")}</span>
               <button type="button" className="github-status-dialog-button" onClick={openAdd} style={{ alignSelf: "flex-start" }}>
                 <Plus size={12} aria-hidden="true" />
                 {t("schedulers.add")}
@@ -446,7 +446,7 @@ export function SchedulersPanel({
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                       fontWeight: 500,
                       color: s.enabled || s.running ? "var(--text)" : "var(--text-dim)",
                     }}
@@ -460,7 +460,7 @@ export function SchedulersPanel({
                     style={{ color: "var(--text-dim)", flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }}
                   />
                 </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", minWidth: 0 }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={s.human}>
                     {s.human}
                   </span>
@@ -475,18 +475,18 @@ export function SchedulersPanel({
 
                 {expanded && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 9px 9px", borderTop: "1px solid var(--border)", maxHeight: detailMaxHeight, overflow: "hidden" }}>
-                    <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.script}>
+                    <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.script}>
                       {s.script}
                       {s.args.length > 0 && ` ${s.args.join(" ")}`}
                     </span>
                     <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6 }}>
                     {s.id === manualRunningId ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--accent)" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--accent)" }}>
                         <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
                         {t("schedulers.status.running")}…
                       </span>
                     ) : last ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 500, color: statusColor(last.status) }}>
                           {t(`schedulers.status.${last.status}`)}
                         </span>
@@ -501,7 +501,7 @@ export function SchedulersPanel({
                         )}
                       </div>
                     ) : (
-                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("schedulers.neverRun")}</span>
+                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("schedulers.neverRun")}</span>
                     )}
                     {s.id !== manualRunningId && last?.stderr && (
                       <pre
@@ -511,7 +511,7 @@ export function SchedulersPanel({
                           borderRadius: 5,
                           background: "var(--bg-panel)",
                           border: "1px solid var(--border)",
-                          fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
                           fontFamily: "var(--font-mono)",
                           color: "var(--status-error)",
                           whiteSpace: "pre-wrap",
@@ -532,7 +532,7 @@ export function SchedulersPanel({
                           borderRadius: 5,
                           background: "var(--bg-panel)",
                           border: "1px solid var(--border)",
-                          fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
                           fontFamily: "var(--font-mono)",
                           color: "var(--text-dim)",
                           whiteSpace: "pre-wrap",
@@ -548,9 +548,9 @@ export function SchedulersPanel({
 
                     {s.id !== manualRunningId && s.runs.length > 1 && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontWeight: 600 }}>{t("schedulers.runs")}</span>
+                        <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", fontWeight: 600 }}>{t("schedulers.runs")}</span>
                         {s.runs.slice(1, 6).map((run) => (
-                          <div key={run.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+                          <div key={run.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
                             <StatusDot status={run.status} />
                             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {t(`schedulers.status.${run.status}`)}

@@ -7,7 +7,7 @@ export function FrontmatterCard({ data }: { data: Record<string, unknown> | null
   const title = typeof data.title === "string" ? data.title.trim() : "";
   const rows = Object.entries(data).filter(([key]) => key !== "title");
   return (
-    <aside style={{ marginBottom: 18, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+    <aside style={{ marginBottom: 18, padding: "12px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
       {title && <div style={{ marginBottom: 8, color: "var(--text)", fontWeight: 600 }}>{title}</div>}
       {rows.map(([key, value]) => (
         <div key={key} style={{ display: "grid", gridTemplateColumns: "minmax(90px, 0.35fr) 1fr", gap: 10, padding: "3px 0" }}>

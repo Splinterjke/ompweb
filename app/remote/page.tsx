@@ -76,11 +76,11 @@ function RemotePairContent() {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Smartphone size={28} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden="true" />
-        <span style={{ fontSize: "calc(18px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{pairText("remote.pairingTitle")}</span>
+        <span style={{ fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{pairText("remote.pairingTitle")}</span>
       </div>
 
       {state === "pairing" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "calc(14px * var(--ui-font-scale, 1))" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))" }}>
           <LoaderCircle size={18} className="spin" aria-hidden="true" />
           {pairText("remote.pairingInProgress")}
         </div>
@@ -89,10 +89,10 @@ function RemotePairContent() {
       {state === "paired" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <CheckCircle2 size={40} strokeWidth={1.6} style={{ color: "var(--status-ok, #2e9e5b)" }} aria-hidden="true" />
-          <span style={{ fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 500 }}>{pairText("remote.pairedSuccess", { device: deviceName ?? "?" })}</span>
+          <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 500 }}>{pairText("remote.pairedSuccess", { device: deviceName ?? "?" })}</span>
           <a
             href={base}
-            style={{ padding: "10px 18px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", textDecoration: "none", fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600 }}
+            style={{ padding: "10px 18px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", textDecoration: "none", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}
           >
             {pairText("remote.openApp")}
           </a>
@@ -102,13 +102,13 @@ function RemotePairContent() {
       {(state === "failed" || state === "network-error") && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <XCircle size={40} strokeWidth={1.6} style={{ color: "var(--status-error)" }} aria-hidden="true" />
-          <span style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5 }}>
+          <span style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5 }}>
             {state === "network-error" ? pairText("remote.networkError") : pairText("remote.pairingFailed")}
           </span>
           <button
             type="button"
             onClick={attemptPair}
-            style={{ padding: "9px 16px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}
+            style={{ padding: "9px 16px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}
           >
             {pairText("remote.retry")}
           </button>

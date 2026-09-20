@@ -79,7 +79,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
         overflow: "hidden",
         background: open ? "var(--bg-selected)" : "none",
         border: "none",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)",
         whiteSpace: "nowrap", cursor: "pointer",
         fontVariantNumeric: "tabular-nums",
         transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",

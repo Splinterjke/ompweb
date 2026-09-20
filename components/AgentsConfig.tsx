@@ -29,7 +29,7 @@ type AgentsResponse = {
 
 const inputStyle = { width: "100%", padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", font: "12px var(--font-mono)" } as const;
 const textareaStyle = { width: "100%", padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", font: "12px var(--font-mono)", lineHeight: "1.45" } as const;
-const nativeSelectStyle = { minHeight: 32, padding: "4px 28px 4px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" } as const;
+const nativeSelectStyle = { minHeight: 32, padding: "4px 28px 4px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" } as const;
 const THINKING_LEVELS = ["", "auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 function shorten(p: string) {
@@ -263,7 +263,7 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>
           <Bot size={14} aria-hidden="true" />
           <span>{t("agentsConfig.allAgents", { count: counts.total })}</span>
           <span style={{ color: "var(--text-muted)", font: "11px var(--font-mono)" }}>
@@ -271,25 +271,25 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
           </span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <button type="button" onClick={() => void load()} disabled={loading} title={t("agentsConfig.reload")} style={{ padding: "5px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+          <button type="button" onClick={() => void load()} disabled={loading} title={t("agentsConfig.reload")} style={{ padding: "5px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
             <RefreshCw size={13} aria-hidden="true" /> {t("agentsConfig.reload")}
           </button>
-          <button type="button" onClick={() => void unpack()} disabled={saving || workspaceCheckPending} title={workspaceUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.unpackBundled")} style={{ padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: saving || workspaceCheckPending ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+          <button type="button" onClick={() => void unpack()} disabled={saving || workspaceCheckPending} title={workspaceUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.unpackBundled")} style={{ padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: saving || workspaceCheckPending ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
             {t("agentsConfig.unpackBundled")}
           </button>
-          <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ padding: "5px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "wait" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+          <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ padding: "5px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "wait" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
             <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
           </button>
         </div>
       </div>
       {workspaceUnavailable ? (
-        <div role="status" style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>
+        <div role="status" style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>
           <AlertCircle size={13} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1, color: "var(--accent-strong)" }} />
           <span>{t("agentsConfig.workspaceUnavailableWarning")}</span>
         </div>
       ) : null}
       {diagnostics.length > 0 ? (
-        <div role="status" style={{ padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.4 }}>
+        <div role="status" style={{ padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.4 }}>
           {diagnostics.map((diagnostic, index) => (
             <div key={`${diagnostic.type ?? "diagnostic"}-${index}`}>{diagnostic.type === "error" ? "Error: " : diagnostic.type === "warning" ? "Warning: " : ""}{diagnostic.message ?? "Agent discovery reported an issue."}</div>
           ))}
@@ -299,26 +299,26 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
         <Search size={13} aria-hidden="true" style={{ color: "var(--text-muted)", flexShrink: 0 }} />
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("agentsConfig.searchPlaceholder")} aria-label={t("agentsConfig.filterAgentsAria")} style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--text)", font: "12px var(--font-mono)" }} />
         {search ? (
-          <button type="button" onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+          <button type="button" onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
             {t("agentsConfig.clear")}
           </button>
         ) : null}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "0.38fr 1fr", gridTemplateRows: "1fr", gap: 12, flex: 1, minHeight: 0 }}>
         <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ padding: "8px 10px", borderBottom: "1px solid var(--border)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span>{tn("agentsConfig.agentsCount", filtered.length)}</span>
             {loading ? <span style={{ color: "var(--text-dim)" }}>{t("agentsConfig.loadingAgents")}</span> : null}
           </div>
           <div style={{ overflowY: "auto", flex: 1 }}>
             {grouped.length === 0 ? (
-              <div style={{ padding: 16, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", textAlign: "center" }}>
+              <div style={{ padding: 16, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", textAlign: "center" }}>
                 {loading ? t("agentsConfig.loadingAgents") : search ? t("agentsConfig.noMatch") : t("agentsConfig.noAgentsFound")}
               </div>
             ) : (
               grouped.map((group) => (
                 <div key={group.scope}>
-                  <div style={{ padding: "5px 10px", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)", borderBottom: "1px solid var(--border)", background: "var(--bg-subtle)" }}>
+                  <div style={{ padding: "5px 10px", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-dim)", borderBottom: "1px solid var(--border)", background: "var(--bg-subtle)" }}>
                     {t(`agentsConfig.scope${group.scope === "bundled" ? "Bundled" : group.scope === "project" ? "Project" : "User"}`)} · {group.items.length}
                   </div>
                   {group.items.map((a) => {
@@ -329,10 +329,10 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
                         <span aria-hidden="true" style={{ marginTop: 5, width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
                             {!a.valid ? <AlertCircle size={11} aria-hidden="true" style={{ color: "var(--status-error, #e5484d)" }} /> : null}
                           </span>
-                          <span style={{ display: "block", marginTop: 2, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description || "—"}</span>
+                          <span style={{ display: "block", marginTop: 2, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description || "—"}</span>
                         </span>
                       </button>
                     );
@@ -346,31 +346,31 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
           {creating || active ? (
             <>
               {isBundledActive ? (
-                <div style={{ padding: "8px 10px", background: "color-mix(in srgb, var(--accent) 10%, var(--bg-panel))", borderBottom: "1px solid var(--border)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ padding: "8px 10px", background: "color-mix(in srgb, var(--accent) 10%, var(--bg-panel))", borderBottom: "1px solid var(--border)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
                   <AlertCircle size={12} aria-hidden="true" /> {t("agentsConfig.bundledReadOnlyWarning", { scope: canEditProject ? t("agentsConfig.scopeProject") : t("agentsConfig.scopeUser") })}
                 </div>
               ) : null}
               <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
                       <Bot size={14} aria-hidden="true" />{creating ? t("agentsConfig.newAgent") : active?.name}
                     </div>
                     {!creating && active ? (
                       <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, font: "11px var(--font-mono)", color: "var(--text-muted)" }}>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shorten(active.filePath)}</span>
-                        <button type="button" onClick={() => void copyPath(active.filePath)} title={t("agentsConfig.copyFilePath")} style={{ padding: "2px 6px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+                        <button type="button" onClick={() => void copyPath(active.filePath)} title={t("agentsConfig.copyFilePath")} style={{ padding: "2px 6px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                           <Copy size={11} aria-hidden="true" /> {t("agentsConfig.copy")}
                         </button>
                       </div>
                     ) : (
-                      <div style={{ marginTop: 4, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.createAgentDesc")}</div>
+                      <div style={{ marginTop: 4, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.createAgentDesc")}</div>
                     )}
                   </div>
                   {creating ? (
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
                       {t("agentsConfig.scope")}
-                      <select value={createScope} onChange={(e) => setCreateScope(e.target.value as "user" | "project")} style={{ ...nativeSelectStyle, fontSize: "calc(11px * var(--ui-font-scale, 1))", minHeight: 28 }}>
+                      <select value={createScope} onChange={(e) => setCreateScope(e.target.value as "user" | "project")} style={{ ...nativeSelectStyle, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", minHeight: 28 }}>
                         <option value="user">{t("agentsConfig.scopeUser")}</option>
                         <option value="project" disabled={!canEditProject}>{t("agentsConfig.scopeProject")}</option>
                       </select>
@@ -378,20 +378,20 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
                   ) : null}
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.name")}</span>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.name")}</span>
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="designer" style={inputStyle} />
                 </label>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.description")}</span>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.description")}</span>
                   <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("agentsConfig.descPlaceholder")} rows={2} style={textareaStyle} />
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.modelRoles")}</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.modelRoles")}</span>
                     <input value={modelCsv} onChange={(e) => setModelCsv(e.target.value)} placeholder="@designer, @smol" style={inputStyle} />
                   </label>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.thinkingLevel")}</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.thinkingLevel")}</span>
                     <select value={thinkingLevel} onChange={(e) => setThinkingLevel(e.target.value)} style={nativeSelectStyle}>
                       {THINKING_LEVELS.map((lv) => <option key={lv} value={lv}>{lv || t("agentsConfig.defaultThinking")}</option>)}
                     </select>
@@ -399,40 +399,40 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.spawns")}</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.spawns")}</span>
                     <input value={spawnsCsv} onChange={(e) => setSpawnsCsv(e.target.value)} placeholder="task, reviewer  or  *" style={inputStyle} />
                   </label>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.tools")}</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.tools")}</span>
                     <input value={toolsCsv} onChange={(e) => setToolsCsv(e.target.value)} placeholder="read, edit, bash, task" style={inputStyle} />
                   </label>
                 </div>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.systemPrompt")}</span>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.systemPrompt")}</span>
                   <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={t("agentsConfig.systemPromptPlaceholder")} rows={6} style={{ ...textareaStyle, minHeight: 140 }} />
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => void save()} disabled={saving || workspaceCheckPending || activeProjectUnavailable} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : creating ? t("agentsConfig.create") : t("agentsConfig.save")} style={{ padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: saving || workspaceCheckPending || activeProjectUnavailable ? "not-allowed" : "pointer", opacity: workspaceCheckPending || activeProjectUnavailable ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>
+                  <button type="button" onClick={() => void save()} disabled={saving || workspaceCheckPending || activeProjectUnavailable} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : creating ? t("agentsConfig.create") : t("agentsConfig.save")} style={{ padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: saving || workspaceCheckPending || activeProjectUnavailable ? "not-allowed" : "pointer", opacity: workspaceCheckPending || activeProjectUnavailable ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>
                     <Check size={13} aria-hidden="true" /> {creating ? t("agentsConfig.create") : t("agentsConfig.save")}
                   </button>
                   {creating ? (
-                    <button type="button" onClick={cancelCreate} disabled={saving} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("agentsConfig.cancel")}</button>
+                    <button type="button" onClick={cancelCreate} disabled={saving} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("agentsConfig.cancel")}</button>
                   ) : (
-                    <button type="button" onClick={() => void remove()} disabled={saving || isBundledActive || activeProjectUnavailable} title={isBundledActive ? t("agentsConfig.templatesNotice") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : t("agentsConfig.remove")} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: isBundledActive || activeProjectUnavailable ? "var(--text-dim)" : "var(--status-error, #e5484d)", cursor: isBundledActive || saving || activeProjectUnavailable ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+                    <button type="button" onClick={() => void remove()} disabled={saving || isBundledActive || activeProjectUnavailable} title={isBundledActive ? t("agentsConfig.templatesNotice") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : t("agentsConfig.remove")} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: isBundledActive || activeProjectUnavailable ? "var(--text-dim)" : "var(--status-error, #e5484d)", cursor: isBundledActive || saving || activeProjectUnavailable ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
                       <Trash2 size={13} aria-hidden="true" /> {t("agentsConfig.remove")}
                     </button>
                   )}
-                  {message ? <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: message.toLowerCase().includes("fail") || message.toLowerCase().includes("error") ? "var(--status-error, #e5484d)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{message}</span> : null}
+                  {message ? <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: message.toLowerCase().includes("fail") || message.toLowerCase().includes("error") ? "var(--status-error, #e5484d)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{message}</span> : null}
                 </div>
-                <p style={{ margin: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>{t("agentsConfig.atomicNotice")}</p>
+                <p style={{ margin: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>{t("agentsConfig.atomicNotice")}</p>
               </div>
             </>
           ) : (
             <div style={{ padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center", color: "var(--text-muted)" }}>
               <Bot size={22} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
-              <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{loading ? t("agentsConfig.loadingAgents") : filtered.length ? t("agentsConfig.selectAgentToEdit") : t("agentsConfig.noAgentsYet")}</div>
-              <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("agentsConfig.templatesNotice")}</div>
-              <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ marginTop: 6, padding: "6px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "not-allowed" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, fontSize: "calc(12px * var(--ui-font-scale, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{loading ? t("agentsConfig.loadingAgents") : filtered.length ? t("agentsConfig.selectAgentToEdit") : t("agentsConfig.noAgentsYet")}</div>
+              <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("agentsConfig.templatesNotice")}</div>
+              <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ marginTop: 6, padding: "6px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "not-allowed" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
               </button>
             </div>

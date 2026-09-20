@@ -39,11 +39,11 @@ export function SplashAnimationSetting() {
 
   return (
     <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-      <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>{t("settingsConfig.splashAnimation")}</h4>
-      <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.splashAnimationDesc")}</p>
+      <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>{t("settingsConfig.splashAnimation")}</h4>
+      <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.splashAnimationDesc")}</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 520 }}>
         {MODES.map((m) => (
-          <label key={m} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", cursor: "pointer" }}>
+          <label key={m} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", cursor: "pointer" }}>
             <input
               type="radio"
               name="splash-mode"

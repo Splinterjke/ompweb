@@ -102,13 +102,13 @@ export function ExtensionDialog({
         }}
       >
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 650 }}>{request.title}</div>
-          <div style={{ marginTop: 3, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)" }}>{t("chatWindow.extensionRequest")}</div>
+          <div style={{ color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 650 }}>{request.title}</div>
+          <div style={{ marginTop: 3, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)" }}>{t("chatWindow.extensionRequest")}</div>
         </div>
 
         <div style={{ padding: 14 }}>
           {request.method === "confirm" && (
-            <div style={{ color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{request.message}</div>
+            <div style={{ color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{request.message}</div>
           )}
           {request.method === "select" && (
             <div style={{ display: "grid", gap: 8 }}>
@@ -128,7 +128,7 @@ export function ExtensionDialog({
                       color: "var(--text)",
                       cursor: "pointer",
                       textAlign: "left",
-                      fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                       transition: attached ? undefined : "background-color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
                     }}
                     onMouseEnter={attached ? undefined : (e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
@@ -158,7 +158,7 @@ export function ExtensionDialog({
                 background: "var(--bg-panel)",
                 color: "var(--text)",
                 outline: "none",
-                fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
               }}
             />
           )}
@@ -181,7 +181,7 @@ export function ExtensionDialog({
                 color: "var(--text)",
                 outline: "none",
                 resize: "vertical",
-                fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                 lineHeight: 1.55,
                 fontFamily: "var(--font-mono)",
               }}

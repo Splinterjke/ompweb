@@ -56,7 +56,7 @@ export function SafeMarkdownBody({ children, className, ...props }: ComponentPro
       <button
         type="button"
         onClick={() => setShowRaw(true)}
-        style={{ display: "block", width: "100%", margin: "4px 0", padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left" }}
+        style={{ display: "block", width: "100%", margin: "4px 0", padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left" }}
       >
         {t("messageView.largeMessageReveal", { size: formatMessageSize(children.length) })}
       </button>
@@ -64,7 +64,7 @@ export function SafeMarkdownBody({ children, className, ...props }: ComponentPro
   }
 
   return (
-    <div className={className} style={{ maxHeight: 420, overflow: "auto", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>
+    <div className={className} style={{ maxHeight: 420, overflow: "auto", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>
       <pre style={{ margin: 0, padding: "8px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
         {children}
       </pre>
@@ -258,7 +258,7 @@ function ForkSessionButton({ entryId, onFork, forking }: {
           borderRadius: 5,
           color: forking ? "var(--accent)" : "var(--text-dim)",
           cursor: forking ? "not-allowed" : "pointer",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 400,
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400,
           whiteSpace: "nowrap",
           transition: "color var(--dur-fast) var(--ease-out-warm)",
         }}
@@ -316,7 +316,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
             borderRadius: "var(--radius-card)",
             boxShadow: "var(--shadow-card)",
             padding: "8px 12px",
-            fontSize: "calc(14px * var(--ui-font-scale, 1))",
+            fontSize: "calc(14px * var(--ui-font-scale-lg, 1))",
             lineHeight: 1.6,
             color: "var(--text)",
             wordBreak: "break-word",
@@ -378,7 +378,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                       borderRadius: 5,
                       color: "var(--text-dim)",
                       cursor: "pointer",
-                      fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 400,
+                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400,
                       whiteSpace: "nowrap",
                       transition: "color var(--dur-fast) var(--ease-out-warm)",
                     }}
@@ -395,7 +395,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
               )}
             </div>
           )}
-          {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{time}</span>}
+          {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{time}</span>}
           </div>
       </div>
     </div>
@@ -541,7 +541,7 @@ function AssistantMessageView({
               padding: "2px 0",
               color: "var(--text-muted)",
               fontFamily: "var(--font-mono)",
-              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1.35,
             }}
           >
@@ -567,7 +567,7 @@ function AssistantMessageView({
             padding: "2px 0",
             color: "var(--status-error)",
             fontFamily: "var(--font-mono)",
-            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
             lineHeight: 1.35,
           }}
         >
@@ -599,7 +599,7 @@ function AssistantMessageView({
       {/* Model label */}
       <div
         style={{
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           marginBottom: 4,
           display: hasActivityBlocks ? "none" : "flex",
@@ -622,7 +622,7 @@ function AssistantMessageView({
 
               {est > 0 && (
                 <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }} title={t("messageView.estimatedTokens")}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 400 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400 }}>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
                     </svg>
@@ -635,7 +635,7 @@ function AssistantMessageView({
                     const tier = liveTokensPerSecond >= 50 ? "success" : liveTokensPerSecond >= 30 ? "renamed" : liveTokensPerSecond >= 15 ? "warning" : "error";
                     const tone = `var(--status-${tier})`;
                     return (
-                      <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 4, background: `color-mix(in srgb, ${tone} 14%, var(--bg-panel))`, color: tone, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 400 }}>
+                      <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 4, background: `color-mix(in srgb, ${tone} 14%, var(--bg-panel))`, color: tone, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400 }}>
                         {t("messageView.tokensPerSecond", { tps: liveTokensPerSecond.toFixed(1) })}
                       </span>
                     );
@@ -668,7 +668,7 @@ function AssistantMessageView({
               borderRadius: "var(--radius-control)",
               background: "color-mix(in srgb, var(--text-muted) 6%, var(--bg-panel))",
               color: "var(--text-muted)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1.45,
             }}
           >
@@ -681,7 +681,7 @@ function AssistantMessageView({
       {!isStreaming && (texts.some((text) => text.trim()) || time || canFork) && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
           {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
-          {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
+          {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
         </div>
       )}
     </div>
@@ -992,7 +992,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
               {isRunning && (resultText ?? "").trim() === "" ? (
                 // No output yet: say so instead of the "(no output)" marker that
                 // would claim the tool finished with nothing.
-                <div data-tool-running="true" style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+                <div data-tool-running="true" style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
                   {t("chatWindow.runningTool")}
                 </div>
               ) : result && !(hubJobs || (hubSend && !isError)) ? (
@@ -1101,7 +1101,7 @@ function SplitPatchView({ text }: { text: string }) {
             minWidth: 0,
             borderTop: fileIndex === 0 ? "none" : "1px solid var(--border)",
             fontFamily: "var(--font-mono)",
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             lineHeight: 1.55,
           }}
         >
@@ -1237,7 +1237,7 @@ function PatchTextView({ text }: { text: string }) {
   const truncatedCount = allLines.length - lines.length;
 
   return (
-    <div style={{ maxHeight: 520, overflowY: "auto", overflowX: "hidden", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.55, minWidth: 0 }}>
+    <div style={{ maxHeight: 520, overflowY: "auto", overflowX: "hidden", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.55, minWidth: 0 }}>
       {lines.map((line, i) => {
         const kind =
           line.startsWith("@@") ? "hunk" :
@@ -1394,31 +1394,31 @@ function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMe
               background: "color-mix(in srgb, var(--bg-subtle) 92%, var(--bg))",
               color: "var(--text-dim)",
               cursor: "pointer",
-              fontSize: "var(--chat-font-ui, 11px)",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1.2,
               whiteSpace: "nowrap",
             }}
           >
             <Archive size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.85 }} />
-            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "var(--chat-font-ui, 11px)", textTransform: "capitalize" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", textTransform: "capitalize" }}>
               {t("messageView.compactionLabel")}
             </span>
             {shownStrategy && (
-              <span style={{ padding: "1px 7px", borderRadius: 4, background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "var(--chat-font-small, 11px)", fontFamily: "var(--font-mono)", fontWeight: 600, flexShrink: 0 }}>
+              <span style={{ padding: "1px 7px", borderRadius: 4, background: "var(--bg-subtle)", color: "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", fontWeight: 600, flexShrink: 0 }}>
                 {shownStrategy}
               </span>
             )}
             {preview ? (
               <>
                 <span style={{ width: 3, height: 3, borderRadius: 999, background: "var(--text-dim)", opacity: 0.5, flexShrink: 0 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "var(--chat-font-ui, 11px)" }}>{preview}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{preview}</span>
               </>
             ) : null}
             <ChevronRight size={11} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: expanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
           </button>
           <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
         </div>
-        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
+        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
         {expanded ? (
           <div
             style={{
@@ -1439,10 +1439,10 @@ function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMe
                   })}
                 </div>
               )}
-              <div style={{ marginBottom: 8, color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>{t("messageView.compactionDescription")}</div>
+              <div style={{ marginBottom: 8, color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>{t("messageView.compactionDescription")}</div>
               {parsedSummary.body
                 ? <MarkdownBody className="markdown-compaction-message" cwd={cwd} onOpenFile={onOpenFile}>{parsedSummary.body}</MarkdownBody>
-                : <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("messageView.noSummary")}</span>}
+                : <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("messageView.noSummary")}</span>}
               <CompactionFileMetadata readFiles={parsedSummary.readFiles} modifiedFiles={parsedSummary.modifiedFiles} />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 9px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
@@ -1458,7 +1458,7 @@ function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMe
                     background: "none",
                     color: copied ? "var(--accent)" : "var(--text-dim)",
                     cursor: "pointer",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   }}
                 >
                   {copied ? <Check size={11} strokeWidth={1.8} /> : <Copy size={11} strokeWidth={1.8} />}
@@ -1474,7 +1474,7 @@ function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMe
                   background: "none",
                   color: "var(--text-dim)",
                   cursor: "pointer",
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 }}
               >
                 {t("messageView.collapse")}
@@ -1586,26 +1586,26 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
               background: "color-mix(in srgb, var(--bg-subtle) 92%, var(--bg))",
               color: "var(--text-dim)",
               cursor: "pointer",
-              fontSize: "var(--chat-font-ui, 11px)",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1.2,
               whiteSpace: "nowrap",
             }}
           >
             <EyeOff size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.85 }} />
-            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "var(--chat-font-ui, 11px)" }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontWeight: 650, letterSpacing: "0.01em", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {label}
             </span>
             {preview ? (
               <>
                 <span style={{ width: 3, height: 3, borderRadius: 999, background: "var(--text-dim)", opacity: 0.5, flexShrink: 0 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "var(--chat-font-ui, 11px)" }}>{preview}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{preview}</span>
               </>
             ) : null}
             <ChevronRight size={11} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: expanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
           </button>
           <div style={{ flex: 1, height: 1, background: "var(--border)", opacity: 0.55 }} />
         </div>
-        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
+        {time ? <span style={{ marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>{time}</span> : null}
         {expanded ? (
           <div
             style={{
@@ -1639,7 +1639,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
                   {cleanText}
                 </MarkdownBody>
               ) : (
-                <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("messageView.noMessage")}</span>
+                <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("messageView.noMessage")}</span>
               )}
             </div>
             <div
@@ -1664,7 +1664,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
                     background: "none",
                     color: copied ? "var(--accent)" : "var(--text-dim)",
                     cursor: "pointer",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   }}
                 >
                   {copied ? <Check size={11} strokeWidth={1.8} /> : <Copy size={11} strokeWidth={1.8} />}
@@ -1684,7 +1684,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
                     background: "none",
                     color: "var(--text-dim)",
                     cursor: "pointer",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   }}
                 >
                   {detailsExpanded ? t("messageView.hideDetails") : t("messageView.showDetails")}
@@ -1700,7 +1700,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
                     background: "none",
                     color: "var(--text-dim)",
                     cursor: "pointer",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   }}
                 >
                   {t("messageView.collapse")}
@@ -1715,7 +1715,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
                   borderTop: "1px solid var(--border)",
                   backgroundColor: "var(--bg)",
                   color: "var(--text-muted)",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
@@ -1773,13 +1773,13 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
             borderBottom: "1px solid var(--border)",
             background: "var(--bg-panel)",
             color: "var(--text-muted)",
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           }}
         >
-          <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 650 }}>
+          <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
             {isIrc && message.customType === "irc:incoming" ? `← ${title}` : title}
           </span>
-          {time && <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>{time}</span>}
+          {time && <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{time}</span>}
         </div>
 
         {contentExpanded ? (
@@ -1800,7 +1800,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
                 })}
               </div>
             )}
-            {displayText ? <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{displayText}</MarkdownBody> : <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("messageView.noMessage")}</span>}
+            {displayText ? <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{displayText}</MarkdownBody> : <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("messageView.noMessage")}</span>}
           </div>
         ) : (
           <button
@@ -1813,7 +1813,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
               background: "transparent",
               color: "var(--text-dim)",
               cursor: "pointer",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               textAlign: "left",
             }}
           >
@@ -1840,7 +1840,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
                 background: "none",
                 color: copied ? "var(--accent)" : "var(--text-dim)",
                 cursor: "pointer",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               }}
             >
               {copied ? t("messageView.copied") : t("messageView.copy")}
@@ -1858,7 +1858,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
                 background: "none",
                 color: "var(--text-dim)",
                 cursor: "pointer",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               }}
             >
               {detailsExpanded ? t("messageView.hideDetails") : t("messageView.showDetails")}
@@ -1874,7 +1874,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
               borderTop: "1px solid var(--border)",
               backgroundColor: "var(--bg)",
               color: "var(--text-muted)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
@@ -2089,25 +2089,25 @@ function BashExecutionView({ message, sessionId }: { message: BashExecutionMessa
               type="button"
               disabled={fullOutput?.phase === "loading"}
               onClick={() => void loadFullOutput()}
-              style={{ padding: 0, border: "none", background: "none", color: "var(--accent)", cursor: fullOutput?.phase === "loading" ? "default" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", opacity: fullOutput?.phase === "loading" ? 0.6 : 1, fontFamily: "inherit" }}
+              style={{ padding: 0, border: "none", background: "none", color: "var(--accent)", cursor: fullOutput?.phase === "loading" ? "default" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", opacity: fullOutput?.phase === "loading" ? 0.6 : 1, fontFamily: "inherit" }}
             >
               {fullOutput?.phase === "loading" ? t("messageView.fullOutputLoading") : t("messageView.viewFullOutput")}
             </button>
           )}
-          <a href={downloadUrl} download style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textDecoration: "none" }}>
+          <a href={downloadUrl} download style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textDecoration: "none" }}>
             {t("messageView.fullOutputDownload")}
           </a>
         </div>
       )}
       {fullOutput?.phase === "ready" && (
         <div style={{ maxHeight: 420, overflow: "auto", marginTop: 6, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)" }}>
-          <pre style={{ margin: 0, padding: "8px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+          <pre style={{ margin: 0, padding: "8px 10px", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
             {fullOutput.output}
           </pre>
         </div>
       )}
       {fullOutput?.phase === "error" && (
-        <div style={{ marginTop: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{fullOutput.message}</div>
+        <div style={{ marginTop: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)" }}>{fullOutput.message}</div>
       )}
     </div>
   );

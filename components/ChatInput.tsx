@@ -278,7 +278,7 @@ function QueuedActionButton({
         background: "transparent",
         color: accent ? "var(--accent)" : "var(--text-dim)",
         cursor: "pointer",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
         fontWeight: accent ? 600 : 400,
         transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
       }}
@@ -314,7 +314,7 @@ export function ModelErrorBanner({ error }: { error?: string | null }) {
         borderRadius: "var(--radius-control)",
         background: "color-mix(in srgb, var(--status-error) 8%, transparent)",
         color: "var(--status-error)",
-        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
         lineHeight: 1.45,
       }}
     >
@@ -375,10 +375,10 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
           }}
         >
           <Target size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: expanded ? 1 : 0, color: "var(--accent)" }} aria-hidden="true" />
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             {t("chatInput.goalActive")} · {formatGoalElapsed(now - goal.startedAt)}
           </span>
-          <span style={{ minWidth: 0, flex: 1, overflow: expanded ? "visible" : "hidden", textOverflow: expanded ? undefined : "ellipsis", whiteSpace: expanded ? "pre-wrap" : "nowrap", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.4 }}>
+          <span style={{ minWidth: 0, flex: 1, overflow: expanded ? "visible" : "hidden", textOverflow: expanded ? undefined : "ellipsis", whiteSpace: expanded ? "pre-wrap" : "nowrap", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.4 }}>
             {goal.objective}
           </span>
         </button>
@@ -395,7 +395,7 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
             border: "1px solid color-mix(in srgb, var(--accent) 32%, var(--border))",
             borderRadius: "var(--radius-control)",
             background: "color-mix(in srgb, var(--accent) 7%, var(--bg-panel))",
-            color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", cursor: "pointer", textAlign: "left", width: "100%",
+            color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", cursor: "pointer", textAlign: "left", width: "100%",
             transition: "background var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
           }}
         >
@@ -1679,7 +1679,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           <div style={{
             marginBottom: 8, padding: "5px 10px",
             background: "color-mix(in srgb, var(--status-warning) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--status-warning) 25%, transparent)",
-            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-warning)",
+            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-warning)",
             display: "flex", alignItems: "center", gap: 6,
           }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -1695,7 +1695,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 style={{
                   marginLeft: "auto",
                   padding: "3px 9px",
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   color: "var(--status-warning)",
                   background: "transparent",
                   border: "1px solid color-mix(in srgb, var(--status-warning) 45%, transparent)",
@@ -1716,7 +1716,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           <div style={{
             marginBottom: 8, padding: "5px 10px",
             background: "color-mix(in srgb, var(--status-success) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--status-success) 24%, transparent)",
-            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-success)",
+            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-success)",
             display: "flex", alignItems: "center", gap: 6,
           }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -1730,7 +1730,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           <div role="alert" style={{
             marginBottom: 8, padding: "5px 10px",
             background: "color-mix(in srgb, var(--status-error) 7%, transparent)", border: "1px solid color-mix(in srgb, var(--status-error) 30%, transparent)",
-            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)",
+            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)",
           }}>
             {attachError}
           </div>
@@ -1844,11 +1844,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         color: "var(--text)",
                         cursor: "pointer",
                         textAlign: "left",
-                        fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
                         lineHeight: 1.45,
                       }}
                     >
-                      <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", paddingTop: 1 }}>
+                      <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", paddingTop: 1 }}>
                         {index + 1}
                       </span>
                       <span style={{ minWidth: 0, display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden", overflowWrap: "anywhere" }}>
@@ -1880,7 +1880,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 8,
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   color: "var(--text-dim)",
                 }}
               >
@@ -1895,7 +1895,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 }}
               >
                 {!slashCommandsLoading && filteredSlashCommands.length === 0 ? (
-                  <div style={{ padding: "2px 2px 4px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+                  <div style={{ padding: "2px 2px 4px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>
                     {t("chatInput.noCommandsFound")}
                   </div>
                 ) : (
@@ -1913,7 +1913,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           padding: "4px 0 6px",
                           background: "var(--bg)",
                           color: "var(--text-dim)",
-                          fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                           fontWeight: 600,
                           textTransform: "uppercase",
                         }}
@@ -1963,15 +1963,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             >
                               <span style={{
                                 flexShrink: 0,
-                                fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                                fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                                 fontFamily: "var(--font-mono)",
                                 whiteSpace: "nowrap",
                               }}>
                                 /{command.name}
                                 {command.argumentHint && (
-                                  <span style={{ marginLeft: 6, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{command.argumentHint}</span>
+                                  <span style={{ marginLeft: 6, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{command.argumentHint}</span>
                                 )}
-                                {dormant && <span style={{ marginLeft: 6, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("chatInput.dormant")}</span>}
+                                {dormant && <span style={{ marginLeft: 6, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("chatInput.dormant")}</span>}
                               </span>
                               {command.description && (
                                 <span style={{
@@ -1980,7 +1980,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                                   WebkitBoxOrient: "vertical",
                                   WebkitLineClamp: 1,
                                   overflow: "hidden",
-                                  fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+                                  fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
                                   lineHeight: 1.35,
                                   color: "var(--text-dim)",
                                 }}>
@@ -2025,7 +2025,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     alignItems: "center",
                     justifyContent: "space-between",
                     gap: 8,
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     color: "var(--text-dim)",
                   }}
                 >
@@ -2044,7 +2044,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   }}
                 >
                   {!indexLoading && atMatches.length === 0 ? (
-                    <div style={{ padding: "6px 8px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+                    <div style={{ padding: "6px 8px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>
                       {needsServerSearch && !serverResultInUse ? t("chatInput.searching") : t("chatInput.noMatchingFiles")}
                     </div>
                   ) : (
@@ -2076,7 +2076,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             color: "var(--text)",
                             cursor: "pointer",
                             textAlign: "left",
-                            fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
                             fontFamily: "var(--font-mono)",
                           }}
                         >
@@ -2119,7 +2119,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               }}>
                 <span style={{
                   flexShrink: 0,
-                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                   fontWeight: 600,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
@@ -2135,7 +2135,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     color: "var(--text-muted)",
                   }}
                 >
@@ -2177,7 +2177,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       padding: 0,
                       cursor: "pointer",
                       color: "var(--text-muted)",
-                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                       fontWeight: 600,
                       letterSpacing: "0.04em",
                       textTransform: "uppercase",
@@ -2197,7 +2197,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       aria-hidden
                     />
                     <span>{t("chatInput.queuedPrompts")}</span>
-                    <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>({queuedCount})</span>
+                    <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>({queuedCount})</span>
                     {!queueExpanded && firstQueued && (
                       <span
                         style={{
@@ -2206,7 +2206,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                           fontWeight: 400,
                           textTransform: "none",
                         }}
@@ -2225,7 +2225,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         padding: "2px 6px",
                         cursor: "pointer",
                         color: "var(--text-dim)",
-                        fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                       }}
                     >
                       {queueExpanded ? t("chatInput.collapseQueued") : t("chatInput.expandQueued")}
@@ -2251,12 +2251,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           alignItems: "center",
                           gap: 8,
                           background: "var(--bg-panel)",
-                          fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                         }}
                       >
                         <span style={{
                           flexShrink: 0,
-                          fontSize: "calc(9.5px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))",
                           fontWeight: 600,
                           letterSpacing: "0.05em",
                           textTransform: "uppercase",
@@ -2278,7 +2278,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             whiteSpace: "nowrap",
                             color: "var(--text)",
                             fontFamily: "var(--font-mono)",
-                            fontSize: "calc(11.5px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
                           }}
                         >
                           {entry.text}
@@ -2377,7 +2377,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               outline: "none",
               resize: "none",
               color: "var(--text)",
-              fontSize: "calc(14px * var(--ui-font-scale, 1))",
+              fontSize: "calc(14px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1.6,
               fontFamily: "inherit",
               minHeight: 24,
@@ -2446,7 +2446,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       display: "flex", alignItems: "center", gap: 8, width: "100%",
                       padding: "7px 10px", border: 0, borderRadius: 5,
                       background: "transparent", color: isStreaming ? "var(--text-dim)" : "var(--text-muted)",
-                      cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left",
+                      cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                       opacity: isStreaming ? 0.5 : 1,
                     }}
                   >
@@ -2464,7 +2464,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           display: "flex", alignItems: "center", gap: 8, width: "100%",
                           padding: "7px 10px", border: 0, borderRadius: 5,
                           background: plusExpanded === "tools" ? "var(--bg-selected)" : "transparent",
-                          color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left",
+                          color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                         }}
                       >
                         <Wrench size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -2505,7 +2505,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           display: "flex", alignItems: "center", gap: 8, width: "100%",
                           padding: "7px 10px", border: 0, borderRadius: 5,
                           background: plusExpanded === "advisor" ? "var(--bg-selected)" : "transparent",
-                          color: advisorEnabled ? "var(--accent)" : "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left",
+                          color: advisorEnabled ? "var(--accent)" : "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                         }}
                       >
                         <Sparkles size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -2553,7 +2553,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     borderRadius: 7,
                     color: "var(--text-muted)",
                     cursor: modelSelectorDisabled ? "not-allowed" : "pointer",
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     opacity: modelSelectorDisabled ? 0.5 : 1,
                     transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
                   }}
@@ -2631,7 +2631,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       </label>
                       <div className="picker-list">
                         {modelsByProvider.length === 0 ? (
-                          <div style={{ padding: "9px 8px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", whiteSpace: "nowrap" }}>
+                          <div style={{ padding: "9px 8px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", whiteSpace: "nowrap" }}>
                             {modelSearchQuery.trim() ? t("chatInput.noMatchingModels") : showModelsLoading ? t("chatInput.loadingModels") : t("chatInput.noAvailableModels")}
                           </div>
                         ) : modelsByProvider.map((group) => (
@@ -2676,7 +2676,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     display: "flex", alignItems: "center", gap: 5,
                     height: 28, padding: "0 8px", background: thinkingDropdownOpen ? "var(--bg-hover)" : "none",
                     border: "none", borderRadius: 7, color: "var(--text-muted)", cursor: isStreaming ? "not-allowed" : "pointer",
-                    opacity: isStreaming ? 0.5 : 1, fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    opacity: isStreaming ? 0.5 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
                   }}
                   onMouseEnter={(e) => { if (!isStreaming) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text)"; } }}
@@ -2758,7 +2758,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   color: fastModeEnabled && fastModeActive === false ? "var(--status-warning)" : fastModeEnabled ? "var(--accent)" : "var(--text-muted)",
                   cursor: isStreaming ? "not-allowed" : "pointer",
                   opacity: isStreaming ? 0.5 : 1,
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
                 }}
@@ -2834,7 +2834,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         )}
                       </svg>
                       {ringPct !== null && (
-                        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "calc(7px * var(--ui-font-scale, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: ringTone }}>
+                        <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "calc(7px * var(--ui-font-scale-sm, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: ringTone }}>
                           {Math.round(ringPct)}
                         </span>
                       )}
@@ -2867,9 +2867,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <div className="popover-glare" aria-hidden="true" />
                     <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - 32px)" : "min(50vh, 380px)", padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                      <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
+                      <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (
-                        <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", fontWeight: 700, color: ringTone, fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", fontWeight: 700, color: ringTone, fontVariantNumeric: "tabular-nums" }}>
                           {formatPercent(ringPct)}
                         </span>
                       )}
@@ -2896,7 +2896,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         color: isCompacting ? "var(--accent)" : "var(--text)",
                         cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
                         opacity: isStreaming && !isCompacting ? 0.5 : 1,
-                        fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600,
+                        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600,
                         transition: "background var(--dur-fast) var(--ease-out-warm)",
                       }}
                       onMouseEnter={(e) => { if (!(isStreaming && !isCompacting)) e.currentTarget.style.background = "var(--bg-hover)"; }}
@@ -2956,7 +2956,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   borderRadius: 8,
                   color: "var(--on-accent)",
                   cursor: "pointer",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   transition: "background var(--dur-fast) var(--ease-out-warm)",
                 }}
@@ -2978,7 +2978,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   borderRadius: 8,
                   color: "var(--on-accent)",
                   cursor: "pointer",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   transition: "background var(--dur-fast) var(--ease-out-warm)",
                 }}
@@ -3002,7 +3002,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   borderRadius: 8,
                   color: (value.trim() || attachedImages.length) && !isSubmitting ? "var(--on-accent)" : "var(--text-dim)",
                   cursor: (value.trim() || attachedImages.length) && !isSubmitting ? "pointer" : "not-allowed",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   boxShadow: (value.trim() || attachedImages.length) && !isSubmitting ? "var(--shadow-card)" : "none",
                   transition: "background var(--dur-fast) var(--ease-out-warm), box-shadow var(--dur-fast) var(--ease-out-warm)",

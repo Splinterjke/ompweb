@@ -45,10 +45,10 @@ export function LoginForm() {
         <div style={{ width: 40, height: 40, display: "grid", placeItems: "center", borderRadius: "50%", background: "var(--user-bg)", color: "var(--accent)", marginBottom: 20 }}>
           <LockKeyhole size={19} aria-hidden="true" />
         </div>
-        <h1 id="login-title" className="display-serif" style={{ margin: 0, fontSize: "calc(28px * var(--ui-font-scale, 1))", lineHeight: 1.1, color: "var(--text)" }}>Welcome back</h1>
-        <p style={{ margin: "10px 0 24px", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>Enter the password for this omp web workspace.</p>
+        <h1 id="login-title" className="display-serif" style={{ margin: 0, fontSize: "calc(28px * var(--ui-font-scale-lg, 1))", lineHeight: 1.1, color: "var(--text)" }}>Welcome back</h1>
+        <p style={{ margin: "10px 0 24px", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>Enter the password for this omp web workspace.</p>
         <form onSubmit={signIn} style={{ display: "grid", gap: 14 }}>
-          <label htmlFor="web-password" style={{ display: "grid", gap: 6, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>
+          <label htmlFor="web-password" style={{ display: "grid", gap: 6, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>
             Password
             <input
               id="web-password"
@@ -60,10 +60,10 @@ export function LoginForm() {
               required
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? "password-error" : undefined}
-              style={{ width: "100%", padding: "9px 10px", border: `1px solid ${error ? "var(--status-error)" : "var(--border)"}`, borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale, 1))", outline: "none", boxShadow: "none" }}
+              style={{ width: "100%", padding: "9px 10px", border: `1px solid ${error ? "var(--status-error)" : "var(--border)"}`, borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", outline: "none", boxShadow: "none" }}
             />
           </label>
-          {error && <p id="password-error" role="alert" style={{ margin: 0, color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</p>}
+          {error && <p id="password-error" role="alert" style={{ margin: 0, color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</p>}
           <button type="submit" disabled={submitting} style={{ minHeight: 36, border: 0, borderRadius: "var(--radius-control)", background: "var(--accent-strong)", color: "var(--on-accent)", fontWeight: 600, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
             {submitting ? "Unlocking…" : "Unlock workspace"}
           </button>

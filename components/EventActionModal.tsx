@@ -54,7 +54,7 @@ function TextArea({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-control)",
         color: "var(--text)",
-        fontSize: "calc(12px * var(--ui-font-scale, 1))",
+        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
         outline: "none",
         width: "100%",
         boxSizing: "border-box",
@@ -101,6 +101,7 @@ export function EventActionModal({
 
   const [schedulers, setSchedulers] = useState<SchedulerWithState[]>([]);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   // (Re)initialize the form whenever the modal opens, and load the scheduler
   // list for the "scheduled script" action type.
@@ -250,6 +251,40 @@ export function EventActionModal({
     }
   };
 
+  const runTest = async () => {
+    const spec = buildSpec();
+    if (!spec) {
+      const code =
+        actionType === "http"
+          ? "url_required"
+          : actionType === "bash"
+            ? "script_required"
+            : actionType === "scheduled"
+              ? "scheduler_required"
+              : "generic";
+      toast.error(errorText(t, code));
+      return;
+    }
+    if (!client.chatActions.test) {
+      toast.error(t("chatActions.error.generic"));
+      return;
+    }
+    setTesting(true);
+    try {
+      const result = await client.chatActions.test({ action: spec });
+      if (result.ok) {
+        toast.success(result.detail ? `${t("chatActions.test")} ✓ ${result.detail}` : t("chatActions.testOk"));
+      } else {
+        toast.error(result.detail ? `${t("chatActions.test")} ✗ ${result.detail}` : t("chatActions.testFail"));
+      }
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code ?? "generic";
+      toast.error(errorText(t, code));
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const actionOptions = ACTION_TYPES.map((k) => t(`chatActions.action.${k}`));
   const methodOptions = HTTP_METHODS as readonly string[];
   const schedOptions = useMemo(
@@ -273,7 +308,7 @@ export function EventActionModal({
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12, maxHeight: "min(62vh, 560px)", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12, maxHeight: "min(72vh, 680px)", overflowY: "auto" }}>
           {/* 1st line: name */}
           <Field label={t("chatActions.name")} required>
             <TextInput value={name} onChange={setName} placeholder={t("chatActions.namePlaceholder")} />
@@ -285,7 +320,7 @@ export function EventActionModal({
               {CHAT_EVENT_TYPES.map((ev) => (
                 <label
                   key={ev}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", cursor: "pointer" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", cursor: "pointer" }}
                 >
                   <input
                     type="checkbox"
@@ -320,7 +355,7 @@ export function EventActionModal({
               <Field label={t("chatActions.notifMessage")} hint={t("chatActions.notifMessageHint")}>
                 <TextArea value={notifMessage} onChange={setNotifMessage} rows={2} placeholder="e.g. Task finished." />
               </Field>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>{t("chatActions.notifPermHint")}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>{t("chatActions.notifPermHint")}</span>
             </div>
           )}
 
@@ -348,7 +383,7 @@ export function EventActionModal({
               {postOrPut && (
                 <>
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", alignSelf: "center" }}>{t("chatActions.httpBody")}:</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", alignSelf: "center" }}>{t("chatActions.httpBody")}:</span>
                     {BODY_TYPES.map((bt) => {
                       const active = bodyType === bt;
                       return (
@@ -361,7 +396,7 @@ export function EventActionModal({
                             minWidth: 40,
                             height: 24,
                             padding: "0 8px",
-                            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                             fontWeight: 500,
                             border: `1px solid ${active ? "color-mix(in srgb, var(--accent) 45%, var(--border))" : "var(--border)"}`,
                             borderRadius: "var(--radius-control)",
@@ -418,7 +453,7 @@ export function EventActionModal({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               color: "var(--text-muted)",
               cursor: "pointer",
             }}
@@ -434,6 +469,15 @@ export function EventActionModal({
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+          <button
+            type="button"
+            className="github-status-dialog-button"
+            onClick={() => void runTest()}
+            disabled={testing || saving}
+          >
+            {testing && <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />}
+            {t("chatActions.test")}
+          </button>
           <button
             type="button"
             className="github-status-dialog-button"

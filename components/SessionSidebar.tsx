@@ -586,7 +586,7 @@ function OmpWebTitle() {
       onClick={handleClick}
       style={{
         background: "none", border: "none", padding: 0, cursor: "pointer",
-        fontWeight: 700, fontSize: "calc(14px * var(--ui-font-scale, 1))", letterSpacing: "-0.01em",
+        fontWeight: 700, fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", letterSpacing: "-0.01em",
         fontFamily: "var(--font-mono)",
         minWidth: "6ch",
         lineHeight: 1,
@@ -1885,7 +1885,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
             borderRadius: 9,
             color: selectedCwd ? "var(--text)" : "var(--text-dim)",
             cursor: selectedCwd ? "pointer" : "not-allowed",
-            fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
             fontWeight: 600,
             letterSpacing: "-0.01em",
             opacity: selectedCwd ? 1 : 0.65,
@@ -1921,7 +1921,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
             padding: "0 2px",
             background: "none",
             border: "none",
-            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
             fontWeight: 600,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
@@ -1996,7 +1996,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
               borderRadius: "var(--radius-control)",
               outline: "none",
               color: "var(--text)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             }}
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
@@ -2017,23 +2017,23 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           }}
         >
           {loading && (
-            <div style={{ padding: "10px 4px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+            <div style={{ padding: "10px 4px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
               {t("sessionSidebar.loading")}
             </div>
           )}
           {projectsError && (
-            <div style={{ padding: "10px 4px", color: "var(--accent)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{projectsError}</div>
+            <div style={{ padding: "10px 4px", color: "var(--accent)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{projectsError}</div>
           )}
           {error && (
-            <div style={{ padding: "10px 4px", color: "var(--accent)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</div>
+            <div style={{ padding: "10px 4px", color: "var(--accent)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>
           )}
           {!loading && !projectsError && !error && sortedProjects.length === 0 && (
-            <div style={{ padding: "10px 4px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>
+            <div style={{ padding: "10px 4px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>
               {t("projects.noProjects")}
             </div>
           )}
           {!loading && !projectsError && !error && sortedProjects.length > 0 && visibleProjectEntries.length === 0 && (
-            <div style={{ padding: "14px 4px", color: "var(--text-dim)", fontSize: "calc(11.5px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>
+            <div style={{ padding: "14px 4px", color: "var(--text-dim)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5 }}>
               {t("sessionSidebar.noMatches")}
             </div>
           )}
@@ -2135,7 +2135,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 fontWeight: 600,
                 letterSpacing: "0.05em",
                 textTransform: "uppercase",
@@ -2311,7 +2311,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               fontWeight: 600,
               letterSpacing: "0.05em",
               textTransform: "uppercase",
@@ -2572,7 +2572,7 @@ function ProjectRow({
                   setAliasEditing(false);
                 }
               }}
-              style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", fontWeight: 600 }}
+              style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--font-mono)", fontWeight: 600 }}
             />
           </div>
         ) : (
@@ -2608,7 +2608,7 @@ function ProjectRow({
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
                 fontFamily: "var(--font-mono)",
-                fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
                 lineHeight: 1.25,
@@ -2641,7 +2641,7 @@ function ProjectRow({
               color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
               cursor: "pointer",
               fontFamily: "var(--font-mono)",
-              fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
+              fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1,
               transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
             }}
@@ -2728,19 +2728,19 @@ function ProjectRow({
             placement="below"
             minWidth={136}
           >
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { startAliasEdit(); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { startAliasEdit(); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {project.alias ? t("projects.editAlias") : t("projects.nameAlias")}
             </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void revealInFileManager(project.path); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void revealInFileManager(project.path); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {t("fileExplorer.revealInFileManager")}
             </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {t("projects.moveUp")}
             </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {t("projects.moveDown")}
             </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" disabled={removeBusy} onClick={() => { setActionMenuOpen(false); setConfirmHideOpen(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: removeBusy ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <button type="button" role="menuitem" className="sidebar-menu-item" disabled={removeBusy} onClick={() => { setActionMenuOpen(false); setConfirmHideOpen(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: removeBusy ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {t("projects.remove", { name: label })}
             </button>
           </SidebarPortalMenu>
@@ -2788,7 +2788,7 @@ function ProjectRow({
       {isExpanded && (
         <div className="sidebar-project-sessions" style={{ margin: "2px 0 0" }}>
           {visibleRoots.length === 0 ? (
-            <div style={{ padding: "6px 12px 8px 34px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+            <div style={{ padding: "6px 12px 8px 34px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               {t("projects.emptyProject")}
             </div>
           ) : (
@@ -2823,7 +2823,7 @@ function ProjectRow({
                     color: "var(--text-dim)",
                     cursor: "pointer",
                     textAlign: "left",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 600,
                     borderRadius: "var(--radius-control)",
                     transition: SIDEBAR_BUTTON_TRANSITION,
@@ -2911,19 +2911,19 @@ function ProjectWorktreeSwitcher({
               if (wtConfirmRemove === wt.path) {
                 return (
                   <div key={wt.path} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", borderBottom: "1px solid var(--border)", background: "color-mix(in srgb, var(--accent) 6%, transparent)" }}>
-                    <span style={{ flex: 1, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ flex: 1, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {t("sessionSidebar.uncommittedForceRemove")}
                     </span>
                     <button
                       onClick={() => onRemoveWorktree(wt.path, true)}
                       disabled={wtBusy}
-                      style={{ padding: "3px 9px", background: "var(--accent-strong)", border: "none", borderRadius: "var(--radius-control)", color: "var(--on-accent)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+                      style={{ padding: "3px 9px", background: "var(--accent-strong)", border: "none", borderRadius: "var(--radius-control)", color: "var(--on-accent)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
                     >
                       {t("sessionSidebar.force")}
                     </button>
                     <button
                       onClick={() => setWtConfirmRemove(null)}
-                      style={{ padding: "3px 9px", background: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", cursor: "pointer", flexShrink: 0 }}
+                      style={{ padding: "3px 9px", background: "var(--bg-hover)", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", cursor: "pointer", flexShrink: 0 }}
                     >
                       {t("sessionSidebar.cancel")}
                     </button>
@@ -2952,7 +2952,7 @@ function ProjectWorktreeSwitcher({
                       color: isCurrent ? "var(--text)" : "var(--text-muted)",
                       cursor: "pointer",
                       textAlign: "left",
-                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                       fontFamily: "var(--font-mono)",
                     }}
                   >
@@ -2962,7 +2962,7 @@ function ProjectWorktreeSwitcher({
                       <span style={{ width: 10, flexShrink: 0 }} />
                     )}
                     <PathLabel text={wt.branch ?? displayCwd(wt.path, homeDir)} style={{ flex: 1 }} />
-                    {wt.isMain && <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>{t("sessionSidebar.mainBadge")}</span>}
+                    {wt.isMain && <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.mainBadge")}</span>}
                   </button>
                   {!wt.isMain && (
                     <button
@@ -3008,7 +3008,7 @@ function ProjectWorktreeSwitcher({
                 color: "var(--text-muted)",
                 cursor: "pointer",
                 textAlign: "left",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               }}
             >
               <Plus size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -3037,7 +3037,7 @@ function ProjectWorktreeSwitcher({
                 placeholder={t("sessionSidebar.branchNamePlaceholder")}
                 style={{
                   width: "100%",
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   fontFamily: "var(--font-mono)",
                   padding: "5px 8px",
                   border: "1px solid var(--accent)",
@@ -3059,7 +3059,7 @@ function ProjectWorktreeSwitcher({
                     border: "none",
                     borderRadius: "var(--radius-control)",
                     color: "var(--on-accent)",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 600,
                     cursor: wtBusy || !wtNewBranch.trim() ? "not-allowed" : "pointer",
                     opacity: wtBusy || !wtNewBranch.trim() ? 0.65 : 1,
@@ -3076,7 +3076,7 @@ function ProjectWorktreeSwitcher({
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius-control)",
                     color: "var(--text-muted)",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     cursor: "pointer",
                   }}
                 >
@@ -3089,7 +3089,7 @@ function ProjectWorktreeSwitcher({
             <div style={{
               padding: "5px 10px 8px",
               color: "var(--accent)",
-              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1.35,
               overflowWrap: "anywhere",
             }}>
@@ -3479,47 +3479,47 @@ const SessionItem = memo(function SessionItem({
       )}
       {confirming ? (
         <>
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)" }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>
             {confirmArchive
               ? t("sessionSidebar.archiveConfirm", { title: title.length > 22 ? `${title.slice(0, 22)}…` : title })
               : t("sessionSidebar.deleteConfirm", { title: title.length > 22 ? `${title.slice(0, 22)}…` : title })}
           </span>
-          <button onClick={(event) => { event.stopPropagation(); if (confirmArchive) void handleArchive(); else void handleDelete(); }} style={{ height: 28, padding: "0 10px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent-strong)", color: "var(--on-accent)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600 }}>
+          <button onClick={(event) => { event.stopPropagation(); if (confirmArchive) void handleArchive(); else void handleDelete(); }} style={{ height: 28, padding: "0 10px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent-strong)", color: "var(--on-accent)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600 }}>
             {confirmArchive ? t("sessionSidebar.archive") : t("sessionSidebar.delete")}
           </button>
-          <button onClick={(event) => { event.stopPropagation(); closeConfirmation(); }} autoFocus style={{ height: 28, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
+          <button onClick={(event) => { event.stopPropagation(); closeConfirmation(); }} autoFocus style={{ height: 28, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
             {t("sessionSidebar.cancel")}
           </button>
         </>
       ) : renaming ? (
-        <input ref={inputRef} autoFocus aria-label={t("sessionSidebar.rename")} value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === "Enter") void commitRename(); if (event.key === "Escape") { event.preventDefault(); renameCancelRef.current = true; setRenaming(false); } }} style={{ flex: 1, height: 25, padding: "3px 7px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }} />
+        <input ref={inputRef} autoFocus aria-label={t("sessionSidebar.rename")} value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={commitRename} onKeyDown={(event) => { if (event.key === "Enter") void commitRename(); if (event.key === "Escape") { event.preventDefault(); renameCancelRef.current = true; setRenaming(false); } }} style={{ flex: 1, height: 25, padding: "3px 7px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }} />
       ) : (
         <>
           {depth > 0 && <GitBranch size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />}
           <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
-            <span title={title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
+            <span title={title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
               {title}
             </span>
           </button>
-          {session.worktreeBranch && <span title={t("sessionSidebar.worktreeTitle", { path: session.cwd })} style={{ display: "flex", alignItems: "center", gap: 3, maxWidth: 56, minWidth: 0, overflow: "hidden", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", flexShrink: 1 }}><GitBranch size={10} strokeWidth={2.4} aria-hidden="true" /><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span></span>}
+          {session.worktreeBranch && <span title={t("sessionSidebar.worktreeTitle", { path: session.cwd })} style={{ display: "flex", alignItems: "center", gap: 3, maxWidth: 56, minWidth: 0, overflow: "hidden", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 1 }}><GitBranch size={10} strokeWidth={2.4} aria-hidden="true" /><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span></span>}
           {hasChildren && <button className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); onToggleCollapse?.(); }} title={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")} aria-label={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")} aria-expanded={!collapsed} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, flexShrink: 0, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }}><ChevronDown size={12} strokeWidth={1.8} aria-hidden="true" /></button>}
           <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-end", width: 64, height: 24, flexShrink: 0 }}>
               <div aria-hidden={showActions} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, width: "100%", whiteSpace: "nowrap", opacity: showActions ? 0 : 1, pointerEvents: showActions ? "none" : "auto", transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
                 {isRunning && <RunningSessionIndicator size={12} />}
                 {!isRunning && isUnread && <UnreadSessionIndicator size={11} />}
-                {relativeTime && <span title={new Date(session.modified).toLocaleString(locale)} style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>}
+                {relativeTime && <span title={new Date(session.modified).toLocaleString(locale)} style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>}
               </div>
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none", transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
                 <button type="button" ref={menuButtonRef} className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); setActionMenuOpen((open) => !open); }} title={t("projects.actions")} aria-label={t("projects.actions")} aria-expanded={actionMenuOpen} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, lineHeight: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: actionMenuOpen ? "var(--text)" : "var(--text-dim)", cursor: "pointer" }}>
                   <MoreHorizontal size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
                 <SidebarPortalMenu anchor={menuButtonRef} open={actionMenuOpen} onClose={() => setActionMenuOpen(false)} placement="above" minWidth={128}>
-                  {canOpenInNewWindow && <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { void handleOpenInNewWindow(event); }} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}><PanelsTopLeft size={12} strokeWidth={1.9} aria-hidden="true" />{t("sessionSidebar.openInNewWindow")}</button>}
- <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={hasChildren} title={hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive")} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: hasChildren ? "var(--text-dim)" : "var(--text-muted)", cursor: hasChildren ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))", opacity: hasChildren ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
-                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { startRename(event); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{t("sessionSidebar.rename")}</button>
-                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); void handleCopyTranscript(); }} disabled={copyingTranscript} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: copyingTranscript ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))", opacity: copyingTranscript ? 0.55 : 1 }}>{t("sessionSidebar.copyTranscript")}</button>
-                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmDelete(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>{t("sessionSidebar.delete")}</button>
+                  {canOpenInNewWindow && <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { void handleOpenInNewWindow(event); }} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><PanelsTopLeft size={12} strokeWidth={1.9} aria-hidden="true" />{t("sessionSidebar.openInNewWindow")}</button>}
+ <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={hasChildren} title={hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive")} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: hasChildren ? "var(--text-dim)" : "var(--text-muted)", cursor: hasChildren ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: hasChildren ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
+                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { startRename(event); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.rename")}</button>
+                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); void handleCopyTranscript(); }} disabled={copyingTranscript} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: copyingTranscript ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: copyingTranscript ? 0.55 : 1 }}>{t("sessionSidebar.copyTranscript")}</button>
+                  <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmDelete(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.delete")}</button>
                 </SidebarPortalMenu>
               </div>
             </div>

@@ -44,7 +44,7 @@ const inputStyle = {
   borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
   fontFamily: "var(--font-mono)",
 } as const;
 
@@ -384,10 +384,10 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             }}
           >
             <Sparkles size={15} style={{ color: "var(--accent)" }} />
-            <strong style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text)" }}>{t("mcpConfig.builtinServers") || "Built-in MCP Extensions"}</strong>
+            <strong style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>{t("mcpConfig.builtinServers") || "Built-in MCP Extensions"}</strong>
             <span
               style={{
-                fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                 padding: "2px 7px",
                 borderRadius: 4,
                 background: "var(--accent)",
@@ -420,11 +420,11 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>{preset.displayName}</span>
-                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", padding: "1px 5px", background: "var(--bg-panel)", borderRadius: 4 }}>
+                      <span style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{preset.displayName}</span>
+                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", padding: "1px 5px", background: "var(--bg-panel)", borderRadius: 4 }}>
                         {preset.version}
                       </span>
-                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>by {preset.author}</span>
+                      <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>by {preset.author}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       {isConfigured ? (
@@ -433,7 +433,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 5,
-                            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                             color: "var(--status-success)",
                             fontWeight: 600,
                             padding: "3px 8px",
@@ -458,7 +458,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                             background: "var(--accent)",
                             color: "var(--on-accent)",
                             border: "none",
-                            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                             fontWeight: 600,
                             cursor: saving ? "wait" : "pointer",
                           }}
@@ -481,7 +481,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                           background: "transparent",
                           color: "var(--text)",
                           border: "1px solid var(--border)",
-                          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                           cursor: "pointer",
                         }}
                       >
@@ -489,13 +489,13 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                       </button>
                     </div>
                   </div>
-                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>{preset.description}</div>
+                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>{preset.description}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                     {preset.tools.map((tool) => (
                       <span
                         key={tool}
                         style={{
-                          fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                           fontFamily: "var(--font-mono)",
                           padding: "2px 6px",
                           borderRadius: 4,
@@ -507,7 +507,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                         {tool}
                       </span>
                     ))}
-                    <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", alignSelf: "center", marginLeft: 4 }}>+ 8 more advanced orchestration tools</span>
+                    <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", alignSelf: "center", marginLeft: 4 }}>+ 8 more advanced orchestration tools</span>
                   </div>
                 </div>
               );
@@ -536,7 +536,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
           }}
         >
           <Sliders size={15} style={{ color: "var(--accent)" }} />
-          <strong style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text)", flexShrink: 0 }}>
+          <strong style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", color: "var(--text)", flexShrink: 0 }}>
             {t("mcpConfig.serverManagement")}
           </strong>
           <select
@@ -549,7 +549,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               color: "var(--text)",
               border: "1px solid var(--border)",
               borderRadius: 6,
-              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               padding: "3px 6px",
               outline: "none",
             }}
@@ -572,7 +572,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             ))}
           </select>
           {path && (
-            <code style={{ flex: 1, minWidth: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <code style={{ flex: 1, minWidth: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {path}
             </code>
           )}
@@ -582,7 +582,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             const enabled = servers.filter((s) => serverSummary(s.config).enabled && serverSummary(s.config).valid).length;
             const invalid = servers.filter((s) => !serverSummary(s.config).valid).length;
             return (
-              <span style={{ marginLeft: "auto", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+              <span style={{ marginLeft: "auto", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
                 {t("mcpConfig.serverCounts", { enabled, total })}
                 {invalid > 0 ? t("mcpConfig.invalidSuffix", { count: invalid }) : ""}
               </span>
@@ -593,7 +593,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
         <div className="mcp-editor-grid" style={{ display: "grid", gridTemplateColumns: "minmax(160px, 0.35fr) minmax(0, 1fr)", minHeight: 300 }}>
           {/* Server List */}
           <div style={{ borderRight: "1px solid var(--border)", padding: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-            <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", padding: "4px 6px" }}>
+            <div style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", padding: "4px 6px" }}>
               Configured ({servers.length})
             </div>
             {servers.map((server) => {
@@ -635,7 +635,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                       {server.name}
                     </span>
                   </div>
-                  <div style={{ marginTop: 2, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ marginTop: 2, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {summary.type}
                     {summary.enabled ? "" : " · disabled"}
                     {!summary.valid ? " · invalid" : ""}
@@ -645,7 +645,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               );
             })}
             {!loading && servers.length === 0 && (
-              <div style={{ padding: "10px 8px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", textAlign: "center" }}>
+              <div style={{ padding: "10px 8px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", textAlign: "center" }}>
                 {t("mcpConfig.noServers") || "No servers configured yet"}
               </div>
             )}
@@ -665,7 +665,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 background: selected === null ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "transparent",
                 color: selected === null ? "var(--accent)" : "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 fontWeight: selected === null ? 700 : 500,
               }}
             >
@@ -678,25 +678,25 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             {/* Header: Mode Switch & Template Shortcuts */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Quick templates:</span>
+                <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Quick templates:</span>
                 <button
                   type="button"
                   onClick={() => applyTemplate("python")}
-                  style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
+                  style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
                 >
                   Python stdio
                 </button>
                 <button
                   type="button"
                   onClick={() => applyTemplate("npx")}
-                  style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
+                  style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
                 >
                   NPX stdio
                 </button>
                 <button
                   type="button"
                   onClick={() => applyTemplate("http")}
-                  style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
+                  style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", padding: "2px 6px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}
                 >
                   Remote HTTP
                 </button>
@@ -715,7 +715,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     border: "none",
                     background: editorMode === "form" ? "var(--accent)" : "transparent",
                     color: editorMode === "form" ? "var(--on-accent)" : "var(--text-muted)",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
@@ -737,7 +737,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     border: "none",
                     background: editorMode === "json" ? "var(--accent)" : "transparent",
                     color: editorMode === "json" ? "var(--on-accent)" : "var(--text-muted)",
-                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
@@ -749,7 +749,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
 
             {/* Server Name */}
             <div>
-              <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>
+              <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>
                 {t("mcpConfig.serverName") || "Server name"}
               </label>
               <input
@@ -765,7 +765,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 10 }}>
                   <div>
-                    <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>Transport</label>
+                    <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>Transport</label>
                     <select
                       value={formType}
                       onChange={(e) => setFormType(e.target.value as "stdio" | "http" | "sse")}
@@ -778,7 +778,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                   </div>
                   {formType === "stdio" ? (
                     <div>
-                      <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>Command</label>
+                      <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>Command</label>
                       <input
                         value={formCommand}
                         onChange={(e) => setFormCommand(e.target.value)}
@@ -788,7 +788,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     </div>
                   ) : (
                     <div>
-                      <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>Remote URL (Endpoint)</label>
+                      <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>Remote URL (Endpoint)</label>
                       <input
                         value={formUrl}
                         onChange={(e) => setFormUrl(e.target.value)}
@@ -801,7 +801,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
 
                 {formType === "stdio" && (
                   <div>
-                    <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>Arguments</label>
+                    <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>Arguments</label>
                     <input
                       value={formArgs}
                       onChange={(e) => setFormArgs(e.target.value)}
@@ -819,14 +819,14 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     onChange={(e) => setFormEnabled(e.target.checked)}
                     style={{ cursor: "pointer", width: 14, height: 14 }}
                   />
-                  <label htmlFor="mcp-server-enabled" style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", cursor: "pointer" }}>
+                  <label htmlFor="mcp-server-enabled" style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", cursor: "pointer" }}>
                     Enable this server (Enabled)
                   </label>
                 </div>
               </div>
             ) : (
               <div>
-                <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", marginBottom: 4 }}>
+                <label style={{ display: "block", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", marginBottom: 4 }}>
                   {t("mcpConfig.serverConfigJson") || "OMP server config (JSON)"}
                 </label>
                 <textarea
@@ -854,7 +854,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                   background: "transparent",
                   color: "var(--text)",
                   cursor: saving ? "wait" : "pointer",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 }}
               >
                 <Check size={13} /> {t("mcpConfig.check") || "Validate"}
@@ -873,7 +873,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                   background: "var(--accent)",
                   color: "var(--on-accent)",
                   cursor: saving || !name.trim() ? "default" : "pointer",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                 }}
               >
@@ -894,7 +894,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     background: "transparent",
                     color: "var(--status-error)",
                     cursor: saving ? "wait" : "pointer",
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     marginLeft: "auto",
                   }}
                 >
@@ -902,7 +902,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 </button>
               )}
             </div>
-            {message && <div role="status" style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.4 }}>{message}</div>}
+            {message && <div role="status" style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.4 }}>{message}</div>}
           </div>
         </div>
       </section>
@@ -926,10 +926,10 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
           }}
         >
           <Globe size={15} style={{ color: "var(--text-muted)" }} />
-          <strong style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text)" }}>
+          <strong style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>
             {t("mcpConfig.configuredServers") || "Configured & auto-discovered MCP servers"}
           </strong>
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>({displayedServers.length})</span>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>({displayedServers.length})</span>
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
@@ -940,7 +940,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 placeholder="Filter MCP..."
                 style={{
                   padding: "3px 8px 3px 24px",
-                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                   border: "1px solid var(--border)",
                   borderRadius: 4,
                   background: "var(--bg)",
@@ -1001,7 +1001,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     border: "none",
                     borderBottom: isExpanded ? "1px solid var(--border)" : "none",
                     color: "var(--text)",
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     fontWeight: 600,
                     cursor: "pointer",
                     textAlign: "left",
@@ -1009,7 +1009,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 >
                   {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   <span>{sourceName}</span>
-                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginLeft: "auto", fontWeight: 400 }}>
+                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto", fontWeight: 400 }}>
                     {groupServers.length} servers
                   </span>
                 </button>
@@ -1035,7 +1035,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                             borderRadius: 5,
                             background: "var(--bg-panel)",
                             border: "1px solid var(--border)",
-                            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                           }}
                         >
                           <span
@@ -1051,7 +1051,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                           <code style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {server.name}
                           </code>
-                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>
+                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>
                             {server.type ? `[${server.type}]` : ""}
                           </span>
                         </div>
@@ -1063,7 +1063,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             );
           })}
           {!loading && Object.keys(groupedDiscovered).length === 0 && (
-            <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", padding: 12, textAlign: "center" }}>
+            <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", padding: 12, textAlign: "center" }}>
               {t("mcpConfig.noMcpServers") || "No MCP servers found"}
             </div>
           )}

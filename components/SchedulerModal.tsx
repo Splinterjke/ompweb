@@ -286,7 +286,7 @@ export function SchedulerModal({
             />
           </Field>
           {checkingScript && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: -8 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -8 }}>
               <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
               {t("schedulers.checkingScript")}
             </span>
@@ -345,7 +345,7 @@ export function SchedulerModal({
                       minWidth: 34,
                       height: 26,
                       padding: "0 8px",
-                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                       fontWeight: 500,
                       border: `1px solid ${active ? "color-mix(in srgb, var(--accent) 45%, var(--border))" : "var(--border)"}`,
                       borderRadius: "var(--radius-control)",
@@ -378,7 +378,7 @@ export function SchedulerModal({
               border: "1px solid var(--border)",
               borderRadius: 6,
               background: "var(--bg-subtle)",
-              fontSize: "calc(11px * var(--ui-font-scale, 1))",
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               minHeight: 34,
             }}
           >
@@ -408,7 +408,7 @@ export function SchedulerModal({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 color: "var(--text-muted)",
                 cursor: "pointer",
                 paddingBottom: 8,

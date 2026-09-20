@@ -78,13 +78,13 @@ export function BootSkeleton() {
         transition: "opacity var(--dur-fast, 150ms) var(--ease-out-warm, ease-out)",
       }}
     >
-      <div style={{ fontSize: "calc(26px * var(--ui-font-scale, 1))", fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: "calc(26px * var(--ui-font-scale-lg, 1))", fontWeight: 700, letterSpacing: 0.5 }}>
         Omp<span style={{ color: "var(--accent, #c98a1b)" }}>Web</span>
       </div>
       <div style={{ width: 180, height: 3, borderRadius: 2, background: "var(--border, #e8e4dc)", overflow: "hidden" }}>
         <i style={{ display: "block", width: "40%", height: "100%", borderRadius: 2, background: "var(--accent, #c98a1b)", margin: "0 auto", animation: "slide 1.1s ease-in-out infinite" }} />
       </div>
-      <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted, #8a867e)" }}>Starting…</div>
+      <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted, #8a867e)" }}>Starting…</div>
     </div>
   );
 }

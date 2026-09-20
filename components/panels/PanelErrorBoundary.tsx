@@ -31,7 +31,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div role="alert" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "var(--text-muted)", textAlign: "center", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
+      <div role="alert" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "var(--text-muted)", textAlign: "center", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
         <strong style={{ color: "var(--text)" }}>{this.props.title} {this.props.unavailable}</strong>
         <span style={{ maxWidth: 320, overflowWrap: "anywhere", color: "var(--text-dim)" }}>{this.state.error.message}</span>
         <button type="button" onClick={() => this.setState({ error: null })} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer" }}>

@@ -71,7 +71,7 @@ export function EmptyChatHero({ onSelectPrompt, cwd }: Props) {
             background: "color-mix(in srgb, var(--accent) 8%, var(--bg-panel))",
             border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
             color: "var(--accent)",
-            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
             fontWeight: 600,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
@@ -171,7 +171,7 @@ export function EmptyChatHero({ onSelectPrompt, cwd }: Props) {
                   >
                     <IconComponent size={15} strokeWidth={2} />
                   </span>
-                  <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>{card.title}</span>
+                  <span style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>{card.title}</span>
                 </div>
                 <ArrowRight
                   size={13}
@@ -183,7 +183,7 @@ export function EmptyChatHero({ onSelectPrompt, cwd }: Props) {
                   }}
                 />
               </div>
-              <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.45 }}>
+              <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", lineHeight: 1.45 }}>
                 {card.desc}
               </p>
             </button>
@@ -199,7 +199,7 @@ export function EmptyChatHero({ onSelectPrompt, cwd }: Props) {
           alignItems: "center",
           justifyContent: "center",
           gap: 12,
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           fontFamily: "var(--font-mono)",
         }}

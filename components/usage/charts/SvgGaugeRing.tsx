@@ -121,7 +121,7 @@ export function SvgGaugeRing({
           {sublabel && (
             <span
               style={{
-                fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                 color: "var(--text-dim)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
@@ -138,7 +138,7 @@ export function SvgGaugeRing({
         <div
           style={{
             marginTop: 10,
-            fontSize: "calc(12px * var(--ui-font-scale, 1))",
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             fontWeight: 600,
             color: "var(--text)",
             textAlign: "center",
@@ -152,7 +152,7 @@ export function SvgGaugeRing({
         <div
           style={{
             marginTop: 4,
-            fontSize: "calc(11px * var(--ui-font-scale, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
             fontFamily: "var(--font-mono)",
             color: "var(--text-muted)",
             textAlign: "center",

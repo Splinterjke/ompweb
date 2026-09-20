@@ -117,7 +117,7 @@ export function LanguageSwitcher() {
           gap: 4,
           background: open ? "var(--bg-selected)" : undefined,
           color: open ? "var(--text)" : undefined,
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           whiteSpace: "nowrap",
         }}
       >
@@ -180,7 +180,7 @@ export function LanguageSwitcher() {
                     background: selected ? "var(--bg-selected)" : "transparent",
                     color: selected ? "var(--text)" : "var(--text-muted)",
                     cursor: "pointer",
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     textAlign: "left",
                     transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
                   }}

@@ -48,7 +48,7 @@ export function RightPanelTabs({
               padding: "5px 9px", marginBottom: -1,
               border: "none", borderBottom: selected ? "2px solid var(--accent)" : "2px solid transparent",
               background: "transparent", color: selected ? "var(--text)" : "var(--text-muted)",
-              cursor: "pointer", fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: selected ? 600 : 500,
+              cursor: "pointer", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", fontWeight: selected ? 600 : 500,
               borderRadius: "var(--radius-control) var(--radius-control) 0 0",
               transition: "color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
             }}
@@ -56,7 +56,7 @@ export function RightPanelTabs({
             <Icon size={13} strokeWidth={1.8} aria-hidden style={{ color: selected ? "var(--accent)" : "currentColor" }} />
             {display}
             {badge && (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale, 1))", color: selected ? "var(--accent)" : "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", color: selected ? "var(--accent)" : "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
                 {badge}
               </span>
             )}

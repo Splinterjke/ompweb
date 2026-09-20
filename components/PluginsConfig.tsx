@@ -112,7 +112,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
 
   if (groups.length === 0) {
     return (
-      <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+      <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>
         {pkg.disabled ? t("pluginsConfig.packageDisabled") : t("pluginsConfig.noResolvedResources")}
       </div>
     );
@@ -136,7 +136,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
         >
           <div
             style={{
-              fontSize: "calc(10px * var(--ui-font-scale, 1))",
+              fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
               fontWeight: 700,
               color: "var(--text-dim)",
               textTransform: "uppercase",
@@ -150,7 +150,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
               <div key={`${resource.kind}:${resource.path}`} style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     color: "var(--text)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
@@ -163,7 +163,7 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 </div>
                 <div
                   style={{
-                    fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                    fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                     color: "var(--text-dim)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
@@ -189,7 +189,7 @@ function ScopeTag({ scope }: { scope: PluginScope }) {
   return (
     <span
       style={{
-        fontSize: "calc(10px * var(--ui-font-scale, 1))",
+        fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
         padding: "1px 5px",
         borderRadius: 3,
         flexShrink: 0,
@@ -210,7 +210,7 @@ function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties 
     borderRadius: 6,
     color: danger ? "var(--status-error)" : "var(--text-muted)",
     cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: "calc(12px * var(--ui-font-scale, 1))",
+    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
     opacity: disabled ? 0.5 : 1,
   };
 }
@@ -297,7 +297,7 @@ function SegmentedScope({
               background: active ? "var(--bg-selected)" : "none",
               color: active ? "var(--text)" : "var(--text-muted)",
               cursor: "pointer",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             }}
           >
             {t(scopeKey(scope))}
@@ -338,16 +338,16 @@ function AddPluginPanel({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 660, minHeight: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>
           {t("pluginsConfig.addPluginTitle")}
         </div>
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
           {installLocation(scope, cwd)}
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <label htmlFor="plugin-source" style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
+        <label htmlFor="plugin-source" style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
           {t("pluginsConfig.source")}
         </label>
         <input
@@ -366,7 +366,7 @@ function AddPluginPanel({
             background: "var(--bg-panel)",
             color: "var(--text)",
             fontFamily: "var(--font-mono)",
-            fontSize: "calc(13px * var(--ui-font-scale, 1))",
+            fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
             outline: "none",
           }}
           onKeyDown={(e) => {
@@ -393,7 +393,7 @@ function AddPluginPanel({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
           {t("pluginsConfig.examples")}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -413,7 +413,7 @@ function AddPluginPanel({
                 color: "var(--text-dim)",
                 cursor: "pointer",
                 fontFamily: "var(--font-mono)",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--bg-hover)";
@@ -431,7 +431,7 @@ function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -479,7 +479,7 @@ function PackageDetail({
           {pkg.disabled ? (
             <span
               style={{
-                fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                 padding: "1px 5px",
                 borderRadius: 3,
                 background: "rgba(120,120,120,0.12)",
@@ -491,7 +491,7 @@ function PackageDetail({
           ) : pkg.filtered && (
             <span
               style={{
-                fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                 padding: "1px 5px",
                 borderRadius: 3,
                 background: "color-mix(in srgb, var(--status-warning) 12%, transparent)",
@@ -504,7 +504,7 @@ function PackageDetail({
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               color: "var(--text)",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -546,7 +546,7 @@ function PackageDetail({
           display: "grid",
           gridTemplateColumns: "minmax(96px, 130px) minmax(0, 1fr)",
           gap: "9px 14px",
-          fontSize: "calc(12px * var(--ui-font-scale, 1))",
+          fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           lineHeight: 1.45,
         }}
       >
@@ -577,19 +577,19 @@ function PackageDetail({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>
           {t("pluginsConfig.resolvedResources")}
         </div>
         <ResourceList pkg={pkg} />
       </div>
 
       {actionMessage && (
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-success)" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-success)" }}>
           {actionMessage}
         </div>
       )}
       {actionError && (
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}
@@ -769,12 +769,12 @@ export function PluginsConfig({
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
+            <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>
               {t("pluginsConfig.title")}
             </span>
             <code
               style={{
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 color: "var(--text-muted)",
                 fontFamily: "var(--font-mono)",
                 overflow: "hidden",
@@ -793,7 +793,7 @@ export function PluginsConfig({
               border: "none",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: "calc(20px * var(--ui-font-scale, 1))",
+              fontSize: "calc(20px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1,
               padding: "2px 6px",
             }}
@@ -818,15 +818,15 @@ export function PluginsConfig({
           >
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px" }}>
               {loading ? (
-                <div style={{ padding: "10px 8px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
                   {t("pluginsConfig.loading")}
                 </div>
               ) : error ? (
-                <div style={{ padding: "10px 8px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>
                   {error}
                 </div>
               ) : packages.length === 0 ? (
-                <div style={{ padding: "10px 8px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+                <div style={{ padding: "10px 8px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
                   {t("pluginsConfig.noPlugins")}
                 </div>
               ) : (
@@ -835,7 +835,7 @@ export function PluginsConfig({
                     <div
                       style={{
                         padding: "4px 8px 3px",
-                        fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                        fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                         fontWeight: 600,
                         color: "var(--text-dim)",
                         textTransform: "uppercase",
@@ -888,7 +888,7 @@ export function PluginsConfig({
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div
                               style={{
-                                fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                                fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                                 fontWeight: isSelected ? 600 : 400,
                                 color: "var(--text)",
                                 fontFamily: "var(--font-mono)",
@@ -901,7 +901,7 @@ export function PluginsConfig({
                             </div>
                             <div
                               style={{
-                                fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                                 color: "var(--text-dim)",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
@@ -914,7 +914,7 @@ export function PluginsConfig({
                             {(pkg.version || pkg.configuredVersion) && (
                               <div
                                 style={{
-                                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
+                                  fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                                   color: "var(--text-dim)",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
@@ -952,7 +952,7 @@ export function PluginsConfig({
                   cursor: "pointer",
                   background: addMode ? "var(--bg-selected)" : "none",
                   color: addMode ? "var(--accent)" : "var(--text-dim)",
-                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                 }}
                 onMouseEnter={(e) => {
                   if (!addMode) e.currentTarget.style.background = "var(--bg-hover)";
@@ -1006,7 +1006,7 @@ export function PluginsConfig({
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--text-dim)",
-                  fontSize: "calc(13px * var(--ui-font-scale, 1))",
+                  fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
                 }}
               >
                 {t("pluginsConfig.selectPackage")}
@@ -1026,7 +1026,7 @@ export function PluginsConfig({
             flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0, flex: 1, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", overflow: "hidden" }}>
+          <div style={{ minWidth: 0, flex: 1, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden" }}>
             {data?.diagnostics.length ? (
               <span
                 title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}

@@ -78,10 +78,10 @@ export function UsageTabLimits({ reports, capacity, onRefresh, loading }: Props)
         }}
       >
         <Zap size={32} strokeWidth={1.5} style={{ color: "var(--accent)", opacity: 0.6 }} />
-        <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
+        <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>
           {loading ? "Syncing live quota data..." : (t("usage.noAccountsFound") || "No account quota data found")}
         </div>
-        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", maxWidth: 400, lineHeight: 1.5 }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", maxWidth: 400, lineHeight: 1.5 }}>
           {loading ? "Please wait, fetching latest quotas and usage..." : (t("usage.noAccountsHint") || "The configured provider has not returned dynamic usage limits yet, or is waiting to refresh.")}
         </div>
         {onRefresh && (
@@ -99,7 +99,7 @@ export function UsageTabLimits({ reports, capacity, onRefresh, loading }: Props)
               border: "none",
               borderRadius: "var(--radius-control)",
               cursor: loading ? "not-allowed" : "pointer",
-              fontSize: "calc(12px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
               fontWeight: 600,
             }}
           >
@@ -126,13 +126,13 @@ export function UsageTabLimits({ reports, capacity, onRefresh, loading }: Props)
             gap: 12,
           }}
         >
-          <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             {t("usage.accountPoolCapacity") || "Account pool capacity"}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             {Object.entries(capacity).map(([providerName, windows]) => (
               <div key={providerName} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>{providerName}</span>
+                <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>{providerName}</span>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {windows.map((win) => {
                     const pct = win.accounts > 0 ? Math.round((win.usedAccounts / win.accounts) * 100) : 0;
@@ -144,19 +144,19 @@ export function UsageTabLimits({ reports, capacity, onRefresh, loading }: Props)
                           background: "var(--bg-panel)",
                           border: "1px solid var(--border)",
                           borderRadius: "var(--radius-control)",
-                          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                           flex: 1,
                           minWidth: 100,
                         }}
                       >
-                        <div style={{ color: "var(--text-dim)", textTransform: "uppercase", fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>
+                        <div style={{ color: "var(--text-dim)", textTransform: "uppercase", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>
                           {win.window}
                         </div>
                         <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 4 }}>
-                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 700, color: pct >= 80 ? "var(--status-error)" : "var(--text)" }}>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: pct >= 80 ? "var(--status-error)" : "var(--text)" }}>
                             {pct}%
                           </span>
-                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
+                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
                             ({win.usedAccounts.toFixed(1)} / {win.accounts} accounts)
                           </span>
                         </div>
@@ -208,17 +208,17 @@ export function UsageTabLimits({ reports, capacity, onRefresh, loading }: Props)
                     <Zap size={15} strokeWidth={2} />
                   </div>
                   <div>
-                    <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
+                    <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)" }}>
                       {accountTitle}
                     </div>
-                    <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+                    <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
                       {planLabel}
                     </div>
                   </div>
                 </div>
 
                 {report.fetchedAt && (
-                  <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4 }}>
                     <Calendar size={12} />
                     {new Date(report.fetchedAt).toLocaleTimeString()}
                   </div>

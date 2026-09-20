@@ -131,18 +131,18 @@ export const SubagentCard = memo(function SubagentCard({ subagent, onSelect }: {
         <span style={{ flexShrink: 0, display: "inline-flex" }}>
           <SubagentStatusIcon status={subagent.status} live={live} />
         </span>
-        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--accent)", flexShrink: 0 }}>
+        <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--accent)", flexShrink: 0 }}>
           {subagent.agent}
         </span>
         <span
           style={{
             minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            fontSize: "calc(11.5px * var(--ui-font-scale, 1))", color: running ? "var(--text)" : "var(--text-muted)",
+            fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", color: running ? "var(--text)" : "var(--text-muted)",
           }}
         >
           {task}
         </span>
-        {subagent.detached && <span aria-hidden style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", flexShrink: 0 }}>⤴</span>}
+        {subagent.detached && <span aria-hidden style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>⤴</span>}
         {hasDetail && (
           <button
             type="button"
@@ -175,13 +175,13 @@ export const SubagentCard = memo(function SubagentCard({ subagent, onSelect }: {
       </div>
 
       {running && (
-        <div style={{ paddingLeft: 22, minWidth: 0, fontSize: "calc(10.5px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", lineHeight: 1.4 }}>
+        <div style={{ paddingLeft: 22, minWidth: 0, fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", lineHeight: 1.4 }}>
           <SubagentLiveLine subagent={subagent} />
         </div>
       )}
 
       {expanded && (
-        <div style={{ paddingLeft: 22, display: "flex", flexWrap: "wrap", gap: "2px 8px", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", lineHeight: 1.5 }}>
+        <div style={{ paddingLeft: 22, display: "flex", flexWrap: "wrap", gap: "2px 8px", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", lineHeight: 1.5 }}>
           {telemetry.map((entry) => (
             <span key={entry.key} aria-label={entry.label ?? ""} title={entry.label ?? ""} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
               <entry.icon size={10} strokeWidth={1.8} aria-hidden />

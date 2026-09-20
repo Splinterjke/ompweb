@@ -57,7 +57,7 @@ const DISPLAY_MODE_LABEL_KEYS: Record<DisplayMode, string> = {
 
 const FILE_CODE_STYLE: CSSProperties = {
   fontFamily: "var(--font-mono)",
-  fontSize: "calc(13px * var(--ui-font-scale, 1))",
+  fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
   lineHeight: 1.6,
 };
 
@@ -70,7 +70,7 @@ const FILE_LINE_NUMBER_STYLE: CSSProperties = {
   background: "var(--bg-panel)",
   borderRight: "1px solid var(--border)",
   fontFamily: "var(--font-mono)",
-  fontSize: "calc(11px * var(--ui-font-scale, 1))",
+  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
   fontStyle: "normal",
   fontVariantNumeric: "tabular-nums",
   lineHeight: "20.8px",
@@ -281,7 +281,7 @@ export function DiffView({ patch }: { patch: string }) {
   const hasChanges = diff.some((l) => l.type !== "unchanged");
   if (!hasChanges) {
     return (
-      <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+      <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
         {t("fileViewer.noChanges")}
       </div>
     );
@@ -335,7 +335,7 @@ export function DiffView({ patch }: { patch: string }) {
                 padding: "2px 16px",
                 color: "var(--text-dim)",
                 background: "var(--bg-panel)",
-                fontSize: "calc(11px * var(--ui-font-scale, 1))",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 borderTop: "1px solid var(--border)",
                 borderBottom: "1px solid var(--border)",
               }}
@@ -465,7 +465,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           background: "var(--bg)",
           flexShrink: 0,
@@ -511,7 +511,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
         }}
       >
         {error ? (
-          <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>{error}</div>
+          <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>{error}</div>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -599,7 +599,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           background: "var(--bg)",
           flexShrink: 0,
@@ -641,7 +641,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
       >
         <div style={{ width: "min(680px, 100%)" }}>
           {error && (
-            <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))", marginBottom: 12, textAlign: "center" }}>
+            <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", marginBottom: 12, textAlign: "center" }}>
               {error}
             </div>
           )}
@@ -679,7 +679,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 10,
           padding: "6px 12px",
           borderBottom: "1px solid var(--border)",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           background: "var(--bg)",
           flexShrink: 0,
@@ -703,7 +703,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId }: Props) {
       >
         <div style={{ width: "min(960px, 100%)" }}>
           {error && (
-            <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))", marginBottom: 12, textAlign: "center" }}>
+            <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", marginBottom: 12, textAlign: "center" }}>
               {error}
             </div>
           )}
@@ -802,7 +802,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           padding: "4px 16px",
           borderBottom: "1px solid var(--border)",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           background: "var(--bg)",
           flexShrink: 0,
@@ -833,7 +833,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
         {error ? (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))", textAlign: "center" }}>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>
             {error}
           </div>
         ) : (
@@ -1079,7 +1079,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
 
   if (loading) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
         {t("fileViewer.loading")}
       </div>
     );
@@ -1087,7 +1087,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
 
   if (error) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
+      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
         {error}
       </div>
     );
@@ -1121,7 +1121,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
           gap: 8,
           padding: "5px 12px",
           borderBottom: "1px solid var(--border)",
-          fontSize: "calc(11px * var(--ui-font-scale, 1))",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           background: "var(--bg)",
           flexShrink: 0,
@@ -1324,7 +1324,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
             style={{
               margin: 0,
               padding: "11px 13px",
-              fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
+              fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
               lineHeight: 1.62,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
