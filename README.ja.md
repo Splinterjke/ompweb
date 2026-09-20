@@ -1,7 +1,7 @@
 # ompweb
 
 <p align="center">
-  <img src="public/icon.png" width="96" height="96" alt="ompweb logo" />
+  <img src="public/favicon.svg" width="96" height="96" alt="ompweb logo" />
 </p>
 
 <p align="center">

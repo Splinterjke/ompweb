@@ -1654,6 +1654,10 @@ svg.lucide:not([class*="-spin"]) {
   background: var(--bg);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 42%, transparent);
 }
+.markdown-code-block pre,
+.markdown-code-block code {
+  font-size: calc(var(--chat-font-size, 14px) - 2px);
+}
 .markdown-code-header {
   padding: 5px 10px;
   background: var(--bg-panel);
