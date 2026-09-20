@@ -91,8 +91,8 @@ const nextConfig = (phase: string): NextConfig => {
         // Dictation (hooks/useDictation.ts) needs the microphone, so it is
         // intentionally NOT locked down here. Camera / geolocation have no
         // features and stay restricted.
-        { key: "Permissions-Policy", value: "camera=(), geolocation=()" },
-        { key: "Content-Security-Policy", value: "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss:; font-src 'self' data:" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
+        { key: "Content-Security-Policy", value: "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: wss:; font-src 'self' data:; media-src 'self' blob:" },
       ];
       // /api/files streams workspace files whose document policy depends on the
       // content type (strict CSP for SVG, the DOCX preview policy, none for

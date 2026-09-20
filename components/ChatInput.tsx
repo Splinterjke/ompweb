@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
- import { ChevronDown, ListChecks, Loader2, Mic, Paperclip, Plus, Search, Shrink, Sparkles, Target, Wrench, Zap } from "lucide-react";
+import { ChevronDown, ListChecks, Loader2, Mic, Paperclip, Plus, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
@@ -13,6 +13,7 @@ import type { ActiveGoal, ActivePlan } from "@/lib/web-mode-state";
 import { formatGoalElapsed } from "@/lib/web-mode-state";
 import { toast } from "@/components/ui/toast";
 import { useDictation } from "@/hooks/useDictation";
+import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
 import { clearDraft, getDraft, setDraft, type ChatDraftImage } from "@/lib/draft-store";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, type SlashQueryMatch } from "@/lib/web-slash-commands";
@@ -545,9 +546,46 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
     });
   }, []);
-
-  const { isRecording, isTranscribing, toggle: toggleDictation, cancel: cancelDictation, stop: stopDictation } = useDictation({
-    onTranscript: insertTextAtCursor,
+  /** What happens to the composer after the transcript lands: null inserts it
+   *  for editing; "send" dispatches immediately; "steer"/"followup" queue it
+   *  into the running agent. */
+  type DictationAfterMode = "send" | "steer" | "followup";
+  const dictationAfterRef = useRef<DictationAfterMode | null>(null);
+  const {
+    isRecording,
+    isPaused,
+    isReviewing,
+    isTranscribing,
+    isPlayingPreview,
+    previewCurrentTime,
+    previewDuration,
+    transcribeError,
+    captureRef,
+    toggle: toggleDictation,
+    cancel: cancelDictation,
+    stop: stopDictation,
+    togglePause: togglePauseDictation,
+    retry: retryDictation,
+    playPreview: playPreviewDictation,
+    pausePreview: pausePreviewDictation,
+    seekPreview: seekPreviewDictation,
+    confirmTranscribe: confirmTranscribeDictation,
+  } = useDictation({
+    onTranscript: (text) => {
+      const after = dictationAfterRef.current;
+      dictationAfterRef.current = null;
+      const base = valueRef.current;
+      const sep = base.length > 0 && !base.endsWith(" ") ? " " : "";
+      const finalText = base + sep + text;
+      insertTextAtCursor(text);
+      if (after === "send") {
+        void handleSend(finalText);
+      } else if (after === "steer" || after === "followup") {
+        sendQueued(after, finalText);
+      } else {
+        toast.success(t("chatInput.dictationSuccess"));
+      }
+    },
     onError: (err) => {
       const msg =
         err === "Microphone not supported in this browser or context"
@@ -556,12 +594,57 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           ? t("chatInput.dictationPermissionDenied")
           : err === "No speech detected"
           ? t("chatInput.dictationNoSpeech")
+          : err === "Transcription timed out"
+          ? t("chatInput.dictationTimedOut")
           : err === "Transcription failed"
           ? t("chatInput.dictationFailed")
           : err;
       toast.error(msg);
     },
   });
+  const stopAndInsertDictation = useCallback(() => {
+    dictationAfterRef.current = null;
+    stopDictation();
+  }, [stopDictation]);
+  const stopAndSendDictation = useCallback(() => {
+    dictationAfterRef.current = "send";
+    stopDictation({ immediateSend: true });
+  }, [stopDictation]);
+  const stopAndQueueDictation = useCallback((mode: "steer" | "followup") => {
+    dictationAfterRef.current = mode;
+    stopDictation({ immediateSend: true });
+  }, [stopDictation]);
+  const cancelDictationAndReset = useCallback(() => {
+    dictationAfterRef.current = null;
+    cancelDictation();
+  }, [cancelDictation]);
+  const startFreshDictation = useCallback(() => {
+    dictationAfterRef.current = null;
+    toggleDictation();
+  }, [toggleDictation]);
+  // While the recording deck replaces the textarea there is no focused input,
+  // so Escape/Enter are handled at window level: Escape cancels/discard, Enter
+  // retries after an error or converts the recording to text.
+  useEffect(() => {
+    if (!(isRecording || isPaused || isReviewing || isTranscribing || transcribeError)) return;
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelDictationAndReset();
+      } else if (e.key === "Enter" && !e.shiftKey && !isTranscribing) {
+        // Let focused deck/toolbar controls keep their own activation;
+        // only hijack Enter from the non-interactive page context.
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest("button, input, textarea, select, a, [role='button']")) return;
+        e.preventDefault();
+        if (transcribeError) retryDictation();
+        else if (isReviewing) confirmTranscribeDictation();
+        else stopAndInsertDictation();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isRecording, isPaused, isReviewing, isTranscribing, transcribeError, cancelDictationAndReset, retryDictation, confirmTranscribeDictation, stopAndInsertDictation]);
 
   useImperativeHandle(ref, () => ({
     insertIfEmpty(text: string) {
@@ -794,10 +877,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSend = useCallback(async () => {
-    const msg = value.trim();
+  const handleSend = useCallback(async (overrideText?: string) => {
+    const raw = overrideText ?? value;
+    const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
-    if (isStreaming || isSubmitting) return;
     onAudioUnlock?.();
     if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
       const expansion = expandWebSlashCommand(msg);
@@ -808,9 +891,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       }
       setIsSubmitting(true);
       try {
+        const sentValue = overrideText ?? value;
         const result = await onBuiltinCommand(msg);
         if (result.handled) {
-          if (!result.error && !result.retainInput) clearInput();
+          // The user may have started typing while the command ran; only clear
+          // if the composer still holds what was sent.
+          if (!result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
           return;
         }
       } finally {
@@ -1110,8 +1196,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     });
   }, [slashMatch, value]);
 
-  const sendQueued = useCallback((mode: "steer" | "followup") => {
-    const msg = value.trim();
+  const sendQueued = useCallback((mode: "steer" | "followup", overrideText?: string) => {
+    const raw = overrideText ?? value;
+    const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     if (attachedImages.length) return;
     onAudioUnlock?.();
@@ -1174,9 +1261,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // always Stop when streaming (queued follow-ups are still submitted via
   // Enter / the queued-follow-up bar). Previously a typed message replaced
   // Stop with a Queue button, so clicking what looked like Stop did nothing.
+  // A dictation in progress counts as "the composer holds text": the primary
+  // button must take the same state it would have with text present. (Master
+  // keeps Stop as the action while a run is active, so this only ever matters
+  // when the run is not streaming.)
+  const dictationCapturing = isRecording || isPaused;
   const primaryActionQueuesMessage =
     !isStreaming
-    && Boolean(value.trim())
+    && (Boolean(value.trim()) || dictationCapturing)
     && attachedImages.length === 0
     && Boolean(onFollowUp);
 
@@ -1292,21 +1384,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         return;
       }
 
-      if (isRecording || isTranscribing) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          cancelDictation();
-          return;
-        }
-        if (isRecording && e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          stopDictation();
-          return;
-        }
-      }
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "m") {
         e.preventDefault();
-        toggleDictation();
+        startFreshDictation();
         return;
       }
 
@@ -1423,7 +1503,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         }
       }
     },
-    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, filteredSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, isRecording, isTranscribing, cancelDictation, stopDictation, toggleDictation]
+    [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, filteredSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, startFreshDictation]
   );
 
   const handleInput = useCallback(() => {
@@ -2342,6 +2422,25 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 </defs>
               </svg>
             )}
+          {isRecording || isPaused || isReviewing || isTranscribing || transcribeError ? (
+            <RecordingDeck
+              captureRef={captureRef}
+              isPaused={isPaused}
+              isReviewing={isReviewing}
+              isTranscribing={isTranscribing}
+              isPlayingPreview={isPlayingPreview}
+              previewCurrentTime={previewCurrentTime}
+              previewDuration={previewDuration}
+              transcribeError={transcribeError}
+              onPauseResume={togglePauseDictation}
+              onConvert={stopAndInsertDictation}
+              onRetry={retryDictation}
+              onPlayPreview={isPlayingPreview ? pausePreviewDictation : playPreviewDictation}
+              onSeekPreview={seekPreviewDictation}
+              onConfirmTranscribe={confirmTranscribeDictation}
+              onDiscard={cancelDictationAndReset}
+            />
+          ) : (
           <textarea
             ref={textareaRef}
             value={value}
@@ -2385,6 +2484,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               overflow: "auto",
             }}
           />
+          )}
 
           {/* Toolbar: attachment · advisor · model · settings · reasoning · fast · compact · send/queue/stop */}
 
@@ -2918,25 +3018,34 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             {/* Dictation */}
             <button
               type="button"
-              onClick={toggleDictation}
+              onClick={isRecording || isPaused || isReviewing || isTranscribing || transcribeError ? cancelDictationAndReset : startFreshDictation}
               disabled={isTranscribing}
-              title={isRecording ? t("chatInput.stopDictation") : isTranscribing ? t("chatInput.transcribing") : t("chatInput.startDictation")}
-              aria-label={isRecording ? t("chatInput.stopDictation") : isTranscribing ? t("chatInput.transcribing") : t("chatInput.startDictation")}
+              title={isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                ? (transcribeError ? t("chatInput.discardDictation") : t("chatInput.cancelDictation"))
+                : t("chatInput.startDictation")}
+              aria-label={isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                ? (transcribeError ? t("chatInput.discardDictation") : t("chatInput.cancelDictation"))
+                : t("chatInput.startDictation")}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: 28, height: 28, padding: 0,
-                background: isRecording ? "var(--danger-subtle, rgba(239, 68, 68, 0.15))" : "none",
-                border: isRecording ? "1px solid var(--danger, #ef4444)" : "none",
+                background: isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                  ? "color-mix(in srgb, var(--status-error) 15%, transparent)" : "none",
+                border: isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                  ? "1px solid var(--status-error)" : "none",
                 borderRadius: 7,
-                color: isRecording ? "var(--danger, #ef4444)" : isTranscribing ? "var(--accent)" : "var(--text-muted)",
+                color: isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                  ? "var(--status-error)" : "var(--text-muted)",
                 cursor: isTranscribing ? "wait" : "pointer",
                 transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
               }}
-              onMouseEnter={(e) => { if (!isRecording && !isTranscribing) e.currentTarget.style.background = "var(--bg-hover)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = isRecording ? "var(--danger-subtle, rgba(239, 68, 68, 0.15))" : "none"; }}
+              onMouseEnter={(e) => { if (!isRecording && !isPaused && !isReviewing && !isTranscribing) e.currentTarget.style.background = "var(--bg-hover)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = isRecording || isPaused || isReviewing || isTranscribing || transcribeError ? "color-mix(in srgb, var(--status-error) 15%, transparent)" : "none"; }}
             >
               {isTranscribing ? (
                 <Loader2 size={14} strokeWidth={1.8} className="animate-spin" aria-hidden="true" />
+              ) : isRecording || isPaused || isReviewing || transcribeError ? (
+                <X size={14} strokeWidth={1.8} aria-hidden="true" />
               ) : (
                 <Mic size={14} strokeWidth={1.8} aria-hidden="true" />
               )}
@@ -2945,7 +3054,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             {primaryActionQueuesMessage ? (
               <button
                 type="button"
-                onClick={() => sendQueued("followup")}
+                onClick={() => {
+                  if (dictationCapturing) {
+                    const behavior = getSubmitDuringRunBehavior();
+                    stopAndQueueDictation(behavior === "steer" && onSteer ? "steer" : "followup");
+                  } else {
+                    sendQueued("followup");
+                  }
+                }}
+                disabled={isTranscribing}
                 title={t("chatInput.queueMessage")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
@@ -2991,27 +3108,32 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             ) : (
               <button
                 type="button"
-                onClick={handleSend}
-                disabled={(!value.trim() && !attachedImages.length) || isSubmitting}
+                onClick={isRecording || isPaused || isReviewing ? stopAndSendDictation : () => void handleSend()}
+                disabled={isTranscribing || isSubmitting || (!value.trim() && !attachedImages.length && !isRecording && !isPaused && !isReviewing)}
+                title={isRecording || isPaused || isReviewing ? t("chatInput.sendDictation") : t("chatInput.send")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
                   padding: "0 14px",
-                  background: (value.trim() || attachedImages.length) && !isSubmitting ? "var(--accent-strong)" : "var(--bg-panel)",
+                  background: (isRecording || isPaused || isReviewing || isTranscribing || value.trim() || attachedImages.length) && !isSubmitting ? "var(--accent-strong)" : "var(--bg-panel)",
                   border: "none",
                   borderRadius: 8,
-                  color: (value.trim() || attachedImages.length) && !isSubmitting ? "var(--on-accent)" : "var(--text-dim)",
-                  cursor: (value.trim() || attachedImages.length) && !isSubmitting ? "pointer" : "not-allowed",
+                  color: (isRecording || isPaused || isReviewing || isTranscribing || value.trim() || attachedImages.length) && !isSubmitting ? "var(--on-accent)" : "var(--text-dim)",
+                  cursor: isTranscribing ? "wait" : ((isRecording || isPaused || value.trim() || attachedImages.length) && !isSubmitting ? "pointer" : "not-allowed"),
                   fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
-                  boxShadow: (value.trim() || attachedImages.length) && !isSubmitting ? "var(--shadow-card)" : "none",
+                  boxShadow: (isRecording || isPaused || isReviewing || isTranscribing || value.trim() || attachedImages.length) && !isSubmitting ? "var(--shadow-card)" : "none",
                   transition: "background var(--dur-fast) var(--ease-out-warm), box-shadow var(--dur-fast) var(--ease-out-warm)",
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="2" y1="7" x2="11" y2="7" />
-                  <polyline points="7.5 3 12 7 7.5 11" />
-                </svg>
+                {isTranscribing ? (
+                  <Loader2 size={12} strokeWidth={2} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="2" y1="7" x2="11" y2="7" />
+                    <polyline points="7.5 3 12 7 7.5 11" />
+                  </svg>
+                )}
                 {t("chatInput.send")}
               </button>
             )}
