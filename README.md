@@ -118,6 +118,7 @@ The project incorporates improvements originally contributed by the `kahme247` a
 - Unified, generalized font-size settings across the interface
 - Expandable and resizable sections in the left sidebar, plus resizable sidebar / workbench panes
 - Script schedulers functionality (interval, daily, weekly, cron, manual) with a dedicated settings panel
+- Chat event actions — named automations (notification, HTTP request, bash command, scheduled script) triggered by chat lifecycle events, with event data variables in the payload
 - Improved Skill Hub and Agents pages in Settings - Skill hub and Agents show instances not only from active workspace, but from each one
 - Better new-session composer with workspace picker, plus-menu attachments, and context ring
 - Expandable thinking and detail blocks with inline expansion of complete tool inputs
