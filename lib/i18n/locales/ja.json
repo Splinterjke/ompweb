@@ -1795,6 +1795,7 @@
   "chatActions.event.conversation_completed": "会話完了",
   "chatActions.event.conversation_interrupted": "会話中断",
   "chatActions.event.provider_api_error": "プロバイダーAPIエラー",
+  "chatActions.event.task_completed": "タスク完了",
   "chatActions.action": "アクション",
   "chatActions.action.notification": "ブラウザ通知",
   "chatActions.action.http": "HTTPリクエスト",

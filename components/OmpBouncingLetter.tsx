@@ -14,7 +14,7 @@ export function OmpBouncingLetter() {
         lineHeight: 1,
         fontFamily: "var(--font-mono)",
         fontWeight: 800,
-        fontSize: 13.5,
+        fontSize: "calc(13.5px * var(--ui-font-scale, 1))",
       }}
     >
 

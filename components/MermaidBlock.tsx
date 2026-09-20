@@ -277,7 +277,7 @@ export const CodeBlock = memo(function CodeBlock({ code, lang, headerAction, isS
         <pre style={{
           margin: 0,
           padding: "11px 13px",
-          fontSize: 12.5,
+          fontSize: "calc(12.5px * var(--ui-font-scale, 1))",
           lineHeight: 1.62,
           overflowX: "auto",
           backgroundColor: "color-mix(in srgb, var(--bg) 88%, var(--bg-panel))",

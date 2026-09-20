@@ -189,7 +189,7 @@ export function EventActionsPanel({
               border: "none",
               cursor: "pointer",
               textAlign: "left",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               fontWeight: 600,
               letterSpacing: "0.05em",
               textTransform: "uppercase",
@@ -237,14 +237,14 @@ export function EventActionsPanel({
             style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
           >
             {loadError && (
-              <span style={{ fontSize: 11, color: "var(--status-error)" }}>{t("chatActions.loadError")}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{t("chatActions.loadError")}</span>
             )}
             {!loadError && !loadedRef.current && (
-              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("chatActions.loading")}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("chatActions.loading")}</span>
             )}
             {!loadError && list.length === 0 && (
               <>
-                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("chatActions.empty")}</span>
+                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("chatActions.empty")}</span>
                 <button type="button" className="github-status-dialog-button" onClick={openAdd} style={{ alignSelf: "flex-start" }}>
                   <Plus size={12} aria-hidden="true" />
                   {t("chatActions.add")}
@@ -290,7 +290,7 @@ export function EventActionsPanel({
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        fontSize: 12,
+                        fontSize: "calc(12px * var(--ui-font-scale, 1))",
                         fontWeight: 500,
                         color: a.enabled ? "var(--text)" : "var(--text-dim)",
                       }}
@@ -304,7 +304,7 @@ export function EventActionsPanel({
                       style={{ color: "var(--text-dim)", flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }}
                     />
                   </button>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: 11, color: "var(--text-muted)", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", minWidth: 0 }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={a.events.map(eventLabel).join(", ")}>
                       {t(`chatActions.action.${a.action.type}`)} · {a.events.length} {a.events.length === 1 ? "event" : "events"}
                     </span>
@@ -326,7 +326,7 @@ export function EventActionsPanel({
                             <span
                               key={ev}
                               style={{
-                                fontSize: 10,
+                                fontSize: "calc(10px * var(--ui-font-scale, 1))",
                                 padding: "2px 7px",
                                 borderRadius: 999,
                                 border: "1px solid var(--border)",
@@ -338,7 +338,7 @@ export function EventActionsPanel({
                             </span>
                           ))}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", flexWrap: "wrap" }}>
                           <span style={{ color: "var(--text-dim)" }}>
                             {t("chatActions.lastRun")}: {run ? (relTime(run.at, now) ?? "—") : t("chatActions.neverRun")}
                           </span>
@@ -356,7 +356,7 @@ export function EventActionsPanel({
                               borderRadius: 5,
                               background: "var(--bg-panel)",
                               border: "1px solid var(--border)",
-                              fontSize: 10.5,
+                              fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                               fontFamily: "var(--font-mono)",
                               color: run.ok ? "var(--text-dim)" : "var(--status-error)",
                               whiteSpace: "pre-wrap",

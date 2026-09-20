@@ -81,23 +81,23 @@ export function UsageTabProjects({ byFolder, byAgentType, onSelectProject }: Pro
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Bot size={16} style={{ color: isSubagent ? "#8b5cf6" : "var(--accent)" }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textTransform: "capitalize" }}>
+                    <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", textTransform: "capitalize" }}>
                       {isSubagent ? (t("usage.subagents") || "Subagents") : (t("usage.mainAgent") || "Main agent")}
                     </span>
                   </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                     {ag.totalRequests} requests
                   </span>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(22px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
                     {formatTokenCount(totalTokens, locale)}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Tokens</span>
+                  <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Tokens</span>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-dim)", borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
                   <span>Cost: {formatCostUsd(ag.totalCost)}</span>
                   <span>Output: {formatTokenCount(ag.totalOutputTokens, locale)}</span>
                 </div>
@@ -123,11 +123,11 @@ export function UsageTabProjects({ byFolder, byAgentType, onSelectProject }: Pro
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <FolderGit2 size={16} style={{ color: "var(--accent)" }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+            <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
               {t("usage.projectRanking") || "Project / folder breakdown"}
             </span>
           </div>
-          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
             {sortedFolders.length} projects
           </span>
         </div>
@@ -156,20 +156,20 @@ export function UsageTabProjects({ byFolder, byAgentType, onSelectProject }: Pro
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, color: idx === 0 ? "var(--accent)" : "var(--text-dim)", width: 16 }}>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: idx === 0 ? "var(--accent)" : "var(--text-dim)", width: 16 }}>
                       {idx + 1}
                     </span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.folder}>
+                    <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.folder}>
                       {folderDisplayName}
                     </span>
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
                         {formatTokenCount(totalTokens, locale)}
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--text-dim)" }}>
+                      <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                         {f.totalRequests} requests · {formatCostUsd(f.totalCost)}
                       </div>
                     </div>

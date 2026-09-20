@@ -176,7 +176,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
             borderRadius: "var(--radius-control)",
             outline: "none",
             color: "var(--text)",
-            fontSize: 12,
+            fontSize: "calc(12px * var(--ui-font-scale, 1))",
           }}
           onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
           onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
@@ -221,29 +221,29 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
       </div>
 
       {loading ? (
-        <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
+        <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
       ) : error ? (
-        <div role="alert" style={{ padding: "8px 12px", fontSize: 11, color: "var(--status-error)" }}>{error}</div>
+        <div role="alert" style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{error}</div>
       ) : !isRepo ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
           <GitBranch size={26} strokeWidth={1.5} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
-          <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 600 }}>{t("gitChanges.notARepo")}</div>
-          <div style={{ color: "var(--text-dim)", fontSize: 11, lineHeight: 1.6, maxWidth: 260 }}>{t("gitChanges.notARepoHint")}</div>
+          <div style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("gitChanges.notARepo")}</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.6, maxWidth: 260 }}>{t("gitChanges.notARepoHint")}</div>
         </div>
       ) : files.length === 0 ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
           <Check size={26} strokeWidth={1.5} aria-hidden="true" style={{ color: "var(--status-success)" }} />
-          <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 600 }}>{t("gitChanges.noChanges")}</div>
-          <div style={{ color: "var(--text-dim)", fontSize: 11, lineHeight: 1.6, maxWidth: 260 }}>{t("gitChanges.noChangesHint")}</div>
+          <div style={{ color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("gitChanges.noChanges")}</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.6, maxWidth: 260 }}>{t("gitChanges.noChangesHint")}</div>
         </div>
       ) : (
         <>
-          <div style={{ padding: "0 12px 4px", fontSize: 10, color: "var(--text-dim)", flexShrink: 0 }}>
+          <div style={{ padding: "0 12px 4px", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
             {tn("gitChanges.filesChanged", files.length)}
           </div>
           <div role="listbox" aria-label={t("tabBar.git")} style={{ flex: "0 1 auto", maxHeight: "38%", minHeight: 60, overflowY: "auto", overflowX: "hidden", padding: "0 4px", flexShrink: 1, borderBottom: "1px solid var(--border)" }}>
             {filteredFiles.length === 0 ? (
-              <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>{t("fileExplorer.noMatchingFiles")}</div>
+              <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.noMatchingFiles")}</div>
             ) : filteredFiles.map((file) => {
               const relative = getRelativeFilePath(file.filePath, cwd);
               const name = getFileName(relative);
@@ -291,7 +291,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
                   </span>
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       color: "var(--text)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -308,7 +308,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
                       style={{
                         flex: "1 1 auto",
                         minWidth: 0,
-                        fontSize: 11,
+                        fontSize: "calc(11px * var(--ui-font-scale, 1))",
                         color: "var(--text-dim)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -329,7 +329,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
                       flexShrink: 0,
                       color: GIT_STATUS_COLORS[file.status],
                       fontFamily: "var(--font-mono)",
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       textAlign: "center",
                     }}
@@ -384,7 +384,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
               style={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 fontFamily: "var(--font-mono)",
                 color: "var(--text)",
                 overflow: "hidden",
@@ -399,7 +399,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
               <span
                 title={t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}
                 style={{
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
                   fontWeight: 700,
                   color: GIT_STATUS_COLORS[selectedFile.status],
                   flexShrink: 0,
@@ -424,7 +424,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
                   color: selectedPath ? "var(--accent)" : "var(--text-dim)",
                   cursor: selectedPath ? "pointer" : "default",
                   opacity: selectedPath ? 1 : 0.6,
-                  fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
+                  fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >
                 <AtSign size={11} strokeWidth={2.2} aria-hidden="true" />
@@ -454,11 +454,11 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--bg)" }}>
             {patchLoading ? (
-              <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--text-dim)" }}>{t("fileViewer.loading")}</div>
+              <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("fileViewer.loading")}</div>
             ) : patchError ? (
-              <div role="alert" style={{ padding: "12px 16px", fontSize: 12, color: "var(--status-error)" }}>{patchError}</div>
+              <div role="alert" style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{patchError}</div>
             ) : !patchSupported || patch === null ? (
-              <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--text-dim)" }}>{t("gitChanges.diffUnavailable")}</div>
+              <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("gitChanges.diffUnavailable")}</div>
             ) : (
               <DiffView patch={patch} />
             )}

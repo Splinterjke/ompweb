@@ -131,7 +131,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {t("usage.mostUsedModel") || "🏆 Most consumed model"}
             </span>
             <div style={{ width: 26, height: 26, borderRadius: 6, background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -139,10 +139,10 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topTokenModel?.model}>
+            <div style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topTokenModel?.model}>
               {topTokenModel?.model ?? "None"}
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>
               {topTokenModel ? `${formatTokenCount(topTokenModel.totalInputTokens + topTokenModel.totalOutputTokens + topTokenModel.totalCacheReadTokens, locale)} Tokens` : "-"}
             </div>
           </div>
@@ -162,7 +162,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {t("usage.highestCostModel") || "💰 Highest cost model"}
             </span>
             <div style={{ width: 26, height: 26, borderRadius: 6, background: "color-mix(in srgb, #ef4444 15%, transparent)", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -170,10 +170,10 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topCostModel?.model}>
+            <div style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topCostModel?.model}>
               {topCostModel?.model ?? "None"}
             </div>
-            <div style={{ fontSize: 12, color: "var(--status-error)", fontWeight: 600, marginTop: 2 }}>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", fontWeight: 600, marginTop: 2 }}>
               {topCostModel ? formatCostUsd(topCostModel.totalCost) : "$0.00"}
             </div>
           </div>
@@ -193,7 +193,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {t("usage.fastestModel") || "⚡ Peak throughput model"}
             </span>
             <div style={{ width: 26, height: 26, borderRadius: 6, background: "color-mix(in srgb, #10b981 15%, transparent)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -201,10 +201,10 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fastestModel?.model}>
+            <div style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fastestModel?.model}>
               {fastestModel?.model ?? "None"}
             </div>
-            <div style={{ fontSize: 12, color: "#10b981", fontFamily: "var(--font-mono)", fontWeight: 600, marginTop: 2 }}>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "#10b981", fontFamily: "var(--font-mono)", fontWeight: 600, marginTop: 2 }}>
               {fastestModel?.avgTokensPerSecond ? `${fastestModel.avgTokensPerSecond.toFixed(1)} tok/s` : "-"}
             </div>
           </div>
@@ -224,7 +224,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {t("usage.cacheRate") || "🎯 Global cache hit rate"}
             </span>
             <div style={{ width: 26, height: 26, borderRadius: 6, background: "color-mix(in srgb, #f59e0b 15%, transparent)", color: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -232,10 +232,10 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: "var(--text)" }}>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: "calc(20px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
               {overall ? `${(overall.cacheRate * 100).toFixed(1)}%` : "0%"}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>
               {overall ? `${formatTokenCount(overall.totalCacheReadTokens, locale)} tokens served from cache` : "-"}
             </div>
           </div>
@@ -256,7 +256,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
             gap: 10,
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             {t("usage.globalTokenMix") || "Global token distribution"}
           </div>
           <SvgStackedBarChart
@@ -294,7 +294,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-card)",
               color: "var(--text-dim)",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
             }}
           >
             {t("usage.zeroCostHint") || "No billed model spend in this session, or all from free/flat-rate quotas."}
@@ -317,15 +317,15 @@ export function UsageTabModels({ overall, byModel }: Props) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
             {t("usage.modelLeaderboard") || "Model usage leaderboard"}
           </div>
-          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
             {sortedModels.length} models
           </span>
         </div>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-dim)", textAlign: "left" }}>
               <th style={{ padding: "8px 10px", width: 50 }}>#</th>
@@ -372,7 +372,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
                   <td style={{ padding: "10px" }}>
                     <span
                       style={{
-                        fontSize: 10.5,
+                        fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                         padding: "2px 7px",
                         borderRadius: 999,
                         background: "var(--bg-subtle)",
@@ -389,7 +389,7 @@ export function UsageTabModels({ overall, byModel }: Props) {
                   <td style={{ padding: "10px", textAlign: "right", fontFamily: "var(--font-mono)" }}>
                     <span style={{ color: "var(--text)" }}>{m.totalRequests}</span>
                     {m.failedRequests > 0 && (
-                      <span style={{ color: "var(--status-error)", fontSize: 10, marginLeft: 4 }}>
+                      <span style={{ color: "var(--status-error)", fontSize: "calc(10px * var(--ui-font-scale, 1))", marginLeft: 4 }}>
                         ({m.failedRequests} failed)
                       </span>
                     )}

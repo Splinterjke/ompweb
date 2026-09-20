@@ -59,7 +59,7 @@ export function SkillDetailView(props: SkillDetailViewProps) {
         <button type="button" className={css.back} onClick={onBack}>{tt('detail.back')}</button>
         <span className={css.detailName} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {detail.name}
-          {isDisplayNameDistinct(detail.name, detail.displayName) ? <span className={css.displayName} style={{ fontSize: 13, marginLeft: 0 }}>{detail.displayName}</span> : null}
+          {isDisplayNameDistinct(detail.name, detail.displayName) ? <span className={css.displayName} style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", marginLeft: 0 }}>{detail.displayName}</span> : null}
           {detail.invocation.modelInvocable
             ? <span className={css.dot + ' ' + css.dotModel} style={dotStyle(hubConfig?.dotModelColor)} aria-label={tt('legend.model')} />
             : detail.invocation.userInvocable
@@ -87,7 +87,7 @@ export function SkillDetailView(props: SkillDetailViewProps) {
               className={css.button + ' ' + css.primary}
               disabled={isFixingDiagnostic}
               onClick={() => onFixDiagnostic(detail.path!)}
-              style={{ flex: 'none', alignSelf: 'center', fontSize: 12, padding: '4px 10px' }}
+              style={{ flex: 'none', alignSelf: 'center', fontSize: "calc(12px * var(--ui-font-scale, 1))", padding: '4px 10px' }}
             >
               {isFixingDiagnostic ? tt('diag.fixing') : tt('diag.fix')}
             </button>

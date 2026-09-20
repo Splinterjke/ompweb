@@ -96,7 +96,7 @@ function KindIcon({ kind }: { kind?: ToastKind }) {
 }
 
 const descriptionBaseStyle = {
-  fontSize: 12,
+  fontSize: "calc(12px * var(--ui-font-scale, 1))",
   color: "var(--text-muted)",
   lineHeight: 1.5,
   marginTop: 2,
@@ -180,7 +180,7 @@ function Toaster() {
           >
             <KindIcon kind={t.type as ToastKind | undefined} />
             <Toast.Content style={{ flex: 1, minWidth: 0 }}>
-              <Toast.Title style={{ fontSize: 12.5, lineHeight: 1.35, fontWeight: 600 }} />
+              <Toast.Title style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", lineHeight: 1.35, fontWeight: 600 }} />
               {t.data?.clamp ? (
                 <Toast.Description render={<div />} style={descriptionBaseStyle}>
                   <ClampedDescription>{t.description}</ClampedDescription>

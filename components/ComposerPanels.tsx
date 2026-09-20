@@ -110,14 +110,14 @@ export function ContextDetailPanel({ sessionStats, contextUsage, modelCapacity, 
     </div>
   );
 
-  const sectionTitleStyle = { fontSize: 11, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" } as const;
+  const sectionTitleStyle = { fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", margin: "0 0 4px" } as const;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {ctx?.contextWindow ? (
         <div>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
               {ctx.tokens !== null && ctx.tokens !== undefined ? formatCompactNumber(ctx.tokens) : "?"}
               {" / "}{formatCompactNumber(ctx.contextWindow)}
               {pct !== null ? ` (${formatPercent(pct)})` : ""}
@@ -126,7 +126,7 @@ export function ContextDetailPanel({ sessionStats, contextUsage, modelCapacity, 
           <div style={{ height: 5, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${pct !== null ? Math.min(100, Math.max(0, pct)) : 0}%`, background: tone, borderRadius: 3 }} />
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 5, fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 5, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
             <span>{t("composerContext.windowSize", { tokens: formatCompactNumber(ctx.contextWindow) })}</span>
             {modelCapacity?.maxTokens ? <span>{t("composerContext.maxOutput", { tokens: formatCompactNumber(modelCapacity.maxTokens) })}</span> : null}
             {generationSpeed?.current != null || generationSpeed?.average != null ? (
@@ -140,7 +140,7 @@ export function ContextDetailPanel({ sessionStats, contextUsage, modelCapacity, 
         </div>
       ) : null}
       {sessionStats && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, fontSize: 11, fontFamily: "var(--font-mono)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)" }}>
           <div style={{ minWidth: 0 }}>
             <h4 style={sectionTitleStyle}>{t("appShell.sectionSessionInfo")}</h4>
             {sessionStats.sessionName ? statRow(t("appShell.statName"), sessionStats.sessionName) : null}

@@ -164,10 +164,10 @@ export function UsageDashboardModal({
               <BarChart3 size={18} strokeWidth={2} />
             </div>
             <div>
-              <DialogTitle style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+              <DialogTitle style={{ margin: 0, fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700 }}>
                 Usage & Logs Analytics Dashboard
               </DialogTitle>
-              <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                 <span className="live-status-dot live-pulse inline-block h-2 w-2 rounded-full bg-accent" />
                 <span>Live sync of omp stats / omp usage</span>
               </div>
@@ -270,7 +270,7 @@ export function UsageDashboardModal({
                   background: "transparent",
                   color: isActive ? "var(--accent)" : "var(--text-muted)",
                   fontWeight: isActive ? 600 : 500,
-                  fontSize: 13,
+                  fontSize: "calc(13px * var(--ui-font-scale, 1))",
                   cursor: "pointer",
                   transition: "all var(--dur-fast) var(--ease-out-warm)",
                   whiteSpace: "nowrap",

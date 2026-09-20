@@ -72,7 +72,7 @@ export function DialogContent({ children, className, style, ariaLabel }: {
 
 export function DialogTitle({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <BaseDialog.Title className="display-serif" style={{ fontSize: 20, margin: "0 0 12px", ...style }}>
+    <BaseDialog.Title className="display-serif" style={{ fontSize: "calc(20px * var(--ui-font-scale, 1))", margin: "0 0 12px", ...style }}>
       {children}
     </BaseDialog.Title>
   );
@@ -112,7 +112,7 @@ export function Tooltip({ content, children, side = "top" }: {
               borderRadius: "var(--radius-control)",
               boxShadow: "var(--shadow-pop)",
               padding: "4px 9px",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               lineHeight: 1.4,
               maxWidth: 260,
               pointerEvents: "none",

@@ -90,6 +90,9 @@ export function dispatchChatEvent(type: ChatEventType, payload: ChatEventPayload
  *  - thinking_completed          ← message_end containing a thinking block
  *  - assistant_text              ← message_end for an assistant message with a text block
  *  - subagent_completed          ← subagent_lifecycle with a terminal status
+ *  - task_completed              ← tool_execution_end for the `todo` tool, when
+ *                                   a get_state.todoPhases diff shows a task
+ *                                   transitioned non-completed → completed
  *
  * `payload` carries at least `sessionId` (plus the session display name for
  * the notification defaults and `emitToSession` for the notification frame's

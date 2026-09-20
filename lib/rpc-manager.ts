@@ -8,6 +8,7 @@ import { createRpcProcess, type RpcProcessLike } from "./omp/rust-rpc-process";
 import { readNativeSettings } from "./omp/settings-config";
 import { cacheSessionPath, invalidateSessionListCache, readSessionHeader } from "./session-reader";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
+import { taskCompletedDiff } from "./todo-completion";
 import { PRESET_FULL } from "./tool-presets";
 import type {
   BashResultInfo,
@@ -15,6 +16,7 @@ import type {
   RpcAvailableSlashCommand,
   RpcSessionState,
   SessionStatsInfo,
+  TodoPhase,
   WebSessionState,
 } from "./pi-types";
 import type { ExtensionWidgetItem } from "./types";
@@ -342,6 +344,10 @@ export class AgentSessionWrapper {
   private hostUriSchemes: Map<string, { writable?: boolean }> = new Map();
   /** host_uri_request ids awaiting a host_uri_result from the browser. */
   private pendingHostUris: Map<string, AgentEvent> = new Map();
+  /** Last observed `get_state.todoPhases` snapshot — the baseline for the
+   * `task_completed` diff (a todo tool call transitions tasks; the next
+   * snapshot shows which became completed). */
+  private _todoPhases: TodoPhase[] | null = null;
   /** Resolves once an in-flight destroyAndWait finishes; null when idle. Read
    * by startRpcSession so a replacement spawn awaits the old child's exit. */
   destroyPromise: Promise<void> | null = null;
@@ -507,6 +513,8 @@ export class AgentSessionWrapper {
           this.continuationGraceUntil = 0;
           invalidateSessionListCache();
           clearChatActionRunState(this._sessionId);
+          // A finished run's todo baseline is stale for the next prompt.
+          this._todoPhases = null;
           // Chat event action: conversation_completed (the same signal the
           // built-in completion notification uses).
           dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
@@ -579,9 +587,12 @@ export class AgentSessionWrapper {
           let hasText = false;
           for (const block of content) {
             if (typeof block !== "object" || block === null) continue;
-            const b = block as { type?: unknown };
+            const b = block as { type?: unknown; text?: unknown };
             if (b.type === "thinking") hasThinking = true;
-            else if (b.type === "text") hasText = true;
+            // A text block that is only whitespace (omp emits "\n" separator
+            // blocks between turns) is not real assistant text — it must not
+            // fire assistant_text.
+            else if (b.type === "text" && typeof b.text === "string" && b.text.trim() !== "") hasText = true;
           }
           if (hasThinking) dispatchChatEvent("thinking_completed", this.chatEventPayload());
           if (message.role === "assistant" && hasText) {
@@ -598,6 +609,31 @@ export class AgentSessionWrapper {
         const status = typeof payload?.status === "string" ? payload.status : "";
         if (status === "completed" || status === "failed" || status === "aborted") {
           dispatchChatEvent("subagent_completed", this.chatEventPayload());
+        }
+        break;
+      }
+      case "tool_execution_end": {
+        // A todo tool call mutates the todo list; the frame carries no
+        // arguments (they are stringified JSON in the tool call), so diff the
+        // authoritative get_state.todoPhases against the last snapshot to see
+        // which tasks transitioned to completed (task_completed).
+        if (event.toolName === "todo") {
+          void (async () => {
+            try {
+              const state = await this.getStateWithTimeout();
+              const phases = Array.isArray(state.todoPhases) ? state.todoPhases : [];
+              if (taskCompletedDiff(this._todoPhases, phases)) {
+                dispatchChatEvent("task_completed", this.chatEventPayload());
+              }
+              // Store unconditionally: a null baseline is recorded on the
+              // first observation (e.g. right after op:"init") so init alone
+              // never fires.
+              this._todoPhases = phases;
+            } catch {
+              // get_state can time out; a missed diff only skips one event —
+              // never throw into the frame loop.
+            }
+          })();
         }
         break;
       }
@@ -1443,10 +1479,12 @@ export class AgentSessionWrapper {
     }
     this.unsubscribeFrames?.();
     this.clearPendingUiRequests();
-    this.promptDispatchPendingCount = 0;
-    this.awaitingAgentStart = false;
-    this.awaitingAgentStartDeadline = 0;
     this.continuationGraceUntil = 0;
+    // A session destroyed without a terminal agent_end (idle timeout, delete,
+    // crash) must not leave a stale per-run entry in the dispatcher's
+    // globalThis Map.
+    clearChatActionRunState(this._sessionId);
+    this._todoPhases = null;
     if (this.mcpListWaiter) {
       clearTimeout(this.mcpListWaiter.timer);
       this.mcpListWaiter.reject(new Error("Session was closed while loading MCP servers"));

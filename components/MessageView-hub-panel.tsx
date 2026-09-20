@@ -53,12 +53,12 @@ export function HubResultPanel({ input, result }: { input: unknown; result?: Too
           gap: 6,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           <span style={{ fontWeight: 600, color: "var(--text)" }}>
             {`IRC → ${send.to.join(", ")}`}
           </span>
           {receipts.length > 0 && (
-            <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", color: "var(--text-dim)", fontSize: 10.5 }}>
+            <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", color: "var(--text-dim)", fontSize: "calc(10.5px * var(--ui-font-scale, 1))" }}>
               {receipts.map((receipt) => receipt.outcome).join(" · ")}
             </span>
           )}
@@ -82,7 +82,7 @@ export function HubResultPanel({ input, result }: { input: unknown; result?: Too
           gap: 4,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           <span style={{ fontWeight: 600, color: "var(--text)" }}>
             {getHubJobsHeader(jobs)}
           </span>
@@ -92,17 +92,17 @@ export function HubResultPanel({ input, result }: { input: unknown; result?: Too
           return (
             <div
               key={job.id}
-              style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, fontSize: 11.5 }}
+              style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, fontSize: "calc(11.5px * var(--ui-font-scale, 1))" }}
             >
               <SubagentStatusIcon status={job.status === "completed" ? "completed" : job.status === "failed" ? "failed" : "started"} />
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10.5, color: "var(--accent)", flexShrink: 0 }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: "var(--accent)", flexShrink: 0 }}>
                 {`[${job.type}]`}
               </span>
               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, color: "var(--text)" }}>
                 {job.label}
               </span>
               {duration && (
-                <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)" }}>
+                <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                   {duration}
                 </span>
               )}

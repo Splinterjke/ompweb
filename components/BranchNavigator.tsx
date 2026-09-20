@@ -187,7 +187,7 @@ const TreeNodeView = memo(function TreeNodeView({ node, activePathIds, depth, is
         {/* Role badge */}
         {role && (
           <span style={{
-            fontSize: 9,
+            fontSize: "calc(9px * var(--ui-font-scale, 1))",
             fontFamily: "var(--font-mono)",
             color: role === "user" ? "var(--accent)" : "var(--text-dim)",
             background: role === "user" ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "var(--bg-hover)",
@@ -204,14 +204,14 @@ const TreeNodeView = memo(function TreeNodeView({ node, activePathIds, depth, is
 
         {/* Skipped indicator */}
         {skipped > 0 && (
-          <span style={{ fontSize: 10, color: "var(--text-dim)", marginRight: 5, flexShrink: 0 }}>
+          <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginRight: 5, flexShrink: 0 }}>
             +{skipped}
           </span>
         )}
 
         {/* Label */}
         <span style={{
-          fontSize: 11,
+          fontSize: "calc(11px * var(--ui-font-scale, 1))",
           color: isActive ? "var(--text)" : isOnPath ? "var(--text-muted)" : "var(--text-dim)",
           fontWeight: isActive ? 500 : 400,
           overflow: "hidden",
@@ -394,7 +394,7 @@ export function BranchNavigator({ tree, activeLeafId, onLeafChange, inline, cont
                 ))}
               </div>
             ) : (
-              <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+              <div style={{ padding: "10px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontStyle: "italic" }}>
                 {noBranchReason}
               </div>
             )}
@@ -419,7 +419,7 @@ export function BranchNavigator({ tree, activeLeafId, onLeafChange, inline, cont
           border: "none",
           cursor: "pointer",
           color: "var(--text-muted)",
-          fontSize: 11,
+          fontSize: "calc(11px * var(--ui-font-scale, 1))",
           textAlign: "left",
         }}
       >
@@ -455,7 +455,7 @@ export function BranchNavigator({ tree, activeLeafId, onLeafChange, inline, cont
               ))}
             </div>
           ) : (
-            <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            <div style={{ padding: "10px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontStyle: "italic" }}>
               {noBranchReason ?? t("branchNavigator.noBranches")}
             </div>
           )}

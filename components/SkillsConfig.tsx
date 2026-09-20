@@ -153,7 +153,7 @@ function SkillDetail({
       <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
         <span
           style={{
-            fontSize: 10,
+            fontSize: "calc(10px * var(--ui-font-scale, 1))",
             padding: "1px 5px",
             borderRadius: 3,
             flexShrink: 0,
@@ -170,7 +170,7 @@ function SkillDetail({
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 11,
+            fontSize: "calc(11px * var(--ui-font-scale, 1))",
             color: "var(--text-dim)",
             flex: 1,
             overflow: "hidden",
@@ -186,7 +186,7 @@ function SkillDetail({
           onToggle={() => onToggle(skill)}
         />
         {saveError && (
-          <span style={{ fontSize: 12, color: "var(--status-error)", flexShrink: 0 }}>
+          <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", flexShrink: 0 }}>
             {saveError}
           </span>
         )}
@@ -195,7 +195,7 @@ function SkillDetail({
       {skill.install?.skillsShUrl && (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <span
-            style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}
+            style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontWeight: 500 }}
           >
             {t("skillsConfig.source")}
           </span>
@@ -217,7 +217,7 @@ function SkillDetail({
             <span
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -232,7 +232,7 @@ function SkillDetail({
       {skill.install && (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           <span
-            style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}
+            style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontWeight: 500 }}
           >
             {t("skillsConfig.version")}
           </span>
@@ -247,7 +247,7 @@ function SkillDetail({
             <span
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 color: "var(--text-muted)",
               }}
             >
@@ -265,7 +265,7 @@ function SkillDetail({
                   color: "var(--text-muted)",
                   cursor: checkingUpdate || updating ? "not-allowed" : "pointer",
                   opacity: checkingUpdate || updating ? 0.5 : 1,
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 }}
               >
                 {t("skillsConfig.check")}
@@ -275,7 +275,7 @@ function SkillDetail({
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   color: "var(--status-warning)",
                 }}
               >
@@ -286,7 +286,7 @@ function SkillDetail({
               (updateStatus && updateStatus.state !== "update-available")) && (
               <span
                 style={{
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   color: checkingUpdate
                     ? "var(--accent)"
                     : updateStatus?.state === "up-to-date"
@@ -317,7 +317,7 @@ function SkillDetail({
                   color: "var(--on-accent)",
                   cursor: updating || checkingUpdate ? "not-allowed" : "pointer",
                   opacity: updating || checkingUpdate ? 0.5 : 1,
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                 }}
               >
@@ -326,21 +326,21 @@ function SkillDetail({
             )}
           </div>
           {updateError && (
-            <span style={{ fontSize: 12, color: "var(--status-error)" }}>{updateError}</span>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{updateError}</span>
           )}
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <span
-          style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}
+          style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontWeight: 500 }}
         >
           {t("skillsConfig.name")}
         </span>
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 14,
+            fontSize: "calc(14px * var(--ui-font-scale, 1))",
             color: "var(--text)",
           }}
         >
@@ -350,12 +350,12 @@ function SkillDetail({
 
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         <span
-          style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}
+          style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontWeight: 500 }}
         >
           {t("skillsConfig.description")}
         </span>
         <span
-          style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}
+          style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.6 }}
         >
           {skill.description}
         </span>
@@ -463,7 +463,7 @@ function AddSkillPanel({
           marginBottom: 20,
         }}
       >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
+        <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
           {t("skillsConfig.addSkillTitle")}
         </div>
 
@@ -481,7 +481,7 @@ function AddSkillPanel({
             style={{
               flex: 1,
               padding: "7px 10px",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
               background: "var(--bg-panel)",
               border: "1px solid var(--border)",
               borderRadius: 6,
@@ -494,7 +494,7 @@ function AddSkillPanel({
             disabled={searching || !query.trim()}
             style={{
               padding: "7px 16px",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
               borderRadius: 6,
               border: "none",
               background: "var(--accent)",
@@ -516,7 +516,7 @@ function AddSkillPanel({
               borderRadius: 5,
               border: "1px solid var(--border)",
               overflow: "hidden",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               flexShrink: 0,
             }}
           >
@@ -541,7 +541,7 @@ function AddSkillPanel({
           </div>
           <span
             style={{
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               color: "var(--text-dim)",
               fontFamily: "var(--font-mono)",
               overflow: "hidden",
@@ -555,11 +555,11 @@ function AddSkillPanel({
 
         {/* Errors */}
         {searchError && (
-          <div style={{ fontSize: 12, color: "var(--status-error)" }}>{searchError}</div>
+          <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{searchError}</div>
         )}
         {installError && (
           <div
-            style={{ fontSize: 12, color: "var(--status-error)", wordBreak: "break-word" }}
+            style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", wordBreak: "break-word" }}
           >
             {installError}
           </div>
@@ -593,7 +593,7 @@ function AddSkillPanel({
                   {/* skill name prominent */}
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: "calc(13px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       color: "var(--text)",
                       marginBottom: 3,
@@ -613,7 +613,7 @@ function AddSkillPanel({
                     <span
                       style={{
                         fontFamily: "var(--font-mono)",
-                        fontSize: 11,
+                        fontSize: "calc(11px * var(--ui-font-scale, 1))",
                         color: "var(--text-dim)",
                       }}
                     >
@@ -621,7 +621,7 @@ function AddSkillPanel({
                     </span>
                     <span
                       style={{
-                        fontSize: 12,
+                        fontSize: "calc(12px * var(--ui-font-scale, 1))",
                         color: "var(--text-muted)",
                         fontWeight: 500,
                       }}
@@ -634,7 +634,7 @@ function AddSkillPanel({
                         target="_blank"
                         rel="noreferrer"
                         style={{
-                          fontSize: 12,
+                          fontSize: "calc(12px * var(--ui-font-scale, 1))",
                           color: "var(--accent)",
                           textDecoration: "none",
                         }}
@@ -652,7 +652,7 @@ function AddSkillPanel({
                   style={{
                     flexShrink: 0,
                     padding: "5px 14px",
-                    fontSize: 12,
+                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
                     fontWeight: 500,
                     borderRadius: 5,
                     border: "1px solid var(--border)",
@@ -683,7 +683,7 @@ function AddSkillPanel({
         !searchError &&
         !searching && (
           <div
-            style={{ fontSize: 13, color: "var(--text-dim)", lineHeight: 1.8 }}
+            style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.8 }}
           >
             {(() => {
               // "{site}" marks where the skills.sh link goes; kept out of the
@@ -909,13 +909,13 @@ export function SkillsConfig({
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
             <span
               id="skills-config-title"
-              style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}
+              style={{ fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}
             >
               {t("skillsConfig.title")}
             </span>
             <code
               style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 color: "var(--text-muted)",
                 fontFamily: "var(--font-mono)",
                 maxWidth: 320,
@@ -935,7 +935,7 @@ export function SkillsConfig({
               border: "none",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: 20,
+              fontSize: "calc(20px * var(--ui-font-scale, 1))",
               lineHeight: 1,
               padding: "2px 6px",
             }}
@@ -965,7 +965,7 @@ export function SkillsConfig({
                 <div
                   style={{
                     padding: "10px 8px",
-                    fontSize: 12,
+                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
                     color: "var(--text-muted)",
                   }}
                 >
@@ -975,7 +975,7 @@ export function SkillsConfig({
                 <div
                   style={{
                     padding: "10px 8px",
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
                     color: "var(--status-error)",
                   }}
                 >
@@ -985,7 +985,7 @@ export function SkillsConfig({
                 <div
                   style={{
                     padding: "10px 8px",
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
                     color: "var(--text-dim)",
                   }}
                 >
@@ -1036,7 +1036,7 @@ export function SkillsConfig({
                         <div
                           style={{
                             padding: "4px 8px 3px",
-                            fontSize: 10,
+                            fontSize: "calc(10px * var(--ui-font-scale, 1))",
                             fontWeight: 600,
                             color: "var(--text-dim)",
                             textTransform: "uppercase",
@@ -1054,7 +1054,7 @@ export function SkillsConfig({
                           return (
                             <Fragment key={skill.filePath}>
                             {firstDormant && (
-                              <div style={{ marginTop: 6, padding: "6px 8px 3px", borderTop: "1px solid var(--border)", fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                              <div style={{ marginTop: 6, padding: "6px 8px 3px", borderTop: "1px solid var(--border)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 {t("skillsConfig.dormant", { count: dormantCount })}
                               </div>
                             )}
@@ -1107,7 +1107,7 @@ export function SkillsConfig({
                               />
                               <span
                                 style={{
-                                  fontSize: 12,
+                                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                                   fontWeight: isSelected ? 600 : 400,
                                   color: disabled
                                     ? "var(--text-dim)"
@@ -1130,7 +1130,7 @@ export function SkillsConfig({
                                     title={t("skillsConfig.updateAvailable")}
                                     style={{
                                       color: "var(--status-warning)",
-                                      fontSize: 13,
+                                      fontSize: "calc(13px * var(--ui-font-scale, 1))",
                                       lineHeight: 1,
                                       flexShrink: 0,
                                     }}
@@ -1171,7 +1171,7 @@ export function SkillsConfig({
                   border: "none",
                   background: "none",
                   color: "var(--accent)",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   fontWeight: 500,
                   width: "100%",
                   boxSizing: "border-box",
@@ -1244,7 +1244,7 @@ export function SkillsConfig({
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--text-dim)",
-                  fontSize: 13,
+                  fontSize: "calc(13px * var(--ui-font-scale, 1))",
                 }}
               >
                 {t("skillsConfig.selectSkill")}
@@ -1280,7 +1280,7 @@ export function SkillsConfig({
                       ? "not-allowed"
                       : "pointer",
                   opacity: checkingAll || updatingSkill !== null ? 0.5 : 1,
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 }}
               >
                 {checkingAll ? t("skillsConfig.checking") : t("skillsConfig.checkUpdates")}
@@ -1292,7 +1292,7 @@ export function SkillsConfig({
               ).length;
               if (availableCount === 0) return null;
               return (
-                <span style={{ fontSize: 12, color: "var(--status-warning)" }}>
+                <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-warning)" }}>
                   {tn("skillsConfig.updateCount", availableCount)}
                 </span>
               );
@@ -1307,7 +1307,7 @@ export function SkillsConfig({
               borderRadius: 6,
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
             }}
           >
             {t("skillsConfig.close")}

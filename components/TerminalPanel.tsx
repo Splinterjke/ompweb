@@ -460,12 +460,12 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <TerminalSquare size={15} strokeWidth={2} style={{ color: "var(--accent)" }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
+          <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
             {t("terminal.title") || "Embedded Terminal"}
           </span>
           <span
             style={{
-              fontSize: 10,
+              fontSize: "calc(10px * var(--ui-font-scale, 1))",
               padding: "1px 6px",
               borderRadius: 4,
               background: status === "connected" ? "color-mix(in srgb, var(--status-success) 14%, transparent)" : "color-mix(in srgb, var(--status-warning) 14%, transparent)",
@@ -480,7 +480,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
               type="button"
               onClick={() => void handleRestart()}
               title={t("terminal.reconnect")}
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer" }}
             >
               <RotateCcw size={10} strokeWidth={2} aria-hidden="true" />
               {t("terminal.reconnect")}
@@ -489,7 +489,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
           {sessionCwd && (
             <span
               style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 color: "var(--text-dim)",
                 fontFamily: "var(--font-mono)",
                 maxWidth: 320,

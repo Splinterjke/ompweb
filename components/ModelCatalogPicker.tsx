@@ -146,7 +146,7 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
           overflow: "hidden",
         }}
       >
-        <DialogTitle style={{ margin: "14px 18px 8px", fontSize: 18 }}>{t("modelsConfig.catalogTitle")}</DialogTitle>
+        <DialogTitle style={{ margin: "14px 18px 8px", fontSize: "calc(18px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.catalogTitle")}</DialogTitle>
 
         {/* Search */}
         <div style={{ padding: "8px 14px 12px", flexShrink: 0 }}>
@@ -165,7 +165,7 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
               placeholder={t("modelsConfig.catalogSearchPlaceholder")}
               style={{
                 flex: 1, background: "none", border: "none", outline: "none",
-                color: "var(--text)", fontSize: 13, boxSizing: "border-box", minWidth: 0,
+                color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))", boxSizing: "border-box", minWidth: 0,
               }}
             />
           </div>
@@ -174,15 +174,15 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
         {/* Results */}
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 14px 14px" }}>
           {error ? (
-            <div role="alert" style={{ padding: "20px 0", fontSize: 12, color: "var(--status-error)", textAlign: "center" }}>
+            <div role="alert" style={{ padding: "20px 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", textAlign: "center" }}>
               {t("modelsConfig.catalogError", { error })}
             </div>
           ) : loading ? (
-            <div role="status" aria-live="polite" style={{ padding: "20px 0", fontSize: 12, color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogLoading")}</div>
+            <div role="status" aria-live="polite" style={{ padding: "20px 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogLoading")}</div>
           ) : results === null ? (
-            <div style={{ padding: "20px 0", fontSize: 12, color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogSearchPlaceholder")}</div>
+            <div style={{ padding: "20px 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogSearchPlaceholder")}</div>
           ) : results.length === 0 ? (
-            <div style={{ padding: "20px 0", fontSize: 12, color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogNoResults")}</div>
+            <div style={{ padding: "20px 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.catalogNoResults")}</div>
           ) : (
             results.map((entry) => {
               const alreadyAdded = existingIds.has(entry.id);
@@ -191,12 +191,12 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
                 <div key={entry.key} style={rowStyle}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.id}</span>
+                      <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.id}</span>
                       {entry.reasoning && (
-                        <span style={{ fontSize: 9, padding: "1px 4px", background: "color-mix(in srgb, var(--accent) 12%, transparent)", color: "var(--accent)", borderRadius: 3, flexShrink: 0 }}>T</span>
+                        <span style={{ fontSize: "calc(9px * var(--ui-font-scale, 1))", padding: "1px 4px", background: "color-mix(in srgb, var(--accent) 12%, transparent)", color: "var(--accent)", borderRadius: 3, flexShrink: 0 }}>T</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {entry.providerName}
                       {entry.contextWindow !== undefined ? ` · ${t("modelsConfig.catalogContext", { n: formatContext(entry.contextWindow) })}` : ""}
                       {entry.cost.input !== undefined && entry.cost.output !== undefined
@@ -206,7 +206,7 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
                     </div>
                   </div>
                   {alreadyAdded ? (
-                    <span style={{ flexShrink: 0, padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-dim)", fontSize: 12 }}>
+                    <span style={{ flexShrink: 0, padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
                       {t("modelsConfig.catalogAdded")}
                     </span>
                   ) : (
@@ -214,7 +214,7 @@ export function ModelCatalogPicker({ open, providerName, providerBaseUrl, existi
                       type="button"
                       aria-label={"Add " + entry.id + " (" + entry.providerName + ")"}
                       onClick={() => onAdd(toPickedModel(entry), entry.providerBaseUrl)}
-                      style={{ flexShrink: 0, padding: "5px 12px", background: "var(--accent)", border: "none", borderRadius: "var(--radius-control)", color: "var(--on-accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+                      style={{ flexShrink: 0, padding: "5px 12px", background: "var(--accent)", border: "none", borderRadius: "var(--radius-control)", color: "var(--on-accent)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}
                     >
                       {t("modelsConfig.catalogAdd")}
                     </button>

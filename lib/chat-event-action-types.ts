@@ -2,26 +2,29 @@
 // events (docs/chat-event-actions-plan.md). The model mirrors the scheduler
 // store (lib/scheduler-store.ts): a versioned JSON file in the agent dir.
 
-/** The seven chat lifecycle events an action can bind to. The single source
+/** The eight chat lifecycle events an action can bind to. The single source
  * of truth for the modal's event list and the i18n keys
  * (`chatActions.event.<type>`). */
 export type ChatEventType =
-  | "thinking_completed"
-  | "assistant_text"
-  | "subagent_completed"
-  | "user_prompt_sent"
   | "conversation_completed"
   | "conversation_interrupted"
-  | "provider_api_error";
+  | "assistant_text"
+  | "thinking_completed"
+  | "subagent_completed"
+  | "user_prompt_sent"
+  | "provider_api_error"
+  | "task_completed";
 
+/** Display order for the modal's event checkboxes (and the i18n key list). */
 export const CHAT_EVENT_TYPES: ChatEventType[] = [
-  "thinking_completed",
-  "assistant_text",
-  "subagent_completed",
-  "user_prompt_sent",
   "conversation_completed",
   "conversation_interrupted",
+  "assistant_text",
+  "thinking_completed",
+  "subagent_completed",
+  "user_prompt_sent",
   "provider_api_error",
+  "task_completed",
 ];
 
 export type ChatEventActionType = "notification" | "http" | "bash" | "scheduled";

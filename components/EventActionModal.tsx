@@ -54,7 +54,7 @@ function TextArea({
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-control)",
         color: "var(--text)",
-        fontSize: 12,
+        fontSize: "calc(12px * var(--ui-font-scale, 1))",
         outline: "none",
         width: "100%",
         boxSizing: "border-box",
@@ -285,7 +285,7 @@ export function EventActionModal({
               {CHAT_EVENT_TYPES.map((ev) => (
                 <label
                   key={ev}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", cursor: "pointer" }}
                 >
                   <input
                     type="checkbox"
@@ -320,7 +320,7 @@ export function EventActionModal({
               <Field label={t("chatActions.notifMessage")} hint={t("chatActions.notifMessageHint")}>
                 <TextArea value={notifMessage} onChange={setNotifMessage} rows={2} placeholder="e.g. Task finished." />
               </Field>
-              <span style={{ fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>{t("chatActions.notifPermHint")}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>{t("chatActions.notifPermHint")}</span>
             </div>
           )}
 
@@ -348,7 +348,7 @@ export function EventActionModal({
               {postOrPut && (
                 <>
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 11, color: "var(--text-dim)", alignSelf: "center" }}>{t("chatActions.httpBody")}:</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", alignSelf: "center" }}>{t("chatActions.httpBody")}:</span>
                     {BODY_TYPES.map((bt) => {
                       const active = bodyType === bt;
                       return (
@@ -361,7 +361,7 @@ export function EventActionModal({
                             minWidth: 40,
                             height: 24,
                             padding: "0 8px",
-                            fontSize: 11,
+                            fontSize: "calc(11px * var(--ui-font-scale, 1))",
                             fontWeight: 500,
                             border: `1px solid ${active ? "color-mix(in srgb, var(--accent) 45%, var(--border))" : "var(--border)"}`,
                             borderRadius: "var(--radius-control)",
@@ -418,7 +418,7 @@ export function EventActionModal({
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               color: "var(--text-muted)",
               cursor: "pointer",
             }}

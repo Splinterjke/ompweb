@@ -88,7 +88,7 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
         {selectedPath && (
           <span
             className="ml-1 min-w-0 overflow-hidden text-ellipsis text-text-dim"
-            style={{ fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap" }}
+            style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", whiteSpace: "nowrap" }}
             title={selectedPath}
           >
             {selectedPath}
@@ -126,11 +126,11 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
                 className="shrink-0"
                 style={{ accentColor: "var(--accent)" }}
               />
-              <span className="min-w-0" style={{ fontSize: 13 }}>
+              <span className="min-w-0" style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
                 <span className="block overflow-hidden text-ellipsis text-text" style={{ whiteSpace: "nowrap" }} title={option.label}>
                   {option.label}
                 </span>
-                <span className="block overflow-hidden text-ellipsis text-text-dim" style={{ fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap" }} title={option.path}>
+                <span className="block overflow-hidden text-ellipsis text-text-dim" style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", whiteSpace: "nowrap" }} title={option.path}>
                   {option.path}
                 </span>
               </span>

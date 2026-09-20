@@ -1829,6 +1829,7 @@
   "chatActions.event.conversation_completed": "Conversation completed",
   "chatActions.event.conversation_interrupted": "Conversation interrupted",
   "chatActions.event.provider_api_error": "Provider API error",
+  "chatActions.event.task_completed": "Task completed",
   "chatActions.action": "Action",
   "chatActions.action.notification": "Browser notification",
   "chatActions.action.http": "HTTP request",

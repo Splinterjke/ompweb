@@ -132,12 +132,12 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+              <span style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
                 {t("plan.modeTitle") || "OMP Plan Mode"}
               </span>
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                   padding: "1px 6px",
                   borderRadius: 999,
@@ -155,7 +155,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
               <p
                 style={{
                   margin: "2px 0 0",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   color: "var(--text-muted)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -184,7 +184,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                   borderRadius: "var(--radius-control)",
                   background: "var(--accent)",
                   color: "var(--on-accent)",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                   border: "none",
                   cursor: "pointer",
@@ -208,7 +208,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                   background: "var(--bg)",
                   color: "var(--status-warning)",
                   border: "1px solid var(--border)",
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
@@ -245,14 +245,14 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                 borderRadius: "var(--radius-control)",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                fontSize: 13,
+                fontSize: "calc(13px * var(--ui-font-scale, 1))",
                 lineHeight: 1.55,
                 color: "var(--text)",
               }}
             >
               <MarkdownBody>{planContent}</MarkdownBody>
               {planTruncated && (
-                <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-dim)" }}>
+                <div style={{ marginTop: 8, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                   {t("plan.truncatedNote")}
                 </div>
               )}
@@ -264,7 +264,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                 <div key={phase.id ?? `phase-${pIdx}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div
                     style={{
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 700,
                       color: "var(--text-dim)",
                       textTransform: "uppercase",
@@ -282,7 +282,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                           display: "flex",
                           alignItems: "flex-start",
                           gap: 8,
-                          fontSize: 13,
+                          fontSize: "calc(13px * var(--ui-font-scale, 1))",
                           color: task.status === "completed" ? "var(--text-dim)" : "var(--text)",
                           textDecoration: task.status === "completed" ? "line-through" : "none",
                         }}
@@ -294,7 +294,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                         {task.blocker && (
                           <span
                             style={{
-                              fontSize: 11,
+                              fontSize: "calc(11px * var(--ui-font-scale, 1))",
                               color: "var(--status-warning)",
                               background: "color-mix(in srgb, var(--status-warning) 10%, transparent)",
                               padding: "1px 6px",
@@ -311,7 +311,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
               ))}
             </div>
           ) : (
-            <div style={{ padding: "8px 0", color: "var(--text-muted)", fontSize: 13, textAlign: "center" }}>
+            <div style={{ padding: "8px 0", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale, 1))", textAlign: "center" }}>
               <Sparkles size={16} style={{ color: "var(--accent)", margin: "0 auto 6px" }} />
               <p style={{ margin: 0 }}>{t("plan.standby")}</p>
             </div>
@@ -354,7 +354,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <MessageSquareWarning size={18} style={{ color: "var(--status-warning)" }} />
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
+                <h3 style={{ margin: 0, fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
                   {t("plan.critiqueModalTitle") || "Revise Plan · Provide Critique"}
                 </h3>
               </div>
@@ -368,7 +368,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
               </button>
             </div>
 
-            <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {t("plan.critiqueBody")}
             </p>
 
@@ -380,7 +380,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                   type="button"
                   onClick={() => setCritiqueText((prev) => (prev ? `${prev}\n${item.text}` : item.text))}
                   style={{
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
                     padding: "3px 8px",
                     borderRadius: 6,
                     background: "var(--bg-panel)",
@@ -409,7 +409,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                 background: "var(--bg-panel)",
                 border: "1px solid var(--border)",
                 color: "var(--text)",
-                fontSize: 13,
+                fontSize: "calc(13px * var(--ui-font-scale, 1))",
                 fontFamily: "inherit",
                 resize: "vertical",
                 outline: "none",
@@ -429,7 +429,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                   background: "transparent",
                   border: "1px solid var(--border)",
                   color: "var(--text)",
-                  fontSize: 13,
+                  fontSize: "calc(13px * var(--ui-font-scale, 1))",
                   cursor: "pointer",
                 }}
               >
@@ -447,7 +447,7 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
                   borderRadius: "var(--radius-control)",
                   background: "var(--accent)",
                   color: "var(--on-accent)",
-                  fontSize: 13,
+                  fontSize: "calc(13px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                   border: "none",
                   cursor: critiqueText.trim() ? "pointer" : "not-allowed",

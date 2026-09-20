@@ -196,7 +196,7 @@ export function UsageSidebarPanel({
             border: "none",
             cursor: "pointer",
             textAlign: "left",
-            fontSize: 11,
+            fontSize: "calc(11px * var(--ui-font-scale, 1))",
             fontWeight: 600,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
@@ -244,10 +244,10 @@ export function UsageSidebarPanel({
           style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 10 }}
         >
           {error && (
-            <span style={{ fontSize: 11, color: "var(--status-error)" }}>{t("sidebar.usageEmpty")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{t("sidebar.usageEmpty")}</span>
           )}
           {!error && !summary && (
-            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageLoading")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageLoading")}</span>
           )}
           {summary && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
@@ -258,15 +258,15 @@ export function UsageSidebarPanel({
                 ["usageTotal", summary.total ?? 0],
               ] as Array<[string, number]>).map(([key, value]) => (
                 <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2, padding: "6px 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
-                  <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{t(`sidebar.${key}`)}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{formatCompactNumber(value, locale)}</span>
+                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t(`sidebar.${key}`)}</span>
+                  <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{formatCompactNumber(value, locale)}</span>
                 </div>
               ))}
             </div>
           )}
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>{t("sidebar.usageLimits")}</div>
+            <div style={{ flex: 1, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)" }}>{t("sidebar.usageLimits")}</div>
             <button
               type="button"
               onClick={() => {
@@ -294,11 +294,11 @@ export function UsageSidebarPanel({
           </div>
           {manageAccounts && (reports ?? []).length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "6px 7px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-subtle)" }}>
-              <div style={{ fontSize: 10, color: "var(--text-dim)", lineHeight: 1.4 }}>{t("sidebar.usageManageHint")}</div>
+              <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.4 }}>{t("sidebar.usageManageHint")}</div>
               {(reports ?? []).map((report, index) => {
                 const key = accountKey(report, index);
                 const hidden = hiddenAccounts.has(key);
-                return <button key={`manage-${key}`} type="button" onClick={() => toggleAccount(key)} aria-pressed={!hidden} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 24, padding: "2px 3px", border: 0, background: "transparent", color: hidden ? "var(--text-dim)" : "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 10.5, opacity: hidden ? 0.65 : 1 }}>
+                return <button key={`manage-${key}`} type="button" onClick={() => toggleAccount(key)} aria-pressed={!hidden} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 24, padding: "2px 3px", border: 0, background: "transparent", color: hidden ? "var(--text-dim)" : "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(10.5px * var(--ui-font-scale, 1))", opacity: hidden ? 0.65 : 1 }}>
                   {hidden ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{report.provider} · {report.accountLabel ?? t("appShell.account", { number: report.accountIndex ?? index + 1 })}</span>
                 </button>;
@@ -306,11 +306,11 @@ export function UsageSidebarPanel({
             </div>
           )}
           {(reports ?? []).length === 0 && !error && (
-            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
           )}
           {(reports ?? []).map((report, index) => ({ report, index, key: accountKey(report, index) })).filter(({ key }) => !hiddenAccounts.has(key)).map(({ report, index, key }) => (
             <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                 <span style={{ fontWeight: 500, color: "var(--text)" }}>{report.provider}</span>
                 {report.accountLabel ? (
                   <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{report.accountLabel}</span>
@@ -320,9 +320,9 @@ export function UsageSidebarPanel({
                 {report.plan && <span style={{ color: "var(--text-dim)" }}>{report.plan}</span>}
               </div>
               {report.noLimits ? (
-                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
+                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
               ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)" }}>
                   {WINDOW_KEYS.map(({ key, label: prefix }) => {
                     const window = report[key] as ProviderUsageWindow | undefined;
                     const text = windowText(window, prefix);
@@ -336,7 +336,7 @@ export function UsageSidebarPanel({
             </div>
           ))}
           {(reports ?? []).length > 0 && (reports ?? []).every((report, index) => hiddenAccounts.has(accountKey(report, index))) && (
-            <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.usageAllHidden")}</span>
+            <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageAllHidden")}</span>
           )}
           {hasAny && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
@@ -345,12 +345,12 @@ export function UsageSidebarPanel({
                   type="button"
                   onClick={() => load(false)}
                   disabled={refreshing}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "none", background: "none", color: "var(--text-dim)", cursor: refreshing ? "default" : "pointer", fontSize: 11, padding: 0 }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "none", background: "none", color: "var(--text-dim)", cursor: refreshing ? "default" : "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", padding: 0 }}
                 >
                   {refreshing ? <LoaderCircle size={12} strokeWidth={2} className="icon-spin" aria-hidden="true" /> : <RefreshCw size={12} strokeWidth={2} aria-hidden="true" />}
                   {refreshing ? t("sidebar.usageUpdating") : t("sidebar.usageRefresh")}
                 </button>
-                {updatedAt && (<span style={{ fontSize: 10, color: "var(--text-dim)" }}>{t("sidebar.usageUpdated", { time: new Date(updatedAt).toLocaleTimeString(locale) })}</span>)}
+                {updatedAt && (<span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageUpdated", { time: new Date(updatedAt).toLocaleTimeString(locale) })}</span>)}
               </div>
 
               <button

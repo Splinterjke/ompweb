@@ -477,7 +477,7 @@ export const ChatMinimap = memo(function ChatMinimap({ messages, scrollContainer
               border: "1px solid var(--border)",
               boxShadow: "var(--shadow-pop)",
               transition: "top var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
               lineHeight: 1.55,
               color: "var(--text-muted)",
               whiteSpace: "pre-wrap",

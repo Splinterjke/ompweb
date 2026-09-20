@@ -208,29 +208,29 @@ function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
     })();
   };
 
-  if (!settings) return <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("modelsConfig.retryLoading")}</div>;
+  if (!settings) return <div style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.retryLoading")}</div>;
   const retry = settings.retry ?? {};
   const chain = retry.fallbackChains?.[role] ?? [];
   const modelOptions = models.map((model) => `${model.provider}/${model.id}`);
   const updateChain = (next: string[]) => void save({ ...settings, retry: { ...retry, fallbackChains: { ...(retry.fallbackChains ?? {}), [role]: next } } });
 
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <div><SectionTitle>{t("modelsConfig.retryFallbackTitle")}</SectionTitle><p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>{t("modelsConfig.retryFallbackDesc")}</p></div>
+    <div><SectionTitle>{t("modelsConfig.retryFallbackTitle")}</SectionTitle><p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>{t("modelsConfig.retryFallbackDesc")}</p></div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 9 }}>
-      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: 12, color: "var(--text)" }}><input type="checkbox" checked={retry.enabled ?? true} onChange={(event) => void save({ ...settings, retry: { ...retry, enabled: event.target.checked } })} /> {t("modelsConfig.retryTransientErrors")}</label>
-      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: 12, color: "var(--text)" }}><input type="checkbox" checked={retry.modelFallback ?? true} onChange={(event) => void save({ ...settings, retry: { ...retry, modelFallback: event.target.checked } })} /> {t("modelsConfig.allowModelFallback")}</label>
-      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: 12 }}>{t("modelsConfig.retryAttempts")} <select value={retry.maxRetries ?? 10} onChange={(event) => void save({ ...settings, retry: { ...retry, maxRetries: Number(event.target.value) } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{[0, 1, 2, 3, 5, 10, 15, 20].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
-      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: 12 }}>{t("modelsConfig.returnToPrimary")} <select value={retry.fallbackRevertPolicy ?? "cooldown-expiry"} onChange={(event) => void save({ ...settings, retry: { ...retry, fallbackRevertPolicy: event.target.value as "cooldown-expiry" | "never" } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="cooldown-expiry">{t("modelsConfig.afterCooldown")}</option><option value="never">{t("modelsConfig.never")}</option></select></label>
+      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)" }}><input type="checkbox" checked={retry.enabled ?? true} onChange={(event) => void save({ ...settings, retry: { ...retry, enabled: event.target.checked } })} /> {t("modelsConfig.retryTransientErrors")}</label>
+      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)" }}><input type="checkbox" checked={retry.modelFallback ?? true} onChange={(event) => void save({ ...settings, retry: { ...retry, modelFallback: event.target.checked } })} /> {t("modelsConfig.allowModelFallback")}</label>
+      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.retryAttempts")} <select value={retry.maxRetries ?? 10} onChange={(event) => void save({ ...settings, retry: { ...retry, maxRetries: Number(event.target.value) } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{[0, 1, 2, 3, 5, 10, 15, 20].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
+      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.returnToPrimary")} <select value={retry.fallbackRevertPolicy ?? "cooldown-expiry"} onChange={(event) => void save({ ...settings, retry: { ...retry, fallbackRevertPolicy: event.target.value as "cooldown-expiry" | "never" } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="cooldown-expiry">{t("modelsConfig.afterCooldown")}</option><option value="never">{t("modelsConfig.never")}</option></select></label>
     </div>
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--text)", fontSize: 12, fontWeight: 600 }}>{t("modelsConfig.fallbackChainFor")}</span><select aria-label={t("modelsConfig.fallbackChainFor")} value={role} onChange={(event) => setRole(event.target.value)} style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{NATIVE_MODEL_ROLES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
-      <div style={{ padding: 12, display: "flex", gap: 8 }}><select aria-label={t("modelsConfig.selectFallbackModel")} value={candidate} onChange={(event) => setCandidate(event.target.value)} style={{ flex: 1, minWidth: 0, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="">{t("modelsConfig.selectFallbackModel")}</option>{modelOptions.filter((value) => !chain.includes(value)).map((value) => <option key={value} value={value}>{value}</option>)}</select><button type="button" disabled={!candidate} onClick={() => { updateChain([...chain, candidate]); setCandidate(""); }} style={{ padding: "6px 10px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: "pointer", fontSize: 12 }}>{t("modelsConfig.add")}</button></div>
+      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("modelsConfig.fallbackChainFor")}</span><select aria-label={t("modelsConfig.fallbackChainFor")} value={role} onChange={(event) => setRole(event.target.value)} style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{NATIVE_MODEL_ROLES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+      <div style={{ padding: 12, display: "flex", gap: 8 }}><select aria-label={t("modelsConfig.selectFallbackModel")} value={candidate} onChange={(event) => setCandidate(event.target.value)} style={{ flex: 1, minWidth: 0, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="">{t("modelsConfig.selectFallbackModel")}</option>{modelOptions.filter((value) => !chain.includes(value)).map((value) => <option key={value} value={value}>{value}</option>)}</select><button type="button" disabled={!candidate} onClick={() => { updateChain([...chain, candidate]); setCandidate(""); }} style={{ padding: "6px 10px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.add")}</button></div>
       {chain.length === 0 ? (
-        <div style={{ padding: "0 12px 12px", color: "var(--text-dim)", fontSize: 12 }}>{t("modelsConfig.noExplicitChain")}</div>
+        <div style={{ padding: "0 12px 12px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.noExplicitChain")}</div>
       ) : (
         <div style={{ borderTop: "1px solid var(--border)" }}>
           {chain.map((selector, index) => (
-            <div key={selector} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: 12 }}>
+            <div key={selector} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
               <span style={{ width: 18, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>{index + 1}</span>
               <code style={{ flex: 1 }}>{selector}</code>
               <button type="button" aria-label={`Move ${selector} up`} title={`Move ${selector} up`} disabled={index === 0} onClick={() => { const next = [...chain]; const previous = next[index - 1]; next[index - 1] = next[index]; next[index] = previous; updateChain(next); }} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: index === 0 ? "default" : "pointer" }}><ArrowUp size={14} /></button>
@@ -241,7 +241,7 @@ function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
         </div>
       )}
     </section>
-    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: 12 }}>{error}</div>}
+    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</div>}
   </div>;
 }
 
@@ -294,7 +294,7 @@ function NativeRegistryDetail({ models, connectedProviders, onChanged }: { model
     })();
   };
 
-  if (!settings) return <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("modelsConfig.registryLoading")}</div>;
+  if (!settings) return <div style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.registryLoading")}</div>;
   const isReadOnly = settings.registryHasScopedEntries === true;
   const allModelKeys = models.map((model) => `${model.provider}/${model.id}`);
   const allowListEnabled = (settings.enabledModels?.length ?? 0) > 0;
@@ -307,28 +307,28 @@ function NativeRegistryDetail({ models, connectedProviders, onChanged }: { model
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div>
       <SectionTitle>{t("modelsConfig.nativeRegistryTitle")}</SectionTitle>
-      <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>{t("modelsConfig.nativeRegistryDesc")}</p>
+      <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>{t("modelsConfig.nativeRegistryDesc")}</p>
     </div>
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: 12, fontWeight: 600 }}><input type="checkbox" checked={allowListEnabled} disabled={saving || isReadOnly} onChange={(event) => void save({ ...settings, enabledModels: event.target.checked ? allModelKeys : [] })} /> {t("modelsConfig.restrictSelectedModels")}</label>
-      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: 11, lineHeight: 1.45 }}>{allowListEnabled ? t("modelsConfig.uncheckedUnavailable") : t("modelsConfig.allModelsAllowed")}</p>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}><input type="checkbox" checked={allowListEnabled} disabled={saving || isReadOnly} onChange={(event) => void save({ ...settings, enabledModels: event.target.checked ? allModelKeys : [] })} /> {t("modelsConfig.restrictSelectedModels")}</label>
+      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>{allowListEnabled ? t("modelsConfig.uncheckedUnavailable") : t("modelsConfig.allModelsAllowed")}</p>
       {allowListEnabled && <div style={{ maxHeight: 260, overflowY: "auto", borderTop: "1px solid var(--border)" }}>{models.map((model) => {
         const key = `${model.provider}/${model.id}`;
-        return <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", color: "var(--text-muted)", fontSize: 12 }}><input type="checkbox" checked={enabledModels.has(key)} disabled={saving || isReadOnly} onChange={(event) => { const next = new Set(enabledModels); if (event.target.checked) next.add(key); else next.delete(key); void save({ ...settings, enabledModels: [...next] }); }} /><code>{key}</code></label>;
+        return <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}><input type="checkbox" checked={enabledModels.has(key)} disabled={saving || isReadOnly} onChange={(event) => { const next = new Set(enabledModels); if (event.target.checked) next.add(key); else next.delete(key); void save({ ...settings, enabledModels: [...next] }); }} /><code>{key}</code></label>;
       })}</div>}
     </section>
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: 12, fontWeight: 600 }}>{t("modelsConfig.disabledProviders")}</div>
-      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: 11, lineHeight: 1.45 }}>{t("modelsConfig.disabledProvidersDesc")}</p>
-      <div style={{ borderTop: "1px solid var(--border)" }}>{providers.map((provider) => <label key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: 12 }}><input type="checkbox" checked={disabledProviders.has(provider)} disabled={saving || isReadOnly} onChange={(event) => { const next = new Set(disabledProviders); if (event.target.checked) next.add(provider); else next.delete(provider); void save({ ...settings, disabledProviders: [...next] }); }} /><ProviderIcon id={provider} size={14} /><code>{provider}</code></label>)}</div>
+      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("modelsConfig.disabledProviders")}</div>
+      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>{t("modelsConfig.disabledProvidersDesc")}</p>
+      <div style={{ borderTop: "1px solid var(--border)" }}>{providers.map((provider) => <label key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}><input type="checkbox" checked={disabledProviders.has(provider)} disabled={saving || isReadOnly} onChange={(event) => { const next = new Set(disabledProviders); if (event.target.checked) next.add(provider); else next.delete(provider); void save({ ...settings, disabledProviders: [...next] }); }} /><ProviderIcon id={provider} size={14} /><code>{provider}</code></label>)}</div>
     </section>
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: 12, fontWeight: 600 }}>{t("modelsConfig.providerPreference")}</div>
-      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: 11, lineHeight: 1.45 }}>{t("modelsConfig.providerPreferenceDesc")}</p>
-      <div style={{ borderTop: "1px solid var(--border)" }}>{orderedProviders.map((provider, index) => <div key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: 12 }}><ProviderIcon id={provider} size={14} /><code style={{ flex: 1 }}>{provider}</code><button type="button" disabled={saving || isReadOnly || index === 0} onClick={() => { const next = [...orderedProviders]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderUp")} aria-label={t("modelsConfig.moveProviderUp")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowUp size={14} /></button><button type="button" disabled={saving || isReadOnly || index === orderedProviders.length - 1} onClick={() => { const next = [...orderedProviders]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderDown")} aria-label={t("modelsConfig.moveProviderDown")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowDown size={14} /></button></div>)}</div>
+      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("modelsConfig.providerPreference")}</div>
+      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>{t("modelsConfig.providerPreferenceDesc")}</p>
+      <div style={{ borderTop: "1px solid var(--border)" }}>{orderedProviders.map((provider, index) => <div key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}><ProviderIcon id={provider} size={14} /><code style={{ flex: 1 }}>{provider}</code><button type="button" disabled={saving || isReadOnly || index === 0} onClick={() => { const next = [...orderedProviders]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderUp")} aria-label={t("modelsConfig.moveProviderUp")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowUp size={14} /></button><button type="button" disabled={saving || isReadOnly || index === orderedProviders.length - 1} onClick={() => { const next = [...orderedProviders]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderDown")} aria-label={t("modelsConfig.moveProviderDown")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowDown size={14} /></button></div>)}</div>
     </section>
-    {isReadOnly && <div role="status" style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.45 }}>{t("modelsConfig.pathScopedNotice")}</div>}
-    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: 12 }}>{error}</div>}
+    {isReadOnly && <div role="status" style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.45 }}>{t("modelsConfig.pathScopedNotice")}</div>}
+    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</div>}
   </div>;
 }
 
@@ -413,10 +413,10 @@ function ModelRolesDetail({ models }: { models: RuntimeModelEntry[] }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div>
       <SectionTitle>{t("modelsConfig.modelRolesTitle")}</SectionTitle>
-      <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>{t("modelsConfig.modelRolesDesc")}</p>
+      <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>{t("modelsConfig.modelRolesDesc")}</p>
     </div>
-    {loading ? <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("modelsConfig.loadingRoles")}</div> : NATIVE_MODEL_ROLES.map((role) => (
-      <div key={role} className="model-role-row" style={{ display: "grid", gridTemplateColumns: "82px minmax(0, 1fr) minmax(110px, 0.35fr)", alignItems: "center", gap: 10, fontSize: 12 }}>
+    {loading ? <div style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.loadingRoles")}</div> : NATIVE_MODEL_ROLES.map((role) => (
+      <div key={role} className="model-role-row" style={{ display: "grid", gridTemplateColumns: "82px minmax(0, 1fr) minmax(110px, 0.35fr)", alignItems: "center", gap: 10, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
         <code style={{ color: "var(--text-muted)" }}>{role}</code>
         {(() => {
           const raw = roles[role] ?? "";
@@ -428,12 +428,12 @@ function ModelRolesDetail({ models }: { models: RuntimeModelEntry[] }) {
           const model = models.find((item) => `${item.provider}/${item.id}` === modelKey);
           const modelKnown = !modelKey || Boolean(model);
           return <>
-            <select aria-label={`Model override for ${role}`} value={modelKey} onChange={(event) => updateRoleModel(role, event.target.value)} style={{ minWidth: 0, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: 12 }}>
+            <select aria-label={`Model override for ${role}`} value={modelKey} onChange={(event) => updateRoleModel(role, event.target.value)} style={{ minWidth: 0, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
               <option value="">{t("modelsConfig.noOverride")}</option>
               {!modelKnown && <option value={modelKey}>{modelKey} (not currently available)</option>}
               {models.map((item) => <option key={`${item.provider}:${item.id}`} value={`${item.provider}/${item.id}`}>{item.name || item.id} ({item.provider}/{item.id})</option>)}
             </select>
-            <select aria-label={`Thinking level for ${role}`} value={effort} disabled={!model} onChange={(event) => updateRoleThinking(role, event.target.value)} style={{ minWidth: 0, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: 12, opacity: model ? 1 : 0.55 }}>
+            <select aria-label={`Thinking level for ${role}`} value={effort} disabled={!model} onChange={(event) => updateRoleThinking(role, event.target.value)} style={{ minWidth: 0, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", opacity: model ? 1 : 0.55 }}>
               <option value="">{t("modelsConfig.modelDefault")}</option>
               {(model?.thinkingLevels ?? []).filter((level) => level !== "off").map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
@@ -453,8 +453,8 @@ function ModelRolesDetail({ models }: { models: RuntimeModelEntry[] }) {
         })()}
       </div>
     ))}
-    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: 12 }}>{error}</div>}
-    <button type="button" onClick={() => void save()} disabled={loading || saving} style={{ alignSelf: "flex-start", padding: "7px 12px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", cursor: saving ? "wait" : "pointer", fontSize: 12, fontWeight: 600 }}>{saving ? t("modelsConfig.saving") : t("modelsConfig.saveRoles")}</button>
+    {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{error}</div>}
+    <button type="button" onClick={() => void save()} disabled={loading || saving} style={{ alignSelf: "flex-start", padding: "7px 12px", border: "none", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", cursor: saving ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{saving ? t("modelsConfig.saving") : t("modelsConfig.saveRoles")}</button>
   </div>;
 }
 
@@ -487,7 +487,7 @@ function CodeText({ text }: { text: string }) {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{children}</div>;
+  return <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{children}</div>;
 }
 
 function TreeNavButton({ icon: Icon, label, selected, onClick }: { icon: IconComponent; label: string; selected: boolean; onClick: () => void }) {
@@ -499,7 +499,7 @@ function TreeNavButton({ icon: Icon, label, selected, onClick }: { icon: IconCom
         width: "100%", padding: "8px 10px", border: "none", borderRadius: "var(--radius-control)",
         background: selected ? "var(--bg-selected)" : "none",
         color: selected ? "var(--text)" : "var(--text-muted)",
-        cursor: "pointer", fontSize: 12, textAlign: "left", display: "flex", alignItems: "center", gap: 8,
+        cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left", display: "flex", alignItems: "center", gap: 8,
         fontWeight: selected ? 600 : 400,
       }}
     >
@@ -537,7 +537,7 @@ const ENDPOINT_PRESETS: EndpointPreset[] = [
 
 const presetButtonStyle = {
   padding: "4px 8px",
-  fontSize: 11,
+  fontSize: "calc(11px * var(--ui-font-scale, 1))",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-control)",
   background: "var(--bg)",
@@ -672,21 +672,21 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
               <ProviderIcon id={name} size={20} />
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, overflowWrap: "anywhere" }}>
-              <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{name}</div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{hostName}</div>
+              <div style={{ fontSize: "calc(15px * var(--ui-font-scale, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{name}</div>
+              <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{hostName}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {provider.auth === "none" ? (
-              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "var(--bg-subtle)", color: "var(--text-muted)", fontWeight: 500 }}>
+              <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 7px", borderRadius: 4, background: "var(--bg-subtle)", color: "var(--text-muted)", fontWeight: 500 }}>
                 {t("modelsConfig.authNone")}
               </span>
             ) : provider.apiKey ? (
-              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)", fontWeight: 600 }}>
+              <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 7px", borderRadius: 4, background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)", fontWeight: 600 }}>
                 {t("modelsConfig.keySet")}
               </span>
             ) : (
-              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "color-mix(in srgb, var(--status-error) 15%, transparent)", color: "var(--status-error)", fontWeight: 600 }}>
+              <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "2px 7px", borderRadius: 4, background: "color-mix(in srgb, var(--status-error) 15%, transparent)", color: "var(--status-error)", fontWeight: 600 }}>
                 {t("modelsConfig.keyMissing")}
               </span>
             )}
@@ -695,7 +695,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
 
         {/* {t("modelsConfig.quickEndpointPresets")} */}
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 4 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
             Quick Endpoint Presets
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -744,7 +744,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
               borderRadius: "var(--radius-control)",
               color: "var(--on-accent)",
               cursor: "pointer",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               fontWeight: 600,
             }}
           >
@@ -778,7 +778,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
               background: "color-mix(in srgb, var(--accent) 12%, var(--bg-panel))",
               border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
               color: "var(--accent)",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               fontWeight: 600,
               cursor: fetchingModels || !provider.baseUrl ? "not-allowed" : "pointer",
               opacity: fetchingModels || !provider.baseUrl ? 0.6 : 1,
@@ -831,8 +831,8 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
       {/* Danger Zone */}
       <section style={{ padding: "14px 16px", border: "1px solid color-mix(in srgb, var(--status-error) 25%, transparent)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{t("modelsConfig.removeProvider")}</div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{t("modelsConfig.removeProviderDesc", { name })}</div>
+          <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>{t("modelsConfig.removeProvider")}</div>
+          <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginTop: 2 }}>{t("modelsConfig.removeProviderDesc", { name })}</div>
         </div>
         <button
           type="button"
@@ -844,7 +844,7 @@ function ProviderDetail({ name, provider, onChange, onRename, onDelete, takenNam
             borderRadius: "var(--radius-control)",
             color: "var(--status-error)",
             cursor: "pointer",
-            fontSize: 12,
+            fontSize: "calc(12px * var(--ui-font-scale, 1))",
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
@@ -939,7 +939,7 @@ function ThinkingEditor({
 
         const btnBase: React.CSSProperties = {
           padding: "4px 10px",
-          fontSize: 10,
+          fontSize: "calc(10px * var(--ui-font-scale, 1))",
           border: "none",
           cursor: "pointer",
           fontWeight: 400,
@@ -976,7 +976,7 @@ function ThinkingEditor({
             <div style={{ display: "flex", alignItems: "center", gap: 5, width: 68, flexShrink: 0 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, opacity: state === "null" ? 0.3 : 1 }} />
               <span style={{
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 fontFamily: "var(--font-mono)",
                 color: state === "null" ? "var(--text-dim)" : "var(--text-muted)",
                 textDecoration: state === "null" ? "line-through" : "none",
@@ -1022,7 +1022,7 @@ function ThinkingEditor({
                   outline: "none",
                   color: state === "string" ? "var(--text)" : "var(--text-dim)",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
                   padding: "4px 7px",
                   transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
                 }}
@@ -1189,7 +1189,7 @@ function ModelDetail({
                 type="button"
                 onClick={() => set("thinking", undefined)}
                 style={{
-                  fontSize: 10,
+                  fontSize: "calc(10px * var(--ui-font-scale, 1))",
                   padding: "3px 9px",
                   background: "none",
                   border: "1px solid var(--border)",
@@ -1266,7 +1266,7 @@ function ModelDetail({
                 testState.phase === "error" || testState.phase === "success"
                   ? "var(--text)"
                   : "var(--text-muted)",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
@@ -1302,7 +1302,7 @@ function ModelDetail({
                     ? "var(--text-dim)"
                     : "var(--text-muted)",
               cursor: !model.id.trim() || testState.phase === "testing" ? "not-allowed" : "pointer",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1326,7 +1326,7 @@ function ModelDetail({
               borderRadius: "var(--radius-control)",
               color: "var(--accent)",
               cursor: "pointer",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
@@ -1502,7 +1502,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
         <SectionTitle>{t("modelsConfig.subscription")}</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: provider.loggedIn ? "var(--status-success)" : "var(--border)", display: "inline-block" }} />
-          <span style={{ fontSize: 11, color: provider.loggedIn ? "var(--status-success)" : "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: provider.loggedIn ? "var(--status-success)" : "var(--text-dim)" }}>
             {provider.loggedIn ? t("modelsConfig.connected") : t("modelsConfig.notConnected")}
           </span>
         </div>
@@ -1511,16 +1511,16 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
       {/* Status */}
       <div style={{ minHeight: 48 }}>
         {loginState.phase === "idle" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
             {provider.loggedIn ? t("modelsConfig.alreadyConnected") : t("modelsConfig.connectAccount", { name: provider.name })}
           </p>
         )}
         {loginState.phase === "connecting" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{t("modelsConfig.openingBrowser")}</p>
+          <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("modelsConfig.openingBrowser")}</p>
         )}
         {loginState.phase === "select" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {loginState.message}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1528,7 +1528,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
                 <button
                   key={option.id}
                   onClick={() => submitSelection(loginState.token, option.id)}
-                  style={{ padding: "6px 9px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", cursor: "pointer", fontSize: 12, textAlign: "left" }}
+                  style={{ padding: "6px 9px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "left" }}
                 >
                   {option.label}
                 </button>
@@ -1538,13 +1538,13 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
         )}
         {(loginState.phase === "auth" || loginState.phase === "prompt") && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {loginState.phase === "auth"
                 ? t("modelsConfig.completeSignIn")
                 : loginState.message}
             </p>
             {loginState.phase === "auth" && (
-              <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>
                 <a href={loginState.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
                   {t("modelsConfig.browserNotOpened")}
                 </a>
@@ -1557,12 +1557,12 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") submitCode(loginState.token, inputValue); }}
                 placeholder={loginState.phase === "auth" ? "http://localhost:1455/auth/callback?code=…" : (loginState.placeholder ?? t("modelsConfig.enterValue"))}
-                style={{ flex: 1, padding: "6px 9px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", fontSize: 12, outline: "none", fontFamily: "var(--font-mono)", boxSizing: "border-box" }}
+                style={{ flex: 1, padding: "6px 9px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", outline: "none", fontFamily: "var(--font-mono)", boxSizing: "border-box" }}
               />
               <button
                 onClick={() => submitCode(loginState.token, inputValue)}
                 disabled={!inputValue.trim()}
-                style={{ padding: "6px 12px", background: inputValue.trim() ? "var(--accent)" : "var(--bg-panel)", border: "none", borderRadius: 5, color: inputValue.trim() ? "var(--on-accent)" : "var(--text-dim)", cursor: inputValue.trim() ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 600, flexShrink: 0 }}
+                style={{ padding: "6px 12px", background: inputValue.trim() ? "var(--accent)" : "var(--bg-panel)", border: "none", borderRadius: 5, color: inputValue.trim() ? "var(--on-accent)" : "var(--text-dim)", cursor: inputValue.trim() ? "pointer" : "not-allowed", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, flexShrink: 0 }}
               >
                 {t("modelsConfig.submit")}
               </button>
@@ -1571,13 +1571,13 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
         )}
         {loginState.phase === "device_code" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {t("modelsConfig.deviceCodeInstructions")}
             </p>
-            <div style={{ padding: "8px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", fontSize: 16, fontWeight: 700, fontFamily: "var(--font-mono)", letterSpacing: 0 }}>
+            <div style={{ padding: "8px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text)", fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", letterSpacing: 0 }}>
               {loginState.userCode}
             </div>
-            <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>
               <a href={loginState.verificationUri} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
                 {loginState.verificationUri}
               </a>
@@ -1586,13 +1586,13 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
           </div>
         )}
         {loginState.phase === "progress" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{loginState.message}</p>
         )}
         {loginState.phase === "success" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--status-success)" }}>{t("modelsConfig.connectedSuccessfully")}</p>
+          <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-success)" }}>{t("modelsConfig.connectedSuccessfully")}</p>
         )}
         {loginState.phase === "error" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--status-error)" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{loginState.message}</p>
         )}
       </div>
 
@@ -1601,7 +1601,7 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
         {isWorking ? (
           <button
             onClick={() => { eventSourceRef.current?.close(); setLoginState({ phase: "idle" }); }}
-            style={{ padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}
+            style={{ padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
           >
             {t("modelsConfig.cancel")}
           </button>
@@ -1609,14 +1609,14 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
           <>
             <button
               onClick={handleLogin}
-              style={{ padding: "5px 14px", background: "var(--accent)", border: "none", borderRadius: 5, color: "var(--on-accent)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+              style={{ padding: "5px 14px", background: "var(--accent)", border: "none", borderRadius: 5, color: "var(--on-accent)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}
             >
               {provider.loggedIn ? t("modelsConfig.relogin") : t("modelsConfig.login")}
             </button>
             {provider.loggedIn && (
               <button
                 onClick={handleLogout}
-                style={{ padding: "5px 12px", background: "none", border: "1px solid color-mix(in srgb, var(--status-error) 30%, transparent)", borderRadius: 5, color: "var(--status-error)", cursor: "pointer", fontSize: 12 }}
+                style={{ padding: "5px 12px", background: "none", border: "1px solid color-mix(in srgb, var(--status-error) 30%, transparent)", borderRadius: 5, color: "var(--status-error)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
               >
                 {t("modelsConfig.disconnect")}
               </button>
@@ -1640,19 +1640,19 @@ function ApiKeyDetail({ provider }: { provider: ApiKeyProvider }) {
         <SectionTitle>{t("modelsConfig.apiKey")}</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: provider.configured ? "var(--status-success)" : "var(--border)", display: "inline-block" }} />
-          <span style={{ fontSize: 11, color: provider.configured ? "var(--status-success)" : "var(--text-dim)" }}>
+          <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: provider.configured ? "var(--status-success)" : "var(--text-dim)" }}>
             {provider.configured ? t("modelsConfig.configured") : t("modelsConfig.notConfigured")}
           </span>
         </div>
       </div>
 
-      <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.5 }}>
         {provider.configured
           ? tn("modelsConfig.providerConfigured", provider.modelCount, { name: provider.displayName })
           : t("modelsConfig.providerNotConfigured", { name: provider.displayName })}
       </p>
 
-      <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5 }}>
         <CodeText text={t("modelsConfig.apiKeyManageHint")} />
       </p>
     </div>
@@ -1751,7 +1751,7 @@ function AddProviderPicker({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "14px 18px 8px", gap: 8 }}>
-          <DialogTitle style={{ margin: 0, fontSize: 18 }}>{t("modelsConfig.addProvider")}</DialogTitle>
+          <DialogTitle style={{ margin: 0, fontSize: "calc(18px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.addProvider")}</DialogTitle>
           <button
             type="button"
             aria-label={t("modelsConfig.close")}
@@ -1779,7 +1779,7 @@ function AddProviderPicker({
               placeholder={t("modelsConfig.searchProviders")}
               style={{
                 flex: 1, background: "none", border: "none", outline: "none",
-                color: "var(--text)", fontSize: 13, boxSizing: "border-box", minWidth: 0,
+                color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale, 1))", boxSizing: "border-box", minWidth: 0,
               }}
             />
           </div>
@@ -1788,11 +1788,11 @@ function AddProviderPicker({
         {/* Card grid */}
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 14px 14px" }}>
           {totalCount === 0 ? (
-            <div style={{ padding: "20px 0", fontSize: 12, color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.noProvidersMatch")}</div>
+            <div style={{ padding: "20px 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-dim)", textAlign: "center" }}>{t("modelsConfig.noProvidersMatch")}</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 8 }}>
               {showCustom && (
-                <div style={{ gridColumn: "1 / -1", fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.customSection")}</div>
+                <div style={{ gridColumn: "1 / -1", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.customSection")}</div>
               )}
               {showCustom && (
                 <button
@@ -1803,8 +1803,8 @@ function AddProviderPicker({
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg-panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("modelsConfig.openaiAnthropicCompatible")}</div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{t("modelsConfig.customEndpointFormat")}</div>
+                    <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("modelsConfig.openaiAnthropicCompatible")}</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{t("modelsConfig.customEndpointFormat")}</div>
                   </div>
                   <span style={{ width: 26, height: 26, borderRadius: 5, background: "var(--bg-hover)", border: "1px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <Plus size={13} aria-hidden="true" />
@@ -1813,7 +1813,7 @@ function AddProviderPicker({
               )}
 
               {availableOAuth.length > 0 && (
-                <div style={{ gridColumn: "1 / -1", paddingTop: showCustom ? 6 : 0, fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.subscriptions")}</div>
+                <div style={{ gridColumn: "1 / -1", paddingTop: showCustom ? 6 : 0, fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.subscriptions")}</div>
               )}
               {availableOAuth.map((p) => (
                 <button key={p.id} type="button" onClick={() => { onSelectOAuth(p.id); onClose(); }}
@@ -1822,15 +1822,15 @@ function AddProviderPicker({
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg-panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
+                    <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
                   </div>
                   <ProviderIcon id={p.id} size={28} />
                 </button>
               ))}
 
               {availableApiKey.length > 0 && (
-                <div style={{ gridColumn: "1 / -1", paddingTop: availableOAuth.length > 0 ? 6 : 0, fontSize: 10, fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.apiKey")}</div>
+                <div style={{ gridColumn: "1 / -1", paddingTop: availableOAuth.length > 0 ? 6 : 0, fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em" }}>{t("modelsConfig.apiKey")}</div>
               )}
               {availableApiKey.map((p) => (
                 <button key={p.id} type="button" onClick={() => { onSelectApiKey(p.id); onClose(); }}
@@ -1839,8 +1839,8 @@ function AddProviderPicker({
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg-panel)"; }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.displayName}</div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{tn("modelsConfig.modelCount", p.modelCount)}</div>
+                    <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.displayName}</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{tn("modelsConfig.modelCount", p.modelCount)}</div>
                   </div>
                   <ProviderIcon id={p.id} size={28} />
                 </button>
@@ -2264,15 +2264,15 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
                 <SectionTitle>{t("modelsConfig.composerPickerTitle")}</SectionTitle>
-                <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>{t("modelsConfig.composerPickerDesc")}</p>
+                <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>{t("modelsConfig.composerPickerDesc")}</p>
               </div>
               {/* Refresh OMP runtime models */}
               <button type="button" onClick={() => void loadRuntimeModels()} disabled={runtimeModelsLoading} title={t("modelsConfig.refreshRuntimeModels")} style={{ padding: 7, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: runtimeModelsLoading ? "wait" : "pointer", flexShrink: 0 }}><RefreshCw size={14} aria-hidden="true" /></button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-muted)", fontWeight: 600 }}>{t("modelsConfig.modelsVisible", { visible: totalVisible, total: runtimeModels.length })}</span>
-              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>·</span>
-              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{tn("modelsConfig.providerCount", Object.keys(runtimeModelsByProvider).length)}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", padding: "3px 8px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-muted)", fontWeight: 600 }}>{t("modelsConfig.modelsVisible", { visible: totalVisible, total: runtimeModels.length })}</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>·</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{tn("modelsConfig.providerCount", Object.keys(runtimeModelsByProvider).length)}</span>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", cursor: "text" }}>
               <Search size={14} aria-hidden="true" style={{ color: "var(--text-dim)", flexShrink: 0 }} />
@@ -2280,15 +2280,15 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                 value={composerPickerSearch}
                 onChange={(e) => setComposerPickerSearch(e.target.value)}
                 placeholder={t("modelsConfig.filterModelsPlaceholder")}
-                style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: "var(--text)", fontSize: 12 }}
+                style={{ flex: 1, minWidth: 0, background: "none", border: "none", outline: "none", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
               />
               {composerPickerSearch && (
-                <button type="button" onClick={() => setComposerPickerSearch("")} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }} aria-label={t("modelsConfig.clearFilter")}>×</button>
+                <button type="button" onClick={() => setComposerPickerSearch("")} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "calc(16px * var(--ui-font-scale, 1))", lineHeight: 1, padding: "0 2px" }} aria-label={t("modelsConfig.clearFilter")}>×</button>
               )}
             </label>
           </div>
-          {runtimeModelsLoading ? <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("modelsConfig.loadingRuntimeModels")}</div> : filteredProviders.length === 0 ? (
-            <div style={{ padding: "24px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text-dim)", fontSize: 12, textAlign: "center" }}>
+          {runtimeModelsLoading ? <div style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.loadingRuntimeModels")}</div> : filteredProviders.length === 0 ? (
+            <div style={{ padding: "24px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "center" }}>
               {pickerQuery ? t("modelsConfig.noModelsMatch", { query: composerPickerSearch }) : t("modelsConfig.noReportedModels")}
             </div>
           ) : filteredProviders.map(([provider, models]) => {
@@ -2299,21 +2299,21 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             const isCollapsed = collapsedProviderGroups.picker.includes(provider) && !pickerQuery;
             const regionId = `composer-provider-models-${provider.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
             return <section key={provider} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg-panel)", boxShadow: "var(--shadow-card)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", background: "var(--bg)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)", color: "var(--text)", fontSize: 12, fontWeight: 700 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", background: "var(--bg)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700 }}>
                 <input type="checkbox" checked={providerVisible} ref={(input) => { if (input) input.indeterminate = providerSomeVisible && !providerVisible; }} onChange={(event) => setComposerProviderVisible(provider, event.target.checked)} aria-label={`Show all ${provider} models in composer`} />
                 <button type="button" onClick={() => toggleProviderCollapse("picker", provider)} aria-expanded={!isCollapsed} aria-controls={regionId} title={`${isCollapsed ? "Expand" : "Collapse"} ${provider}`} style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 7, padding: "3px 0", border: "none", background: "transparent", color: "inherit", cursor: "pointer", font: "inherit", textAlign: "left" }}>
                   <ChevronRight size={13} aria-hidden="true" style={{ color: "var(--text-dim)", flexShrink: 0, transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
                   <ProviderIcon id={provider} size={15} />
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider}</span>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 10, background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>{models.length}</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 500, padding: "2px 7px", borderRadius: 10, background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>{models.length}</span>
                 </button>
               </div>
               {!isCollapsed && <div id={regionId} style={{ display: "flex", flexDirection: "column" }}>
                 {models.map((model) => (
                   <label key={`${model.provider}:${model.id}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", color: "var(--text)", cursor: "pointer", borderTop: "1px solid var(--border)", background: visibleModelKeys !== null && !visibleModelKeys.has(`${model.provider}:${model.id}`) ? "var(--bg)" : "var(--bg-panel)" }}>
                     <input type="checkbox" checked={visibleModelKeys === null || visibleModelKeys.has(`${model.provider}:${model.id}`)} onChange={(event) => setComposerModelVisible(model, event.target.checked)} aria-label={`Show ${model.provider}/${model.id} in composer`} />
-                    <span style={{ minWidth: 0, flex: 1, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{model.name || model.id}</span>
-                    <code style={{ color: "var(--text-dim)", fontSize: 11, fontFamily: "var(--font-mono)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{model.provider}/{model.id}</code>
+                    <span style={{ minWidth: 0, flex: 1, fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{model.name || model.id}</span>
+                    <code style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{model.provider}/{model.id}</code>
                   </label>
                 ))}
               </div>}
@@ -2321,9 +2321,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
           })}
           {!runtimeModelsLoading && connectedProviders.filter((provider) => !runtimeModelsByProvider[provider.id]).map((provider) => (
             <section key={provider.id} style={{ border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", padding: 14, background: "var(--bg-panel)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text)", fontSize: 12, fontWeight: 600 }}><ProviderIcon id={provider.id} size={15} />{provider.name}</div>
-              <p style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.5 }}>{provider.disabled ? t("modelsConfig.connectedDisabledDesc") : t("modelsConfig.connectedNoModelsDesc")}</p>
-              {provider.disabled && <button type="button" onClick={() => void enableConnectedProvider(provider.id).catch((error) => toast.error(t("modelsConfig.couldNotEnableProvider"), error instanceof Error ? error.message : String(error)))} style={{ marginTop: 10, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: 12 }}>{t("modelsConfig.enableInOmp")}</button>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600 }}><ProviderIcon id={provider.id} size={15} />{provider.name}</div>
+              <p style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>{provider.disabled ? t("modelsConfig.connectedDisabledDesc") : t("modelsConfig.connectedNoModelsDesc")}</p>
+              {provider.disabled && <button type="button" onClick={() => void enableConnectedProvider(provider.id).catch((error) => toast.error(t("modelsConfig.couldNotEnableProvider"), error instanceof Error ? error.message : String(error)))} style={{ marginTop: 10, padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("modelsConfig.enableInOmp")}</button>}
             </section>
           ))}
         </div>
@@ -2366,28 +2366,28 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
         {/* Header */}
         {!embedded && (<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <DialogTitle style={{ fontSize: 16, margin: 0 }}>{t("modelsConfig.title")}</DialogTitle>
-            <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>~/.omp/agent/models.yml</code>
+            <DialogTitle style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", margin: 0 }}>{t("modelsConfig.title")}</DialogTitle>
+            <code style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>~/.omp/agent/models.yml</code>
           </div>
-          <button onClick={onClose} aria-label={t("modelsConfig.close")} title={t("modelsConfig.close")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+          <button onClick={onClose} aria-label={t("modelsConfig.close")} title={t("modelsConfig.close")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
         </div>)}
         {!embedded && onSelectTab && <SettingsTabs active="models" onSelect={onSelectTab} />}
 
         {/* Body */}
         {parseError ? (
           <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--status-error)" }}>{t("modelsConfig.parseErrorTitle")}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>{t("modelsConfig.parseErrorBody")}</div>
+            <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--status-error)" }}>{t("modelsConfig.parseErrorTitle")}</div>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.6 }}>{t("modelsConfig.parseErrorBody")}</div>
             {parseError.path && (
-              <code style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", wordBreak: "break-all" }}>{parseError.path}</code>
+              <code style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)", wordBreak: "break-all" }}>{parseError.path}</code>
             )}
             <pre style={{
               margin: 0, padding: "10px 12px", background: "var(--bg-panel)", border: "1px solid var(--border)",
-              borderRadius: 6, color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)",
+              borderRadius: 6, color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)",
               whiteSpace: "pre-wrap", wordBreak: "break-word", overflowX: "auto",
             }}>{parseError.message}</pre>
             <button onClick={loadConfig} disabled={loading}
-              style={{ alignSelf: "flex-start", padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: loading ? "default" : "pointer", fontSize: 12 }}>
+              style={{ alignSelf: "flex-start", padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: loading ? "default" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
               {loading ? t("modelsConfig.loading") : t("modelsConfig.reload")}
             </button>
           </div>
@@ -2405,7 +2405,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 8px", display: "flex", flexDirection: "column", gap: 14 }}>
               {/* — OMP System — */}
               <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 6px", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 6px", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)" }}>
                   <Layers size={10} aria-hidden="true" style={{ opacity: 0.7 }} /> {t("modelsConfig.ompSystemSection")}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: 4, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)" }}>
@@ -2419,18 +2419,18 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
               {/* — Connected accounts — */}
               <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)" }}>
                     <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: activeOAuth.length + activeApiKey.length > 0 ? "var(--status-success)" : "var(--border)", flexShrink: 0 }} />
                     {t("modelsConfig.connectedAccounts")}
                   </div>
                   {(activeOAuth.length + activeApiKey.length) > 0 && (
-                    <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-dim)", fontWeight: 600 }}>
+                    <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", padding: "1px 6px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-dim)", fontWeight: 600 }}>
                       {activeOAuth.length + activeApiKey.length}
                     </span>
                   )}
                 </div>
                 {(activeOAuth.length === 0 && activeApiKey.length === 0) ? (
-                  <div style={{ padding: "10px 10px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)", color: "var(--text-dim)", fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>
+                  <div style={{ padding: "10px 10px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.5, textAlign: "center" }}>
                     {t("modelsConfig.noConnectedAccounts")}
                     <br />
                     <span style={{ color: "var(--text-muted)" }}>{t("modelsConfig.addOneBelow")}</span>
@@ -2448,8 +2448,8 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                           {...hoverRow(isSelected)}
                         >
                           <ProviderIcon id={p.id} size={16} />
-                          <span style={{ fontSize: 12, color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                          <span title={t("modelsConfig.oauthProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: 9, fontWeight: 600, flexShrink: 0 }}>OAuth</span>
+                          <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                          <span title={t("modelsConfig.oauthProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale, 1))", fontWeight: 600, flexShrink: 0 }}>OAuth</span>
                         </button>
                       );
                     })}
@@ -2464,8 +2464,8 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                           {...hoverRow(isSelected)}
                         >
                           <ProviderIcon id={p.id} size={16} />
-                          <span style={{ fontSize: 12, color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.displayName}</span>
-                          <span title={t("modelsConfig.apiKeyProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: 9, fontWeight: 600, flexShrink: 0 }}>API key</span>
+                          <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.displayName}</span>
+                          <span title={t("modelsConfig.apiKeyProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale, 1))", fontWeight: 600, flexShrink: 0 }}>API key</span>
                         </button>
                       );
                     })}
@@ -2476,15 +2476,15 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
               {/* — Custom providers (models.yml) — */}
               <section style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minHeight: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 6px" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                     {t("modelsConfig.customProviders")}
                   </div>
-                  <code style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>models.yml</code>
+                  <code style={{ fontSize: "calc(9px * var(--ui-font-scale, 1))", padding: "1px 5px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>models.yml</code>
                 </div>
                 {loading ? (
-                  <div style={{ padding: "10px 8px", fontSize: 12, color: "var(--text-muted)" }}>{t("modelsConfig.loading")}</div>
+                  <div style={{ padding: "10px 8px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("modelsConfig.loading")}</div>
                 ) : providers.length === 0 ? (
-                  <div style={{ padding: "12px 10px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)", color: "var(--text-dim)", fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>
+                  <div style={{ padding: "12px 10px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.5, textAlign: "center" }}>
                     {t("modelsConfig.noCustomProviders")}
                     <br />
                     <span style={{ color: "var(--text-muted)" }}>{t("modelsConfig.addOpenAiEndpoint")}</span>
@@ -2511,10 +2511,10 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                           >
                             <ChevronRight size={13} aria-hidden="true" style={{ color: "var(--text-dim)", flexShrink: 0, transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
                             <ProviderIcon id={pName} size={15} />
-                            <span style={{ fontSize: 12, fontWeight: isProviderSelected ? 700 : 600, color: "var(--text)", fontFamily: "var(--font-mono)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: isProviderSelected ? 700 : 600, color: "var(--text)", fontFamily: "var(--font-mono)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {pName}
                             </span>
-                            <span style={{ fontSize: 10, color: isProviderSelected ? "var(--accent)" : "var(--text-dim)", padding: "2px 6px", borderRadius: 10, background: isProviderSelected ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "var(--bg-subtle)", border: `1px solid ${isProviderSelected ? "color-mix(in srgb, var(--accent) 22%, transparent)" : "var(--border)"}`, fontWeight: 600 }}>
+                            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: isProviderSelected ? "var(--accent)" : "var(--text-dim)", padding: "2px 6px", borderRadius: 10, background: isProviderSelected ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "var(--bg-subtle)", border: `1px solid ${isProviderSelected ? "color-mix(in srgb, var(--accent) 22%, transparent)" : "var(--border)"}`, fontWeight: 600 }}>
                               {models.length} model{models.length === 1 ? "" : "s"}
                             </span>
                           </button>
@@ -2531,11 +2531,11 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px 6px 32px", cursor: "pointer", width: "100%", border: "none", textAlign: "left", fontFamily: "inherit", background: isModelSelected ? "var(--bg-selected)" : "transparent", borderLeft: isModelSelected ? "2px solid var(--accent)" : "2px solid transparent", borderTop: "1px solid var(--border)" }}
                                 {...hoverRow(isModelSelected)}
                               >
-                                <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: m.id ? (isModelSelected ? "var(--text)" : "var(--text-muted)") : "var(--text-dim)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: isModelSelected ? 600 : 400 }}>
+                                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)", color: m.id ? (isModelSelected ? "var(--text)" : "var(--text-muted)") : "var(--text-dim)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: isModelSelected ? 600 : 400 }}>
                                   {m.id || t("modelsConfig.newModel")}
                                 </span>
                                 {m.reasoning && (
-                                  <span style={{ fontSize: 9, padding: "1px 4px", background: isModelSelected ? "var(--accent)" : "color-mix(in srgb, var(--accent) 14%, transparent)", color: isModelSelected ? "var(--on-accent)" : "var(--accent)", borderRadius: 3, flexShrink: 0, fontWeight: 700 }}>T</span>
+                                  <span style={{ fontSize: "calc(9px * var(--ui-font-scale, 1))", padding: "1px 4px", background: isModelSelected ? "var(--accent)" : "color-mix(in srgb, var(--accent) 14%, transparent)", color: isModelSelected ? "var(--on-accent)" : "var(--accent)", borderRadius: 3, flexShrink: 0, fontWeight: 700 }}>T</span>
                                 )}
                               </button>
                             );
@@ -2546,7 +2546,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); addModel(pName); }}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: "var(--radius-control)", cursor: "pointer", color: "var(--text-muted)", border: "1px solid var(--border)", background: "var(--bg)", fontFamily: "inherit", fontSize: 11, whiteSpace: "nowrap", flexShrink: 0, fontWeight: 500 }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: "var(--radius-control)", cursor: "pointer", color: "var(--text-muted)", border: "1px solid var(--border)", background: "var(--bg)", fontFamily: "inherit", fontSize: "calc(11px * var(--ui-font-scale, 1))", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 500 }}
                               {...hoverAccent}
                             >
                               <Plus size={11} aria-hidden="true" />
@@ -2555,7 +2555,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); setCatalogPicker(pName); }}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: "var(--radius-control)", cursor: "pointer", color: "var(--text-muted)", border: "1px solid var(--border)", background: "var(--bg)", fontFamily: "inherit", fontSize: 11, whiteSpace: "nowrap", flexShrink: 0, fontWeight: 500 }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: "var(--radius-control)", cursor: "pointer", color: "var(--text-muted)", border: "1px solid var(--border)", background: "var(--bg)", fontFamily: "inherit", fontSize: "calc(11px * var(--ui-font-scale, 1))", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 500 }}
                               {...hoverAccent}
                             >
                               <BookOpen size={11} aria-hidden="true" />
@@ -2576,7 +2576,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
               <button onClick={() => setPickerOpen(true)} style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 width: "100%", padding: "8px 0", background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)",
-                color: "var(--on-accent)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                color: "var(--on-accent)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600,
               }}
                 onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.05)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
@@ -2594,7 +2594,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                 <div className="skeleton" style={{ height: 90, width: "100%" }} />
               </div>
             ) : detailContent ?? (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 13 }}>
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
                 {t("modelsConfig.selectProviderOrModel")}
               </div>
             )}
@@ -2604,8 +2604,8 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
 
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, padding: "10px 18px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
-          {saveError && <span style={{ fontSize: 12, color: "var(--status-error)", flex: 1 }}>{saveError}</span>}
-          <button onClick={onClose} style={{ padding: "6px 14px", background: "none", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>
+          {saveError && <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-error)", flex: 1 }}>{saveError}</span>}
+          <button onClick={onClose} style={{ padding: "6px 14px", background: "none", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(13px * var(--ui-font-scale, 1))" }}>
             {t("modelsConfig.cancel")}
           </button>
           <button onClick={handleSave} disabled={saving || savedOk || parseError !== null} style={{
@@ -2615,7 +2615,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             background: savedOk ? "var(--status-success)" : (saving || parseError) ? "var(--bg-panel)" : "var(--accent)",
             border: "none", borderRadius: 6,
             color: savedOk ? "var(--on-accent)" : (saving || parseError) ? "var(--text-muted)" : "var(--on-accent)",
-            cursor: (saving || savedOk || parseError) ? "default" : "pointer", fontSize: 13, fontWeight: 600,
+            cursor: (saving || savedOk || parseError) ? "default" : "pointer", fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600,
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
             transition: "background-color var(--dur-med) var(--ease-out-warm), color var(--dur-med) var(--ease-out-warm)",
             animation: savedOk ? "saved-pop var(--dur-theme) var(--ease-out-warm)" : undefined,

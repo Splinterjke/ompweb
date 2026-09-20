@@ -17,7 +17,7 @@ import { useI18n } from "@/lib/i18n";
 export function ThemePicker() {
   const { preference, setTheme } = useTheme();
   const { motionPrefs, setMotionPrefs } = useMotionPrefs();
-  const { fontPreset, chatFontSize, setFontPreset, setChatFontSize } = useTypography();
+  const { fontPreset, chatFontSize, uiFontScale, setFontPreset, setChatFontSize, setUiFontScale } = useTypography();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"static" | "flowing" | "custom" | "motion" | "typography">("static");
@@ -126,10 +126,10 @@ export function ThemePicker() {
               marginBottom: 8,
             }}
           >
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
               {t("appShell.themePalette") || "Visual Center · Themes & Typography"}
             </span>
-            <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
               {preference.toUpperCase()} · {chatFontSize}px
             </span>
           </div>
@@ -152,7 +152,7 @@ export function ThemePicker() {
               onClick={() => setActiveTab("static")}
               style={{
                 padding: "4px 0",
-                fontSize: 10.5,
+                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 border: "none",
                 borderRadius: 6,
@@ -172,7 +172,7 @@ export function ThemePicker() {
                 justifyContent: "center",
                 gap: 2,
                 padding: "4px 0",
-                fontSize: 10.5,
+                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 border: "none",
                 borderRadius: 6,
@@ -193,7 +193,7 @@ export function ThemePicker() {
                 justifyContent: "center",
                 gap: 2,
                 padding: "4px 0",
-                fontSize: 10.5,
+                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 border: "none",
                 borderRadius: 6,
@@ -214,7 +214,7 @@ export function ThemePicker() {
                 justifyContent: "center",
                 gap: 2,
                 padding: "4px 0",
-                fontSize: 10.5,
+                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 border: "none",
                 borderRadius: 6,
@@ -235,7 +235,7 @@ export function ThemePicker() {
                 justifyContent: "center",
                 gap: 2,
                 padding: "4px 0",
-                fontSize: 10.5,
+                fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 border: "none",
                 borderRadius: 6,
@@ -269,7 +269,7 @@ export function ThemePicker() {
                       justifyContent: "space-between",
                       padding: "6px 8px",
                       borderRadius: 6,
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       border: "none",
                       cursor: "pointer",
                       textAlign: "left",
@@ -300,7 +300,7 @@ export function ThemePicker() {
           {/* 2. Flowing Animated Gradients */}
           {activeTab === "flowing" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 11, color: "var(--text-dim)", padding: "2px 6px" }}>
+              <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", padding: "2px 6px" }}>
                 Dynamic flowing gradients · breathing flow
               </div>
               {flowingThemes.map((opt) => {
@@ -320,7 +320,7 @@ export function ThemePicker() {
                       justifyContent: "space-between",
                       padding: "7px 10px",
                       borderRadius: 8,
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       border: "1px solid color-mix(in srgb, var(--border) 60%, transparent)",
                       cursor: "pointer",
                       textAlign: "left",
@@ -353,7 +353,7 @@ export function ThemePicker() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px", maxHeight: 360, overflowY: "auto" }}>
               {/* Inspiration Presets */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Inspiration Presets
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
@@ -382,7 +382,7 @@ export function ThemePicker() {
                           border: `1px solid ${isCurrent ? "var(--accent)" : "color-mix(in srgb, var(--border) 60%, transparent)"}`,
                           background: isCurrent ? "color-mix(in srgb, var(--accent) 15%, var(--bg))" : "var(--bg)",
                           color: isCurrent ? "var(--accent)" : "var(--text)",
-                          fontSize: 11,
+                          fontSize: "calc(11px * var(--ui-font-scale, 1))",
                           fontWeight: 500,
                           cursor: "pointer",
                           textAlign: "left",
@@ -409,7 +409,7 @@ export function ThemePicker() {
 
               {/* Mode toggle */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Render Mode
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -422,7 +422,7 @@ export function ThemePicker() {
                       justifyContent: "center",
                       gap: 4,
                       padding: "6px 0",
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       borderRadius: 6,
                       border: `1.5px solid ${customConfig.mode === "static" ? "var(--accent)" : "var(--border)"}`,
@@ -443,7 +443,7 @@ export function ThemePicker() {
                       justifyContent: "center",
                       gap: 4,
                       padding: "6px 0",
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       borderRadius: 6,
                       border: `1.5px solid ${customConfig.mode === "flow" ? "var(--accent)" : "var(--border)"}`,
@@ -461,7 +461,7 @@ export function ThemePicker() {
 
               {/* Accent Color */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Accent Color
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -491,7 +491,7 @@ export function ThemePicker() {
                       border: "1px solid var(--border)",
                       background: "var(--bg)",
                       color: "var(--text)",
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       fontFamily: "var(--font-mono)",
                     }}
                   />
@@ -522,7 +522,7 @@ export function ThemePicker() {
 
               {/* Background Color */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Background Color
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -552,7 +552,7 @@ export function ThemePicker() {
                       border: "1px solid var(--border)",
                       background: "var(--bg)",
                       color: "var(--text)",
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       fontFamily: "var(--font-mono)",
                     }}
                   />
@@ -586,7 +586,7 @@ export function ThemePicker() {
 
               {/* Dark / Light Toggle */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Base Tone
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
@@ -599,7 +599,7 @@ export function ThemePicker() {
                       justifyContent: "center",
                       gap: 4,
                       padding: "5px 0",
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       borderRadius: 6,
                       border: `1px solid ${!customConfig.isDark ? "var(--accent)" : "var(--border)"}`,
@@ -620,7 +620,7 @@ export function ThemePicker() {
                       justifyContent: "center",
                       gap: 4,
                       padding: "5px 0",
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       borderRadius: 6,
                       border: `1px solid ${customConfig.isDark ? "var(--accent)" : "var(--border)"}`,
@@ -637,12 +637,12 @@ export function ThemePicker() {
 
               {/* OMP Letters Color Fine-Tuning */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   OMP Loader Colors
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--omp-o, var(--accent))" }}>o:</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--omp-o, var(--accent))" }}>o:</span>
                     <input
                       type="color"
                       value={customConfig.ompO || customConfig.accent}
@@ -651,7 +651,7 @@ export function ThemePicker() {
                     />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--omp-m, #F59E0B)" }}>m:</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--omp-m, #F59E0B)" }}>m:</span>
                     <input
                       type="color"
                       value={customConfig.ompM || "#F59E0B"}
@@ -660,7 +660,7 @@ export function ThemePicker() {
                     />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--omp-p, #38BDF8)" }}>p:</span>
+                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--omp-p, #38BDF8)" }}>p:</span>
                     <input
                       type="color"
                       value={customConfig.ompP || "#38BDF8"}
@@ -689,8 +689,8 @@ export function ThemePicker() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text)" }}>Global Motion</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Enable or disable all UI motion</div>
+                  <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>Global Motion</div>
+                  <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Enable or disable all UI motion</div>
                 </div>
                 <button
                   type="button"
@@ -734,8 +734,8 @@ export function ThemePicker() {
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                   <div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text)" }}>Chat Border Beam</div>
-                    <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Clockwise beam along the input border while chatting</div>
+                    <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>Chat Border Beam</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Clockwise beam along the input border while chatting</div>
                   </div>
                   <button
                     type="button"
@@ -771,7 +771,7 @@ export function ThemePicker() {
                 {/* Flow speed control */}
                 {motionPrefs.enabled && motionPrefs.chatBorderBeam && (
                   <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid color-mix(in srgb, var(--border) 60%, transparent)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-dim)", marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginBottom: 4 }}>
                       <span>Beam Speed</span>
                       <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: 600 }}>{motionPrefs.beamSpeed} s/cycle</span>
                     </div>
@@ -788,7 +788,7 @@ export function ThemePicker() {
                           onClick={() => setMotionPrefs({ beamSpeed: s.speed })}
                           style={{
                             padding: "3px 0",
-                            fontSize: 10,
+                            fontSize: "calc(10px * var(--ui-font-scale, 1))",
                             fontWeight: motionPrefs.beamSpeed === s.speed ? 700 : 500,
                             borderRadius: 4,
                             border: `1px solid ${motionPrefs.beamSpeed === s.speed ? "var(--accent)" : "var(--border)"}`,
@@ -819,8 +819,8 @@ export function ThemePicker() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text)" }}>OMP Loader Jump</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)" }}>o·m·p letters jump in a loop while waiting</div>
+                  <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>OMP Loader Jump</div>
+                  <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>o·m·p letters jump in a loop while waiting</div>
                 </div>
                 <button
                   type="button"
@@ -867,8 +867,8 @@ export function ThemePicker() {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text)" }}>Thinking Pulse</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Pulse on the reasoning icon during deep thinking</div>
+                  <div style={{ fontSize: "calc(11.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>Thinking Pulse</div>
+                  <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Pulse on the reasoning icon during deep thinking</div>
                 </div>
                 <button
                   type="button"
@@ -907,7 +907,7 @@ export function ThemePicker() {
           {activeTab === "typography" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 2px" }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", marginBottom: 6 }}>
                   Font Family
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -932,10 +932,10 @@ export function ThemePicker() {
                         }}
                       >
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: preset.fontFamily }}>
+                          <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, fontFamily: preset.fontFamily }}>
                             {preset.name}
                           </span>
-                          <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
+                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                             {preset.description}
                           </span>
                         </div>
@@ -949,10 +949,10 @@ export function ThemePicker() {
               {/* Chat font size adjuster */}
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
                     Chat Font Size
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
                     {chatFontSize} px
                   </span>
                 </div>
@@ -989,10 +989,60 @@ export function ThemePicker() {
                     <Plus size={12} />
                   </button>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "var(--text-dim)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                   <span>Compact (12px)</span>
                   <span>Standard (14px)</span>
                   <span>Large (20px)</span>
+                </div>
+              </div>
+
+              {/* UI Font Scale: scales the app's UI font sizes + icons, never
+                  the transcript (which stays on the Chat Font Size scale). */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
+                    UI Font Scale
+                  </span>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
+                    {Math.round(uiFontScale * 100)}%
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setUiFontScale(Math.max(1, Math.round((uiFontScale - 0.05) * 100) / 100))}
+                    disabled={uiFontScale <= 1}
+                    className="shell-toolbar-btn ui-focus-ring"
+                    style={{ width: 26, height: 26, borderRadius: 6 }}
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <input
+                    type="range"
+                    min={1}
+                    max={1.3}
+                    step={0.05}
+                    value={uiFontScale}
+                    onChange={(e) => setUiFontScale(Number(e.target.value))}
+                    style={{
+                      flex: 1,
+                      accentColor: "var(--accent)",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setUiFontScale(Math.min(1.3, Math.round((uiFontScale + 0.05) * 100) / 100))}
+                    disabled={uiFontScale >= 1.3}
+                    className="shell-toolbar-btn ui-focus-ring"
+                    style={{ width: 26, height: 26, borderRadius: 6 }}
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
+                  <span>Default (100%)</span>
+                  <span>Large (130%)</span>
                 </div>
               </div>
             </div>

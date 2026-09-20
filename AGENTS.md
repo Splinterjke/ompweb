@@ -452,10 +452,15 @@ handled or safely ignored.
   `spawn` sets `cwd: path.dirname(script)`.
 
 ### Chat event actions (`lib/chat-event-action*.ts`, `/api/chat-event-actions`)
-- Named actions fired on 7 chat lifecycle events (`thinking_completed`, `assistant_text`,
-  `subagent_completed`, `user_prompt_sent`, `conversation_completed`,
-  `conversation_interrupted`, `provider_api_error`). Action types: `notification`,
+- Named actions fired on 8 chat lifecycle events (`conversation_completed`,
+  `conversation_interrupted`, `assistant_text`, `thinking_completed`,
+  `subagent_completed`, `user_prompt_sent`, `provider_api_error`,
+  `task_completed`). Action types: `notification`,
   `http`, `bash`, `scheduled` (triggers a manual script scheduler).
+  `task_completed` fires when the agent's `todo` tool transitions at least one
+  task to `completed` (detected by diffing `get_state.todoPhases` snapshots in
+  `lib/todo-completion.ts` — the tool arguments are stringified JSON and the
+  `tool_execution_end` frame carries none).
 - Persistence mirrors the scheduler store: atomic temp-file + rename at
   `~/.omp/agent/chat-event-actions.json`. `loadActionsForEvent(type)` is cached on
   `globalThis.__ompChatActionCache` and invalidated on every save — a new action must

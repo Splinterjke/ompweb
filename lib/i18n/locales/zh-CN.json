@@ -1824,6 +1824,7 @@
   "chatActions.event.conversation_completed": "会话完成",
   "chatActions.event.conversation_interrupted": "会话被中断",
   "chatActions.event.provider_api_error": "提供方 API 错误",
+  "chatActions.event.task_completed": "任务完成",
   "chatActions.action": "动作",
   "chatActions.action.notification": "浏览器通知",
   "chatActions.action.http": "HTTP 请求",

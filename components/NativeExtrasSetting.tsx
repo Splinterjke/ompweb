@@ -19,7 +19,7 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 12,
+  fontSize: "calc(12px * var(--ui-font-scale, 1))",
 };
 
 const cardStyle: React.CSSProperties = {
@@ -41,12 +41,12 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{t("settingsConfig.internalSettings")}</div>
-      <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>{t("settingsConfig.internalSettingsDesc")}</p>
+      <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.internalSettings")}</div>
+      <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("settingsConfig.internalSettingsDesc")}</p>
 
       {/* Feature toggles */}
       <div style={cardStyle}>
-        <span style={{ fontSize: 12.5, fontWeight: 600 }}>{t("settingsConfig.featureToggles")}</span>
+        <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.featureToggles")}</span>
         <Check checked={settings.generateImage?.enabled ?? true} onChange={(v) => onPatchSection("generateImage", { enabled: v })} label={t("settingsConfig.generateImageEnabled")} />
         <Check checked={settings.computer?.enabled ?? true} onChange={(v) => onPatchSection("computer", { enabled: v })} label={t("settingsConfig.computerEnabled")} />
         <Check checked={settings.security?.enabled ?? false} onChange={(v) => onPatchSection("security", { enabled: v })} label={t("settingsConfig.securityEnabled")} />
@@ -55,7 +55,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
         <Check checked={settings.contextPromotion?.enabled ?? false} onChange={(v) => onPatchSection("contextPromotion", { enabled: v })} label={t("settingsConfig.contextPromotionEnabled")} />
         <Check checked={settings.snapcompact?.toolResults ?? false} onChange={(v) => onPatchSection("snapcompact", { toolResults: v })} label={t("settingsConfig.snapcompactToolResults")} />
         <Check checked={settings.bash?.autoBackground?.enabled ?? true} onChange={(v) => onPatchSection("bash", { autoBackground: { enabled: v } })} label={t("settingsConfig.bashAutoBackgroundEnabled")} />
-        <span style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>{t("settingsConfig.skillCompat")}</span>
+        <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", marginTop: 2 }}>{t("settingsConfig.skillCompat")}</span>
         <Check checked={settings.skills?.enableCodexUser ?? false} onChange={(v) => onPatchSection("skills", { enableCodexUser: v })} label={t("settingsConfig.enableCodexUser")} />
         <Check checked={settings.skills?.enableAgentsUser ?? false} onChange={(v) => onPatchSection("skills", { enableAgentsUser: v })} label={t("settingsConfig.enableAgentsUser")} />
         <Check checked={settings.skills?.enableClaudeUser ?? false} onChange={(v) => onPatchSection("skills", { enableClaudeUser: v })} label={t("settingsConfig.enableClaudeUser")} />
@@ -64,8 +64,8 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
 
       {/* Advanced strings */}
       <div style={cardStyle}>
-        <span style={{ fontSize: 12.5, fontWeight: 600 }}>{t("settingsConfig.advancedStrings")}</span>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.advancedStrings")}</span>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.memoryModel")}
           <input
             type="text"
@@ -78,7 +78,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
             style={inputStyle}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.webSearchOrder")}
           <input
             type="text"
@@ -92,7 +92,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
             style={inputStyle}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.editMode")}
           <input
             type="text"
@@ -105,7 +105,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
             style={inputStyle}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.composerShape")}
           <input
             type="text"
@@ -118,7 +118,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
             style={inputStyle}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.autoqaConsent")}
           <input
             type="text"
@@ -131,7 +131,7 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
             style={inputStyle}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.symbolPreset")}
           <input
             type="text"

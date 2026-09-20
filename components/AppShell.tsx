@@ -99,7 +99,7 @@ const CommandPalette = dynamic(() => import("./CommandPalette").then((m) => m.Co
 function PanelLoadingFallback() {
   const { t } = useI18n();
   return (
-    <div role="status" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 12 }}>
+    <div role="status" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
       {t("appShell.loading")}
     </div>
   );
@@ -120,7 +120,7 @@ function UpdateToast({ currentVersion, availableVersion, command, onOpenSettings
           type="button"
           onClick={onOpenSettings}
           aria-label={t("appShell.updateOpenSettings")}
-          style={{ padding: "3px 9px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+          style={{ padding: "3px 9px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600 }}
         >
           {command}
         </button>
@@ -1496,11 +1496,11 @@ export function AppShell() {
       {/* Center: chat */}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
         {ompMissing && !ompMissingDismissed && (
-          <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", background: "color-mix(in srgb, var(--status-warning) 12%, var(--bg-panel))", borderBottom: "1px solid color-mix(in srgb, var(--status-warning) 35%, var(--border))", fontSize: 12, color: "var(--text)", flexShrink: 0 }}>
+          <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", background: "color-mix(in srgb, var(--status-warning) 12%, var(--bg-panel))", borderBottom: "1px solid color-mix(in srgb, var(--status-warning) 35%, var(--border))", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", flexShrink: 0 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               {t("appShell.ompMissing")}
             </span>
-            <button type="button" className="shell-toolbar-btn ui-focus-ring" title={t("appShell.ompSetup")} aria-label={t("appShell.ompSetup")} onClick={() => setOmpSetupOpen(true)} style={{ height: 26, padding: "0 9px", borderRadius: 6, fontSize: 11, fontWeight: 650 }}>
+            <button type="button" className="shell-toolbar-btn ui-focus-ring" title={t("appShell.ompSetup")} aria-label={t("appShell.ompSetup")} onClick={() => setOmpSetupOpen(true)} style={{ height: 26, padding: "0 9px", borderRadius: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 650 }}>
               {t("appShell.ompSetup")}
             </button>
             <button type="button" className="shell-toolbar-btn ui-focus-ring" title={t("appShell.dismiss")} aria-label={t("appShell.dismiss")} onClick={() => setOmpMissingDismissed(true)} style={{ width: 24, height: 24, borderRadius: 6 }}>
@@ -1659,7 +1659,7 @@ export function AppShell() {
                     borderRadius: "var(--radius-control)",
                     background: "var(--bg-subtle)",
                     border: "1px solid var(--border)",
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--ui-font-scale, 1))",
                     color: "var(--text-muted)",
                     whiteSpace: "nowrap",
                     minWidth: 0,
@@ -1789,7 +1789,7 @@ export function AppShell() {
                       overflowY: "auto",
                       padding: "12px 16px",
                       color: "var(--text-muted)",
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       lineHeight: 1.6,
                       whiteSpace: "pre-wrap",
                       fontFamily: "var(--font-mono)",
@@ -1797,11 +1797,11 @@ export function AppShell() {
                       {systemPrompt}
                     </div>
                   ) : systemPrompt === "" ? (
-                    <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                    <div style={{ padding: "10px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontStyle: "italic" }}>
                       {t("appShell.systemPromptEmpty")}
                     </div>
                   ) : (
-                    <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                    <div style={{ padding: "10px 16px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", fontStyle: "italic" }}>
                       {systemPromptLoading ? t("appShell.systemPromptLoading") : t("appShell.systemPromptLoadHint")}
                     </div>
                   )}
@@ -1856,8 +1856,8 @@ export function AppShell() {
               role="status"
               style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, color: "var(--text-muted)", textAlign: "center" }}
             >
-              <div style={{ fontSize: 14, color: "var(--text)" }}>{t("appShell.openingWorkspace")}</div>
-              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", color: "var(--text)" }}>{t("appShell.openingWorkspace")}</div>
+              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
                 {initialNavigation.requestedCwd}
               </div>
             </div>
@@ -1866,17 +1866,17 @@ export function AppShell() {
               role="alert"
               style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, color: "var(--text-muted)", textAlign: "center" }}
             >
-              <div style={{ fontSize: 14, color: "var(--status-error)" }}>{t("appShell.unableToOpenWorkspace")}</div>
-              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+              <div style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{t("appShell.unableToOpenWorkspace")}</div>
+              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
                 {initialNavigation.requestedCwd}
               </div>
-              <div style={{ maxWidth: 720, fontSize: 12 }}>{initialCwdError}</div>
+              <div style={{ maxWidth: 720, fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{initialCwdError}</div>
             </div>
           ) : !showPlaceholder ? (
             <PanelLoadingFallback />
           ) : (
             activeCwd ? (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 16 }}>
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(16px * var(--ui-font-scale, 1))" }}>
                 <span className="display-serif">{t("appShell.selectSessionHint")}</span>
               </div>
             ) : (
@@ -1885,8 +1885,8 @@ export function AppShell() {
                   <line x1="20" y1="12" x2="4" y2="12" /><polyline points="10 6 4 12 10 18" />
                 </svg>
                 <div>
-                  <div className="display-serif" style={{ fontSize: 20, color: "var(--text)", marginBottom: 8 }}>{t("appShell.getStarted")}</div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.8 }}>
+                  <div className="display-serif" style={{ fontSize: "calc(20px * var(--ui-font-scale, 1))", color: "var(--text)", marginBottom: 8 }}>{t("appShell.getStarted")}</div>
+                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.8 }}>
                     <span style={{ color: "var(--text-dim)", marginRight: 6 }}>1.</span>{t("appShell.getStartedStep1")}<br />
                     <span style={{ color: "var(--text-dim)", marginRight: 6 }}>2.</span>
                     {(() => {
@@ -1993,7 +1993,7 @@ export function AppShell() {
                       {activeCwd ? (
                         <FileExplorer cwd={activeCwd} refreshKey={explorerRefreshKey} onOpenFile={handleOpenFile} onAtMention={handleAtMention} onAtMentions={handleAtMentions} onRefreshDone={handleExplorerRefreshDone} />
                       ) : (
-                        <div style={{ padding: 20, color: "var(--text-dim)", fontSize: 12, textAlign: "center" }}>{t("appShell.noActiveSession") ?? "Open a workspace to browse files."}</div>
+                        <div style={{ padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "center" }}>{t("appShell.noActiveSession") ?? "Open a workspace to browse files."}</div>
                       )}
                     </div>
                     <div style={{ display: fileTabs.length > 0 ? "block" : "none", height: "100%", minHeight: 0 }}>
@@ -2009,7 +2009,7 @@ export function AppShell() {
             )}
             agents={(
               <PanelErrorBoundary title={t("rightPanel.agents") ?? "Agents"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
-                {selectedSubagent ? <SubagentDetailPanel subagent={selectedSubagent} sessionId={selectedSession?.id ?? null} onBack={() => setSelectedSubagent(null)} /> : subagents ? <AgentsPanel subagents={subagents} onSelectSubagent={(subagent) => { setSelectedSubagent(subagent); setWorkbenchRequestedView({ view: "agents", nonce: Date.now() }); setRightPanelOpen(true); }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 12, textAlign: "center", padding: 24 }}>{t("appShell.noActiveSession") ?? "Open a session to see its agents."}</div>}
+                {selectedSubagent ? <SubagentDetailPanel subagent={selectedSubagent} sessionId={selectedSession?.id ?? null} onBack={() => setSelectedSubagent(null)} /> : subagents ? <AgentsPanel subagents={subagents} onSelectSubagent={(subagent) => { setSelectedSubagent(subagent); setWorkbenchRequestedView({ view: "agents", nonce: Date.now() }); setRightPanelOpen(true); }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "center", padding: 24 }}>{t("appShell.noActiveSession") ?? "Open a session to see its agents."}</div>}
               </PanelErrorBoundary>
             )}
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}

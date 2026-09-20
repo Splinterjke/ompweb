@@ -20,7 +20,7 @@ const SELECT_STYLE: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: "var(--radius-control)",
   padding: "6px 10px",
-  fontSize: 13,
+  fontSize: "calc(13px * var(--ui-font-scale, 1))",
   fontFamily: "inherit",
 };
 
@@ -81,11 +81,11 @@ export function NetworkProxyConfig() {
 
   return (
     <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-      <h4 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px", color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
+      <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
         <Network size={13} aria-hidden="true" />
         {t("proxy.title")}
       </h4>
-      <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-muted)" }}>
+      <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
         {t("proxy.description")}
       </p>
 
@@ -112,7 +112,7 @@ export function NetworkProxyConfig() {
                 ...SELECT_STYLE,
                 flex: 1,
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 outline: "none",
               }}
             />
@@ -127,7 +127,7 @@ export function NetworkProxyConfig() {
               background: "var(--accent)",
               color: "var(--on-accent)",
               border: "none",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               fontWeight: 600,
               cursor: saving ? "default" : "pointer",
               opacity: saving ? 0.6 : 1,
@@ -138,7 +138,7 @@ export function NetworkProxyConfig() {
         </div>
 
         {candidates.length > 0 && (
-          <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.6 }}>
+          <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.6 }}>
             <div style={{ fontWeight: 600, marginBottom: 2 }}>{t("proxy.detected")}</div>
             {candidates.map((c, i) => (
               <div key={i} style={{ fontFamily: "var(--font-mono)" }}>
@@ -148,7 +148,7 @@ export function NetworkProxyConfig() {
           </div>
         )}
         {effective && (
-          <div style={{ fontSize: 11, color: "var(--status-success)", fontFamily: "var(--font-mono)" }}>
+          <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-success)", fontFamily: "var(--font-mono)" }}>
             ✓ {t("proxy.effective")}: {effective}
           </div>
         )}

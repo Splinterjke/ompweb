@@ -17,7 +17,7 @@ import { copyText } from "@/lib/clipboard";
 
 const SettingsTabLoading = () => {
   const { t } = useI18n();
-  return <div role="status" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("settingsConfig.loadingSettings")}</div>;
+  return <div role="status" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("settingsConfig.loadingSettings")}</div>;
 };
 const ModelsConfig = dynamic(() => import("./ModelsConfig").then((module) => module.ModelsConfig), { loading: SettingsTabLoading, ssr: false });
 const SkillsConfig = dynamic(() => import("./SkillsConfig").then((module) => module.SkillsConfig), { loading: SettingsTabLoading, ssr: false });
@@ -84,7 +84,7 @@ const nativeSelectStyle = {
   borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 12,
+  fontSize: "calc(12px * var(--ui-font-scale, 1))",
   cursor: "pointer",
   appearance: "none" as const,
   WebkitAppearance: "none" as const,
@@ -112,7 +112,7 @@ const nativeInputStyle = {
   borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 12,
+  fontSize: "calc(12px * var(--ui-font-scale, 1))",
   outline: "none",
   colorScheme: "dark light",
 } as const;
@@ -171,7 +171,7 @@ function MethodOrderEditor({ value, onChange }: { value?: CompactionMethod[]; on
         const checked = enabled.has(method);
         return (
           <div key={method} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: checked ? "var(--bg-subtle)" : "var(--bg)", opacity: checked ? 1 : 0.55 }}>
-            <span style={{ width: 14, textAlign: "center", color: "var(--text-dim)", fontSize: 10, fontFamily: "var(--font-mono)" }}>{checked ? index + 1 : "·"}</span>
+            <span style={{ width: 14, textAlign: "center", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale, 1))", fontFamily: "var(--font-mono)" }}>{checked ? index + 1 : "·"}</span>
             <button
               type="button"
               role="checkbox"
@@ -187,14 +187,14 @@ function MethodOrderEditor({ value, onChange }: { value?: CompactionMethod[]; on
                 border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`,
                 background: checked ? "var(--accent)" : "var(--bg)",
                 color: checked ? "#fff" : "var(--text-dim)",
-                fontSize: 10,
+                fontSize: "calc(10px * var(--ui-font-scale, 1))",
                 lineHeight: "16px",
                 cursor: "pointer",
               }}
             >
               {checked ? "✓" : ""}
             </button>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text)", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label[method]}</span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text)", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label[method]}</span>
             <span style={{ flexShrink: 0, display: "inline-flex", gap: 2 }}>
               <button type="button" onClick={() => move(index, -1)} disabled={!checked || index === 0} aria-label={`${t("settingsConfig.compactionMethodsUp")} ${label[method]}`} style={{ background: "none", border: "none", padding: 2, cursor: !checked || index === 0 ? "default" : "pointer", color: !checked || index === 0 ? "var(--text-dim)" : "var(--text-muted)", opacity: !checked || index === 0 ? 0.4 : 1, display: "inline-flex" }}>
                 <ChevronUp size={13} strokeWidth={1.8} />
@@ -206,13 +206,13 @@ function MethodOrderEditor({ value, onChange }: { value?: CompactionMethod[]; on
           </div>
         );
       })}
-      <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{t("settingsConfig.compactionMethodsOrderHint")}</span>
+      <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("settingsConfig.compactionMethodsOrderHint")}</span>
     </div>
   );
 }
 
 const chipStyle = {
-  fontSize: 10,
+  fontSize: "calc(10px * var(--ui-font-scale, 1))",
   padding: "1px 6px",
   borderRadius: 4,
   background: "var(--bg-subtle)",
@@ -318,7 +318,7 @@ function SearchResultsList({ results, query, onSelect }: { results: SearchResult
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "var(--bg)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+      <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
         {results.length === 0 ? t("settingsConfig.noSettingsMatch", { query }) : tn("settingsConfig.searchResults", results.length, { count: results.length, query })}
       </div>
       {results.map((result) => (
@@ -341,7 +341,7 @@ function SearchResultsList({ results, query, onSelect }: { results: SearchResult
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{result.label}</span>
+            <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{result.label}</span>
             {result.kind === "category" && (
               <span style={chipStyle}>{t("settingsConfig.chipSection")}</span>
             )}
@@ -349,8 +349,8 @@ function SearchResultsList({ results, query, onSelect }: { results: SearchResult
               <span style={chipStyle}>{formatScope(result.scope)}</span>
             )}
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.45 }}>{result.description}</div>
-          {result.section && <div style={{ fontSize: 10, color: "var(--text-dim)" }}>{result.section}</div>}
+          <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", lineHeight: 1.45 }}>{result.description}</div>
+          {result.section && <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{result.section}</div>}
         </button>
       ))}
     </div>
@@ -473,7 +473,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
           {/* flexShrink 0 keeps CJK labels from collapsing to one glyph per
               line ("vertical text"); flexWrap above moves the control below
               the label on narrow cards instead of squeezing it. */}
-          <label id={labelId} htmlFor={settingId} style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>{label}</label>
+          <label id={labelId} htmlFor={settingId} style={{ fontSize: "calc(12.5px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>{label}</label>
           {scope && (
             <span style={{ ...chipStyle, flexShrink: 0 }}>
               {formatScope(scope)}
@@ -482,7 +482,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
         </div>
         <span style={{ flexShrink: 0, ...controlStyle }}>{enhancedChild}</span>
       </div>
-      <span id={descId} style={{ color: "var(--text-muted)", fontSize: 11, lineHeight: 1.45, overflowWrap: "anywhere" }}>{description}</span>
+      <span id={descId} style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.45, overflowWrap: "anywhere" }}>{description}</span>
     </div>
   );
 }
@@ -830,13 +830,13 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
         {!isMobile && <ResizeHandles onPointerDown={onDialogResize} onPointerMove={onDialogResizeMove} onPointerUp={onDialogResizeEnd} isResizing={isDialogResizing} />}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "12px 18px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <DialogTitle style={{ fontSize: 16, margin: 0, fontWeight: 600 }}>{t("settingsConfig.title")}</DialogTitle>
+            <DialogTitle style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", margin: 0, fontWeight: 600 }}>{t("settingsConfig.title")}</DialogTitle>
             {nativeSavesInFlight > 0 ? (
-              <span style={{ fontSize: 11, color: "var(--accent)", padding: "2px 8px", borderRadius: 10, background: "var(--bg-subtle)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--accent)", padding: "2px 8px", borderRadius: 10, background: "var(--bg-subtle)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <RefreshCw size={11} className="icon-spin" aria-hidden="true" /> {t("settingsConfig.saving")}
               </span>
             ) : (
-              <span style={{ fontSize: 11, color: "var(--text-dim)", padding: "2px 8px", borderRadius: 10, background: "var(--bg-subtle)" }}>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", padding: "2px 8px", borderRadius: 10, background: "var(--bg-subtle)" }}>
                 {t("settingsConfig.autoSaved")}
               </span>
             )}
@@ -857,10 +857,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                style={{ width: "100%", height: 28, padding: "0 8px 0 28px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: 12, outline: "none" }}
+                style={{ width: "100%", height: 28, padding: "0 8px 0 28px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale, 1))", outline: "none" }}
               />
             </div>
-            <button type="button" onClick={onClose} aria-label={t("settingsConfig.closeSettings")} title={t("settingsConfig.closeSettings")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+            <button type="button" onClick={onClose} aria-label={t("settingsConfig.closeSettings")} title={t("settingsConfig.closeSettings")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
           </div>
         </header>
 
@@ -917,7 +917,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
               <div style={contentStyle}>
             {nativeSettingsError && (
-              <div role="alert" style={{ margin: 16, padding: "10px 14px", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", border: "1px solid var(--status-error)", color: "var(--status-error)", fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              <div role="alert" style={{ margin: 16, padding: "10px 14px", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", border: "1px solid var(--status-error)", color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))", display: "flex", alignItems: "center", gap: 8 }}>
                 <AlertCircle size={14} aria-hidden="true" /> {nativeSettingsError}
               </div>
             )}
@@ -926,8 +926,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
             {currentTab === "general" && (
               <div role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.interfaceBehavior")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.interfaceBehaviorDesc")}</p>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.interfaceBehavior")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.interfaceBehaviorDesc")}</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
@@ -996,8 +996,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 </div>
 
                 <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                  <h4 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>Animations & Motion</h4>
-                  <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-muted)" }}>Manage global interaction motion, border beam, and jump animations</p>
+                  <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>Animations & Motion</h4>
+                  <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>Manage global interaction motion, border beam, and jump animations</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                     <NativeSetting searchId="global-animations" label="Global Animations" description="Enable or disable all UI animations across the app" scope="UI">
                       <ToggleSwitch checked={motionPrefs.enabled} onChange={(next) => setMotionPrefs({ enabled: next })} />
@@ -1048,8 +1048,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <SplashAnimationSetting />
 
                 <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                  <h4 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>{t("settingsConfig.updateNotice")}</h4>
-                  <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.updateNoticeDesc")}</p>
+                  <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>{t("settingsConfig.updateNotice")}</h4>
+                  <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.updateNoticeDesc")}</p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 520 }}>
                     <NativeSetting searchId="update-notice-enabled" label={t("settingsConfig.updateNoticeToggle")} description={t("settingsConfig.updateNoticeToggleDesc")} scope="UI">
                       <ToggleSwitch checked={noticeEnabled} onChange={(next) => { setNoticeEnabled(next); setUpdateNoticeEnabled(next); }} />
@@ -1064,8 +1064,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
             {currentTab === "safety" && (
               <div role="tabpanel" id="settings-panel-safety" aria-labelledby="settings-tab-safety" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.toolSafetyApprovals")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.toolSafetyApprovalsDesc")}</p>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.toolSafetyApprovals")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.toolSafetyApprovalsDesc")}</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <NativeSetting searchId="approval-mode" label={t("settingsConfig.approvalMode")} description={t("settingsConfig.approvalModeDesc")} scope="Native OMP">
@@ -1108,8 +1108,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
             {currentTab === "models" && (
               <div role="tabpanel" id="settings-panel-models" aria-labelledby="settings-tab-models" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.modelDefaults")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.modelDefaultsDesc")}</p>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.modelDefaults")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.modelDefaultsDesc")}</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <NativeSetting searchId="reasoning" label={t("settingsConfig.reasoning")} description={t("settingsConfig.reasoningDesc")} scope="Native OMP">
@@ -1174,8 +1174,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
               <div role="tabpanel" id="settings-panel-intelligence" aria-labelledby="settings-tab-intelligence" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
                 {/* Context Compaction Section */}
                 <section style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t("settingsConfig.contextCompaction")}</div>
-                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>{t("settingsConfig.contextCompactionDesc")}</p>
+                  <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.contextCompaction")}</div>
+                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("settingsConfig.contextCompactionDesc")}</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gridAutoFlow: "row dense", alignItems: "start", gap: 10 }}>
                     <NativeSetting searchId="automatic-compaction" label={t("settingsConfig.automaticCompaction")} description={t("settingsConfig.automaticCompactionDesc")} scope="Native OMP">
                       <ToggleSwitch
@@ -1364,8 +1364,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
                 {/* Memory & Auto-Learn Section */}
                 <section style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t("settingsConfig.memoryAutoLearn")}</div>
-                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>{t("settingsConfig.memoryAutoLearnDesc")}</p>
+                  <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.memoryAutoLearn")}</div>
+                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("settingsConfig.memoryAutoLearnDesc")}</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                     <NativeSetting searchId="memory-backend" label={t("settingsConfig.memoryBackend")} description={t("settingsConfig.memoryBackendDesc")} scope="Native OMP">
                       <select
@@ -1419,8 +1419,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
                 {/* Retry Section */}
                 <section style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t("settingsConfig.automaticRetry")}</div>
-                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>{t("settingsConfig.automaticRetryDesc")}</p>
+                  <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.automaticRetry")}</div>
+                  <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>{t("settingsConfig.automaticRetryDesc")}</p>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                     <NativeSetting searchId="automatic-retry" label={t("settingsConfig.retryToggle")} description={t("settingsConfig.retryToggleDesc")} scope="Native OMP">
                       <ToggleSwitch
@@ -1463,8 +1463,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
             {currentTab === "mcp" && (
               <div role="tabpanel" id="settings-panel-mcp" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "mcp" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column", overflowY: "auto", padding: 20, gap: 16 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
                 </div>
                 {cwd && (
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
@@ -1547,8 +1547,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 }}
               >
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.agentsTitle")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.agentsTitle")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>
                     {t("settingsConfig.agentsDesc")}
                   </p>
                 </div>
@@ -1568,8 +1568,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
             {currentTab === "system" && (
               <div role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{t("settingsConfig.systemUpdates")}</h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.systemUpdatesDescription")}</p>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.systemUpdates")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.systemUpdatesDescription")}</p>
                 </div>
 
 
@@ -1577,20 +1577,20 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t("settingsConfig.ompLabel")}</div>
-                      <div style={{ marginTop: 4, color: update?.updateAvailable ? "var(--accent)" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                      <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 600 }}>{t("settingsConfig.ompLabel")}</div>
+                      <div style={{ marginTop: 4, color: update?.updateAvailable ? "var(--accent)" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
                         {checking ? t("settingsConfig.checkingUpdates") : update?.updateAvailable ? t("appShell.updateVersion", { current: update.currentVersion ?? "?", available: update.availableVersion ?? "?" }) : update?.currentVersion ? t("settingsConfig.upToDate", { version: update.currentVersion }) : t("settingsConfig.versionUnavailable")}
                       </div>
                     </div>
-                    <button type="button" onClick={() => void checkForUpdate()} disabled={checking} aria-label={t("settingsConfig.checkOmpUpdates")} style={{ padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text)", cursor: checking ? "wait" : "pointer", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <button type="button" onClick={() => void checkForUpdate()} disabled={checking} aria-label={t("settingsConfig.checkOmpUpdates")} style={{ padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text)", cursor: checking ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
                       <RefreshCw size={13} aria-hidden="true" /> {t("settingsConfig.refresh")}
                     </button>
                   </div>
                   {update?.updateAvailable && (
                     <div style={{ marginTop: 6, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("settingsConfig.runOmpUpdateCommand")}</div>
+                      <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.runOmpUpdateCommand")}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <code style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--accent)", wordBreak: "break-all" }}>{update.updateCommand || "omp update"}</code>
+                        <code style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--accent)", wordBreak: "break-all" }}>{update.updateCommand || "omp update"}</code>
                         <button
                           type="button"
                           onClick={() => {
@@ -1598,7 +1598,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                               .then(() => toast.success(t("appShell.commandCopied")))
                               .catch(() => toast.error(t("appShell.commandCopyFailed")));
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer", fontSize: 11 }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}
                         >
                           <Copy size={12} aria-hidden="true" /> {t("appShell.copyCommand")}
                         </button>
@@ -1606,16 +1606,16 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                           type="button"
                           onClick={() => void runOmpUpdate()}
                           disabled={updatingOmp}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", cursor: updatingOmp ? "wait" : "pointer", fontSize: 11, fontWeight: 600 }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", cursor: updatingOmp ? "wait" : "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600 }}
                         >
                           <RefreshCw size={12} aria-hidden="true" className={updatingOmp ? "icon-spin" : undefined} /> {updatingOmp ? t("settingsConfig.updating") : t("settingsConfig.updateNow")}
                         </button>
                       </div>
                       {ompUpdateOutput && (
-                        <pre style={{ margin: 0, padding: "6px 8px", background: "var(--bg-subtle)", borderRadius: 6, fontSize: 11, color: "var(--text-muted)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflow: "auto", fontFamily: "var(--font-mono)" }}>{ompUpdateOutput}</pre>
+                        <pre style={{ margin: 0, padding: "6px 8px", background: "var(--bg-subtle)", borderRadius: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflow: "auto", fontFamily: "var(--font-mono)" }}>{ompUpdateOutput}</pre>
                       )}
                       {ompUpdated && (
-                        <div style={{ fontSize: 12, color: "var(--status-ok, #2e9e5b)" }} role="status">{t("settingsConfig.ompUpdateComplete")}</div>
+                        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--status-ok, #2e9e5b)" }} role="status">{t("settingsConfig.ompUpdateComplete")}</div>
                       )}
                     </div>
                   )}
@@ -1624,7 +1624,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       type="button"
                       onClick={() => void restartSessions()}
                       disabled={restarting}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: restarting ? "wait" : "pointer", fontSize: 12 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: restarting ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
                     >
                       <RotateCcw size={13} aria-hidden="true" /> {restarting ? t("settingsConfig.restarting") : t("settingsConfig.restartSessions")}
                     </button>
@@ -1632,7 +1632,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       href="https://github.com/can1357/oh-my-pi/releases"
                       target="_blank"
                       rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", textDecoration: "none", fontSize: 12 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", textDecoration: "none", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
                     >
                       <ExternalLink size={13} aria-hidden="true" /> {t("settingsConfig.changelog")}
                     </a>
@@ -1640,7 +1640,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       href="https://github.com/can1357/oh-my-pi/releases/latest"
                       target="_blank"
                       rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", color: "var(--accent)", textDecoration: "none", fontSize: 12 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", color: "var(--accent)", textDecoration: "none", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}
                     >
                       <ExternalLink size={13} aria-hidden="true" /> {t("settingsConfig.manualDownloadOmp")}
                     </a>
@@ -1665,13 +1665,13 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 }}
               >
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--text)" }}>System Diagnostics & Recovery Center</h3>
-                  <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: 12.5, lineHeight: 1.5 }}>
+                  <h3 style={{ fontSize: "calc(16px * var(--ui-font-scale, 1))", fontWeight: 700, margin: 0, color: "var(--text)" }}>System Diagnostics & Recovery Center</h3>
+                  <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "calc(12.5px * var(--ui-font-scale, 1))", lineHeight: 1.5 }}>
                     Monitor the OMP engine, Rust Host daemon, session storage, network proxy, and system resources in one place, with one-click recovery and quick path location.
                   </p>
                 </div>
                 <BackendDiagnosticsBody variant="full" />
-                <div style={{ fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5, marginTop: 4 }}>
+                <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.5, marginTop: 4 }}>
                   Diagnostics run entirely on the local loopback and never collect prompts, conversation context, or API keys; recovery actions are safe and controlled, targeting only the child processes this service manages.
                 </div>
               </div>

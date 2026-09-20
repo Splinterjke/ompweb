@@ -43,9 +43,9 @@ export function AgentsPanel({ subagents, onSelectSubagent }: {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <Network size={14} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden />
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{t("chatWindow.subagentsPanel")}</span>
+        <span style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>{t("chatWindow.subagentsPanel")}</span>
         <span
-          style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: 10.5, color: counts.running > 0 ? "var(--accent)" : "var(--text-dim)" }}
+          style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(10.5px * var(--ui-font-scale, 1))", color: counts.running > 0 ? "var(--accent)" : "var(--text-dim)" }}
           aria-label={t("chatWindow.subagentSummary", { running: counts.running, total: counts.total })}
         >
           {counts.running > 0 ? `${counts.running}/${counts.total}` : `${counts.total}`}
@@ -54,11 +54,11 @@ export function AgentsPanel({ subagents, onSelectSubagent }: {
 
       <div role="toolbar" aria-label={t("chatWindow.subagentsFilter") ?? "Filter agents"} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)", flexShrink: 0 }}>
         <Search size={13} color="var(--text-dim)" aria-hidden="true" />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("chatWindow.subagentsSearch") ?? "Filter agents…"} aria-label={t("chatWindow.subagentsSearch") ?? "Filter agents"} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: 11 }} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("chatWindow.subagentsSearch") ?? "Filter agents…"} aria-label={t("chatWindow.subagentsSearch") ?? "Filter agents"} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }} />
         {(["all", "live", "history"] as const).map((value) => {
           const selected = scope === value;
           const label = value === "all" ? (t("chatWindow.subagentsAll") ?? "All") : value === "live" ? (t("chatWindow.subagentsLive") ?? "Live") : (t("chatWindow.historySubagents") ?? "History");
-          return <button key={value} type="button" aria-pressed={selected} onClick={() => setScope(value)} style={{ padding: "2px 5px", border: 0, borderBottom: selected ? "2px solid var(--accent)" : "2px solid transparent", background: "transparent", color: selected ? "var(--text)" : "var(--text-dim)", cursor: "pointer", fontSize: 10 }}>{label}</button>;
+          return <button key={value} type="button" aria-pressed={selected} onClick={() => setScope(value)} style={{ padding: "2px 5px", border: 0, borderBottom: selected ? "2px solid var(--accent)" : "2px solid transparent", background: "transparent", color: selected ? "var(--text)" : "var(--text-dim)", cursor: "pointer", fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>{label}</button>;
         })}
       </div>
 
@@ -72,7 +72,7 @@ export function AgentsPanel({ subagents, onSelectSubagent }: {
         ))}
 
         {liveSorted.length === 0 && historySorted.length === 0 && (
-          <div style={{ padding: "24px 14px", color: "var(--text-dim)", fontSize: 12, textAlign: "center" }}>
+          <div style={{ padding: "24px 14px", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))", textAlign: "center" }}>
             {subagents.length > 0 && query.trim() ? (t("chatWindow.subagentsNoMatches") ?? "No matching agents.") : t("chatWindow.subagentsEmpty") ?? "No subagents yet."}
           </div>
         )}
@@ -83,11 +83,11 @@ export function AgentsPanel({ subagents, onSelectSubagent }: {
               role="presentation"
               style={{
                 display: "flex", alignItems: "center", gap: 6, margin: "8px 4px 2px",
-                fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.04em",
+                fontSize: "calc(10px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.04em",
               }}
             >
               {t("chatWindow.historySubagents") ?? "History"}
-              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 400, fontSize: 9.5 }}>{historySorted.length}</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontWeight: 400, fontSize: "calc(9.5px * var(--ui-font-scale, 1))" }}>{historySorted.length}</span>
             </div>
             {historySorted.map((subagent) => (
               <SubagentCard key={subagent.id} subagent={subagent} onSelect={onSelectSubagent} />

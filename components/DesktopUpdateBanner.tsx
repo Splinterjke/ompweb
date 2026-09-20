@@ -63,7 +63,7 @@ export function DesktopUpdateBanner() {
         borderRadius: "var(--radius-card)",
         background: "var(--bg-panel)",
         boxShadow: "var(--shadow-pop)",
-        fontSize: 12,
+        fontSize: "calc(12px * var(--ui-font-scale, 1))",
         color: "var(--text)",
       }}
     >
@@ -87,7 +87,7 @@ export function DesktopUpdateBanner() {
             background: "var(--accent)",
             color: "var(--bg)",
             cursor: "pointer",
-            fontSize: 11,
+            fontSize: "calc(11px * var(--ui-font-scale, 1))",
             fontWeight: 600,
             textDecoration: "none",
           }}
@@ -109,7 +109,7 @@ export function DesktopUpdateBanner() {
             background: "var(--accent)",
             color: "var(--bg)",
             cursor: "pointer",
-            fontSize: 11,
+            fontSize: "calc(11px * var(--ui-font-scale, 1))",
             fontWeight: 600,
           }}
         >

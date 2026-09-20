@@ -80,7 +80,7 @@ export function SvgDonutChart({
       }}
     >
       {title && (
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           {title}
         </div>
       )}
@@ -147,13 +147,13 @@ export function SvgDonutChart({
               textAlign: "center",
             }}
           >
-            <span style={{ fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
               {activeItem ? activeItem.label : (centerTitle ?? "Total")}
             </span>
             <span
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 16,
+                fontSize: "calc(16px * var(--ui-font-scale, 1))",
                 fontWeight: 700,
                 color: "var(--text)",
                 marginTop: 2,
@@ -162,7 +162,7 @@ export function SvgDonutChart({
               {activeItem ? valueFormatter(activeItem.value) : valueFormatter(total)}
             </span>
             {activeItem && (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: activeItem.color, fontWeight: 600, marginTop: 1 }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: activeItem.color, fontWeight: 600, marginTop: 1 }}>
                 {activeItem.percent}%
               </span>
             )}
@@ -203,7 +203,7 @@ export function SvgDonutChart({
                   />
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       color: "var(--text)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -215,10 +215,10 @@ export function SvgDonutChart({
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, color: "var(--text)" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text)" }}>
                     {valueFormatter(slice.value)}
                   </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", minWidth: 32, textAlign: "right" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", minWidth: 32, textAlign: "right" }}>
                     {slice.percent}%
                   </span>
                 </div>

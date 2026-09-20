@@ -60,7 +60,7 @@ export function Field({ label, hint, error, required, children, style, id }: Fie
       <label
         htmlFor={fieldId}
         style={{
-          fontSize: 11,
+          fontSize: "calc(11px * var(--ui-font-scale, 1))",
           fontWeight: 500,
           color: error ? "var(--accent)" : "var(--text-muted)",
           letterSpacing: "0.01em",
@@ -76,7 +76,7 @@ export function Field({ label, hint, error, required, children, style, id }: Fie
       {error ? (
         <FieldError id={errorId}>{error}</FieldError>
       ) : hint ? (
-        <span id={hintId} style={{ fontSize: 10, color: "var(--text-dim)", lineHeight: 1.4 }}>{hint}</span>
+        <span id={hintId} style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", lineHeight: 1.4 }}>{hint}</span>
       ) : null}
     </div>
   );
@@ -91,7 +91,7 @@ function FieldError({ children, id }: { children: ReactNode; id?: string }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        fontSize: 12,
+        fontSize: "calc(12px * var(--ui-font-scale, 1))",
         color: "var(--accent)",
         lineHeight: 1.3,
         marginTop: 1,
@@ -131,7 +131,7 @@ export function FieldGroup({
     >
       <div
         style={{
-          fontSize: 11,
+          fontSize: "calc(11px * var(--ui-font-scale, 1))",
           fontWeight: 600,
           color: "var(--text-muted)",
           textTransform: "uppercase",
@@ -158,7 +158,7 @@ function inputShellStyle({ invalid }: InputShellStyleOptions): CSSProperties {
     border: `1px solid ${invalid ? "var(--accent)" : "var(--border)"}`,
     borderRadius: "var(--radius-control)",
     color: "var(--text)",
-    fontSize: 12,
+    fontSize: "calc(12px * var(--ui-font-scale, 1))",
     outline: "none",
     width: "100%",
     boxSizing: "border-box",
@@ -464,7 +464,7 @@ export function Check({ label, checked, onChange, disabled }: CheckProps) {
         alignItems: "center",
         gap: 6,
         cursor: disabled ? "not-allowed" : "pointer",
-        fontSize: 12,
+        fontSize: "calc(12px * var(--ui-font-scale, 1))",
         color: disabled ? "var(--text-dim)" : "var(--text-muted)",
         opacity: disabled ? 0.7 : 1,
       }}
@@ -546,7 +546,7 @@ export function ConfirmDialog({
           <p
             style={{
               margin: "0 0 18px",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
               lineHeight: 1.55,
               color: "var(--text-muted)",
             }}
@@ -567,7 +567,7 @@ export function ConfirmDialog({
               color: "var(--text-muted)",
               cursor: busy ? "not-allowed" : "pointer",
               opacity: busy ? 0.6 : 1,
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
             }}
           >
             {cancelLabel ?? "Cancel"}
@@ -583,7 +583,7 @@ export function ConfirmDialog({
               borderRadius: "var(--radius-control)",
               color: "var(--on-accent)",
               cursor: busy ? "wait" : "pointer",
-              fontSize: 13,
+              fontSize: "calc(13px * var(--ui-font-scale, 1))",
               fontWeight: 600,
               opacity: busy ? 0.7 : 1,
               transition: "background var(--dur-fast) var(--ease-out-warm)",

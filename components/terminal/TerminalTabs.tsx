@@ -188,7 +188,7 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
           </div>
         ))}
         {tabs.length === 0 && (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 12 }}>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
             {t("terminal.empty") ?? "No terminal open."}
           </div>
         )}
@@ -212,7 +212,7 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
                 padding: "3px 4px 3px 8px", borderRadius: "var(--radius-control)",
                 background: selected ? "var(--bg-selected)" : "transparent",
                 border: "1px solid", borderColor: selected ? "color-mix(in srgb, var(--accent) 35%, var(--border))" : "transparent",
-                cursor: "pointer", fontSize: 11, color: selected ? "var(--text)" : "var(--text-muted)",
+                cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: selected ? "var(--text)" : "var(--text-muted)",
                 maxWidth: 180, flexShrink: 0, outline: "none",
               }}
               title={tab.cwd ?? tab.label}

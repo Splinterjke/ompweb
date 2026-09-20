@@ -54,11 +54,11 @@ export function UpdateNoticeDialog({ ompVersion, isUpdate = false, onClose }: { 
           <Rocket size={14} aria-hidden="true" />
         </span>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+          <div style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", fontWeight: 700, color: "var(--text)" }}>
             {title}
           </div>
           {ompVersion && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+            <div style={{ fontSize: "calc(12px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginTop: 2 }}>
               {t("updateNotice.startedOmp", { version: ompVersion })}
             </div>
           )}
@@ -95,7 +95,7 @@ export function UpdateNoticeDialog({ ompVersion, isUpdate = false, onClose }: { 
             background: "var(--accent)",
             color: "var(--on-accent)",
             cursor: "pointer",
-            fontSize: 12,
+            fontSize: "calc(12px * var(--ui-font-scale, 1))",
             fontWeight: 600,
           }}
         >

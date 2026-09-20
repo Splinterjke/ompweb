@@ -411,7 +411,7 @@ function TreeNode({
         </span>
         <span
           style={{
-            fontSize: 12,
+            fontSize: "calc(12px * var(--ui-font-scale, 1))",
             color: "var(--text)",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -438,7 +438,7 @@ function TreeNode({
               flexShrink: 0,
               color: GIT_STATUS_COLORS[gitStatus.status],
               fontFamily: "var(--font-mono)",
-              fontSize: 11,
+              fontSize: "calc(11px * var(--ui-font-scale, 1))",
               fontWeight: 600,
               textAlign: "center",
             }}
@@ -494,7 +494,7 @@ function TreeNode({
                 borderRadius: "var(--radius-control)",
                 color: "var(--accent)",
                 cursor: "pointer",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 whiteSpace: "nowrap",
                 transition: `background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)`,
@@ -524,7 +524,7 @@ function TreeNode({
                 borderRadius: "var(--radius-control)",
                 color: "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 fontWeight: 600,
                 whiteSpace: "nowrap",
                 textDecoration: "none",
@@ -585,12 +585,12 @@ function TreeNode({
               />
             ))}
             {children.length === 0 && loaded && (
-              <div style={{ paddingLeft: 8 + (depth + 1) * 14, fontSize: 11, color: "var(--text-dim)", height: 22, display: "flex", alignItems: "center" }}>
+              <div style={{ paddingLeft: 8 + (depth + 1) * 14, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)", height: 22, display: "flex", alignItems: "center" }}>
                 {t("fileExplorer.emptyDir")}
               </div>
             )}
             {loadError && (
-              <div role="alert" style={{ paddingLeft: 8 + (depth + 1) * 14, fontSize: 11, color: "var(--status-error)", height: 22, display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div role="alert" style={{ paddingLeft: 8 + (depth + 1) * 14, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)", height: 22, display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {loadError}
               </div>
             )}
@@ -853,7 +853,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
               ) : (
                 <Upload size={13} strokeWidth={2} aria-hidden="true" />
               )}
-              {uploadPhase === "uploading" && <span style={{ fontSize: 10 }}>{uploadProgress}%</span>}
+              {uploadPhase === "uploading" && <span style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))" }}>{uploadProgress}%</span>}
             </div>
             {uploadPhase === "uploading" && (
               <div style={{ height: 3, marginTop: 4, overflow: "hidden", borderRadius: 2, background: "var(--border)" }}>
@@ -865,22 +865,22 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
 
         {pendingConflict && (
           <div role="alert" style={{ padding: 7, border: "1px solid color-mix(in srgb, var(--status-warning) 55%, var(--border))", borderRadius: 4, background: "color-mix(in srgb, var(--status-warning) 9%, var(--bg-panel))" }}>
-            <div style={{ fontSize: 11, color: "var(--text)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
               {tn("fileExplorer.filesAlreadyExist", pendingConflict.conflicts.length, { files: pendingConflict.conflicts.join(", ") })}
             </div>
             {pendingConflict.nonReplaceable.length > 0 && (
-              <div style={{ marginTop: 3, fontSize: 10, color: "var(--status-warning)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+              <div style={{ marginTop: 3, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--status-warning)", lineHeight: 1.35, overflowWrap: "anywhere" }}>
                 {t("fileExplorer.cannotReplace", { files: pendingConflict.nonReplaceable.join(", ") })}
               </div>
             )}
             <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
-              <button type="button" onClick={() => void performUpload(pendingConflict.files, "overwrite")} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "1px solid var(--status-error)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--status-error)", cursor: "pointer", fontSize: 11 }}>
+              <button type="button" onClick={() => void performUpload(pendingConflict.files, "overwrite")} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "1px solid var(--status-error)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--status-error)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                 {t("fileExplorer.replace")}
               </button>
-              <button type="button" onClick={() => void performUpload(pendingConflict.files, "skip")} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 11 }}>
+              <button type="button" onClick={() => void performUpload(pendingConflict.files, "skip")} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                 {t("fileExplorer.skipExisting")}
               </button>
-              <button type="button" onClick={() => setPendingConflict(null)} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: 11 }}>
+              <button type="button" onClick={() => setPendingConflict(null)} style={{ height: 24, minHeight: 24, padding: "0 8px", border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                 {t("fileExplorer.cancel")}
               </button>
             </div>
@@ -888,7 +888,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
         )}
 
         {uploadError && (
-          <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11, lineHeight: 1.35, color: "var(--status-error)" }}>
+          <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", lineHeight: 1.35, color: "var(--status-error)" }}>
             <span style={{ minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>{uploadError}</span>
             <DismissButton onClick={() => setUploadError(null)} title={t("fileExplorer.dismissError")} />
           </div>
@@ -896,7 +896,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
 
         {uploadSummary && (
           <div aria-live="polite">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 22, fontSize: 11 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 22, fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
               <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                 {uploadSummary.uploaded.length > 0 && (
                   <span title={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })} aria-label={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--status-success)" }}>
@@ -931,7 +931,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                       borderRadius: "var(--radius-control)",
                       background: "var(--bg-panel)",
                       color: "var(--accent)",
-                      cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+                      cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, whiteSpace: "nowrap",
                       transition: `background var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)`,
                     }}
                   >
@@ -943,7 +943,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
               <DismissButton onClick={() => setUploadSummary(null)} title={t("fileExplorer.dismissUploadResults")} />
             </div>
             {uploadSummary.errors.map((item) => (
-              <div key={item.name} title={item.error} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0, fontSize: 10, color: "var(--status-error)" }}>
+              <div key={item.name} title={item.error} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0, fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>
                 <CircleAlert size={11} strokeWidth={2} style={{ flexShrink: 0 }} aria-hidden="true" />
                 <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
               </div>
@@ -955,14 +955,14 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
 
       <div role="tree" aria-label={t("sessionSidebar.explorer")} style={{ padding: "2px 4px" }}>
         {!loading && missingWorkspace && (
-          <div style={{ padding: "6px 8px", fontSize: 10, color: "var(--text-dim)", overflowWrap: "anywhere", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ padding: "6px 8px", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)", overflowWrap: "anywhere", borderBottom: "1px solid var(--border)" }}>
             {t("fileExplorer.workspaceMissing", { parent: missingWorkspace })}
           </div>
         )}
         {loading ? (
-          <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
+          <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
         ) : error ? (
-          <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--status-error)" }}>{error}</div>
+          <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--status-error)" }}>{error}</div>
         ) : (
           roots.map((node) => (
             <TreeNode
@@ -982,7 +982,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
           ))
         )}
         {!loading && !error && roots.length === 0 && (
-          <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>
+          <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
             {t("fileExplorer.noFilesFound")}
           </div>
         )}

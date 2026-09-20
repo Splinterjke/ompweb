@@ -160,7 +160,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 background: !errorOnly ? "var(--bg-selected)" : "transparent",
                 color: !errorOnly ? "var(--text)" : "var(--text-muted)",
                 fontWeight: !errorOnly ? 600 : 400,
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 cursor: "pointer",
                 transition: "all var(--dur-fast) var(--ease-out-warm)",
               }}
@@ -179,7 +179,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 background: errorOnly ? "color-mix(in srgb, var(--status-error) 15%, transparent)" : "transparent",
                 color: errorOnly ? "var(--status-error)" : "var(--text-muted)",
                 fontWeight: errorOnly ? 600 : 400,
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 cursor: "pointer",
                 transition: "all var(--dur-fast) var(--ease-out-warm)",
               }}
@@ -213,7 +213,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 outline: "none",
                 background: "transparent",
                 color: "var(--text)",
-                fontSize: 12,
+                fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 width: "100%",
               }}
             />
@@ -230,7 +230,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 background: "var(--bg-selected)",
                 border: "1px solid var(--border)",
                 color: "var(--accent)",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 fontFamily: "var(--font-mono)",
               }}
             >
@@ -245,7 +245,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                   color: "var(--text-dim)",
                   cursor: "pointer",
                   padding: 0,
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                   lineHeight: 1,
                 }}
               >
@@ -257,7 +257,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
 
         {/* Right: Live Polling & Manual Refresh */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-dim)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
             <span>Live refresh:</span>
             <select
               value={autoRefreshMs}
@@ -268,7 +268,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-control)",
                 color: "var(--text)",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
                 outline: "none",
                 cursor: "pointer",
               }}
@@ -293,7 +293,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-control)",
               color: "var(--text)",
-              fontSize: 12,
+              fontSize: "calc(12px * var(--ui-font-scale, 1))",
               cursor: loading ? "not-allowed" : "pointer",
               transition: "background var(--dur-fast) var(--ease-out-warm)",
             }}
@@ -315,7 +315,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
         }}
       >
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "calc(12px * var(--ui-font-scale, 1))" }}>
             <thead>
               <tr
                 style={{
@@ -323,7 +323,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                   background: "var(--bg-subtle)",
                   color: "var(--text-dim)",
                   textAlign: "left",
-                  fontSize: 11,
+                  fontSize: "calc(11px * var(--ui-font-scale, 1))",
                   fontWeight: 600,
                 }}
               >
@@ -367,7 +367,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       className="hover:bg-bg-hover"
                     >
                       {/* 时间 */}
-                      <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale, 1))", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                         {formatTimestampFull(log.timestamp)}
                       </td>
 
@@ -378,7 +378,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                             {totalTokensFormatted}
                           </span>
                           {cacheReadFormatted && (
-                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)" }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>
                               c {cacheReadFormatted}
                             </span>
                           )}
@@ -423,7 +423,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                         <span
                           style={{
-                            fontSize: 10.5,
+                            fontSize: "calc(10.5px * var(--ui-font-scale, 1))",
                             padding: "2px 6px",
                             borderRadius: 4,
                             background: "var(--bg-subtle)",
@@ -436,7 +436,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       </td>
 
                       {/* 提供方 */}
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", whiteSpace: "nowrap", fontSize: 11 }}>
+                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", whiteSpace: "nowrap", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                         {log.provider}
                       </td>
 
@@ -465,7 +465,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                               padding: 0,
                               color: "var(--accent)",
                               cursor: "pointer",
-                              fontSize: 11,
+                              fontSize: "calc(11px * var(--ui-font-scale, 1))",
                               textDecoration: "underline",
                             }}
                           >
@@ -480,7 +480,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                           <span
                             style={{
                               fontFamily: "var(--font-mono)",
-                              fontSize: 11,
+                              fontSize: "calc(11px * var(--ui-font-scale, 1))",
                               color: "var(--text-dim)",
                               maxWidth: 110,
                               overflow: "hidden",
@@ -530,7 +530,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
             padding: "10px 16px",
             borderTop: "1px solid var(--border)",
             background: "var(--bg-subtle)",
-            fontSize: 12,
+            fontSize: "calc(12px * var(--ui-font-scale, 1))",
             color: "var(--text-muted)",
           }}
         >
@@ -550,7 +550,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 background: page <= 0 ? "transparent" : "var(--bg-panel)",
                 color: page <= 0 ? "var(--text-dim)" : "var(--text)",
                 cursor: page <= 0 ? "not-allowed" : "pointer",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
               }}
             >
               Previous
@@ -565,7 +565,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                 background: (page + 1) * pageSize >= total ? "transparent" : "var(--bg-panel)",
                 color: (page + 1) * pageSize >= total ? "var(--text-dim)" : "var(--text)",
                 cursor: (page + 1) * pageSize >= total ? "not-allowed" : "pointer",
-                fontSize: 11,
+                fontSize: "calc(11px * var(--ui-font-scale, 1))",
               }}
             >
               Next
@@ -594,7 +594,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                     gap: 6,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--status-error)", fontSize: 12, fontWeight: 700 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale, 1))", fontWeight: 700 }}>
                     <XCircle size={14} />
                     <span>Error message:</span>
                   </div>
@@ -604,7 +604,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       padding: "8px 10px",
                       background: "var(--bg)",
                       borderRadius: 6,
-                      fontSize: 11,
+                      fontSize: "calc(11px * var(--ui-font-scale, 1))",
                       fontFamily: "var(--font-mono)",
                       color: "var(--text)",
                       whiteSpace: "pre-wrap",
@@ -624,44 +624,44 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                   display: "grid",
                   gridTemplateColumns: "repeat(2, 1fr)",
                   gap: 12,
-                  fontSize: 12,
+                  fontSize: "calc(12px * var(--ui-font-scale, 1))",
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Model:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Model:</span>
                   <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text)" }}>
                     {detailEntry.model}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Provider:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Provider:</span>
                   <span style={{ color: "var(--text)" }}>{detailEntry.provider}</span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Timestamp:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Timestamp:</span>
                   <span style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>
                     {formatTimestampFull(detailEntry.timestamp)}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Status:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Status:</span>
                   <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: detailEntry.errorMessage ? "var(--status-error)" : "var(--status-success)" }}>
                     {detailEntry.stopReason}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Duration:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Duration:</span>
                   <span style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>
                     {formatDurationMs(detailEntry.duration)} {detailEntry.ttft ? `(TTFT: ${Math.round(detailEntry.ttft)}ms)` : ""}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>Estimated cost:</span>
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>Estimated cost:</span>
                   <span style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>
                     {formatCostUsd(detailEntry.costTotal)}
                   </span>
@@ -680,30 +680,30 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                   gap: 8,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
+                <span style={{ fontSize: "calc(11px * var(--ui-font-scale, 1))", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
                   Token breakdown
                 </span>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, textAlign: "center" }}>
                   <div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)" }}>Input</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>Input</div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text)" }}>
                       {detailEntry.inputTokens.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)" }}>Output</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>Output</div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text)" }}>
                       {detailEntry.outputTokens.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)" }}>Cache read</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>Cache read</div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text)" }}>
                       {detailEntry.cacheReadTokens.toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)" }}>Total</div>
+                    <div style={{ fontSize: "calc(10px * var(--ui-font-scale, 1))", color: "var(--text-dim)" }}>Total</div>
                     <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>
                       {detailEntry.totalTokens.toLocaleString()}
                     </div>
@@ -712,7 +712,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
               </div>
 
               {/* Session File & Entry ID */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "calc(11px * var(--ui-font-scale, 1))" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--text-dim)" }}>Request ID:</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -755,7 +755,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius-control)",
                     color: "var(--text)",
-                    fontSize: 12,
+                    fontSize: "calc(12px * var(--ui-font-scale, 1))",
                     cursor: "pointer",
                   }}
                 >
@@ -777,7 +777,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       border: "none",
                       borderRadius: "var(--radius-control)",
                       color: "var(--on-accent)",
-                      fontSize: 12,
+                      fontSize: "calc(12px * var(--ui-font-scale, 1))",
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
