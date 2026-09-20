@@ -139,6 +139,55 @@ export function ClampedDescription({ children }: { children: React.ReactNode }) 
   );
 }
 
+/**
+ * Render a diagnostic detail string for a toast description. Long text wraps
+ * (word-break), and any embedded JSON is pulled out into a monospace <pre> so
+ * it stays legible instead of overflowing the toast card. Used by the
+ * chat-event-action Test button whose detail is e.g. `HTTP 200 — {"ok":…}`.
+ */
+export function detailNode(detail: string): React.ReactNode {
+  const idx = detail.search(/[{[]/);
+  const jsonPart = idx >= 0 ? detail.slice(idx) : null;
+  const prefix = idx >= 0 ? detail.slice(0, idx).trim() : "";
+  let parsed: unknown = undefined;
+  if (jsonPart) {
+    try {
+      parsed = JSON.parse(jsonPart);
+    } catch {
+      parsed = undefined;
+    }
+  }
+  if (!jsonPart || parsed === undefined) {
+    return <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{detail}</span>;
+  }
+  const pretty = JSON.stringify(parsed, null, 2);
+  return (
+    <>
+      {prefix ? (
+        <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{prefix} </span>
+      ) : null}
+      <pre
+        style={{
+          margin: prefix ? "4px 0 0" : 0,
+          padding: "6px 8px",
+          background: "var(--bg-subtle)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-control)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+          lineHeight: 1.4,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          color: "var(--text)",
+        }}
+      >
+        {pretty}
+      </pre>
+    </>
+  );
+}
+
 function Toaster() {
   const { toasts } = Toast.useToastManager<ToastData>();
   // All toasts live bottom-right, clear of the chat input bar / status area.

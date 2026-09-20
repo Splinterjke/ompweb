@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/primitives";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { Field, Select, TextInput } from "./ui/field";
-import { toast } from "./ui/toast";
+import { detailNode, toast } from "./ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { createOmpwebClient } from "@/lib/client";
 import { CHAT_EVENT_TYPES, type ActionSpec, type ChatEventAction, type ChatEventType } from "@/lib/chat-event-action-types";
@@ -102,6 +103,7 @@ export function EventActionModal({
   const [schedulers, setSchedulers] = useState<SchedulerWithState[]>([]);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const isMobile = useIsMobile();
 
   // (Re)initialize the form whenever the modal opens, and load the scheduler
   // list for the "scheduled script" action type.
@@ -273,9 +275,9 @@ export function EventActionModal({
     try {
       const result = await client.chatActions.test({ action: spec });
       if (result.ok) {
-        toast.success(result.detail ? `${t("chatActions.test")} ✓ ${result.detail}` : t("chatActions.testOk"));
+        toast.success(t("chatActions.testOk"), result.detail ? detailNode(result.detail) : undefined);
       } else {
-        toast.error(result.detail ? `${t("chatActions.test")} ✗ ${result.detail}` : t("chatActions.testFail"));
+        toast.error(t("chatActions.testFail"), result.detail ? detailNode(result.detail) : undefined);
       }
     } catch (err) {
       const code = (err as { code?: string } | null)?.code ?? "generic";
@@ -295,7 +297,7 @@ export function EventActionModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !saving) onClose(); }}>
-      <DialogContent ariaLabel={t(initial ? "chatActions.editTitle" : "chatActions.addTitle")} style={{ width: "min(92vw, 520px)" }}>
+      <DialogContent ariaLabel={t(initial ? "chatActions.editTitle" : "chatActions.addTitle")} style={{ width: "min(92vw, 520px)", ...(isMobile ? { maxHeight: "95dvh" } : {}) }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
           <DialogTitle style={{ margin: 0 }}>{t(initial ? "chatActions.editTitle" : "chatActions.addTitle")}</DialogTitle>
           <button
@@ -308,7 +310,7 @@ export function EventActionModal({
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12, maxHeight: "min(72vh, 680px)", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12, maxHeight: isMobile ? "95dvh" : "min(72vh, 680px)", overflowY: "auto" }}>
           {/* 1st line: name */}
           <Field label={t("chatActions.name")} required>
             <TextInput value={name} onChange={setName} placeholder={t("chatActions.namePlaceholder")} />

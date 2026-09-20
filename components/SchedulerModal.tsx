@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import { createOmpwebClient } from "@/lib/client";
 import { humanizeSchedule, type ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 // Script-scheduler calls go through the OmpWebClient facade (doc 16 route 1).
 const client = createOmpwebClient("legacy-http");
@@ -46,6 +47,7 @@ export function SchedulerModal({
   const { t, locale } = useI18n();
 
   const [name, setName] = useState("");
+  const isMobile = useIsMobile();
   const [script, setScript] = useState("");
   const [args, setArgs] = useState("");
   const [kind, setKind] = useState<ScheduleKind>("manual");
@@ -253,7 +255,7 @@ export function SchedulerModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !saving) onClose(); }}>
-      <DialogContent ariaLabel={t(initial ? "schedulers.editTitle" : "schedulers.addTitle")} style={{ width: "min(92vw, 480px)" }}>
+      <DialogContent ariaLabel={t(initial ? "schedulers.editTitle" : "schedulers.addTitle")} style={{ width: "min(92vw, 480px)", ...(isMobile ? { maxHeight: "95dvh" } : {}) }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
           <DialogTitle style={{ margin: 0 }}>{t(initial ? "schedulers.editTitle" : "schedulers.addTitle")}</DialogTitle>
           <button

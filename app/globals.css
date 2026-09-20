@@ -1350,10 +1350,14 @@ pre, code {
 
 /* UI Font Scale: scale every lucide icon proportionally. transform keeps the
    layout box fixed (the icon's reserved width/height are unchanged), so no
-   text reflows and nothing can overwrap. Icons that carry their own inline
-   transform (rotating chevrons, spinners) keep it — they simply don't scale,
-   which is the safe degradation. */
-svg.lucide {
+   text reflows and nothing can overwrap.
+
+   Spinning icons (animate-spin / icon-spin / *-spin) are EXCLUDED: a rotation
+   animation is itself a transform, and the spin keyframe's implicit `from`
+   would become this scale(...) while `to` is rotate(360deg) = identity —
+   interpolating scale→identity produces no visible rotation (the spinner
+   freezes/pulses). Spinners therefore stay at their base size. */
+svg.lucide:not([class*="-spin"]) {
   transform: scale(var(--ui-font-scale-sm, 1));
 }
 
@@ -2392,7 +2396,7 @@ svg.lucide {
   padding: 12px 16px;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: calc(13px * var(--ui-font-scale-lg));
+  font-size: var(--chat-font-size, 14px);
   margin: 12px 0;
 }
 .markdown-file-preview code {

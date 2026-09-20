@@ -329,7 +329,7 @@ export function SchedulersPanel({
             border: "none",
             cursor: "pointer",
             textAlign: "left",
-            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+            fontSize: "calc(11px * var(--ui-font-scale-lg, 1))",
             fontWeight: 600,
             letterSpacing: "0.05em",
             textTransform: "uppercase",
