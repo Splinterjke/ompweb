@@ -1923,5 +1923,6 @@
   "appShell.exitNativeBackTitle": "按返回键或关闭应用以离开",
   "appShell.exitNativeBackDescription": "此浏览器无法自动关闭应用。你已确认离开，请再次按返回键或关闭应用。编辑草稿后将重新启用提醒。",
   "tabBar.git": "Git",
-  "chatActions.event.context_compacted": "上下文已压缩"
+  "chatActions.event.context_compacted": "上下文已压缩",
+  "chatActions.event.question_asked": "助手提问"
 }

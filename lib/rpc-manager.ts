@@ -654,6 +654,39 @@ export class AgentSessionWrapper {
         }
         break;
       }
+      case "tool_execution_start": {
+        // Chat event action: question_asked — the assistant called the `ask`
+        // tool (args: { i, questions: [{ id, question, options, … }] }), i.e.
+        // it is asking the user something. The start frame is the only tool
+        // frame carrying the call arguments (tool_execution_update repeats
+        // them but _end carries the result), so the question text is read
+        // here. Multiple questions are joined with newlines.
+        if (event.toolName === "ask") {
+          const args = typeof event.args === "object" && event.args !== null ? (event.args as Record<string, unknown>) : null;
+          let question = "";
+          if (args) {
+            if (Array.isArray(args.questions)) {
+              for (const q of args.questions) {
+                if (typeof q === "object" && q !== null && typeof (q as Record<string, unknown>).question === "string") {
+                  question = question ? `${question}\n${(q as Record<string, unknown>).question}` : String((q as Record<string, unknown>).question);
+                }
+              }
+            }
+            // Defensive fallback for a flat single-question shape.
+            if (!question) {
+              for (const key of ["question", "message", "prompt"]) {
+                const v = args[key];
+                if (typeof v === "string" && v.trim()) {
+                  question = v;
+                  break;
+                }
+              }
+            }
+          }
+          dispatchChatEvent("question_asked", this.chatEventPayload({ type: "question_asked" }, question || undefined));
+        }
+        break;
+      }
       case "extension_ui_request": {
         if (this.trackExtensionUiRequest(event)) {
           notifyRunningChange();
@@ -862,10 +895,11 @@ export class AgentSessionWrapper {
    *  its display name (notification defaults), and a per-session frame
    *  relay (the notification executor uses it to reach the session's own
    *  SSE stream; it returns how many listeners received the frame). */
-  private chatEventPayload(frame?: Record<string, unknown>): ChatEventPayload {
+  private chatEventPayload(frame?: Record<string, unknown>, question?: string): ChatEventPayload {
     const payload: ChatEventPayload = { sessionId: this._sessionId };
     if (this._sessionName) payload.sessionName = this._sessionName;
     if (this._lastAssistantReply) payload.lastAssistantReply = this._lastAssistantReply;
+    if (question) payload.question = question;
     if (frame) {
       payload.emitToSession = (f) => {
         let count = 0;

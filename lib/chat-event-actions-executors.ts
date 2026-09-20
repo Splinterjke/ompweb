@@ -31,6 +31,10 @@ export interface ChatEventPayload {
   /** The assistant's most recent text reply in this session (best-effort;
    *  captured at message_end). Available to actions as $last_reply. */
   lastAssistantReply?: string;
+  /** The text of the assistant's question (the `ask` tool's prompt) that
+   *  triggered this event. Present only for the `question_asked` event.
+   *  Available to actions as $question. */
+  question?: string;
   /** Push a frame onto this session's own SSE stream. Returns the number of
    *  listeners that received it. Absent (or a no-op returning 0) when the
    *  session wrapper is gone — the running-stream broadcast is still
@@ -60,9 +64,9 @@ function record(action: ChatEventAction, ok: boolean, detail?: string): void {
 
 /**
  * Substitute $event-data variables in an action field. Supported:
- * $session_name, $session_id, $last_reply. Unknown $names are left as-is
- * (a typo in a body is user content, not an error). No variable in the
- * string -> the original is returned untouched (zero-copy fast path).
+ * $session_name, $session_id, $last_reply, $question. Unknown $names are
+ * left as-is (a typo in a body is user content, not an error). No variable
+ * in the string -> the original is returned untouched (zero-copy fast path).
  */
 export function interpolateEventVars(value: string, payload: ChatEventPayload): string {
   if (!value.includes("$")) return value;
@@ -70,6 +74,7 @@ export function interpolateEventVars(value: string, payload: ChatEventPayload): 
     session_name: payload.sessionName ?? "",
     session_id: payload.sessionId,
     last_reply: payload.lastAssistantReply ?? "",
+    question: payload.question ?? "",
   };
   return value.replace(/\$([a-z_]+)/g, (whole, name: string) => (name in vars ? vars[name] : whole));
 }
@@ -101,8 +106,8 @@ async function executeHttp(action: ChatEventAction, payload: ChatEventPayload): 
     const headers = parseHeaderLines(spec.headers ?? "");
     let body: string | undefined;
     if (spec.body) {
-      // $event-data variables ($session_name, $session_id, $last_reply) are
-      // substituted from the firing event's payload.
+      // $event-data variables ($session_name, $session_id, $last_reply,
+      // $question) are substituted from the firing event's payload.
       body = interpolateEventVars(spec.body, payload);
       if ((spec.method === "POST" || spec.method === "PUT") && !headers["content-type"]) {
         headers["Content-Type"] = CONTENT_TYPES[spec.bodyContentType ?? "json"];

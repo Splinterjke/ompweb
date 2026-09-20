@@ -98,6 +98,11 @@ export function dispatchChatEvent(type: ChatEventType, payload: ChatEventPayload
  *                                   rejects "nothing to compact"; compaction
  *                                   never emits a terminal agent_end, so it
  *                                   is not a conversation_completed)
+ *  - question_asked                ← tool_execution_start for the `ask` tool
+ *                                   (the assistant is asking the user
+ *                                   something); the question text is read
+ *                                   from the frame's `args` and handed to
+ *                                   actions as $question
  * `payload` carries at least `sessionId` (plus the session display name for
  * the notification defaults and `emitToSession` for the notification frame's
  * per-session delivery). Extra keys are ignored by the executors.
