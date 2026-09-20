@@ -1822,7 +1822,7 @@
   "chatActions.httpUrl": "URL",
   "chatActions.httpBody": "本文",
   "chatActions.httpBodyHint": "POST と PUT で送信されます",
-  "chatActions.httpBodyVars": "発火したイベントから置換される変数：\n$session_name — セッション名（タイトル）\n$session_id — セッションID\n$last_reply — 最後のアシスタント返信（全文）",
+  "chatActions.httpBodyVars": "発火したイベントから置換される変数：\n$session_name — セッション名（タイトル）\n$session_id — セッションID\n$last_reply — 最後のアシスタント返信（全文）\n$question — アシスタントの質問（question_asked のみ、それ以外は空）",
   "chatActions.httpBodyVarsHint": "利用可能な本文変数",
   "chatActions.httpContentType": "本文形式",
   "chatActions.httpHeaders": "ヘッダー",
