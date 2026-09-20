@@ -161,7 +161,7 @@ export function proxy(request: NextRequest) {
   // credentials, so they must stay reachable without a session (otherwise a
   // password-protected app would redirect them to /login and Chrome would
   // never offer to install / "Add to Home screen" would have no icon).
-  if (pathname === "/manifest.webmanifest" || /^\/icon/.test(pathname)) return NextResponse.next();
+  if (pathname === "/manifest.webmanifest" || /^\/icon/.test(pathname) || /^\/favicon/.test(pathname)) return NextResponse.next();
   // The rebuild reaper POSTs /api/ui/refresh from loopback after every
   // restart (detached, no session cookie) to mark the boot "updated", wake
   // the Rust host (hostClient.ui.refresh() -> ensure() -> boot), and fan out

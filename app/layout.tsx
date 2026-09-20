@@ -32,16 +32,19 @@ const notoSerifSC = Noto_Serif_SC({
 export const metadata: Metadata = {
   title: "omp web",
   description: "Web UI for the oh-my-pi (omp) coding agent",
-  // App icon (brand) everywhere: the favicon serves the PNG-compressed ICO
-  // fallback (app/favicon.ico) while modern tabs prefer the SVG source. Same
-  // artwork as the desktop Dock/tray icons (public/icon.*).
+  // App icon (brand) everywhere: the favicon set is the artwork from
+  // omp.sh — the app/favicon.ico convention file serves the ICO tab
+  // fallback (Next emits its <link> from the file), the SVG source is
+  // preferred by modern tabs, plus the apple-touch-icon size.
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png", sizes: "256x256" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
     ],
-    shortcut: "/icon.png",
-    apple: "/icon.png",
+    shortcut: "/favicon.png",
+    apple: [{ url: "/favicon-180x180.png", sizes: "180x180", type: "image/png" }],
   },
   // PWA-like behavior on iOS: standalone chrome, no telephone autodetect.
   appleWebApp: {

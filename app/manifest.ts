@@ -9,10 +9,12 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#FAF9F6",
     theme_color: "#FAF9F6",
-    // Chrome's install prompt requires both a 192px and a 512px PNG.
+    // Chrome's install prompt requires both a 192px and a 512px PNG; the
+    // SVG is included for modern install prompts.
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon.png", sizes: "512x512", type: "image/png" },
+      { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" },
+      { src: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
+      { src: "/favicon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
   };
 }
