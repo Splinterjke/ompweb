@@ -69,13 +69,13 @@ function checkPairingGate(request: NextRequest): NextResponse | null {
   if (pathname === "/remote" || pathname.startsWith("/remote/")) return null;
 
   const state = readPairingState();
-  if (!state) {
-    // No state file: nothing can ever have been paired — deny remote access.
-    return deny();
-  }
-
-  const rawConfig = state.config ?? {};
+  const rawConfig = state?.config ?? {};
+  // Pairing is opt-in (off by default): when it is not required, non-loopback
+  // /api access is allowed without a paired-device cookie.
   if (rawConfig.requirePairingForLan !== true) return null;
+  // Pairing is required but no state file exists: nothing can have been
+  // paired — deny remote access.
+  if (!state) return deny();
 
   const cookieName = typeof rawConfig.cookieName === "string" ? rawConfig.cookieName : "dsh_pair";
   const deviceId = request.cookies.get(cookieName)?.value;

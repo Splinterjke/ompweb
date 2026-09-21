@@ -49,7 +49,7 @@ export const DEFAULT_PAIRING_CONFIG: PairingConfig = {
   maxDevices: DEFAULT_MAX_DEVICES,
   idleExpireMs: DEFAULT_IDLE_EXPIRE_MS,
   cookieName: "dsh_pair",
-  requirePairingForLan: true,
+  requirePairingForLan: false,
   autoTunnel: false,
   mobileEnterToSend: false,
 };
