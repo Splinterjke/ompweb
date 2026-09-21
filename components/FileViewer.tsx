@@ -57,7 +57,7 @@ const DISPLAY_MODE_LABEL_KEYS: Record<DisplayMode, string> = {
 
 const FILE_CODE_STYLE: CSSProperties = {
   fontFamily: "var(--font-mono)",
-  fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
+  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
   lineHeight: 1.6,
 };
 

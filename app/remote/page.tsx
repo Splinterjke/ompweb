@@ -81,7 +81,7 @@ function RemotePairContent() {
 
       {state === "pairing" && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))" }}>
-          <LoaderCircle size={18} className="spin" aria-hidden="true" />
+          <LoaderCircle size={18} className="icon-spin" aria-hidden="true" />
           {pairText("remote.pairingInProgress")}
         </div>
       )}

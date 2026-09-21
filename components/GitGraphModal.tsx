@@ -384,7 +384,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
           </div>
         ) : loading && !payload ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-            <LoaderCircle size={14} strokeWidth={1.8} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />
+            <LoaderCircle size={14} strokeWidth={1.8} className="icon-spin" aria-hidden="true" />
             {t("gitGraph.loading")}
           </div>
         ) : error ? (
@@ -662,7 +662,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
                   <span style={{ flex: 1, minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: diff ? "var(--text-muted)" : "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {diff ? diff.file : t("gitGraph.selectFile")}
                   </span>
-                  {diffLoading && <LoaderCircle size={12} strokeWidth={1.8} style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} aria-hidden="true" />}
+                  {diffLoading && <LoaderCircle size={12} strokeWidth={1.8} className="icon-spin" style={{ flexShrink: 0 }} aria-hidden="true" />}
                 </div>
                 <div style={{ flex: 1, overflow: "auto", padding: "8px 10px" }}>
                   {diffError && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error: diffError })}</div>}

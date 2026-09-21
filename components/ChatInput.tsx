@@ -2912,7 +2912,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   onMouseLeave={(e) => { e.currentTarget.style.background = contextOpen ? "var(--bg-hover)" : "none"; }}
                 >
                   {isCompacting ? (
-                    <Loader2 size={14} strokeWidth={2} aria-hidden="true" style={{ animation: "spin 0.8s linear infinite" }} />
+                    <Loader2 size={14} strokeWidth={2} className="icon-spin" aria-hidden="true" />
                   ) : (
                     <span style={{ position: "relative", width: 20, height: 20, display: "inline-flex" }} aria-hidden="true">
                       <svg width="20" height="20" viewBox="0 0 20 20">
@@ -3003,7 +3003,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-subtle)"; }}
                     >
                       {isCompacting ? (
-                        <Loader2 size={13} strokeWidth={2} aria-hidden="true" style={{ animation: "spin 0.8s linear infinite" }} />
+                        <Loader2 size={13} strokeWidth={2} className="icon-spin" aria-hidden="true" />
                       ) : (
                         <Shrink size={13} strokeWidth={2} aria-hidden="true" />
                       )}

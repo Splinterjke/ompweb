@@ -460,7 +460,7 @@ function TreeNode({
           />
         )}
         {loading && (
-          <Loader2 size={10} strokeWidth={2} color="var(--text-dim)" style={{ animation: "spin 0.8s linear infinite", flexShrink: 0 }} aria-hidden="true" />
+          <Loader2 size={10} strokeWidth={2} color="var(--text-dim)" className="icon-spin" style={{ flexShrink: 0 }} aria-hidden="true" />
         )}
         {/* Row actions (mention / download / reveal): shown only while the row
             is hovered or keyboard-focused, so they don't clutter every row. */}
@@ -849,7 +849,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
           <div role="status" aria-live="polite" aria-label={uploadPhase === "checking" ? t("fileExplorer.checkingFiles") : t("fileExplorer.uploadingPercent", { percent: uploadProgress })}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 14, color: "var(--text-muted)" }}>
               {uploadPhase === "checking" ? (
-                <Loader2 size={13} strokeWidth={2.2} style={{ animation: "spin 0.8s linear infinite" }} aria-hidden="true" />
+                <Loader2 size={13} strokeWidth={2.2} className="icon-spin" aria-hidden="true" />
               ) : (
                 <Upload size={13} strokeWidth={2} aria-hidden="true" />
               )}
