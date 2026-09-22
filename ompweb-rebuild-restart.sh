@@ -435,6 +435,10 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   log "FAILED: deploy — running instance left untouched"
   exit 1
 fi
+# The launcher shebangs require the exec bit. The mirror copies from the source
+# tree (git stores them as 755, but a checkout without core.fileMode can drop
+# the bit on disk), so re-assert it here — entrypoint execs them directly.
+chmod +x "$DST/bin/omp-web.js" "$DST/bin/omp-web-desktop.js"
 log "deploy: done in $(( $(date +%s) - T_DEPLOY ))s"
 
 # The build id the reaper must confirm is served after the restart.
