@@ -111,6 +111,41 @@ test("tool operations render as compact timeline rows", () => {
   assert.match(html, /activity-row-duration/);
   assert.doesNotMatch(html, /border-radius:7px/);
 });
+
+test("committed assistant messages offer copy actions before the fork button", () => {
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    message: {
+      role: "assistant",
+      timestamp: 1000,
+      content: [{ type: "text", text: "Hello world" }],
+    },
+    forkEntryId: "entry-user",
+    onFork: () => {},
+  }));
+
+  // Text blocks are wrapped for extraction; copy actions render next to the
+  // fork button, ordered before it.
+  assert.match(html, /data-message-text/);
+  assert.match(html, /message-copy-actions/);
+  assert.match(html, /New session/);
+  assert.ok(
+    html.indexOf("message-copy-actions") < html.indexOf("New session"),
+    "copy actions must appear before the New session (fork) button"
+  );
+});
+
+test("streaming assistant messages do not show copy actions", () => {
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    message: {
+      role: "assistant",
+      timestamp: 1000,
+      content: [{ type: "text", text: "Hello world" }],
+    },
+    isStreaming: true,
+  }));
+
+  assert.doesNotMatch(html, /message-copy-actions/);
+});
 test("irc:incoming custom messages title with the sender name", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     message: {

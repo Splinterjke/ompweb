@@ -455,6 +455,8 @@ function AssistantMessageView({
   const blockItemsRef = useRef(blockItems);
   blockItemsRef.current = blockItems;
   const [errorExpanded, setErrorExpanded] = useState(false);
+  // Ref over the assistant's content blocks so Copy can pull rendered text.
+  const bodyRef = useRef<HTMLDivElement>(null);
 
 
   // Streaming-based timing for thinking blocks
@@ -647,7 +649,7 @@ function AssistantMessageView({
         })()}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <div ref={bodyRef} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {/* Stable key per block index: streaming instances (no entryId yet)
             and the committed message must reuse the same component instance,
             otherwise ThinkingBlock remounts on commit and loses the expanded
@@ -680,7 +682,10 @@ function AssistantMessageView({
 
       {!isStreaming && (texts.some((text) => text.trim()) || time || canFork) && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
-          {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
+            <MessageCopyActions texts={texts} bodyRef={bodyRef} />
+            {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+          </div>
           {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
         </div>
       )}
@@ -690,7 +695,7 @@ function AssistantMessageView({
 
 function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; settled?: boolean }) {
   if (block.type === "text") {
-    return <TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} />;
+    return <div data-message-text><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
   }
   if (block.type === "thinking") {
     return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} isStreaming={isStreaming} isLatestBlock={isLatestBlock} thinkingDisplayMode={thinkingDisplayMode} />;
