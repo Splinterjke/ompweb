@@ -734,6 +734,18 @@ function extractTextFromContent(content: unknown): string {
   return text.join(" ");
 }
 
+/** omp records a `/skill:` first prompt's user text inside a `custom_message`
+ * (customType "skill-prompt") as a trailing "User: <prompt>" line — there is no
+ * role:"user" message entry. Recover that trailer so such sessions stay visible.
+ * Mirrors the Rust session_scan extract_skill_prompt_user. */
+function extractSkillPromptUser(entry: { type?: string; customType?: string; content?: unknown }): string {
+  if (entry.type !== "custom_message" || entry.customType !== "skill-prompt") return "";
+  if (typeof entry.content !== "string") return "";
+  const idx = entry.content.lastIndexOf("User: ");
+  const user = (idx === -1 ? entry.content : entry.content.slice(idx + "User: ".length)).trim();
+  return user.slice(0, 240);
+}
+
 interface TailMessage {
   role?: string;
   stopReason?: string;
@@ -911,6 +923,9 @@ export function scanSessionInfo(filePath: string, withStatus = true): OmpSession
           firstMessage = extractTextFromContent(entry.message.content);
         }
       }
+      if (entry.type === "custom_message" && !firstMessage) {
+        firstMessage = extractSkillPromptUser(entry as { type?: string; customType?: string; content?: unknown });
+      }
     }
 
     firstMessage ||= extractFirstDisplayMessageFromPrefix(content) ?? "";
@@ -923,6 +938,10 @@ export function scanSessionInfo(filePath: string, withStatus = true): OmpSession
         const entry = extendedEntries[i] as { type?: string; message?: { role?: string; content?: unknown } };
         if (entry.type === "message" && entry.message?.role === "user") {
           firstMessage = extractTextFromContent(entry.message.content);
+          if (firstMessage) break;
+        }
+        if (entry.type === "custom_message" && !firstMessage) {
+          firstMessage = extractSkillPromptUser(entry as { type?: string; customType?: string; content?: unknown });
           if (firstMessage) break;
         }
       }

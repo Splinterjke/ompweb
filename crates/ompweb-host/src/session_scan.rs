@@ -231,6 +231,28 @@ fn extract_message_text(value: &JsonValue) -> String {
     }
 }
 
+/// omp records a `/skill:` first prompt's user text inside a
+/// `custom_message` (customType "skill-prompt") as a trailing
+/// "User: <prompt>" line — there is no role:"user" message entry. Recover
+/// that trailer so the session is not invisible to the session list.
+fn extract_skill_prompt_user(value: &JsonValue) -> Option<String> {
+    if value.get(&["type"]).and_then(|t| t.as_str()) != Some("custom_message") {
+        return None;
+    }
+    if value.get(&["customType"]).and_then(|t| t.as_str()) != Some("skill-prompt") {
+        return None;
+    }
+    let content = value.get(&["content"])? .as_str()?;
+    // The user's prompt follows the LAST "User: " trailer; the skill body can
+    // contain its own "User:" text. Bound like other first messages.
+    let user = content.rsplit("User: ").next().unwrap_or(content).trim();
+    if user.is_empty() {
+        None
+    } else {
+        Some(user.chars().take(240).collect())
+    }
+}
+
 /// Scan one file into a projection (head-window read, Node-parity).
 pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
     let file = fs::File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
@@ -289,6 +311,12 @@ pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
+            } else if kind == "custom_message" {
+                if first_message.is_empty() {
+                    if let Some(text) = extract_skill_prompt_user(&value) {
+                        first_message = text;
+                    }
+                }
             }
         }
     }
@@ -325,6 +353,12 @@ pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
                                 if !first_message.is_empty() {
                                     break 'ext;
                                 }
+                            }
+                        }
+                        if kind == "custom_message" && first_message.is_empty() {
+                            if let Some(text) = extract_skill_prompt_user(&value) {
+                                first_message = text;
+                                break 'ext;
                             }
                         }
                     }
@@ -468,6 +502,48 @@ mod tests {
         let p = project_file(&file).unwrap();
         assert_eq!(p.first_message, "hello blocks");
         assert_eq!(p.title, "hello blocks");
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn skill_prompt_first_prompt_recovers_user_text() {
+        // Regression: a `/skill:` first prompt stores the user's text in a
+        // custom_message/skill-prompt trailer, not a role:"user" message, so
+        // the session must still expose a first message (else it is invisible).
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_skill0000000000000000000001.jsonl");
+        fs::write(
+            &file,
+            "{\"type\":\"session\",\"version\":3,\"id\":\"skill0000000000000000000001\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}\n\
+             {\"type\":\"custom_message\",\"customType\":\"skill-prompt\",\"content\":\"[IMPORTANT: User invoked the skill]\\n\\n# skill body\\n\\nUser: Do you have access to the MR? \"}\n",
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "Do you have access to the MR?");
+        assert_eq!(p.title, "Do you have access to the MR?");
+        assert_eq!(p.messages, 0);
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn skill_prompt_past_prefix_window_is_recovered() {
+        // The 4 KiB prefix can truncate a large skill-prompt line; the bounded
+        // extension pass must still find the trailing "User: " prompt.
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_skill0000000000000000000002.jsonl");
+        let big = "x".repeat(5000);
+        fs::write(
+            &file,
+            format!(
+                "{{\"type\":\"session\",\"version\":3,\"id\":\"skill0000000000000000000002\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}}\n\
+                 {{\"type\":\"custom_message\",\"customType\":\"skill-prompt\",\"content\":\"{big}\\nUser: find the bug\"}}\n"
+            ),
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "find the bug");
+        assert_eq!(p.title, "find the bug");
+        assert_eq!(p.messages, 0);
         fs::remove_file(&file).ok();
     }
 }

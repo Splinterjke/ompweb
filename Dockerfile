@@ -140,7 +140,8 @@ COPY --from=builder /src/public /opt/ompweb/public
 COPY --from=builder /src/vendor /opt/ompweb/vendor
 COPY --from=builder /src/package.json /src/next.config.ts /src/tsconfig.json /opt/ompweb/
 
-RUN ln -sf /opt/ompweb/bin/omp-web.js /usr/local/bin/ompweb \
+RUN chmod +x /opt/ompweb/bin/omp-web.js /opt/ompweb/bin/omp-web-desktop.js \
+ && ln -sf /opt/ompweb/bin/omp-web.js /usr/local/bin/ompweb \
  && ln -sf /opt/ompweb/bin/omp-web-desktop.js /usr/local/bin/ompweb-desktop
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
