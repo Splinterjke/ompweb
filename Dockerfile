@@ -20,14 +20,14 @@ FROM node:26-slim AS base
 
 LABEL maintainer="Oh My Pi" \
       description="Docker harness for Oh My Pi coding agent + ompweb" \
-      version="0.8"
+      version="0.9"
 
 # build-essential is intentionally absent: the runtime never compiles. node-pty
 # ships per-platform prebuilds, and the Rust host is pre-built in the builder.
 RUN sed -i 's/^URIs: https/URIs: http/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl git \
+      ca-certificates curl git tzdata \
       python3 python3-pip python3-venv ripgrep fd-find wget \
       libglib2.0-0t64 libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 \
       libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
@@ -39,6 +39,8 @@ RUN sed -i 's/^URIs: https/URIs: http/' /etc/apt/sources.list.d/debian.sources 2
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
+ENV TZ=Europe/Moscow
 
 RUN python3 -m venv /opt/omp-venv
 
