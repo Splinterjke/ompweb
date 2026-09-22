@@ -78,7 +78,7 @@ export function ContextDetailPanel({ sessionStats, contextUsage, modelCapacity, 
       ? "var(--status-warning)"
       : "var(--text-muted)";
   const costStr = sessionStats ? formatCost(sessionStats.cost) : null;
-  const cacheHitRate = sessionStats ? getCacheHitRate(sessionStats.tokens.input, sessionStats.tokens.cacheRead) : null;
+  const cacheHitRate = sessionStats ? getCacheHitRate(sessionStats.tokens.input, sessionStats.tokens.cacheRead, sessionStats.tokens.cacheWrite) : null;
 
   const copyField = (field: "file" | "id", value: string) => {
     void copyText(value).then(() => {

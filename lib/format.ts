@@ -16,8 +16,12 @@ export function formatPercent(pct: number): string {
 }
 
 /** Cache hit rate: cacheRead / (input + cacheRead) * 100 — matches `omp stats` cacheRate.
- * Returns null when denominator is 0 (no input/cache yet) so callers can hide the row. */
-export function getCacheHitRate(input: number, cacheRead: number): number | null {
+ * Returns null when denominator is 0 (no input/cache yet), or when the provider never
+ * reported any cache activity (cacheRead and cacheWrite both 0 — e.g. SGLang, whose
+ * OpenAI-compatible usage omits cached tokens), so callers can hide the row instead of
+ * showing a misleading 0.0%. */
+export function getCacheHitRate(input: number, cacheRead: number, cacheWrite: number): number | null {
+  if (cacheRead === 0 && cacheWrite === 0) return null;
   const denom = input + cacheRead;
   return denom > 0 ? (cacheRead / denom) * 100 : null;
 }

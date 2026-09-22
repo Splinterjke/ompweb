@@ -25,7 +25,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
   const tok = sessionStats?.tokens;
   const c = sessionStats?.cost ?? 0;
   const costStr = c > 0 ? (c >= 0.01 ? `$${c.toFixed(2)}` : `<$0.01`) : null;
-  const cacheHitRate = tok ? getCacheHitRate(tok.input, tok.cacheRead) : null;
+  const cacheHitRate = tok ? getCacheHitRate(tok.input, tok.cacheRead, tok.cacheWrite) : null;
   const cacheRateStr = cacheHitRate !== null ? formatPercent(cacheHitRate) : null;
 
   let ctxColor = "var(--text-muted)";
