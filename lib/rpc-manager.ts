@@ -50,7 +50,6 @@ const SET_MODEL_TIMEOUT_MS = 30_000;
 /** Prompt execution continues over frames; this cap applies only to accepting
  * the prompt command, not to model generation. */
 const PROMPT_ACK_TIMEOUT_MS = 30_000;
-const NON_TERMINAL_CONTINUATION_GRACE_MS = 2_000;
 const AWAITING_AGENT_START_TIMEOUT_MS = 10_000;
 
 // ── RPC 健康信号 ──────────────────────────────────────────────────────────
@@ -322,8 +321,13 @@ export class AgentSessionWrapper {
   /** OMP can acknowledge just before emitting agent_start. */
   private awaitingAgentStart = false;
   private awaitingAgentStartDeadline = 0;
-  /** Non-terminal agent_end announces an immediate async continuation. */
-  private continuationGraceUntil = 0;
+  /** A non-terminal agent_end announces an async continuation (e.g. a
+   *  backgrounded bash job): the turn resumes with a later agent_start —
+   *  sometimes minutes later. The flag stays set until that continuation's
+   *  turn ends terminally (or the session is aborted/restarted/destroyed),
+   *  so state reconciliation does not clear promptRunning while the job is
+   *  pending and clients keep their SSE stream attached. */
+  private continuationPending = false;
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
@@ -489,7 +493,7 @@ export class AgentSessionWrapper {
         this.streaming = true;
         this.awaitingAgentStart = false;
         this.awaitingAgentStartDeadline = 0;
-        this.continuationGraceUntil = 0;
+        this.continuationPending = false;
         // The session file can appear just after the prompt acknowledgement.
         // Invalidate and signal the sidebar now rather than waiting for the
         // agent's first reply or terminal event.
@@ -513,7 +517,7 @@ export class AgentSessionWrapper {
           this.promptRunning = false;
           this.awaitingAgentStart = false;
           this.awaitingAgentStartDeadline = 0;
-          this.continuationGraceUntil = 0;
+          this.continuationPending = false;
           invalidateSessionListCache();
           clearChatActionRunState(this._sessionId);
           // A finished run's todo baseline is stale for the next prompt.
@@ -522,7 +526,9 @@ export class AgentSessionWrapper {
           // built-in completion notification uses).
           dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
         } else {
-          this.continuationGraceUntil = Date.now() + NON_TERMINAL_CONTINUATION_GRACE_MS;
+          // The turn is paused for an async continuation (e.g. a
+          // backgrounded bash job); it resumes with a later agent_start.
+          this.continuationPending = true;
         }
         break;
       case "prompt_result":
@@ -1062,13 +1068,19 @@ export class AgentSessionWrapper {
     }
 
     // `get_state` is authoritative once no command or browser-owned request
-    // is still in flight. This is the recovery path for a lost terminal SSE
-    // event, while the short agent-start grace prevents it from erasing a
-    // prompt that was accepted milliseconds earlier.
+    // is still in flight and no async continuation is pending. A non-terminal
+    // agent_end (e.g. a backgrounded bash job) means the turn resumes with a
+    // later agent_start — minutes later, not immediately — so while
+    // continuationPending the idle reconciliation must not clear promptRunning,
+    // or a client re-attaching mid-pause would see an idle session and drop
+    // its stream. This is the recovery path for a lost terminal SSE event,
+    // while the agent-start grace prevents it from erasing a prompt that was
+    // accepted milliseconds earlier.
     const awaitingExpired = !this.awaitingAgentStart || Date.now() >= this.awaitingAgentStartDeadline;
     const hasPendingWork =
       this.promptDispatchPendingCount > 0
       || (this.awaitingAgentStart && !awaitingExpired)
+      || this.continuationPending
       || this.mcpListWaiter !== null
       || this.pendingUiRequests.size > 0
       || this.pendingHostTools.size > 0
@@ -1077,7 +1089,6 @@ export class AgentSessionWrapper {
       state.isStreaming === false
       && state.isCompacting === false
       && !hasPendingWork
-      && Date.now() >= this.continuationGraceUntil
     ) {
       this.promptRunning = false;
       this.awaitingAgentStart = false;
@@ -1165,7 +1176,7 @@ export class AgentSessionWrapper {
       this.promptDispatchPendingCount = 0;
       this.awaitingAgentStart = false;
       this.awaitingAgentStartDeadline = 0;
-      this.continuationGraceUntil = 0;
+      this.continuationPending = false;
       this.bashRunning = false;
       this.streaming = false;
       this.compacting = false;
@@ -1239,7 +1250,7 @@ export class AgentSessionWrapper {
           this.promptDispatchPendingCount += 1;
           this.awaitingAgentStart = false;
           this.awaitingAgentStartDeadline = 0;
-          this.continuationGraceUntil = 0;
+          this.continuationPending = false;
           notifyRunningChange();
         }
         try {
@@ -1300,6 +1311,7 @@ export class AgentSessionWrapper {
           // agent_end will arrive to clear the flag; the streaming flag still
           // tracks a live turn that ends with its own agent_end.
           this.promptRunning = false;
+          this.continuationPending = false;
         });
         // Chat event action: conversation_interrupted (command accepted by omp).
         dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
@@ -1535,7 +1547,7 @@ export class AgentSessionWrapper {
     }
     this.unsubscribeFrames?.();
     this.clearPendingUiRequests();
-    this.continuationGraceUntil = 0;
+    this.continuationPending = false;
     // A session destroyed without a terminal agent_end (idle timeout, delete,
     // crash) must not leave a stale per-run entry in the dispatcher's
     // globalThis Map.

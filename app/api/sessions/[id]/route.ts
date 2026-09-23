@@ -166,14 +166,52 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const resolved = await resolveSessionPathOr404(id);
-    if ("response" in resolved) return resolved.response;
-    const filePath = resolved.filePath;
-
     const searchParams = new URL(req.url).searchParams;
     const deferThinking = searchParams.has("deferThinking");
     const deferToolResultImages = searchParams.has("deferMedia");
     const includeState = searchParams.has("includeState");
+    const filePath = await resolveSessionPath(id);
+    if (!filePath) {
+      // omp does not create the session file until the first assistant message
+      // commits, so a live web-owned session (e.g. its first turn still running)
+      // can have no file yet. A live wrapper proves the session exists — answer
+      // with an empty transcript instead of a 404 so the client can attach its
+      // event stream and show the running state; a 404 would leave the UI
+      // frozen (no running indicator, no streaming) until a manual refresh.
+      const live = getRpcSession(id);
+      if (live?.isAlive()) {
+        const now = new Date().toISOString();
+        let agent: { running: boolean; state?: unknown } | undefined;
+        if (includeState) {
+          try {
+            agent = { running: true, state: await live.send({ type: "get_state" }) };
+          } catch {
+            // Leave agent unset; the session payload is still valid without it.
+          }
+        }
+        return NextResponse.json({
+          sessionId: id,
+          filePath: "",
+          info: {
+            path: "",
+            id,
+            cwd: live.cwd,
+            created: now,
+            modified: now,
+            messageCount: 0,
+            firstMessage: "(no messages)",
+          },
+          leafId: null,
+          tree: [],
+          context: buildSessionContext([], null, { deferThinking, deferToolResultImages }),
+          ...(agent ? { agent } : {}),
+        });
+      }
+      return NextResponse.json(
+        { error: "Session not found", code: "session_not_found" },
+        { status: 404 },
+      );
+    }
 
     const { header, entries, error: loadError } = loadSessionFile(filePath, {
       resolveBlobs: true,
