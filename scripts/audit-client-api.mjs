@@ -9,7 +9,7 @@
 // calls must go through lib/client adapters, and legacy call sites leave the
 // inventory only by deleting code (test lib/api-inventory.test.mjs enforces sync).
 
-import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { scanRepo, totalsOf, REPO_ROOT_DIR } from "./lib/scan-client-api.mjs";
 
@@ -40,6 +40,52 @@ function allowlistPayload() {
       "Files leave this list only by migrating to lib/client adapters.",
     files,
   };
+}
+// Browser-runtime gate. SWC transpiles syntax but NEVER polyfills APIs, so any
+// ES2024 static API in client code throws at runtime on older mobile browsers
+// (Safari <18.2, Chrome <119, Firefox <121). Promise.withResolvers broke the
+// prompt-send path once ("Promise.withResolvers is not a function"), so gate it.
+//
+// Scoped to the unambiguously browser-only roots. `lib/` outside `lib/client/`
+// mixes server-only modules (run on Node >= 22, which HAS these APIs), so it is
+// deliberately excluded to avoid false positives.
+const CLIENT_ROOTS = ["hooks", "components", "lib/client"];
+const FORBIDDEN_ES2024 = [
+  { re: /\bPromise\.withResolvers\b/, name: "Promise.withResolvers" },
+  { re: /\bPromise\.try\s*\(/, name: "Promise.try" },
+  { re: /\bArray\.fromAsync\b/, name: "Array.fromAsync" },
+];
+
+function walkClientFiles(dir, out) {
+  for (const entry of readdirSync(dir)) {
+    if (entry.startsWith(".") || entry === "node_modules") continue;
+    const full = path.join(dir, entry);
+    const st = statSync(full);
+    if (st.isDirectory()) walkClientFiles(full, out);
+    else if (/\.(ts|tsx|mts)$/.test(entry)) out.push(full);
+  }
+}
+
+function forbiddenApiErrors() {
+  const errors = [];
+  for (const root of CLIENT_ROOTS) {
+    const dir = path.join(REPO_ROOT_DIR, root);
+    if (!existsSync(dir)) continue;
+    const files = [];
+    walkClientFiles(dir, files);
+    for (const file of files) {
+      const content = readFileSync(file, "utf8");
+      for (const { re, name } of FORBIDDEN_ES2024) {
+        if (re.test(content)) {
+          errors.push(
+            `${path.relative(REPO_ROOT_DIR, file)}: uses ES2024 client API ${name} ` +
+              "(absent in older mobile browsers; replace with a compatible pattern)",
+          );
+        }
+      }
+    }
+  }
+  return errors;
 }
 
 function writeIfChanged(file, text) {
@@ -78,6 +124,7 @@ if (check) {
   if (JSON.stringify(expectedAllowlist.files) !== JSON.stringify(actualAllowlist.files)) {
     errors.push("scripts/client-api-allowlist.json out of sync with the live tree");
   }
+  for (const e of forbiddenApiErrors()) errors.push(e);
   if (errors.length > 0) {
     console.error(
       "api-inventory drift detected — update deliberately (5.0 W0 gate):\n" +

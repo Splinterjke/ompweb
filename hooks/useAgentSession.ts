@@ -1401,7 +1401,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     eventSourceConnectRef.current = null;
     // A pending coalesced update belongs to the stream being replaced.
     eventCoalescer.reset();
-    const { promise, resolve } = Promise.withResolvers<EventStreamConnectionResult>();
+    // Classic resolver, not the ES2024 static "with" constructor: older
+    // mobile browsers (Safari <18.2, Chrome <119, Firefox <121) lack it and
+    // crashed this send path with a "not a function" TypeError.
+    let resolveStream: (value: EventStreamConnectionResult) => void;
+    const promise = new Promise<EventStreamConnectionResult>((res) => {
+      resolveStream = res;
+    });
     let settled = false;
     const timeout: ReturnType<typeof setTimeout> | undefined = setTimeout(
       () => settle("timeout"),
@@ -1412,7 +1418,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       settled = true;
       clearTimeout(timeout);
       if (eventSourceConnectRef.current === promise) eventSourceConnectRef.current = null;
-      resolve({ status, source: subscription });
+      resolveStream({ status, source: subscription });
     };
     const subscription = client.agent.subscribeSessionEvents(sid, {
       // The stream is live as soon as the response headers land, whether or
