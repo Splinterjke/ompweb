@@ -1754,6 +1754,7 @@ function AddProviderPicker({
           <DialogTitle style={{ margin: 0, fontSize: "calc(18px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.addProvider")}</DialogTitle>
           <button
             type="button"
+            onClick={onClose}
             aria-label={t("modelsConfig.close")}
             title={t("modelsConfig.close")}
             className="ui-focus-ring"
