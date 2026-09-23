@@ -2,14 +2,8 @@ import { type ChildProcessWithoutNullStreams, spawn } from "child_process";
 import { createInterface } from "readline";
 import { proxyEnv } from "../proxy-config";
 import { sanitizeProjectCommandEnvironment } from "../project-command-env";
-import { resolveOmpBin } from "./omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { encodeRpcFrames, RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
-
-/** Build a safely quoted `cmd.exe /c` command line for a .cmd launcher. */
-function quoteCmdLine(bin: string, args: string[]): string {
-  const quote = (value: string) => (/\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
-  return [bin, ...args].map(quote).join(" ");
-}
 
 /**
  * Process + protocol layer for `omp --mode rpc-ui` (NDJSON over stdio).
@@ -112,10 +106,10 @@ export class RpcProcess {
     if (options.onFrame) this.frameListeners.add(options.onFrame);
 
     const args = ["--mode", "rpc-ui", "--cwd", options.cwd, ...(options.extraArgs ?? [])];
-    // Windows npm/bun installs resolve to `omp.cmd`; Node cannot spawn a .cmd
-    // directly, so run it through cmd.exe /c.
-    const isCmdWrapper = process.platform === "win32" && /\.cmd$/i.test(bin);
-    this.child = this.spawnProcess(isCmdWrapper ? "cmd.exe" : bin, isCmdWrapper ? ["/d", "/s", "/c", quoteCmdLine(bin, args)] : args, {
+    // Windows npm/bun installs resolve to `omp.cmd`/`omp.bat`; Node cannot
+    // spawn them directly, so route them through cmd.exe /c.
+    const target = wrapWindowsScript(bin, args);
+    this.child = this.spawnProcess(target.file, target.args, {
       cwd: options.cwd,
       env: sanitizeProjectCommandEnvironment({
         ...process.env,

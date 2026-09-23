@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { resolveOmpBin } from "@/lib/omp/omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,8 @@ type RawEntry = { value?: unknown; type?: string; description?: string; redacted
 async function runOmp(args: string[]): Promise<string> {
   const bin = resolveOmpBin();
   if (!bin) throw new Error("omp binary not found — install omp or set OMP_WEB_OMP_BIN");
-  const { stdout } = await execFileAsync(bin, args, {
+  const target = wrapWindowsScript(bin, args);
+  const { stdout } = await execFileAsync(target.file, target.args, {
     timeout: 15_000,
     maxBuffer: 8 * 1024 * 1024,
     env: { ...process.env, LC_ALL: "C" },

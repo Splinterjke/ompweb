@@ -3,7 +3,7 @@ import { chmodSync, copyFileSync, existsSync, readFileSync, renameSync, writeFil
 import { tmpdir } from "os";
 import { join } from "path";
 import { ProxyAgent, request } from "undici";
-import { resolveOmpBin } from "./omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { proxyEnv, readProxyConfig, resolveEffectiveProxy } from "../proxy-config";
 
 const OMP_RELEASE_ASSET_URL = "https://github.com/can1357/oh-my-pi/releases/latest/download/{tag}";
@@ -43,7 +43,8 @@ export async function runOmpUpdateStream(args: string[], onLine?: (line: string)
   };
   onLine?.("[omp-web] Proxy: " + (proxyUrl ?? "not detected (direct)") + " — injected into the update command environment");
   const attemptOnce = (): Promise<{ exitCode: number; output: string }> => new Promise((resolve, reject) => {
-    const child = spawn(bin, ["update", ...args], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const target = wrapWindowsScript(bin, ["update", ...args]);
+    const child = spawn(target.file, target.args, { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     let pending = "";
     const timer = setTimeout(() => {
@@ -165,7 +166,8 @@ async function runOmpUpdate(args: string[]): Promise<string> {
     ...proxyEnv(proxyUrl),
   };
   const { promise, resolve, reject } = Promise.withResolvers<string>();
-  execFile(bin, ["update", ...args], {
+  const target = wrapWindowsScript(bin, ["update", ...args]);
+  execFile(target.file, target.args, {
     timeout: 300_000,
     maxBuffer: 1024 * 1024,
     env,

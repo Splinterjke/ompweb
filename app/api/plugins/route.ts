@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { existsSync, promises as fs } from "fs";
 import { basename, extname, join } from "path";
-import { resolveOmpBin } from "@/lib/omp/omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import type {
   PluginDiagnostic,
@@ -74,10 +74,11 @@ function runOmp(
   if (!bin) {
     return Promise.reject(new Error("omp binary not found. Install oh-my-pi or set OMP_WEB_OMP_BIN."));
   }
+  const target = wrapWindowsScript(bin, args);
   return new Promise((resolve, reject) => {
     execFile(
-      bin,
-      args,
+      target.file,
+      target.args,
       {
         cwd: opts.cwd,
         timeout: opts.timeout ?? 60_000,

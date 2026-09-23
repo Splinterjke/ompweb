@@ -4,7 +4,7 @@ import { homedir } from "os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { isRecord } from "../type-guards";
-import { resolveOmpBin } from "./omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { getAgentsBundledCacheDir, getProjectAgentsDir, getUserAgentsDir } from "./paths";
 
 export type AgentSource = "bundled" | "user" | "project";
@@ -168,7 +168,8 @@ export function unpackBundled(targetDir: string, force = false): { targetDir: st
   const safeTargetDir = secureScopeDir(targetDir);
   const before = new Set(readdirSync(safeTargetDir, { withFileTypes: true }).filter((entry) => entry.name.toLowerCase().endsWith(".md")).map((entry) => entry.name));
   const bin = resolveOmpBin() ?? "omp";
-  execFileSync(bin, ["agents", "unpack", "--dir", safeTargetDir, "--json", ...(force ? ["--force"] : [])], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  const target = wrapWindowsScript(bin, ["agents", "unpack", "--dir", safeTargetDir, "--json", ...(force ? ["--force"] : [])]);
+  execFileSync(target.file, target.args, { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const after = readdirSync(safeTargetDir, { withFileTypes: true }).filter((entry) => entry.name.toLowerCase().endsWith(".md")).map((entry) => entry.name);
   const written = after.filter((name) => !before.has(name)).length;
   return { targetDir, total: after.length, written, skipped: Math.max(0, after.length - written) };

@@ -78,6 +78,25 @@ export function resolveOmpBin(): string | null {
   return null;
 }
 
+// Windows npm/bun installs resolve to `omp.cmd`/`omp.bat` launchers; Node
+// cannot spawn them directly without a shell. Route them through
+// `cmd.exe /d /s /c` with a safely quoted command line; every other platform
+// and binary passes through byte-for-byte.
+const WINDOWS_SCRIPT_RE = /\.cmd$|\.bat$/i;
+
+function quoteCmdLine(bin: string, args: string[]): string {
+  const quote = (value: string) => (/\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value);
+  return [bin, ...args].map(quote).join(" ");
+}
+
+/** Spawn target for `bin args`, routing Windows script launchers through cmd.exe. */
+export function wrapWindowsScript(bin: string, args: string[]): { file: string; args: string[] } {
+  if (process.platform === "win32" && WINDOWS_SCRIPT_RE.test(bin)) {
+    return { file: "cmd.exe", args: ["/d", "/s", "/c", quoteCmdLine(bin, args)] };
+  }
+  return { file: bin, args };
+}
+
 /** `omp --version` output (e.g. "omp/17.1.3"), or null when unavailable.
  * Cached after the first successful probe; failures are retried after
  * MISS_TTL_MS so a later install is picked up without a server restart. */
@@ -91,7 +110,8 @@ export async function getOmpVersion(): Promise<string | null> {
   }
   try {
     const output = await new Promise<string>((resolve, reject) => {
-      execFile(bin, ["--version"], { timeout: 10_000, windowsHide: true }, (error, stdout) => {
+      const target = wrapWindowsScript(bin, ["--version"]);
+      execFile(target.file, target.args, { timeout: 10_000, windowsHide: true }, (error, stdout) => {
         if (error) reject(error);
         else resolve(stdout);
       });

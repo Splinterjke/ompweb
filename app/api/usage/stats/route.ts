@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { resolveOmpBin } from "@/lib/omp/omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { aggregateFromStatsDb } from "@/lib/stats-aggregate";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +40,11 @@ async function fetchStatsData(): Promise<Record<string, unknown>> {
     throw new Error("omp binary not found on PATH or OMP_WEB_OMP_BIN");
   }
 
+  const statsTarget = wrapWindowsScript(ompBin, ["stats", "--json"]);
+  const usageTarget = wrapWindowsScript(ompBin, ["usage", "--json"]);
   const [statsResult, usageResult] = await Promise.allSettled([
-    execFileAsync(ompBin, ["stats", "--json"], { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }),
-    execFileAsync(ompBin, ["usage", "--json"], { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }),
+    execFileAsync(statsTarget.file, statsTarget.args, { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }),
+    execFileAsync(usageTarget.file, usageTarget.args, { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 }),
   ]);
 
   let parsedStats: Record<string, unknown> = {};

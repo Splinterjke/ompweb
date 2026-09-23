@@ -5,7 +5,7 @@ import { tmpdir } from "os";
 import { basename, join } from "path";
 import { promisify } from "util";
 import { NextResponse } from "next/server";
-import { resolveOmpBin } from "@/lib/omp/omp-cli";
+import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
 
 const execFileAsync = promisify(execFile);
@@ -34,7 +34,8 @@ async function exportSession(filePath: string, outputPath: string): Promise<void
   if (!bin) {
     throw new Error("omp binary not found. Install oh-my-pi or set OMP_WEB_OMP_BIN.");
   }
-  await execFileAsync(bin, ["--export", filePath, outputPath], {
+  const target = wrapWindowsScript(bin, ["--export", filePath, outputPath]);
+  await execFileAsync(target.file, target.args, {
     cwd: tmpdir(),
     timeout: 60_000,
     maxBuffer: 4 * 1024 * 1024,
