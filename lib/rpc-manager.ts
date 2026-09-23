@@ -6,6 +6,8 @@ import { invalidateModelsCache } from "./models-cache";
 import { RpcCommandError, RpcCommandTimeoutError, type RpcFrame } from "./omp/rpc-process";
 import { createRpcProcess, type RpcProcessLike } from "./omp/rust-rpc-process";
 import { readNativeSettings } from "./omp/settings-config";
+import { scanSessionInfo } from "./omp/session-files";
+import { sanitizeSessionTitle } from "./session-title";
 import { cacheSessionPath, invalidateSessionListCache, readSessionHeader } from "./session-reader";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { taskCompletedDiff } from "./todo-completion";
@@ -440,7 +442,8 @@ export class AgentSessionWrapper {
   private applyIdentity(state: RpcSessionState): void {
     this._sessionId = state.sessionId;
     this._sessionFile = state.sessionFile ?? "";
-    this._sessionName = state.sessionName;
+    // omp's get_state carries no sessionName; keep whatever we already know.
+    if (state.sessionName) this._sessionName = state.sessionName;
     this.streaming = state.isStreaming;
     this.compacting = state.isCompacting;
     this.fastModeEnabled = state.fastModeEnabled ?? state.fastMode ?? this.fastModeEnabled;
@@ -897,13 +900,32 @@ export class AgentSessionWrapper {
       }
     }
   }
+  /** Best-effort display name: the in-memory name (session_info_update /
+   *  set_session_name) first, else the session file's display title (title
+   *  slot, auto/task summary, or the first-message fallback that the
+   *  session list already shows). omp's get_state carries no sessionName
+   *  and the title slot is frequently empty — the client's auto-namer runs
+   *  only after conversation_completed — so without the file fallback
+   *  $session_name would be empty for most sessions. */
+  private resolveSessionName(): string | undefined {
+    if (this._sessionName) return this._sessionName;
+    if (!this._sessionFile) return undefined;
+    try {
+      const info = scanSessionInfo(this._sessionFile, false);
+      return sanitizeSessionTitle(info?.title);
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Build the payload handed to the chat-event dispatcher: the session id,
    *  its display name (notification defaults), and a per-session frame
    *  relay (the notification executor uses it to reach the session's own
    *  SSE stream; it returns how many listeners received the frame). */
   private chatEventPayload(frame?: Record<string, unknown>, question?: string): ChatEventPayload {
     const payload: ChatEventPayload = { sessionId: this._sessionId };
-    if (this._sessionName) payload.sessionName = this._sessionName;
+    const sessionName = this.resolveSessionName();
+    if (sessionName) payload.sessionName = sessionName;
     if (this._lastAssistantReply) payload.lastAssistantReply = this._lastAssistantReply;
     if (question) payload.question = question;
     if (frame) {
@@ -1061,7 +1083,7 @@ export class AgentSessionWrapper {
     // Reconcile process-side flags with authoritative child state.
     this.streaming = state.isStreaming;
     this.compacting = state.isCompacting;
-    this._sessionName = state.sessionName;
+    if (state.sessionName) this._sessionName = state.sessionName;
     if (state.sessionId) {
       this._sessionId = state.sessionId;
       this._sessionFile = state.sessionFile ?? this._sessionFile;
@@ -1099,7 +1121,7 @@ export class AgentSessionWrapper {
     return {
       sessionId: state.sessionId,
       sessionFile: state.sessionFile ?? "",
-      sessionName: state.sessionName,
+      sessionName: this._sessionName,
       isStreaming: state.isStreaming,
       isPromptRunning: this.promptRunning,
       isBashRunning: this.bashRunning,
@@ -1421,7 +1443,7 @@ export class AgentSessionWrapper {
 
       case "get_session_stats": {
         const stats = await this.proc.sendCommand<Omit<SessionStatsInfo, "sessionName">>({ type: "get_session_stats" });
-        return { ...stats, sessionName: this._sessionName };
+        return { ...stats, sessionName: this.resolveSessionName() };
       }
 
       case "get_last_assistant_text": {
