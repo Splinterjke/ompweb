@@ -338,6 +338,12 @@ export class AgentSessionWrapper {
    *  agent_start so a no-op abort (no active turn) cannot swallow the next
    *  real run's completion. */
   private _interruptEndPending = false;
+  /** True while the current turn is a resume of an async continuation: it
+   *  started right after a non-terminal agent_end (e.g. a backgrounded bash
+   *  job finished and omp injected the result). Such a turn is not a
+   *  user-prompt completion, so its terminal agent_end does not fire
+   *  conversation_completed. */
+  private _continuationRun = false;
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
@@ -504,6 +510,10 @@ export class AgentSessionWrapper {
         this.streaming = true;
         this.awaitingAgentStart = false;
         this.awaitingAgentStartDeadline = 0;
+        // A turn that resumes an async continuation (the previous agent_end
+        // was non-terminal, e.g. a background job just finished) is not a
+        // fresh user-prompt completion.
+        this._continuationRun = this.continuationPending;
         this.continuationPending = false;
         // A new run starting means the interrupted turn's end has either
         // been consumed already or was a no-op abort (nothing to interrupt).
@@ -542,7 +552,11 @@ export class AgentSessionWrapper {
           // from the abort command. Skip the completion dispatch for it.
           const wasInterrupted = this._interruptEndPending;
           this._interruptEndPending = false;
-          if (!wasInterrupted) {
+          // A resume turn (after a background job finishes) closes the job,
+          // not the conversation — no conversation_completed for it.
+          const wasContinuation = this._continuationRun;
+          this._continuationRun = false;
+          if (!wasInterrupted && !wasContinuation) {
             // Chat event action: conversation_completed (the same signal the
             // built-in completion notification uses).
             dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
@@ -1222,6 +1236,7 @@ export class AgentSessionWrapper {
       this.streaming = false;
       this.compacting = false;
       this._interruptEndPending = false;
+      this._continuationRun = false;
 
       let proc: RpcProcessLike;
       try {

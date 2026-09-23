@@ -476,7 +476,15 @@ handled or safely ignored.
   An interrupted turn (abort / abort_and_prompt) ends with a terminal
   `agent_end` but does NOT fire `conversation_completed` — the wrapper tracks
   the pending interrupt (`_interruptEndPending`) and skips that dispatch;
-  `conversation_interrupted` covers it instead.
+  `conversation_interrupted` covers it instead. Background-job resume turns
+  (a turn started right after a non-terminal `agent_end`, e.g. after a
+  backgrounded bash job finishes) likewise do NOT fire `conversation_completed`
+  — `_continuationRun` is set at the resume `agent_start` (from
+  `continuationPending`) and consumed by the resume turn's terminal `agent_end`,
+  so a job finishing reads as "job done", not "conversation completed".
+  Neither flag may leak into a later user-prompted turn: both are cleared on
+  `agent_start` (interrupt flag) / restart, and each is consumed by exactly one
+  terminal `agent_end`.
 - Executors (`chat-event-actions-executors.ts`) never throw — every failure is recorded
   as a `lastRun` (`ok:false` + detail) so the UI can surface it. `scheduled` records
   `"scheduler busy"` when the target manual run is already running (not an error).
