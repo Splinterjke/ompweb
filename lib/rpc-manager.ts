@@ -330,6 +330,14 @@ export class AgentSessionWrapper {
    *  so state reconciliation does not clear promptRunning while the job is
    *  pending and clients keep their SSE stream attached. */
   private continuationPending = false;
+  /** True while a terminal agent_end from an interrupted turn is still
+   *  incoming: abort / abort_and_prompt ends the current turn, but that end
+   *  is not a completion — conversation_interrupted already fired from the
+   *  command. Consumed by the interrupted turn's terminal agent_end so it
+   *  does not dispatch conversation_completed; cleared on the next
+   *  agent_start so a no-op abort (no active turn) cannot swallow the next
+   *  real run's completion. */
+  private _interruptEndPending = false;
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
@@ -497,6 +505,9 @@ export class AgentSessionWrapper {
         this.awaitingAgentStart = false;
         this.awaitingAgentStartDeadline = 0;
         this.continuationPending = false;
+        // A new run starting means the interrupted turn's end has either
+        // been consumed already or was a no-op abort (nothing to interrupt).
+        this._interruptEndPending = false;
         // The session file can appear just after the prompt acknowledgement.
         // Invalidate and signal the sidebar now rather than waiting for the
         // agent's first reply or terminal event.
@@ -525,9 +536,17 @@ export class AgentSessionWrapper {
           clearChatActionRunState(this._sessionId);
           // A finished run's todo baseline is stale for the next prompt.
           this._todoPhases = null;
-          // Chat event action: conversation_completed (the same signal the
-          // built-in completion notification uses).
-          dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
+          // An interrupted turn also ends with a terminal agent_end (probe:
+          // stopReason null — indistinguishable from a real completion), but
+          // it is not a completion: conversation_interrupted already fired
+          // from the abort command. Skip the completion dispatch for it.
+          const wasInterrupted = this._interruptEndPending;
+          this._interruptEndPending = false;
+          if (!wasInterrupted) {
+            // Chat event action: conversation_completed (the same signal the
+            // built-in completion notification uses).
+            dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
+          }
         } else {
           // The turn is paused for an async continuation (e.g. a
           // backgrounded bash job); it resumes with a later agent_start.
@@ -1202,6 +1221,7 @@ export class AgentSessionWrapper {
       this.bashRunning = false;
       this.streaming = false;
       this.compacting = false;
+      this._interruptEndPending = false;
 
       let proc: RpcProcessLike;
       try {
@@ -1327,6 +1347,9 @@ export class AgentSessionWrapper {
       }
 
       case "abort":
+        // Mark the interrupted turn's upcoming terminal agent_end so it does
+        // not dispatch conversation_completed (see agent_end handler).
+        this._interruptEndPending = true;
         await this.withFinalRunningNotification(async () => {
           await this.proc.sendCommand({ type: "abort" });
           // If the prompt was aborted before the agent loop started, no
@@ -1429,6 +1452,9 @@ export class AgentSessionWrapper {
       case "abort_compaction":
         // No dedicated RPC command; a plain abort cancels the in-flight turn
         // including compaction work.
+        // Same as abort: the interrupted turn's terminal agent_end is not a
+        // completion.
+        this._interruptEndPending = true;
         await this.withFinalRunningNotification(() => this.proc.sendCommand({ type: "abort" }));
         return null;
 
@@ -1527,6 +1553,10 @@ export class AgentSessionWrapper {
       default: {
         if (PASSTHROUGH_COMMANDS.has(type)) {
           try {
+            // Mark the interrupted turn's upcoming terminal agent_end (see
+            // the abort case); must be set before the command is sent so the
+            // end frame cannot arrive before the flag.
+            if (type === "abort_and_prompt") this._interruptEndPending = true;
             const result: unknown = await this.proc.sendCommand(
               command as { type: string },
               type === "abort_and_prompt" ? PROMPT_ACK_TIMEOUT_MS : undefined,

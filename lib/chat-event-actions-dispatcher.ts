@@ -84,7 +84,12 @@ export function dispatchChatEvent(type: ChatEventType, payload: ChatEventPayload
 /**
  * The frame-derived events, expressed as the mapping table from the plan:
  *  - user_prompt_sent            ← agent_start
- *  - conversation_completed      ← terminal agent_end (isTerminal !== false)
+ *  - conversation_completed      ← terminal agent_end (isTerminal !== false),
+ *                                   except the end of an interrupted turn:
+ *                                   abort / abort_and_prompt ends the turn
+ *                                   with a terminal agent_end that is not a
+ *                                   completion (conversation_interrupted
+ *                                   covers it)
  *  - conversation_interrupted    ← abort / abort_and_prompt RPC command
  *  - provider_api_error          ← synthesized prompt_error / notice(level:error)
  *  - thinking_completed          ← message_end containing a thinking block

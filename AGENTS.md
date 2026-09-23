@@ -473,6 +473,10 @@ handled or safely ignored.
   `dispatchChatEvent` call, or the action silently never fires. `user_prompt_sent`
   resets the per-run `provider_api_error` dedupe (`clearChatActionRunState`) so an error
   in a new run fires again; a terminal `agent_end` also clears it.
+  An interrupted turn (abort / abort_and_prompt) ends with a terminal
+  `agent_end` but does NOT fire `conversation_completed` — the wrapper tracks
+  the pending interrupt (`_interruptEndPending`) and skips that dispatch;
+  `conversation_interrupted` covers it instead.
 - Executors (`chat-event-actions-executors.ts`) never throw — every failure is recorded
   as a `lastRun` (`ok:false` + detail) so the UI can surface it. `scheduled` records
   `"scheduler busy"` when the target manual run is already running (not an error).
