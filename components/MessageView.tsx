@@ -1,6 +1,6 @@
 "use client";
 
- import { memo, useState, useId, useRef, useEffect, useMemo, useCallback, type ComponentProps } from "react";
+import { Fragment, memo, useState, useId, useRef, useEffect, useMemo, useCallback, type ComponentProps } from "react";
 import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
 import { ClickableImage } from "./ImageLightbox";
@@ -458,6 +458,24 @@ function AssistantMessageView({
   // Ref over the assistant's content blocks so Copy can pull rendered text.
   const bodyRef = useRef<HTMLDivElement>(null);
 
+  // The copy/fork/time row belongs to the assistant's reply, so anchor it
+  // directly under the last text block instead of at the message tail —
+  // otherwise tool calls that follow the reply push the buttons below them.
+  const lastTextBlockIndex = blockItems.reduce(
+    (acc, { block }, i) => (block.type === "text" ? i : acc),
+    -1,
+  );
+  const actionRow =
+    !isStreaming && (texts.some((text) => text.trim()) || time || canFork) ? (
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
+          <MessageCopyActions texts={texts} bodyRef={bodyRef} />
+          {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+        </div>
+        {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
+      </div>
+    ) : null;
+
 
   // Streaming-based timing for thinking blocks
   const blockStartTimesRef = useRef<Map<number, number>>(new Map());
@@ -654,8 +672,11 @@ function AssistantMessageView({
             and the committed message must reuse the same component instance,
             otherwise ThinkingBlock remounts on commit and loses the expanded
             state (the "thinking flash" bug). */}
-        {blockItems.map(({ block, originalIndex }) => (
-          <BlockView key={`${originalIndex}`} block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} />
+        {blockItems.map(({ block, originalIndex }, index) => (
+          <Fragment key={`${originalIndex}`}>
+            <BlockView block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} />
+            {index === lastTextBlockIndex ? actionRow : null}
+          </Fragment>
         ))}
         {isInterrupted && !isStreaming && (
           <div
@@ -680,15 +701,7 @@ function AssistantMessageView({
         )}
       </div>
 
-      {!isStreaming && (texts.some((text) => text.trim()) || time || canFork) && (
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
-            <MessageCopyActions texts={texts} bodyRef={bodyRef} />
-            {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
-          </div>
-          {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
-        </div>
-      )}
+      {lastTextBlockIndex === -1 ? actionRow : null}
     </div>
   );
 }
