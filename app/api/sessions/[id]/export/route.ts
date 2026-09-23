@@ -6,6 +6,7 @@ import { basename, join } from "path";
 import { promisify } from "util";
 import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
+import { inlineExportVendorScripts } from "@/lib/omp/export-vendor";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
 
 const execFileAsync = promisify(execFile);
@@ -65,7 +66,7 @@ export async function GET(
     try {
       await exportSession(filePath, outputPath);
 
-      const html = readFileSync(outputPath, "utf8");
+      const html = inlineExportVendorScripts(readFileSync(outputPath, "utf8"));
       return new Response(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
