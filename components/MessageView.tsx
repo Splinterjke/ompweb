@@ -467,10 +467,12 @@ function AssistantMessageView({
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // The copy/fork/time row belongs to the assistant's reply, so anchor it
-  // directly under the last text block instead of at the message tail —
-  // otherwise tool calls that follow the reply push the buttons below them.
+  // directly under the last non-empty text block instead of at the message
+  // tail — otherwise tool calls that follow the reply push the buttons below
+  // them. Whitespace-only text blocks (omp commits a stray "\n" between tool
+  // calls) must not claim the anchor.
   const lastTextBlockIndex = blockItems.reduce(
-    (acc, { block }, i) => (block.type === "text" ? i : acc),
+    (acc, { block }, i) => (block.type === "text" && block.text.trim() ? i : acc),
     -1,
   );
   const actionRow =

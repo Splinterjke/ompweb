@@ -146,6 +146,31 @@ test("streaming assistant messages do not show copy actions", () => {
 
   assert.doesNotMatch(html, /message-copy-actions/);
 });
+test("copy actions anchor under the reply even when a stray text block follows a tool call", () => {
+  // Mirrors a real committed entry: reply text, a tool call, then a
+  // whitespace-only text block (omp commits a stray "\n" between tool calls)
+  // followed by a second tool call. The stray block must not claim the
+  // action-row anchor — the buttons belong under the reply text, above the
+  // tool calls.
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    message: {
+      role: "assistant",
+      timestamp: 1000,
+      content: [
+        { type: "text", text: "The edit hit wrong lines — rewriting the file cleanly." },
+        { type: "toolCall", toolCallId: "call-1", toolName: "write", input: { path: "a.test.mjs", content: "x" } },
+        { type: "text", text: "\n" },
+        { type: "toolCall", toolCallId: "call-2", toolName: "edit", input: { i: "update test", input: "edit body" } },
+      ],
+    },
+  }));
+
+  assert.match(html, /message-copy-actions/);
+  assert.ok(
+    html.indexOf("message-copy-actions") < html.indexOf('data-activity-operation="true"'),
+    "copy actions must render directly under the reply text, before the tool calls"
+  );
+});
 test("irc:incoming custom messages title with the sender name", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     message: {
