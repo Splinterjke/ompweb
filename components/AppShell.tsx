@@ -65,6 +65,7 @@ const EXTENDED_BLOCKS_STORAGE_KEY = "omp-web:extended-detail-blocks";
 const GIT_GRAPH_SIZE_STORAGE_KEY = "omp-web:git-graph-size";
 const SESSION_INFO_BUTTON_STORAGE_KEY = "omp-web:session-info-button";
 const TOOL_OUTPUT_CAP_STORAGE_KEY = "omp-web:tool-output-cap";
+const THINKING_AUTO_FOLLOW_STORAGE_KEY = "omp-web:thinking-auto-follow";
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
 const GIT_GRAPH_MAX_SIZE = 95;
@@ -212,6 +213,18 @@ export function AppShell() {
       return true;
     }
   });
+  // Auto-follow (bottom-pinned scroll) for streaming thinking blocks (Interface
+  // & Behavior switch). Only meaningful while "Limit tool output height" is on —
+  // the capped body is the only scrollable thinking surface. Defaults to on; an
+  // absent/corrupt stored value keeps follow enabled.
+  const [thinkingAutoFollowEnabled, setThinkingAutoFollowEnabled] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.localStorage.getItem(THINKING_AUTO_FOLLOW_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [sidebarResizing, setSidebarResizing] = useState(false);
   // Right workbench rail width, user-adjustable via the drag handle on its
   // left edge (mirrors the sidebar resize). Persisted to
@@ -314,6 +327,14 @@ export function AppShell() {
     setToolOutputCapEnabled(enabled);
     try {
       window.localStorage.setItem(TOOL_OUTPUT_CAP_STORAGE_KEY, String(enabled));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleThinkingAutoFollowChange = useCallback((enabled: boolean) => {
+    setThinkingAutoFollowEnabled(enabled);
+    try {
+      window.localStorage.setItem(THINKING_AUTO_FOLLOW_STORAGE_KEY, String(enabled));
     } catch {
       // The preference still applies for this page load.
     }
@@ -1848,6 +1869,7 @@ export function AppShell() {
               onSubagentsChange={setSubagents}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
+              thinkingAutoFollow={thinkingAutoFollowEnabled}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
             />
@@ -2047,7 +2069,7 @@ export function AppShell() {
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
-    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
+    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
     <UsageDashboardModal
       open={usageDashboardOpen}
       onOpenChange={setUsageDashboardOpen}

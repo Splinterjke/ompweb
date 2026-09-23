@@ -977,6 +977,8 @@
   "settingsConfig.sessionInfoButtonDesc": "チャット入力欄の下にトークン・コスト・速度の一行を表示します。コンテキストゲージは常に表示されます。",
   "settingsConfig.toolOutputMaxHeight": "ツール出力の高さに上限を設定",
   "settingsConfig.toolOutputMaxHeightDesc": "展開されたツール呼び出しの出力を固定高さで切り詰め、内部スクロールを有効にします。オフにすると全出力を表示します。",
+  "settingsConfig.thinkingAutoFollow": "思考ブロックの自動スクロール",
+  "settingsConfig.thinkingAutoFollowDesc": "ストリーミング中の思考ブロックを、スクロール可能な出力の最下部に固定します。ブロック内で上にスクロールすると追従は一時停止されます。「ツール出力の高さに上限を設定」を有効にした時のみ適用されます。",
   "settingsConfig.thinkingDisplayMode": "思考プロセスの表示方法",
   "settingsConfig.thinkingDisplayModeDesc": "モデルの思考プロセスの展開/折りたたみ動作を設定します。",
   "settingsConfig.thinkingModeAuto": "自動 (生成時に展開、完了後に折りたたみ)",

@@ -982,6 +982,8 @@
   "settingsConfig.sessionInfoButtonDesc": "Show the session token/cost/speed row below the chat input. The context gauge stays visible either way.",
   "settingsConfig.toolOutputMaxHeight": "Limit tool output height",
   "settingsConfig.toolOutputMaxHeightDesc": "Cap expanded tool-call output at a fixed height with an internal scroll. Turn off to show the full output.",
+  "settingsConfig.thinkingAutoFollow": "Thinking auto-scroll",
+  "settingsConfig.thinkingAutoFollowDesc": "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.",
   "settingsConfig.thinkingDisplayMode": "Thinking display behavior",
   "settingsConfig.thinkingDisplayModeDesc": "Configure whether model thinking blocks default to collapsed, auto-collapse, or always expanded.",
   "settingsConfig.thinkingModeAuto": "Auto (expand while streaming, collapse when finished)",

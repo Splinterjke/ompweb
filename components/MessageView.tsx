@@ -34,6 +34,9 @@ import type {
 const MAX_THINKING_CACHE_ENTRIES = 100;
 const thinkingContentCache = new Map<string, Promise<string>>();
 const MAX_MARKDOWN_CHARS = 100_000;
+/** Distance from the bottom edge (px) within which a thinking block counts as
+ *  "at the bottom" for auto-follow purposes. */
+const THINKING_FOLLOW_TOLERANCE_PX = 24;
 
 // Cap the user "sent" bubble's height so an abnormally long message does not
 // push the conversation off screen; overflow scrolls inside the bubble.
@@ -121,6 +124,8 @@ interface Props {
   sessionId?: string;
   toolCallsDefaultCollapsed?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  /** Follow the bottom of a streaming thinking block (Interface & Behavior). */
+  thinkingAutoFollow?: boolean;
   /** True once the run is finished: tool calls with no committed result show
    *  the done marker instead of a spinner (subagent transcripts). */
   settled?: boolean;
@@ -180,12 +185,12 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", settled = false, liveTokensPerSecond }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, settled = false, liveTokensPerSecond }: Props) {
   if (message.role === "user") {
     return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} />;
   }
   if (message.role === "assistant") {
-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} liveTokensPerSecond={liveTokensPerSecond} />;
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} liveTokensPerSecond={liveTokensPerSecond} />;
   }
   if (message.role === "toolResult") {
     // Rendered inline under its toolCall — skip standalone rendering if paired
@@ -227,6 +232,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.sessionId === next.sessionId
     && prev.toolCallsDefaultCollapsed === next.toolCallsDefaultCollapsed
     && prev.thinkingDisplayMode === next.thinkingDisplayMode
+    && prev.thinkingAutoFollow === next.thinkingAutoFollow
     && prev.liveTokensPerSecond === next.liveTokensPerSecond
     && prev.settled === next.settled;
 });
@@ -417,6 +423,7 @@ function AssistantMessageView({
   forking,
   toolCallsDefaultCollapsed,
   thinkingDisplayMode = "auto",
+  thinkingAutoFollow = true,
   liveTokensPerSecond,
   settled = false,
 }: {
@@ -436,6 +443,7 @@ function AssistantMessageView({
   forking?: boolean;
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  thinkingAutoFollow?: boolean;
   liveTokensPerSecond?: number | null;
   settled?: boolean;
 }) {
@@ -674,7 +682,7 @@ function AssistantMessageView({
             state (the "thinking flash" bug). */}
         {blockItems.map(({ block, originalIndex }, index) => (
           <Fragment key={`${originalIndex}`}>
-            <BlockView block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} settled={settled} />
+            <BlockView block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} />
             {index === lastTextBlockIndex ? actionRow : null}
           </Fragment>
         ))}
@@ -706,12 +714,12 @@ function AssistantMessageView({
   );
 }
 
-function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; settled?: boolean }) {
+function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; thinkingAutoFollow?: boolean; settled?: boolean }) {
   if (block.type === "text") {
     return <div data-message-text><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
   }
   if (block.type === "thinking") {
-    return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} isStreaming={isStreaming} isLatestBlock={isLatestBlock} thinkingDisplayMode={thinkingDisplayMode} />;
+    return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} isStreaming={isStreaming} isLatestBlock={isLatestBlock} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} />;
   }
   if (block.type === "toolCall") {
     const tc = block as ToolCallContent;
@@ -736,7 +744,7 @@ const TextBlock = memo(function TextBlock({ block, isStreaming, cwd, onOpenFile 
   && prev.onOpenFile === next.onOpenFile
 ));
 
-const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex, isStreaming, isLatestBlock = false, thinkingDisplayMode = "auto" }: {
+const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, entryId, blockIndex, isStreaming, isLatestBlock = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true }: {
   block: ThinkingContent;
   duration?: number;
   sessionId?: string;
@@ -746,6 +754,9 @@ const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, 
   /** Whether this block is the newest content block of the message. */
   isLatestBlock?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  /** Follow the bottom of the capped output body while it grows (Interface &
+   *  Behavior: "Thinking auto-scroll"). */
+  thinkingAutoFollow?: boolean;
 }) {
   const { t } = useI18n();
   const [userToggled, setUserToggled] = useState<boolean | null>(null);
@@ -766,6 +777,37 @@ const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, 
   }, [thinkingDisplayMode, isStreaming, isLatestBlock, block.deferred]);
 
   const expanded = userToggled !== null ? userToggled : isAutoExpanded;
+  // Bottom-pinned auto-follow for the capped output body (Interface &
+  // Behavior: "Thinking auto-scroll"). While the user's scrollbar sits at
+  // the bottom, each content growth pins the view to the newest line; a
+  // manual scroll-up pauses the follow until the user scrolls back down.
+  // A block whose content still fits (no scrollbar yet) counts as pinned,
+  // so follow starts as soon as the stream overflows. The pin is local to
+  // this block — no global state. Deferred (committed) content is never
+  // auto-followed: opening a finished block reads from the top.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const followPinnedRef = useRef(true);
+  const lastThinkingLenRef = useRef(-1);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !expanded) return;
+    followPinnedRef.current = true; // re-opening a block resumes at the bottom
+    const onScroll = () => {
+      followPinnedRef.current =
+        el.scrollHeight - el.scrollTop - el.clientHeight <= THINKING_FOLLOW_TOLERANCE_PX;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [expanded]);
+  useEffect(() => {
+    if (!thinkingAutoFollow || !expanded || block.deferred) return;
+    const el = bodyRef.current;
+    const len = (block.thinking ?? "").length;
+    if (lastThinkingLenRef.current >= 0 && len > lastThinkingLenRef.current && followPinnedRef.current && el) {
+      el.scrollTop = el.scrollHeight;
+    }
+    lastThinkingLenRef.current = len;
+  }, [thinkingAutoFollow, expanded, block.deferred, block.thinking]);
 
   // Deferred thinking keeps the first session payload light, but an empty
   // expanded shell is misleading and makes the user click twice (open, then
@@ -825,6 +867,7 @@ const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, 
           <div className="activity-collapsible-inner">
             <div className="tool-call-details">
               <div
+                ref={bodyRef}
                 className={`tool-call-output${error ? " tool-call-output-error" : ""}`}
                 style={{
                   whiteSpace: "pre-wrap",
@@ -864,6 +907,7 @@ const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, 
   && prev.isStreaming === next.isStreaming
   && prev.isLatestBlock === next.isLatestBlock
   && prev.thinkingDisplayMode === next.thinkingDisplayMode
+  && prev.thinkingAutoFollow === next.thinkingAutoFollow
 ));
 
 

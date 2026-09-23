@@ -95,6 +95,10 @@ export interface DisabledSkill {
   path: string;
   root: WritableRoot;
   disabledAt: number;
+  /** 项目技能的所属工作区路径（与 CatalogSkill.workspace 对齐）。 */
+  workspace?: string;
+  /** 工作区显示标题。 */
+  workspaceTitle?: string;
 }
 
 /** One discovery diagnostic: a file the filesystem provider skips, with the reason. */

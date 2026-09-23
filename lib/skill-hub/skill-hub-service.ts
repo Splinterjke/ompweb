@@ -449,6 +449,7 @@ export async function scanAllRoots(options?: { cwd?: string }): Promise<CatalogR
         path: entry.discoveryPath,
         root: entry.root,
         disabledAt: existing?.disabledAt ?? entry.updatedAt ?? Date.now(),
+        ...(entry.workspace !== undefined ? { workspace: entry.workspace, workspaceTitle: entry.workspaceTitle } : {}),
       });
       continue;
     }

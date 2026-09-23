@@ -385,8 +385,6 @@ export interface UseAgentSessionOptions {
 
 export type ThinkingLevelOption = string;
 
-const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
-const USER_SCROLL_INTENT_MS = 1200;
 // A user is treated as "still at the bottom" while the end marker is within
 // this distance of the viewport's bottom edge.
 const FOLLOW_BOTTOM_TOLERANCE_PX = 24;
@@ -405,7 +403,6 @@ const EVENT_STREAM_SLOW_CONNECT_MS = 4_000;
 const MAX_NOTICES = 5;
 const NOTICE_VISIBLE_MS = 5000;
 const NOTICE_EXIT_ANIMATION_MS = 180;
-const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Space", "Spacebar"]);
 
 type EventStreamConnectionStatus = "connected" | "timeout" | "closed";
 
@@ -784,13 +781,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const pendingScrollToUserRef = useRef(false);
   const completionScrollAllowedRef = useRef(true);
   const executeBashRef = useRef<(command: string, excludeFromContext: boolean) => Promise<void> | undefined>(undefined);
-  const userScrollIntentUntilRef = useRef(0);
-  const ignoreProgrammaticScrollUntilRef = useRef(0);
   // End marker's document position at the last follow recheck: lets the
   // recheck tell "content grew below the viewport" apart from "the user
   // scrolled up" (see computeFollowAllowed). 0 = not measured yet.
   const followEndDocBottomRef = useRef(0);
-  const lastContainerScrollTopRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const ensuringNewSessionRef = useRef<Promise<string | null> | null>(null);
@@ -2353,9 +2347,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           const delivered = normalizeToolCalls(completed);
           const deliveredKey = userMessageKey(delivered);
           const optimisticKey = optimisticUserMessageKeyRef.current;
+          const isInitialPrompt = optimisticKey !== null;
           optimisticUserMessageKeyRef.current = null;
           // Delivered steering/follow-up texts leave the client-tracked queue.
-          consumeQueuedMessage(extractMessageText(delivered));
+          // The run's own initial prompt (never queued) must not consume a
+          // queued entry that happens to share its text.
+          if (!isInitialPrompt) consumeQueuedMessage(extractMessageText(delivered));
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (optimisticKey && last?.role === "user" && userMessageKey(last) === optimisticKey) {
@@ -2653,9 +2650,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     dispatch({ type: "start" });
     pendingScrollToUserRef.current = true;
     completionScrollAllowedRef.current = true;
-    // The send click bubbles through the global pointer listener below. It is
-    // not a request to stop following the response that this prompt starts.
-    userScrollIntentUntilRef.current = 0;
 
     let sentSessionId: string | null = null;
     try {
@@ -2790,7 +2784,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     interruptReplyPendingRef.current = true;
     pendingScrollToUserRef.current = true;
     completionScrollAllowedRef.current = true;
-    userScrollIntentUntilRef.current = 0;
     try {
       await ensureEventsConnected(sid);
       void refreshSubagentRoster(sid);
@@ -3376,7 +3369,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const container = scrollContainerRef.current;
     const end = messagesEndRef.current;
     if (!container || !end) return;
-    ignoreProgrammaticScrollUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_IGNORE_MS;
     // `behavior: "auto"` falls back to the container's computed
     // `scroll-behavior` (which inherits `html { scroll-behavior: smooth }`),
     // so a per-frame live follow would restart an eased scroll animation
@@ -3385,13 +3377,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     end.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : behavior });
   }, [reducedMotion]);
 
-  const markUserScrollIntent = useCallback((event: Event) => {
-    if (event instanceof KeyboardEvent) {
-      if (!SCROLL_KEYS.has(event.key)) return;
-      if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable='true']")) return;
-    }
-    userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
-  }, []);
 
   const computeFollowAllowed = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -3418,21 +3403,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, []);
 
   const handleScrollPositionChange = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    // A scroll event that moves the viewport up can never come from our own
-    // follow (which only scrolls to the bottom), so it is a manual scroll —
-    // wheel, key, touch, or a scrollbar-thumb drag, which fires no wheel or
-    // pointer event of its own. It must not be swallowed by the programmatic
-    // suppression timer, or a busy stream would keep yanking the user down
-    // while they drag the bar up.
-    const scrolledUp = container.scrollTop < lastContainerScrollTopRef.current - 1;
-    lastContainerScrollTopRef.current = container.scrollTop;
-    const userScrollIntent = Date.now() <= userScrollIntentUntilRef.current;
-    if (!userScrollIntent && !scrolledUp && Date.now() < ignoreProgrammaticScrollUntilRef.current) return;
-    // Recompute even while idle: otherwise the flag stays false after a run
-    // ends while the user is scrolled up, and a message that arrives outside
-    // a run (queued follow-up, steering reply) would never auto-scroll.
+    // Follow is purely position-based: every scroll event — wheel, keys,
+    // touch, or a scrollbar-thumb drag — recomputes from the live viewport
+    // position. At the bottom (within tolerance) follow is allowed; above it,
+    // it is not. No intent timer and no programmatic suppression, so follow
+    // can never get stuck off after a manual scroll (a programmatic scroll
+    // lands at the bottom, where the recompute yields the same answer).
     computeFollowAllowed();
   }, [computeFollowAllowed]);
 
@@ -3536,10 +3512,20 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             clearPersistedQueue(session.id);
           } else if (typeof agentState.state.queuedMessageCount === "number") {
             // omp still holds queued messages: restore the client-tracked
-            // texts persisted by the previous page load.
+            // texts persisted by the previous page load. The stored snapshot
+            // may be stale — entries delivered while the page was closed were
+            // never consumed, so it can hold MORE texts than omp's queue.
+            // Only restore when the snapshot is a subset of (or exactly
+            // matches) the live count; otherwise discard it rather than
+            // re-injecting already-delivered user messages.
             const persisted = readPersistedQueue(session.id);
             if (persisted) {
-              setQueuedMessages((prev) => (isEmptyQueue(prev) ? persisted : prev));
+              const stored = persisted.steering.length + persisted.followUp.length;
+              if (stored <= agentState.state.queuedMessageCount) {
+                setQueuedMessages((prev) => (isEmptyQueue(prev) ? persisted : prev));
+              } else {
+                clearPersistedQueue(session.id);
+              }
             }
           }
         }
@@ -3583,27 +3569,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     onBranchDataChange(data?.tree ?? [], activeLeafId, handleLeafChange);
   }, [data?.tree, activeLeafId, handleLeafChange, onBranchDataChange]);
 
-  useEffect(() => {
-    window.addEventListener("keydown", markUserScrollIntent);
-    window.addEventListener("pointerdown", markUserScrollIntent, { passive: true });
-    return () => {
-      window.removeEventListener("keydown", markUserScrollIntent);
-      window.removeEventListener("pointerdown", markUserScrollIntent);
-    };
-  }, [markUserScrollIntent]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    container.addEventListener("wheel", markUserScrollIntent, { passive: true });
-    container.addEventListener("touchstart", markUserScrollIntent, { passive: true });
     container.addEventListener("scroll", handleScrollPositionChange, { passive: true });
     return () => {
-      container.removeEventListener("wheel", markUserScrollIntent);
-      container.removeEventListener("touchstart", markUserScrollIntent);
       container.removeEventListener("scroll", handleScrollPositionChange);
     };
-  }, [messages.length, loading, handleScrollPositionChange, markUserScrollIntent]);
+  }, [messages.length, loading, handleScrollPositionChange]);
 
   // Follow the conversation: scroll to the user's latest message when they
   // send one, then keep the newest content in view while the agent streams.
@@ -3625,7 +3599,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       completionScrollAllowedRef.current = true;
       pendingScrollToUserRef.current = false;
       followEndDocBottomRef.current = 0;
-      lastContainerScrollTopRef.current = 0;
       if (followScrollFrameRef.current !== null) {
         cancelAnimationFrame(followScrollFrameRef.current);
         followScrollFrameRef.current = null;

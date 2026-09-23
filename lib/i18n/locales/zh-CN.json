@@ -977,6 +977,8 @@
   "settingsConfig.sessionInfoButtonDesc": "在聊天输入框下方显示会话 token/成本/速度一行。上下文指示环始终可见。",
   "settingsConfig.toolOutputMaxHeight": "限制工具输出高度",
   "settingsConfig.toolOutputMaxHeightDesc": "将展开的工具调用输出限制在固定高度并启用内部滚动。关闭则显示完整输出。",
+  "settingsConfig.thinkingAutoFollow": "思考块自动滚动",
+  "settingsConfig.thinkingAutoFollowDesc": "流式生成时将思考块保持在其可滚动输出的底部；在块内向上滚动会暂停跟随。仅在启用“限制工具输出高度”时生效。",
   "settingsConfig.thinkingDisplayMode": "思考过程展示方式",
   "settingsConfig.thinkingDisplayModeDesc": "设置模型思考过程的展开/折叠行为。",
   "settingsConfig.thinkingModeAuto": "自动 (流式生成时展开，完成后折叠)",

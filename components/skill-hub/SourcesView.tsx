@@ -8,6 +8,7 @@ import { filterBySource, groupSwitchView, isProjectSource, PRIVATE_SOURCE } from
 import { SourceStatusBadge } from './SourceStatusBadge'
 import { SkillRow } from './SkillRow'
 import { DisabledRow } from './DisabledRow'
+import type { DisabledSkill } from '@/lib/skill-hub/protocol'
 import { GroupSummary } from './GroupSummary'
 import type { SkillHubState } from './useSkillHub'
 import css from './panel.module.css'
@@ -28,7 +29,11 @@ export function SourcesView(props: { hub: SkillHubState }) {
   }
 
   const projectSkillsAll = filterBySource(sorted, sourceFilter, origins).filter((skill) => isProjectSource(skill.source))
-  const hasProject = projectSkillsAll.length > 0
+  const projectDisabledAll = (catalog?.disabled ?? [])
+    .filter((record) => isProjectSource(record.root))
+    .filter((record) => normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized))
+    .filter((record) => sourceFilter === 'all' || record.root === sourceFilter)
+  const hasProject = projectSkillsAll.length > 0 || projectDisabledAll.length > 0
   const collections = groupsState?.collections ?? []
   const uncategorizedAll = filterBySource(sorted, sourceFilter, origins).filter((skill) => origins[skill.name] === undefined && !isProjectSource(skill.source))
   const personalDisabledAll = (catalog?.disabled ?? []).filter((record) => origins[record.name] === undefined && !isProjectSource(record.root))
@@ -77,12 +82,18 @@ export function SourcesView(props: { hub: SkillHubState }) {
           const topCollapsed = collapsedGroups.has('project')
           const isDragging = topDragKey === 'project'
           const isOver = topOverKey === 'project' && topDragKey !== 'project'
-          const byProject = new Map<string, { title: string; skills: typeof projectSkillsAll }>()
+          const byProject = new Map<string, { title: string; skills: typeof projectSkillsAll; disabled: DisabledSkill[] }>()
           for (const skill of projectSkillsAll) {
             const key = skill.workspace ?? skill.source
             const entry = byProject.get(key)
-            if (entry === undefined) byProject.set(key, { title: skill.workspaceTitle ?? skill.workspace ?? tt('groups.project'), skills: [skill] })
+            if (entry === undefined) byProject.set(key, { title: skill.workspaceTitle ?? skill.workspace ?? tt('groups.project'), skills: [skill], disabled: [] })
             else entry.skills.push(skill)
+          }
+          for (const record of projectDisabledAll) {
+            const key = record.workspace ?? record.root
+            const entry = byProject.get(key)
+            if (entry === undefined) byProject.set(key, { title: record.workspaceTitle ?? record.workspace ?? tt('groups.project'), skills: [], disabled: [record] })
+            else entry.disabled.push(record)
           }
           return (
             <section
@@ -111,7 +122,7 @@ export function SourcesView(props: { hub: SkillHubState }) {
                     <div className={css.groupHead}>
                       <button type="button" className={css.disclosure} aria-expanded={!projCollapsed} onClick={() => { toggleGroupCollapse(projKey) }}>
                         <span className={css.chevron + (projCollapsed ? ' ' + css.chevronCollapsed : '')} />
-                        <span className={css.groupTitle}>{proj.title} · {proj.skills.length}<GroupSummary members={proj.skills.map((s) => s.name)} hub={hub} /></span>
+                        <span className={css.groupTitle}>{proj.title} · {proj.skills.length + proj.disabled.length}<GroupSummary members={[...proj.skills.map((s) => s.name), ...proj.disabled.map((d) => d.name)]} hub={hub} /></span>
                       </button>
                       <span className={css.groupOps}>
                         <button type="button" className={css.opBtn} onClick={(event) => { event.stopPropagation(); hub.toggleSubdivide(key) }}>{subdivided ? tt('groups.merge') : tt('groups.subdivide')}</button>
@@ -122,7 +133,8 @@ export function SourcesView(props: { hub: SkillHubState }) {
                         <div className={css.projectNest}>
                           {(['project-dsh', 'project-agents'] as const).map((source) => {
                             const list = proj.skills.filter((skill) => skill.source === source)
-                            if (list.length === 0) return null
+                            const disabledList = proj.disabled.filter((record) => record.root === source)
+                            if (list.length === 0 && disabledList.length === 0) return null
                             const srcKey = projKey + ':' + source
                             const srcCollapsed = collapsedGroups.has(srcKey)
                             return (
@@ -130,15 +142,29 @@ export function SourcesView(props: { hub: SkillHubState }) {
                                 <div className={css.groupHead}>
                                   <button type="button" className={css.disclosure} aria-expanded={!srcCollapsed} onClick={() => { toggleGroupCollapse(srcKey) }}>
                                     <span className={css.chevron + (srcCollapsed ? ' ' + css.chevronCollapsed : '')} />
-                                    <span className={css.groupTitle}>{tt(('badge.source.' + source) as 'badge.source.project-dsh' | 'badge.source.project-agents')} · {list.length}</span>
+                                    <span className={css.groupTitle}>{tt(('badge.source.' + source) as 'badge.source.project-dsh' | 'badge.source.project-agents')} · {list.length + disabledList.length}</span>
                                   </button>
                                 </div>
-                                {!srcCollapsed ? list.map((skill) => <SkillRow key={skillKey(skill)} skill={skill} hub={hub} />) : null}
+                                {!srcCollapsed ? (
+                                  <>
+                                    {list.map((skill) => <SkillRow key={skillKey(skill)} skill={skill} hub={hub} />)}
+                                    {disabledList.map((record) => (
+                                      <DisabledRow key={'d-' + skillKey({ name: record.name, source: record.root, workspace: record.workspace })} record={record} busy={busyNames.has(record.name)} duplicate={catalog?.duplicateNames?.includes(record.name) === true} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />
+                                    ))}
+                                  </>
+                                ) : null}
                               </div>
                             )
                           })}
                         </div>
-                      ) : proj.skills.map((skill) => <SkillRow key={skillKey(skill)} skill={skill} hub={hub} />)
+                      ) : (
+                        <>
+                          {proj.skills.map((skill) => <SkillRow key={skillKey(skill)} skill={skill} hub={hub} />)}
+                          {proj.disabled.map((record) => (
+                            <DisabledRow key={'d-' + skillKey({ name: record.name, source: record.root, workspace: record.workspace })} record={record} busy={busyNames.has(record.name)} duplicate={catalog?.duplicateNames?.includes(record.name) === true} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />
+                          ))}
+                        </>
+                      )
                     ) : null}
                   </div>
                 )

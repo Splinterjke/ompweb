@@ -266,6 +266,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "git-graph-modal-size", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.gitGraphModalSize", descKey: "settingsConfig.gitGraphModalSizeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "GitGraph modal size", fallbackDesc: "Size of the Git graph modal as a percentage of the window. Choose a preset size between 40% and 95%.", scope: "UI" },
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
+  { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
   { id: "chat-border-beam", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.chatBorderBeam", descKey: "settingsConfig.chatBorderBeamDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat Border Flow", fallbackDesc: "Clockwise luminous beam on input border during active conversation.", scope: "UI" },
   { id: "omp-bouncing-letters", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ompBouncingLetters", descKey: "settingsConfig.ompBouncingLettersDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "OMP Loader Jump", fallbackDesc: "Sequential jumping letters animation while waiting for response.", scope: "UI" },
@@ -487,7 +488,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, toolOutputCapEnabled = true, onToolOutputCapChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -500,6 +501,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Cap expanded tool-call output height (Interface & Behavior). */
   toolOutputCapEnabled?: boolean;
   onToolOutputCapChange?: (enabled: boolean) => void;
+  /** Follow the bottom of streaming thinking blocks (Interface & Behavior). */
+  thinkingAutoFollowEnabled?: boolean;
+  onThinkingAutoFollowChange?: (enabled: boolean) => void;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   onThinkingDisplayModeChange?: (mode: "auto" | "collapsed" | "expanded") => void;
   /** Full-width thinking/tool details rows (Interface & Behavior switch). */
@@ -992,6 +996,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
                     <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="thinking-auto-follow" label={t("settingsConfig.thinkingAutoFollow")} description={t("settingsConfig.thinkingAutoFollowDesc")} scope="UI">
+                    <ToggleSwitch checked={thinkingAutoFollowEnabled} onChange={(next) => onThinkingAutoFollowChange?.(next)} />
                   </NativeSetting>
                 </div>
 

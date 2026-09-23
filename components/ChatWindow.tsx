@@ -39,6 +39,7 @@ interface Props {
   newSessionWorkspace?: ReactNode;
   toolCallsDefaultCollapsed?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  thinkingAutoFollow?: boolean;
   onAgentEnd?: () => void;
   onSessionCreated?: (session: SessionInfo) => void;
   onSessionForked?: (newSessionId: string) => void;
@@ -194,6 +195,7 @@ interface CommittedTranscriptProps {
   sessionId: string | undefined;
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
+  thinkingAutoFollow?: boolean;
   /** Message-group index (doc 14 T2.1): O(n) pass, no JSX. */
   groups: ChatGroup[];
   /** Group height cache: measured heights replace estimates (T2.2). */
@@ -213,7 +215,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
   handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, sessionId,
-  toolCallsDefaultCollapsed, thinkingDisplayMode, groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // omp's `branch` command accepts a user entry only, so every row forks at the
@@ -272,6 +274,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
         sessionId={sessionId}
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
         thinkingDisplayMode={thinkingDisplayMode}
+        thinkingAutoFollow={thinkingAutoFollow}
       />
     );
     if (!isVisible || options.attachRef === false || currentRefIdx === undefined) return view;
@@ -432,9 +435,18 @@ const CommittedTranscript = memo(function CommittedTranscript({
     const { userIdx, finalAssistantIdx, processIndices, tailIndices, endIdx } = group;
     const isLiveTail = (sessionBusy || isStreaming) && endIdx === messages.length && userIdx === lastAnchorIdx;
     if (finalAssistantIdx === -1 || isLiveTail) {
+      // Live tail: the committed final assistant message is rendered inline
+      // (the streaming bubble only holds the not-yet-committed message, so
+      // including finalAssistantIdx can never double-render it). Without this,
+      // at message_end the committed message is in neither path: the transcript
+      // skips it and the bubble is reset — it would vanish until the next
+      // commit or the end of the run.
+      const liveIndices = finalAssistantIdx >= 0
+        ? [userIdx, ...processIndices, finalAssistantIdx, ...tailIndices]
+        : [userIdx, ...processIndices, ...tailIndices];
       return (
         <Fragment key={"g-" + userIdx}>
-          {[userIdx, ...processIndices, ...tailIndices].map((i) => renderMessage(i))}
+          {liveIndices.map((i) => renderMessage(i))}
         </Fragment>
       );
     }
@@ -502,7 +514,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     </>
   );
 });
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
@@ -1265,6 +1277,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               sessionId={session?.id ?? sessionIdRef.current ?? undefined}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
+              thinkingAutoFollow={thinkingAutoFollow}
               groups={groups}
               layout={layout}
               window={win}
@@ -1280,6 +1293,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
                 toolResults={toolResultsWithLive}
                 thinkingDisplayMode={thinkingDisplayMode}
+                thinkingAutoFollow={thinkingAutoFollow}
                 liveTokensPerSecond={tokensPerSecond}
               />
             )}
