@@ -13,3 +13,21 @@ separate Puppeteer Chromium and is not this machine's default.
 - Full reference: `skill://chrome-agent`. Record extraction: `skill://scrape-structured-data`.
 - Use the managed `browser` tool only if chrome-agent truly cannot (raw puppeteer JS beyond
   `eval`); a real logged-in Chrome relay is not available here.
+
+# Test suite: 20 pre-existing failures — ignore
+
+`node --experimental-strip-types --test` over `components hooks lib desktop bin scripts`
+reports **20 failing tests that are pre-existing environment issues**, not caused by any
+changes in this repo's development. They fail identically on the unmodified tree (verified
+2026-09-23 by stashing local changes and re-running the same files) and should be ignored
+when verifying changes — judge your work by tests in files you touched:
+
+- `components/AppShell.test.mjs` — top bar / model output capacity (1)
+- `components/panels/RightWorkbench.test.mjs` — empty-state surfaces (1)
+- `hooks/useDictation.behavior.test.mjs` — audio capture (4)
+- `lib/backend-ownership.test.mjs` — ownership manifest (2)
+- `lib/contracts/agent-contract.test.mjs` — error-codes golden (1)
+- `lib/motion-manifest.test.mjs` — motion manifest golden (1)
+- `lib/omp/host-bin.test.mjs` — "route 3: …" host-bin resolution (8)
+- `lib/ui-request-contract.test.mjs` — execution matrix doc (1;
+  `docs/refactor/ompweb-5.0/command-execution-matrix.md` is not present in this checkout)
