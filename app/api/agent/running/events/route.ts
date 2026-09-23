@@ -68,11 +68,14 @@ export async function GET(req: Request) {
       const holder: { fn: (() => void) | null } = { fn: null };
       holder.fn = subscribeSessionFileChanges((sessionIds) => {
         try {
-          // Sessions the web UI spawned itself produce their own RPC events;
-          // everything else that changed on disk is being written by an
-          // external omp/harness and should render as externally running.
+          // Only sessions with real file activity (the file grew or shrank)
+          // render as externally running. Same-size in-place rewrites — a
+          // rename touching the fixed title slot — just refresh the list.
+          // Web-spawned sessions produce their own RPC events and are
+          // excluded either way.
           const rpcIds = new Set(getRunningRpcSessionIds());
-          const externallyRunning = sessionIds.filter((id) => !rpcIds.has(id));
+          const activeIds = new Set(getExternallyActiveIds(1000));
+          const externallyRunning = sessionIds.filter((id) => !rpcIds.has(id) && activeIds.has(id));
           encode({
             type: "sessions-changed",
             sessionIds,

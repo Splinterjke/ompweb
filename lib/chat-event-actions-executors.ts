@@ -99,18 +99,49 @@ export function parseHeaderLines(raw: string): Record<string, string> {
 
 const CONTENT_TYPES = { json: "application/json", xml: "application/xml", text: "text/plain" } as const;
 
+/**
+ * Substitute $event-data variables in an HTTP request body. For JSON bodies
+ * (the POST/PUT default) the template is parsed and variables are substituted
+ * in string values only, so JSON.stringify re-escapes newlines, quotes and
+ * backslashes coming from $last_reply/$question — a raw text substitution
+ * would produce an invalid body. If the template is not valid JSON, the raw
+ * substitution is applied (the body may not be JSON at all).
+ */
+function interpolateBody(body: string, contentType: keyof typeof CONTENT_TYPES, payload: ChatEventPayload): string {
+  if (contentType !== "json") return interpolateEventVars(body, payload);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return interpolateEventVars(body, payload);
+  }
+  const walk = (value: unknown): unknown => {
+    if (typeof value === "string") return interpolateEventVars(value, payload);
+    if (Array.isArray(value)) return value.map(walk);
+    if (value !== null && typeof value === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value as Record<string, unknown>)) out[key] = walk(val);
+      return out;
+    }
+    return value;
+  };
+  return JSON.stringify(walk(parsed), null, 2);
+}
+
 async function executeHttp(action: ChatEventAction, payload: ChatEventPayload): Promise<void> {
   const spec = action.action;
   if (spec.type !== "http") return;
   try {
     const headers = parseHeaderLines(spec.headers ?? "");
     let body: string | undefined;
+    const bodyContentType = spec.bodyContentType ?? "json";
     if (spec.body) {
       // $event-data variables ($session_name, $session_id, $last_reply,
-      // $question) are substituted from the firing event's payload.
-      body = interpolateEventVars(spec.body, payload);
+      // $question) are substituted from the firing event's payload; JSON
+      // bodies are re-serialized so substituted text stays valid JSON.
+      body = interpolateBody(spec.body, bodyContentType, payload);
       if ((spec.method === "POST" || spec.method === "PUT") && !headers["content-type"]) {
-        headers["Content-Type"] = CONTENT_TYPES[spec.bodyContentType ?? "json"];
+        headers["Content-Type"] = CONTENT_TYPES[bodyContentType];
       }
     }
     const res = await fetch(spec.url, {
