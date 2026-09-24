@@ -133,6 +133,8 @@ export interface ChatInputHandle {
   addFiles: (files: File[]) => void;
   /** Open the Session Info popover (e.g. from the /session command). */
   openSessionInfo: () => void;
+  /** Focus the composer textarea (e.g. after selecting a session on mobile). */
+  focus: () => void;
 }
 
 const COMPOSITION_END_ENTER_GRACE_MS = 100;
@@ -647,6 +649,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   }, [isRecording, isPaused, isReviewing, isTranscribing, transcribeError, cancelDictationAndReset, retryDictation, confirmTranscribeDictation, stopAndInsertDictation]);
 
   useImperativeHandle(ref, () => ({
+    focus() {
+      textareaRef.current?.focus();
+    },
     insertIfEmpty(text: string) {
       const ta = textareaRef.current;
       const current = ta ? ta.value : value;
@@ -1702,6 +1707,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
   return (
     <div
+      role="group"
+      aria-label={t("chatInput.composerLabel")}
       style={{
         flexShrink: 0,
         width: !isMobile && narrowColumn ? "100%" : undefined,
@@ -2443,6 +2450,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           ) : (
           <textarea
             ref={textareaRef}
+            aria-label={t("chatInput.composerLabel")}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);

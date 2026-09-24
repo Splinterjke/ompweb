@@ -3774,3 +3774,20 @@ html[data-animation-thinking="false"] .thinking-icon-active {
     width: 40% !important;
   }
 }
+
+/* Keyboard users can bypass the persistent chrome to reach the main content. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 4000;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+  transform: translateY(-150%);
+  transition: transform var(--dur-fast) var(--ease-out-warm);
+}
+.skip-link:focus { transform: translateY(0); }

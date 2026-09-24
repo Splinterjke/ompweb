@@ -584,7 +584,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
     isNew,
     sessionIdRef, messagesEndRef, scrollContainerRef,
-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange,
+    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
     toolPreset, handleToolPresetChange,
     removeQueuedMessage, promoteQueuedToSteer,
@@ -1167,8 +1167,15 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   if (error) {
     return (
-      <div role="alert" className="flex h-full items-center justify-center" style={{ color: "var(--accent-strong)", padding: "0 16px", textAlign: "center", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-        {error}
+      <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: "var(--accent-strong)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
+        <div>{error}</div>
+        <button
+          type="button"
+          onClick={retrySession}
+          style={{ minHeight: 36, padding: "6px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontWeight: 600, transition: "background var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}
+        >
+          {t("chatWindow.retry")}
+        </button>
       </div>
     );
   }
@@ -1257,7 +1264,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
             no minimap and users need the scrollbar. `scrollbar-width:none` is
             Firefox-only; .chat-scroll-view also kills the WebKit/WKWebView
             scrollbar that otherwise overlaps the minimap. */}
-        <div ref={scrollContainerRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto pt-6` + (isMobile ? "" : " chat-scroll-view")}>
+        <div ref={scrollContainerRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto pt-6` + (isMobile ? "" : " chat-scroll-view")} role="log" aria-live="polite" aria-relevant="additions text" aria-label={t("chatWindow.conversation")}>
           <div style={{ padding: chatColumnPadding }}>
             <div style={{ maxWidth: CHAT_COLUMN_MAX_WIDTH, margin: "0 auto" }}>
               <ExtensionStatusBar statuses={extensionStatuses} />

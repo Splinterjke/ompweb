@@ -7,6 +7,7 @@ import { BarChart3, Check, Moon, Plus, Sun, MessageSquare } from "lucide-react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { THEME_OPTIONS, useTheme } from "@/hooks/useTheme";
+import { useModalDialog } from "@/hooks/useModalDialog";
 import { createOmpwebClient } from "@/lib/client";
 
 type Props = {
@@ -58,23 +59,23 @@ export function CommandPalette({ onSelectSession, onNewSession, currentModel }: 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setOpen((value) => !value);
-      } else if (event.key === "Escape" && open) {
-        event.preventDefault();
-        event.stopPropagation();
-        setOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open]);
+  }, []);
+
+  // Dialog semantics: focus into the palette on open, focus restore on close,
+  // Escape closes the topmost dialog, Tab is trapped inside.
+  const dialogRef = useModalDialog<HTMLDivElement>({ onClose: () => setOpen(false), active: open });
 
   useEffect(() => { if (open) loadSessions(); }, [open, loadSessions]);
   if (!open || typeof document === "undefined") return null;
 
   const choose = (action: () => void) => { action(); setOpen(false); };
   return createPortal(
-    <div role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 2000, background: "color-mix(in srgb, var(--text) 22%, transparent)", paddingTop: "20vh" }}>
-      <Command label={t("commandPalette.label")} role="dialog" aria-modal="true" shouldFilter style={{ width: "min(92vw, 560px)", maxHeight: "min(70vh, 560px)", margin: "0 auto", overflow: "hidden", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-modal)", boxShadow: "var(--shadow-modal)", animation: "ui-scale-in var(--dur-med) var(--ease-out-warm)" }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t("commandPalette.label")} onMouseDown={(event) => { if (event.currentTarget === event.target) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 2000, background: "color-mix(in srgb, var(--text) 22%, transparent)", paddingTop: "20vh" }}>
+      <Command label={t("commandPalette.label")} role="presentation" shouldFilter style={{ width: "min(92vw, 560px)", maxHeight: "min(70vh, 560px)", margin: "0 auto", overflow: "hidden", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--radius-modal)", boxShadow: "var(--shadow-modal)", animation: "ui-scale-in var(--dur-med) var(--ease-out-warm)" }}>
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
           <Command.Input autoFocus placeholder={t("commandPalette.placeholder")} style={{ width: "100%", border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(15px * var(--ui-font-scale-lg, 1))" }} />
         </div>

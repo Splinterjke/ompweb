@@ -155,7 +155,7 @@ function inputShellStyle({ invalid }: InputShellStyleOptions): CSSProperties {
   return {
     padding: "6px 9px",
     background: "var(--bg)",
-    border: `1px solid ${invalid ? "var(--accent)" : "var(--border)"}`,
+    border: `1px solid ${invalid ? "var(--status-error)" : "var(--border)"}`,
     borderRadius: "var(--radius-control)",
     color: "var(--text)",
     fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
@@ -170,8 +170,10 @@ function inputShellStyle({ invalid }: InputShellStyleOptions): CSSProperties {
 function focusGlowStyle(focused: boolean, invalid: boolean): CSSProperties {
   if (!focused) return {};
   return {
-    borderColor: invalid ? "var(--accent)" : "var(--accent)",
-    boxShadow: "var(--focus-ring)",
+    borderColor: invalid ? "var(--status-error)" : "var(--accent)",
+    boxShadow: invalid
+      ? "0 0 0 2px color-mix(in srgb, var(--status-error) 28%, transparent)"
+      : "0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent)",
   };
 }
 
@@ -578,7 +580,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             style={{
               padding: "6px 14px",
-              background: "var(--accent-strong)",
+              background: danger ? "var(--status-error)" : "var(--accent-strong)",
               border: "none",
               borderRadius: "var(--radius-control)",
               color: "var(--on-accent)",
@@ -589,13 +591,10 @@ export function ConfirmDialog({
               transition: "background var(--dur-fast) var(--ease-out-warm)",
             }}
             onMouseEnter={(e) => {
-              if (!busy) e.currentTarget.style.background = "var(--accent-hover)";
+              if (!busy) e.currentTarget.style.background = danger ? "color-mix(in srgb, var(--status-error) 82%, black)" : "var(--accent-hover)";
             }}
             onMouseLeave={(e) => {
-              if (!busy)
-                e.currentTarget.style.background = danger
-                  ? "var(--accent-strong)"
-                  : "var(--accent)";
+              if (!busy) e.currentTarget.style.background = danger ? "var(--status-error)" : "var(--accent-strong)";
             }}
           >
             {confirmLabel}

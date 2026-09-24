@@ -1004,7 +1004,10 @@ export function AppShell() {
     setSystemPromptLoading(false);
     setInitialSessionRestored(true);
     // On mobile, collapse the overlay drawer so the chat is revealed after pick.
-    if (isMobile && !isRestore) setSidebarOpen(false);
+    if (isMobile && !isRestore) {
+      setSidebarOpen(false);
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+    }
     // The sidebar sets selectedCwd BEFORE calling onSelectSession, and its
     // change effect fires after this callback. Without suppressing it, a
     // cross-project click first selects the session, then handleCwdChange
@@ -1061,7 +1064,10 @@ export function AppShell() {
     setSystemPrompt(null);
     setSystemPromptLoading(false);
     setActiveTopPanel(null);
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) {
+      setSidebarOpen(false);
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+    }
     router.replace("/", { scroll: false });
   }, [router, isMobile]);
 
@@ -1560,6 +1566,7 @@ export function AppShell() {
         }
       }
     `}</style>
+    <a href="#main-content" className="skip-link">{t("appShell.skipToContent")}</a>
     <div className={panelsSwappedActive ? "shell-panels-swapped" : undefined} style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
       {/* Mobile overlay backdrop */}
       <div
@@ -1577,7 +1584,8 @@ export function AppShell() {
       />
 
       {/* Left sidebar */}
-      <div
+      <nav
+        aria-label={t("projects.heading")}
         ref={sidebarContainerRef}
         className={`sidebar-container${sidebarOpen ? " sidebar-open" : " sidebar-closed"}${mobileSidebarReady ? "" : " sidebar-mobile-pending"}${sidebarResizing ? " sidebar-resizing" : ""}`}
         aria-hidden={mobileSidebarReady && !sidebarOpen ? true : undefined}
@@ -1595,7 +1603,7 @@ export function AppShell() {
         }}
       >
         {sidebarContent}
-      </div>
+      </nav>
 
       {/* Resize handle — desktop only, hidden while the sidebar is closed */}
       {!isMobile && sidebarOpen && (
@@ -1627,7 +1635,7 @@ export function AppShell() {
       )}
 
       {/* Center: chat */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
+      <main id="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
         {ompMissing && !ompMissingDismissed && (
           <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", background: "color-mix(in srgb, var(--status-warning) 12%, var(--bg-panel))", borderBottom: "1px solid color-mix(in srgb, var(--status-warning) 35%, var(--border))", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", flexShrink: 0 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
