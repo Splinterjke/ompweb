@@ -64,6 +64,24 @@ curl -s -b /tmp/jar http://127.0.0.1:30178/api/diagnostics
 4. **Stale build** — dev writes to `.next-dev/`, `next build` to `.next/`; they can run concurrently. `scripts/clean-dev-types.mjs` sweeps dev type dirs before builds (TS1128 trap: a live dev server rewriting `.next/dev/types/` mid-build). After a rebuild the UI shows an in-app "OMP update available / Refresh" notification.
 5. **Live agent** — one `omp --mode rpc-ui` child per active session (NDJSON over stdio). Find them: `ps -ef | grep "omp --mode rpc-ui"`. Each is a child of the `ompweb-host --ipc` process. Killing one drops that session's live state; the session file is untouched.
 
+## Stale `.next-dev` build — HTML 404 on live routes
+
+If `/api/*` or a page returns Next's **HTML** "Not Found" 404 (server log: HTML body,
+`application-code: 32m`) even though the route exists in source, it is NOT a missing route —
+the dev server is serving a **stale compiled route table** from `.next-dev/`. (Contrast: a JSON
+`{"error":…}` 404 means the route is live and the ID just wasn't found.)
+
+Triggers: files edited while the dev server was down (the watcher never sees them), a crash or
+kill mid-rebuild leaving `.next-dev/` half-written, or an interrupted hot-reload.
+
+Fix, in order:
+1. Restart the dev server (`hub restart ompweb-dev`, or `pkill -f "next dev" && npm run dev`).
+2. If the HTML 404 persists, the route cache is corrupt: kill the server, `rm -rf .next-dev`,
+   restart. The first request triggers a full Turbopack rebuild — it is slow; poll until it
+   responds instead of concluding the route is dead.
+3. Verify with `curl` before blaming the browser — a browser can't fix a stale server build.
+   After a clean rebuild, re-navigate the test browser with a fresh `goto` (not a soft reload).
+
 ## Kill / restart
 
 ```bash

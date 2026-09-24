@@ -66,6 +66,27 @@ Rules that matter (full set in `skill://chrome-agent`):
   (`pkill -f 'chrome-linux64/chrome'`, then re-run) or the app itself resetting on rapid
   re-navigation (single `pipe` session, `wait text` before acting).
 
+## Iterating against a local dev server (repeat test rounds)
+
+Reuse ONE named browser for the whole test session — never `pkill` it between probes:
+
+- **One browser per session** (e.g. `--browser dev`): the profile persists across separate
+  `pipe` invocations, so log in once and set state once; every later probe reuses the cookie
+  and localStorage. A fresh browser per probe forces re-login and re-setup every time.
+- **After a server restart/rebuild, re-navigate with `{"cmd":"goto","url":...}`** — a fresh
+  document fetches fresh HTML + JS. A soft `location.reload()` inside an `eval` may serve a
+  cached document; if stale behavior persists after a fresh goto, bust the cache once with a
+  one-off `?v=<timestamp>` query param (cookies and SPA state are unaffected).
+- **`CDP error -32000: Inspected target navigated or closed`** right after a `location.reload()`
+  or `goto` inside an `eval` is expected and harmless — the page navigated, the browser is
+  alive. Just re-issue the next command; do not kill the browser over it.
+- **Reset state in place** instead of starting a fresh browser: `eval`
+  `localStorage.removeItem("key")` (or `localStorage.clear()`) + a fresh goto. Create a
+  brand-new browser only when a pristine first-run is required (first login, onboarding).
+- `pkill -9 -f chrome-agent/linux-x64` is for sweeping *stray leftover* browsers before starting
+  a session, never between tests within one.
+- When the session is done: `--browser dev close --purge`.
+
 ## Fallback to the built-in browser device (last resort only)
 
 chrome-agent reuses an existing Chrome (OMP's, or a standalone fallback it downloaded if OMP's is

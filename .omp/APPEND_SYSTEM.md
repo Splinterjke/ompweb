@@ -10,6 +10,10 @@ separate Puppeteer Chromium and is not this machine's default.
 - Always pass `--chrome-arg --no-sandbox --chrome-arg --disable-dev-shm-usage` (solves root + 64 MB
   `/dev/shm`).
 - Static/public pages that need no JS or interaction: use the `read` tool with the URL first.
+- Dev-server testing loop: keep ONE chrome-agent browser for the whole session (profile, cookies
+  and localStorage persist across `pipe` calls — log in once, set state once); after a server
+  restart re-navigate with `goto`, not a soft reload; `CDP error -32000` after a reload-eval is
+  harmless, just re-issue the command. Full loop: `skill://chrome-agent-default`.
 - Full reference: `skill://chrome-agent`. Record extraction: `skill://scrape-structured-data`.
 - Use the managed `browser` tool only if chrome-agent truly cannot (raw puppeteer JS beyond
   `eval`); a real logged-in Chrome relay is not available here.
