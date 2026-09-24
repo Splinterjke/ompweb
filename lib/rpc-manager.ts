@@ -1543,7 +1543,9 @@ export class AgentSessionWrapper {
 
       case "host_tool_result": {
         if (typeof command.id === "string") this.pendingHostTools.delete(command.id);
-        await this.proc.sendCommand(command as { type: string });
+        // Fire-and-forget frame: preserves the original request id (sendCommand
+        // would mint a fresh id and await a reply the agent never sends).
+        this.proc.sendFrame(command as { type: string; [key: string]: unknown });
         return null;
       }
 
@@ -1561,7 +1563,9 @@ export class AgentSessionWrapper {
 
       case "host_uri_result": {
         if (typeof command.id === "string") this.pendingHostUris.delete(command.id);
-        await this.proc.sendCommand(command as { type: string });
+        // Fire-and-forget frame: preserves the original request id (sendCommand
+        // would mint a fresh id and await a reply the agent never sends).
+        this.proc.sendFrame(command as { type: string; [key: string]: unknown });
         return null;
       }
 
