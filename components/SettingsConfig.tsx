@@ -37,6 +37,7 @@ type UpdateState = {
   currentVersion: string | null;
   availableVersion: string | null;
   updateAvailable: boolean;
+  updatesDisabled?: boolean;
   updateCommand?: string;
   checkError?: boolean;
 };
@@ -733,7 +734,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     }
   }, [onOmpUpdateAvailabilityChange]);
 
+  const ompUpdateDisabled = Boolean(update?.updatesDisabled);
+
   const checkForUpdate = useCallback(async () => {
+    if (ompUpdateDisabled) return;
     setChecking(true);
     try {
       const response = await fetch("/api/omp-update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "check" }) });
@@ -749,7 +753,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     } finally {
       setChecking(false);
     }
-  }, [onOmpUpdateAvailabilityChange]);
+  }, [ompUpdateDisabled, onOmpUpdateAvailabilityChange]);
 
 
   const restartSessions = useCallback(async () => {
@@ -769,10 +773,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   const currentTab = getNormalizedActive(activeTab);
 
   useEffect(() => {
-    if (currentTab !== "system" || hasCheckedUpdates) return;
+    if (currentTab !== "system" || hasCheckedUpdates || ompUpdateDisabled) return;
     setHasCheckedUpdates(true);
     void checkForUpdate();
-  }, [currentTab, hasCheckedUpdates, checkForUpdate]);
+  }, [currentTab, hasCheckedUpdates, ompUpdateDisabled, checkForUpdate]);
 
   const [noticeEnabled, setNoticeEnabled] = useState(isUpdateNoticeEnabled());
 
@@ -1621,10 +1625,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     <div>
                       <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.ompLabel")}</div>
                       <div style={{ marginTop: 4, color: update?.updateAvailable ? "var(--accent)" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-                        {checking ? t("settingsConfig.checkingUpdates") : update?.updateAvailable ? t("appShell.updateVersion", { current: update.currentVersion ?? "?", available: update.availableVersion ?? "?" }) : update?.currentVersion ? t("settingsConfig.upToDate", { version: update.currentVersion }) : t("settingsConfig.versionUnavailable")}
+                        {update?.updatesDisabled ? t("settingsConfig.updatesDisabled") : checking ? t("settingsConfig.checkingUpdates") : update?.updateAvailable ? t("appShell.updateVersion", { current: update.currentVersion ?? "?", available: update.availableVersion ?? "?" }) : update?.currentVersion ? t("settingsConfig.upToDate", { version: update.currentVersion }) : t("settingsConfig.versionUnavailable")}
                       </div>
                     </div>
-                    <button type="button" onClick={() => void checkForUpdate()} disabled={checking} aria-label={t("settingsConfig.checkOmpUpdates")} style={{ padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text)", cursor: checking ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <button type="button" onClick={() => void checkForUpdate()} disabled={checking || ompUpdateDisabled} aria-label={t("settingsConfig.checkOmpUpdates")} style={{ padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text)", cursor: checking ? "wait" : ompUpdateDisabled ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
                       <RefreshCw size={13} aria-hidden="true" /> {t("settingsConfig.refresh")}
                     </button>
                   </div>

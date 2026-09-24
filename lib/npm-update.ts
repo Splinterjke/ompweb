@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import packageJson from "../package.json";
 import { homedir } from "os";
 import { join, normalize, sep } from "path";
+import { isUpdateDisabled } from "./update-policy";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const NPM_PACKAGE = "@Splinterjke/ompweb";
@@ -25,6 +26,8 @@ export interface NpmUpdateStatus {
   currentVersion: string;
   availableVersion: string | null;
   updateAvailable: boolean;
+  /** True when OMP_WEB_DISABLE_AUTOUPDATE is set; the UI shows "updates disabled". */
+  updatesDisabled?: boolean;
   updateCommand: string;
   /** True when the registry check itself failed (network/proxy); the UI
    *  should not claim "up to date" in that case. */
@@ -67,12 +70,26 @@ export function isNewerVersion(availableVersion: string, currentVersion: string)
 export const SERVER_STARTED_AT = Date.now();
 
 export async function checkNpmUpdate(force = false): Promise<NpmUpdateStatus> {
-  if (!force && cached && Date.now() - cached.checkedAt < CHECK_TTL_MS) return cached.status;
-
   const currentVersion = packageJson.version;
   const packageDir = process.env.OMP_WEB_PACKAGE_DIR ?? process.cwd();
   const method = detectInstallMethod(packageDir);
   const updateCommand = method === "bun" ? "bun add -g @Splinterjke/ompweb" : "npm install -g @Splinterjke/ompweb";
+
+  // Opt-out: OMP_WEB_DISABLE_AUTOUPDATE skips the registry round-trip and
+  // never reports an available update, even if a stale cache claims one.
+  if (isUpdateDisabled()) {
+    return {
+      currentVersion,
+      availableVersion: null,
+      updateAvailable: false,
+      updateCommand,
+      updatesDisabled: true,
+      startedAt: SERVER_STARTED_AT,
+      justStarted: true,
+    };
+  }
+
+  if (!force && cached && Date.now() - cached.checkedAt < CHECK_TTL_MS) return cached.status;
 
   const base = { currentVersion, updateCommand, startedAt: SERVER_STARTED_AT, justStarted: true };
   try {

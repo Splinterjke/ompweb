@@ -66,6 +66,7 @@
   "settingsConfig.systemUpdatesDescription": "アプリのバージョン、OMP ランタイムの更新、アクティブなセッションを管理します。",
   "settingsConfig.ompLabel": "OMP ランタイム",
   "settingsConfig.checkingUpdates": "更新を確認中…",
+  "settingsConfig.updatesDisabled": "アップデートチェックは無効です",
   "settingsConfig.upToDate": "v{version} は最新です",
   "settingsConfig.versionUnavailable": "バージョンを取得できません",
   "settingsConfig.checkOmpUpdates": "OMP の更新を確認",

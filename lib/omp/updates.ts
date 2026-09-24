@@ -5,6 +5,7 @@ import { join } from "path";
 import { ProxyAgent, request } from "undici";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { proxyEnv, readProxyConfig, resolveEffectiveProxy } from "../proxy-config";
+import { isUpdateDisabled } from "../update-policy";
 
 const OMP_RELEASE_ASSET_URL = "https://github.com/can1357/oh-my-pi/releases/latest/download/{tag}";
 
@@ -20,6 +21,8 @@ export interface OmpUpdateStatus {
   availableVersion: string | null;
   updateAvailable: boolean;
   updateCommand: string;
+  /** True when OMP_WEB_DISABLE_AUTOUPDATE is set; the UI shows "updates disabled". */
+  updatesDisabled?: boolean;
 }
 
 /**
@@ -191,6 +194,15 @@ export function parseOmpUpdateStatus(output: string): OmpUpdateStatus {
 }
 
 export async function checkOmpUpdate(): Promise<OmpUpdateStatus> {
+  if (isUpdateDisabled()) {
+    return {
+      currentVersion: null,
+      availableVersion: null,
+      updateAvailable: false,
+      updateCommand: "omp update",
+      updatesDisabled: true,
+    };
+  }
   return parseOmpUpdateStatus(await runOmpUpdate(["--check"]));
 }
 

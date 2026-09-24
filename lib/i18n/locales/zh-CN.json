@@ -66,6 +66,7 @@
   "settingsConfig.systemUpdatesDescription": "查看应用版本、OMP 运行时更新并管理活动会话。",
   "settingsConfig.ompLabel": "OMP 运行时",
   "settingsConfig.checkingUpdates": "正在检查更新…",
+  "settingsConfig.updatesDisabled": "更新检查已禁用",
   "settingsConfig.upToDate": "v{version} 已是最新版本",
   "settingsConfig.versionUnavailable": "版本不可用",
   "settingsConfig.checkOmpUpdates": "检查 OMP 更新",

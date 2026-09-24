@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { checkOmpUpdate, runOmpUpdateNow, runOmpUpdateStream } from "@/lib/omp/updates";
 import { clearRpcFailures, restartAllRpcSessions } from "@/lib/rpc-manager";
 import { hostClient } from "@/lib/omp/host-client";
+import { isUpdateDisabled } from "@/lib/update-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as { action?: unknown; stream?: unknown; port?: unknown };
     if (body.action === "check") return NextResponse.json(await checkOmpUpdate());
+    if (body.action === "update" && isUpdateDisabled()) {
+      return NextResponse.json(
+        { error: "Updates are disabled (OMP_WEB_DISABLE_AUTOUPDATE)", code: "updates_disabled" },
+        { status: 403 },
+      );
+    }
     if (body.action === "update") {
       if (body.stream === true) {
         const stream = new ReadableStream<string>({

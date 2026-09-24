@@ -134,6 +134,7 @@ The project incorporates improvements originally contributed by the `kahme247` a
 | `OMP_WEB_PASSWORD` / `--password` | Web sign-in password (compose default: `asdf1234`) | *(None / disabled)* |
 | `OMP_WEB_ALLOWED_HOSTS` | Comma-separated non-loopback hosts allowed to reach the app | *(empty — loopback only)* |
 | `OMP_WEB_NO_OPEN` | Skip opening browser automatically | `0` (`1` to skip) |
+| `OMP_WEB_DISABLE_AUTOUPDATE` | Set to `1` to disable update checks and in-app updates; restart after changing | `0` |
 | `OMP_WEB_OMP_BIN` | Absolute path to `omp` binary | Resolved from `PATH` |
 | `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL | _None (disabled)_ |
 | `OMP_WEB_STT_KEY` | Optional API key for the STT endpoint | _None_ |

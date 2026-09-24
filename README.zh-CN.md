@@ -134,6 +134,7 @@ compose 文件默认设置 `OMP_WEB_PASSWORD=asdf1234` —— 在登录界面使
 | `OMP_WEB_PASSWORD` / `--password` | Web 访问密码（compose 默认：`asdf1234`） | *(未设置即无需密码)* |
 | `OMP_WEB_ALLOWED_HOSTS` | 允许访问应用的非回环主机（逗号分隔） | *(空 — 仅回环)* |
 | `OMP_WEB_NO_OPEN` | 启动后是否跳过自动打开浏览器 | `0` (`1` 表示不自动打开) |
+| `OMP_WEB_DISABLE_AUTOUPDATE` | 设为 `1` 时禁用更新检查和应用内更新；修改后需重启 | `0` |
 | `OMP_WEB_OMP_BIN` | 指定 `omp` 二进制可执行文件的绝对路径 | 自动从 `PATH` 环境变量中查找 |
 | `OMP_WEB_STT_ENDPOINT` | OpenAI 兼容的语音转文字接口 URL | _无（默认禁用）_ |
 | `OMP_WEB_STT_KEY` | STT 接口对应的 API Key | _无_ |

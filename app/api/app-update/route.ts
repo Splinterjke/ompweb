@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkNpmUpdate, runNpmUpdate } from "@/lib/npm-update";
 import { wasUiUpdated } from "@/lib/ui-refresh-bus";
+import { isUpdateDisabled } from "@/lib/update-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST() {
+  if (isUpdateDisabled()) {
+    return NextResponse.json(
+      { error: "Updates are disabled (OMP_WEB_DISABLE_AUTOUPDATE)", code: "updates_disabled" },
+      { status: 403 },
+    );
+  }
   try {
     const output = await runNpmUpdate();
     return NextResponse.json({
