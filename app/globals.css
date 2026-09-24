@@ -3726,23 +3726,37 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 28px;
+  height: 24px;
+  min-height: 24px;
   padding: 3px 8px;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: 5px;
   background: none;
-  color: var(--text-muted);
-  font-size: calc(11px * var(--ui-font-scale-sm));
+  color: var(--text-dim);
+  font-size: calc(11px * var(--ui-font-scale-sm, 1));
+  font-weight: 400;
+  white-space: nowrap;
   cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out-warm);
 }
 .message-copy-action:hover {
   color: var(--accent);
-  background: var(--bg-hover);
 }
 @media (pointer: coarse) {
   .message-copy-action {
     min-height: 44px;
   }
+}
+
+/* Swapped side panels (Interface & Behavior, desktop only): the shell's
+   flex row is reversed so the workbench rail sits left of the chat column
+   and the session sidebar sits on the right. Fixed-position toggle buttons
+   reposition themselves in JSX. */
+.shell-panels-swapped {
+  flex-direction: row-reverse;
+}
+.shell-panels-swapped .sidebar-container.sidebar-closed {
+  border-left: none !important;
 }
 
 /* Dictation deck: indeterminate transcription progress. */

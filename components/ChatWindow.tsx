@@ -6,6 +6,7 @@ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecuti
 import { translate, useI18n } from "@/lib/i18n";
 import { countToolCallBlocks, getDisplayableAssistantBlocks, splitFinalAssistantBlocks } from "@/lib/message-display";
  import { MessageView } from "./MessageView";
+import type { MessageTimeFormat } from "./AppShell";
  import { resolveForkEntryIds } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
@@ -40,6 +41,13 @@ interface Props {
   toolCallsDefaultCollapsed?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  /** Show the copy/fork/edit buttons under messages (Interface & Behavior switch). */
+  messageActionsVisible?: boolean;
+  /** Auto-expand the last turn's process details before the compaction block when the
+   *  pre-compaction history is open (Interface & Behavior switch). */
+  processDetailsAutoExpand?: boolean;
+  /** Timestamp format for message times (Interface & Behavior switch). */
+  messageTimeFormat?: MessageTimeFormat;
   onAgentEnd?: () => void;
   onSessionCreated?: (session: SessionInfo) => void;
   onSessionForked?: (newSessionId: string) => void;
@@ -139,9 +147,9 @@ function withAssistantBlocks(
   return next;
 }
 
-function ProcessDetailsGroup({ messageCount, toolCallCount, children }: { messageCount: number; toolCallCount: number; children: ReactNode }) {
+function ProcessDetailsGroup({ messageCount, toolCallCount, autoExpand = false, children }: { messageCount: number; toolCallCount: number; autoExpand?: boolean; children: ReactNode }) {
   const { t, tn } = useI18n();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(autoExpand);
   const parts = [t("chatWindow.processDetails"), tn("chatWindow.messageCount", messageCount)];
   if (toolCallCount > 0) parts.push(tn("chatWindow.toolCallCount", toolCallCount));
 
@@ -196,6 +204,9 @@ interface CommittedTranscriptProps {
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  messageActionsVisible?: boolean;
+  processDetailsAutoExpand?: boolean;
+  messageTimeFormat?: MessageTimeFormat;
   /** Message-group index (doc 14 T2.1): O(n) pass, no JSX. */
   groups: ChatGroup[];
   /** Group height cache: measured heights replace estimates (T2.2). */
@@ -215,7 +226,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
   handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, sessionId,
-  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // omp's `branch` command accepts a user entry only, so every row forks at the
@@ -227,6 +238,25 @@ const CommittedTranscript = memo(function CommittedTranscript({
   const attachVisibleRef = (idx: number, refIndex: number) => (el: HTMLDivElement | null) => {
     messageRefs.current[refIndex] = el;
   };
+  // When the pre-compaction history is open and auto-expand is enabled
+  // (Interface & Behavior), the process details of the last turn anchored
+  // directly above the newest compaction block start expanded.
+  const autoExpandGroupIndex = useMemo(() => {
+    if (!processDetailsAutoExpand) return -1;
+    let compactionIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === "custom" && (m as CustomMessage).customType === "compaction") {
+        compactionIdx = i;
+        break;
+      }
+    }
+    if (compactionIdx < 0) return -1;
+    for (let g = groups.length - 1; g >= 0; g--) {
+      if (groups[g].userIdx < compactionIdx) return g;
+    }
+    return -1;
+  }, [messages, groups, processDetailsAutoExpand]);
 
   const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean } = {}): ReactNode => {
     const msg = options.messageOverride ?? messages[idx];
@@ -275,6 +305,8 @@ const CommittedTranscript = memo(function CommittedTranscript({
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
         thinkingDisplayMode={thinkingDisplayMode}
         thinkingAutoFollow={thinkingAutoFollow}
+        messageActionsVisible={messageActionsVisible}
+        timeFormat={messageTimeFormat}
       />
     );
     if (!isVisible || options.attachRef === false || currentRefIdx === undefined) return view;
@@ -431,7 +463,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
   }, []);
 
   // --- 组渲染计划（T2.1：只为窗口内组构造 JSX）---
-  const renderGroup = (group: ChatGroup): ReactNode => {
+  const renderGroup = (group: ChatGroup, groupIndex: number): ReactNode => {
     const { userIdx, finalAssistantIdx, processIndices, tailIndices, endIdx } = group;
     const isLiveTail = (sessionBusy || isStreaming) && endIdx === messages.length && userIdx === lastAnchorIdx;
     if (finalAssistantIdx === -1 || isLiveTail) {
@@ -478,6 +510,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
           <ProcessDetailsGroup
             messageCount={processCount}
             toolCallCount={countToolCalls(messages, visibleProcessIndices) + countToolCallBlocks(finalSplit.processBlocks)}
+            autoExpand={groupIndex === autoExpandGroupIndex}
           >
             {visibleProcessIndices.map((i) => renderMessage(i, { attachRef: false, keyPrefix: "process" }))}
             {finalProcessMessage && renderMessage(finalAssistantIdx, { attachRef: false, keyPrefix: "process-final", messageOverride: finalProcessMessage, showTimestamp: false })}
@@ -501,7 +534,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
   for (let g = win.startGroup; g < win.endGroup; g++) {
     windowGroups.push(
       <div key={virtualKeyPrefix + "-vg-" + g} data-vg={g} data-committed="true" ref={attachGroupRef(g)}>
-        {renderGroup(groups[g])}
+        {renderGroup(groups[g], g)}
       </div>,
     );
   }
@@ -514,7 +547,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     </>
   );
 });
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
@@ -1278,6 +1311,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollow}
+              messageActionsVisible={messageActionsVisible}
+              processDetailsAutoExpand={processDetailsAutoExpand}
+              messageTimeFormat={messageTimeFormat}
               groups={groups}
               layout={layout}
               window={win}
@@ -1294,6 +1330,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 toolResults={toolResultsWithLive}
                 thinkingDisplayMode={thinkingDisplayMode}
                 thinkingAutoFollow={thinkingAutoFollow}
+                timeFormat={messageTimeFormat}
                 liveTokensPerSecond={tokensPerSecond}
               />
             )}

@@ -267,6 +267,10 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
   { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
+  { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
+  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of the last turn before the compaction block when the earlier history is opened.", scope: "UI" },
+  { id: "message-time-format", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.timeFormat", descKey: "settingsConfig.timeFormatDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message time format", fallbackDesc: "How timestamps next to chat messages are displayed: 24 hours or AM/PM.", scope: "UI" },
+  { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
   { id: "chat-border-beam", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.chatBorderBeam", descKey: "settingsConfig.chatBorderBeamDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat Border Flow", fallbackDesc: "Clockwise luminous beam on input border during active conversation.", scope: "UI" },
   { id: "omp-bouncing-letters", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ompBouncingLetters", descKey: "settingsConfig.ompBouncingLettersDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "OMP Loader Jump", fallbackDesc: "Sequential jumping letters animation while waiting for response.", scope: "UI" },
@@ -488,7 +492,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -504,6 +508,18 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Follow the bottom of streaming thinking blocks (Interface & Behavior). */
   thinkingAutoFollowEnabled?: boolean;
   onThinkingAutoFollowChange?: (enabled: boolean) => void;
+  /** Show the copy/fork/edit buttons under messages (Interface & Behavior). */
+  messageActionsVisible?: boolean;
+  onMessageActionsVisibleChange?: (visible: boolean) => void;
+  /** Auto-expand the last turn's process details before the compaction block (Interface & Behavior). */
+  processDetailsAutoExpand?: boolean;
+  onProcessDetailsAutoExpandChange?: (enabled: boolean) => void;
+  /** Timestamp format for chat messages: 24h (default) or 12h AM/PM (Interface & Behavior). */
+  messageTimeFormat?: "24h" | "ampm";
+  onMessageTimeFormatChange?: (format: "24h" | "ampm") => void;
+  /** Swap the docked side panels: sidebar right, file panel left (desktop only). */
+  panelsSwapped?: boolean;
+  onPanelsSwappedChange?: (swapped: boolean) => void;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   onThinkingDisplayModeChange?: (mode: "auto" | "collapsed" | "expanded") => void;
   /** Full-width thinking/tool details rows (Interface & Behavior switch). */
@@ -999,6 +1015,25 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="thinking-auto-follow" label={t("settingsConfig.thinkingAutoFollow")} description={t("settingsConfig.thinkingAutoFollowDesc")} scope="UI">
                     <ToggleSwitch checked={thinkingAutoFollowEnabled} onChange={(next) => onThinkingAutoFollowChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="message-actions-visible" label={t("settingsConfig.messageActions")} description={t("settingsConfig.messageActionsDesc")} scope="UI">
+                    <ToggleSwitch checked={messageActionsVisible} onChange={(next) => onMessageActionsVisibleChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
+                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="message-time-format" label={t("settingsConfig.timeFormat")} description={t("settingsConfig.timeFormatDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={messageTimeFormat}
+                      onChange={(event) => onMessageTimeFormatChange?.(event.target.value as "24h" | "ampm")}
+                    >
+                      <option value="24h" style={nativeOptionStyle}>{t("settingsConfig.timeFormat24h")}</option>
+                      <option value="ampm" style={nativeOptionStyle}>{t("settingsConfig.timeFormatAmPm")}</option>
+                    </select>
+                  </NativeSetting>
+                  <NativeSetting searchId="swap-side-panels" label={t("settingsConfig.swapSidePanels")} description={t("settingsConfig.swapSidePanelsDesc")} scope="UI">
+                    <ToggleSwitch checked={panelsSwapped} onChange={(next) => onPanelsSwappedChange?.(next)} />
                   </NativeSetting>
                 </div>
 

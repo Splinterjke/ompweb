@@ -15,7 +15,7 @@ import { ChatWindow } from "./ChatWindow";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -66,6 +66,11 @@ const GIT_GRAPH_SIZE_STORAGE_KEY = "omp-web:git-graph-size";
 const SESSION_INFO_BUTTON_STORAGE_KEY = "omp-web:session-info-button";
 const TOOL_OUTPUT_CAP_STORAGE_KEY = "omp-web:tool-output-cap";
 const THINKING_AUTO_FOLLOW_STORAGE_KEY = "omp-web:thinking-auto-follow";
+const MESSAGE_ACTIONS_VISIBLE_STORAGE_KEY = "omp-web:message-actions-visible";
+const PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY = "omp-web:process-details-auto-expand";
+const MESSAGE_TIME_FORMAT_STORAGE_KEY = "omp-web:message-time-format";
+const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
+export type MessageTimeFormat = "24h" | "ampm";
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
 const GIT_GRAPH_MAX_SIZE = 95;
@@ -225,6 +230,49 @@ export function AppShell() {
       return true;
     }
   });
+  // Message action buttons (copy / fork / edit) under messages (Interface &
+  // Behavior switch). Absent or corrupt stored values keep the buttons visible.
+  const [messageActionsVisible, setMessageActionsVisible] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.localStorage.getItem(MESSAGE_ACTIONS_VISIBLE_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
+  // Auto-expand the "Process details" group of the last turn before a compaction
+  // block when the user opens the pre-compaction history (Interface & Behavior
+  // switch). Defaults to off; an absent/corrupt stored value keeps it collapsed.
+  const [processDetailsAutoExpand, setProcessDetailsAutoExpand] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  // Message timestamp format: 24h (default) or 12h AM/PM. Absent or corrupt
+  // stored values keep the 24-hour default.
+  const [messageTimeFormat, setMessageTimeFormat] = useState<MessageTimeFormat>(() => {
+    if (typeof window === "undefined") return "24h";
+    try {
+      return window.localStorage.getItem(MESSAGE_TIME_FORMAT_STORAGE_KEY) === "ampm" ? "ampm" : "24h";
+    } catch {
+      return "24h";
+    }
+  });
+  // Swap the left/right docked panels: the session sidebar moves to the right,
+  // the file workbench to the left (desktop only; mobile is an overlay).
+  const [panelsSwapped, setPanelsSwapped] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(PANELS_SWAPPED_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  // Desktop only: on mobile the panels are overlays, so swapping is a no-op.
+  const panelsSwappedActive = panelsSwapped && !isMobile;
   const [sidebarResizing, setSidebarResizing] = useState(false);
   // Right workbench rail width, user-adjustable via the drag handle on its
   // left edge (mirrors the sidebar resize). Persisted to
@@ -335,6 +383,38 @@ export function AppShell() {
     setThinkingAutoFollowEnabled(enabled);
     try {
       window.localStorage.setItem(THINKING_AUTO_FOLLOW_STORAGE_KEY, String(enabled));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleMessageActionsVisibleChange = useCallback((visible: boolean) => {
+    setMessageActionsVisible(visible);
+    try {
+      window.localStorage.setItem(MESSAGE_ACTIONS_VISIBLE_STORAGE_KEY, String(visible));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleProcessDetailsAutoExpandChange = useCallback((enabled: boolean) => {
+    setProcessDetailsAutoExpand(enabled);
+    try {
+      window.localStorage.setItem(PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY, String(enabled));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleMessageTimeFormatChange = useCallback((format: MessageTimeFormat) => {
+    setMessageTimeFormat(format);
+    try {
+      window.localStorage.setItem(MESSAGE_TIME_FORMAT_STORAGE_KEY, format);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handlePanelsSwappedChange = useCallback((swapped: boolean) => {
+    setPanelsSwapped(swapped);
+    try {
+      window.localStorage.setItem(PANELS_SWAPPED_STORAGE_KEY, String(swapped));
     } catch {
       // The preference still applies for this page load.
     }
@@ -589,17 +669,20 @@ export function AppShell() {
   }, []);
 
   const handleSidebarResizeKey = useCallback((e: React.KeyboardEvent) => {
+    // Swapped panels: the sidebar docks on the right, its inner edge is the
+    // left one, so the arrows widen/narrow in opposite directions.
+    const dir = panelsSwappedActive ? -1 : 1;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      changeSidebarWidth(-10);
+      changeSidebarWidth(-10 * dir);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
-      changeSidebarWidth(10);
+      changeSidebarWidth(10 * dir);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       resetSidebarWidth();
     }
-  }, [changeSidebarWidth, resetSidebarWidth]);
+  }, [changeSidebarWidth, resetSidebarWidth, panelsSwappedActive]);
 
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     if (isMobile) return;
@@ -608,7 +691,7 @@ export function AppShell() {
     const startWidth = sidebarWidth;
     setSidebarResizing(true);
     const onMove = (ev: MouseEvent) => {
-      const next = clampSidebarWidth(startWidth + (ev.clientX - startX));
+      const next = clampSidebarWidth(startWidth + (panelsSwappedActive ? startX - ev.clientX : ev.clientX - startX));
       // Write the CSS variable straight to the DOM: the flex row follows the
       // pointer without re-rendering the whole AppShell on every mousemove.
       sidebarContainerRef.current?.style.setProperty("--sidebar-width", `${next}px`);
@@ -631,7 +714,7 @@ export function AppShell() {
     sidebarResizeHandlersRef.current = { onMove, onUp };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [isMobile, sidebarWidth]);
+  }, [isMobile, sidebarWidth, panelsSwappedActive]);
   // Right-panel rail resize: drag the handle on the panel's left edge. The
   // panel sits on the right, so a pointer moving LEFT widens it
   // (startWidth + (startX - clientX)).
@@ -646,7 +729,7 @@ export function AppShell() {
     const startWidth = rightPanelWidth;
     setRightPanelResizing(true);
     const onMove = (ev: MouseEvent) => {
-      const next = clampRightPanelWidth(startWidth + (startX - ev.clientX));
+      const next = clampRightPanelWidth(startWidth + (panelsSwappedActive ? ev.clientX - startX : startX - ev.clientX));
       rightPanelRef.current?.style.setProperty("width", `${next}px`);
       pendingRightPanelWidthRef.current = next;
     };
@@ -665,23 +748,26 @@ export function AppShell() {
     rightPanelResizeHandlersRef.current = { onMove, onUp };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [isMobile, rightPanelWidth]);
+  }, [isMobile, rightPanelWidth, panelsSwappedActive]);
   const resetRightPanelWidth = useCallback(() => {
     setRightPanelWidth(RIGHT_PANEL_DEFAULT_WIDTH);
   }, []);
 
   const handleRightPanelResizeKey = useCallback((e: React.KeyboardEvent) => {
+    // Swapped panels: the workbench docks on the left, so the arrow
+    // directions that widen/narrow it are inverted.
+    const dir = panelsSwappedActive ? -1 : 1;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      setRightPanelWidth((prev) => clampRightPanelWidth(prev + 10));
+      setRightPanelWidth((prev) => clampRightPanelWidth(prev + 10 * dir));
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
-      setRightPanelWidth((prev) => clampRightPanelWidth(prev - 10));
+      setRightPanelWidth((prev) => clampRightPanelWidth(prev - 10 * dir));
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       resetRightPanelWidth();
     }
-  }, [resetRightPanelWidth]);
+  }, [resetRightPanelWidth, panelsSwappedActive]);
   // Persist the committed rail width (skipped mid-drag, written when the drag
   // ends). First run is skipped so the mount-time default can't overwrite a
   // stored width before it is loaded.
@@ -1377,6 +1463,30 @@ export function AppShell() {
     </>
   );
 
+  // Panel toggle helpers. When the panels are swapped, the file workbench
+  // docks left (toggle at the top-left of the top bar) and the session
+  // sidebar docks right (toggle at the top-right edge of the top bar).
+  const toggleFilePanel = () => {
+    setRightPanelOpen((v) => {
+      const next = !v;
+      if (next && fileTabs.length > 0) {
+        setWorkbenchRequestedView({ view: "files", nonce: Date.now() });
+      }
+      return next;
+    });
+  };
+  const fileToggleIcon = (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1={panelsSwappedActive ? 9 : 15} y1="3" x2={panelsSwappedActive ? 9 : 15} y2="21" />
+    </svg>
+  );
+  const sidebarToggleIcon = sidebarOpen
+    ? (panelsSwappedActive
+        ? <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />
+        : <PanelLeft size={16} strokeWidth={1.8} aria-hidden="true" />)
+    : <Menu size={16} strokeWidth={1.8} aria-hidden="true" />;
+
   return (
     <>
     <TooltipProvider delay={400} closeDelay={50}>
@@ -1450,7 +1560,7 @@ export function AppShell() {
         }
       }
     `}</style>
-    <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
+    <div className={panelsSwappedActive ? "shell-panels-swapped" : undefined} style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
       {/* Mobile overlay backdrop */}
       <div
         className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
@@ -1474,7 +1584,8 @@ export function AppShell() {
         inert={mobileSidebarReady && !sidebarOpen ? true : undefined}
         style={{
           background: "var(--bg-panel)",
-          borderRight: "1px solid var(--border)",
+          borderRight: panelsSwappedActive ? "none" : "1px solid var(--border)",
+          borderLeft: panelsSwappedActive ? "1px solid var(--border)" : "none",
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
@@ -1500,7 +1611,8 @@ export function AppShell() {
           style={{
             width: 5,
             flexShrink: 0,
-            marginLeft: -5,
+            marginLeft: panelsSwappedActive ? 0 : -5,
+            marginRight: panelsSwappedActive ? -5 : 0,
             cursor: "col-resize",
             background: "transparent",
             zIndex: 205,
@@ -1541,14 +1653,27 @@ export function AppShell() {
         <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: isMobile ? 44 : 36, background: "var(--bg-panel)" }}>
         {/* Utility group: sidebar, theme, language */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%", paddingLeft: isMobile ? 4 : 8 }}>
-          <button
-            onClick={handleSidebarToggle}
-            title={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
-            aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
-            className="shell-toolbar-btn ui-focus-ring"
-          >
-            {sidebarOpen ? <PanelLeft size={16} strokeWidth={1.8} aria-hidden="true" /> : <Menu size={16} strokeWidth={1.8} aria-hidden="true" />}
-          </button>
+          {panelsSwappedActive && (
+            <button
+              type="button"
+              onClick={toggleFilePanel}
+              title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+              aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+              className="shell-toolbar-btn ui-focus-ring"
+            >
+              {fileToggleIcon}
+            </button>
+          )}
+          {!panelsSwappedActive && (
+            <button
+              onClick={handleSidebarToggle}
+              title={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
+              aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
+              className="shell-toolbar-btn ui-focus-ring"
+            >
+              {sidebarToggleIcon}
+            </button>
+          )}
           {/* Touch entry for the command palette (mobile has no ⌘K/Ctrl+K) */}
           <button
             type="button"
@@ -1629,6 +1754,17 @@ export function AppShell() {
               </button>
             </div>
           </>
+        )}
+        {panelsSwappedActive && (
+          <button
+            onClick={handleSidebarToggle}
+            title={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
+            aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
+            className="shell-toolbar-btn ui-focus-ring"
+            style={{ marginLeft: "auto" }}
+          >
+            {sidebarToggleIcon}
+          </button>
         )}
 
           {/* Center Zone: Workspace & Session Breadcrumb + Auto-name action */}
@@ -1788,8 +1924,8 @@ export function AppShell() {
               // preview is a flex sibling, so the right inset must match its
               // rendered (clamped) width or the popover will cover the
               // preview on narrow windows.
-              right: `calc(${rightPanelInset} + 12px)`,
-              left: "auto",
+              right: panelsSwappedActive ? "auto" : `calc(${rightPanelInset} + 12px)`,
+              left: panelsSwappedActive ? `calc(${rightPanelInset} + 12px)` : "auto",
               minWidth: isMobile ? 0 : 360,
               width: "auto",
               maxWidth: "min(680px, calc(100vw - 24px))",
@@ -1870,6 +2006,9 @@ export function AppShell() {
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollowEnabled}
+              messageActionsVisible={messageActionsVisible}
+              processDetailsAutoExpand={processDetailsAutoExpand}
+              messageTimeFormat={messageTimeFormat}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
             />
@@ -1957,7 +2096,8 @@ export function AppShell() {
           style={{
             display: "flex",
             flexDirection: "column",
-            borderLeft: rightPanelOpen ? "1px solid var(--border)" : "none",
+            borderLeft: panelsSwappedActive ? "none" : (rightPanelOpen ? "1px solid var(--border)" : "none"),
+            borderRight: panelsSwappedActive ? (rightPanelOpen ? "1px solid var(--border)" : "none") : "none",
             background: "var(--bg)",
             // Keep a readable chat column when the panel is resized.
             width: rightPanelOpen ? (isMobile ? "100%" : `${rightPanelWidth}px`) : 0,
@@ -1978,7 +2118,8 @@ export function AppShell() {
               onKeyDown={handleRightPanelResizeKey}
               style={{
                 position: "absolute",
-                left: 0,
+                left: panelsSwappedActive ? "auto" : 0,
+                right: panelsSwappedActive ? 0 : "auto",
                 top: 0,
                 bottom: 0,
                 width: 5,
@@ -2037,39 +2178,32 @@ export function AppShell() {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-      {/* File panel toggle — always visible at top-right */}
-      <button
-        onClick={() => {
-          setRightPanelOpen((v) => {
-            const next = !v;
-            if (next && fileTabs.length > 0) {
-              setWorkbenchRequestedView({ view: "files", nonce: Date.now() });
-            }
-            return next;
-          });
-        }}
-        title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-        aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-        style={{
-          position: "fixed", top: 0, right: 0, zIndex: 300,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, padding: 0,
-          background: "var(--bg-panel)", border: "none", borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-          color: rightPanelOpen ? "var(--text)" : "var(--text-muted)",
-          cursor: "pointer", transition: "color var(--dur-fast) var(--ease-out-warm)",
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = rightPanelOpen ? "var(--text)" : "var(--text-muted)"; }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" />
-        </svg>
-      </button>
+      {/* File panel toggle — fixed at top-right; when the panels are swapped
+          it moves inline to the top-left of the top bar instead. */}
+      {!panelsSwappedActive && (
+        <button
+          onClick={toggleFilePanel}
+          title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+          aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+          style={{
+            position: "fixed", top: 0, right: 0, zIndex: 300,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, padding: 0,
+            background: "var(--bg-panel)", border: "none", borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
+            color: rightPanelOpen ? "var(--text)" : "var(--text-muted)",
+            cursor: "pointer", transition: "color var(--dur-fast) var(--ease-out-warm)",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = rightPanelOpen ? "var(--text)" : "var(--text-muted)"; }}
+        >
+          {fileToggleIcon}
+        </button>
+      )}
     <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
-    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
+    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
     <UsageDashboardModal
       open={usageDashboardOpen}
       onOpenChange={setUsageDashboardOpen}

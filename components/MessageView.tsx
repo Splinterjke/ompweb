@@ -11,6 +11,7 @@ import { splitPathTokens } from "@/lib/markdown-path-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
  import { Tooltip, Collapsible, CollapsibleTrigger } from "./ui/primitives";
  import { MessageCopyActions } from "./MessageCopyActions";
+import type { MessageTimeFormat } from "./AppShell";
  import { useCopyFeedback } from "@/hooks/useCopyFeedback";
  import { HubResultPanel } from "./MessageView-hub-panel";
  import { getHubSendSummary, getHubJobs, getHubJobsHeader } from "./MessageView-tool-format";
@@ -131,16 +132,20 @@ interface Props {
   settled?: boolean;
   /** omp-reported output throughput (get_state.tokensPerSecond), live while streaming. */
   liveTokensPerSecond?: number | null;
+  /** Show the copy/fork/edit action buttons under messages (Interface & Behavior switch). */
+  messageActionsVisible?: boolean;
+  /** Timestamp format (Interface & Behavior): 24h (default) or 12h AM/PM. */
+  timeFormat?: MessageTimeFormat;
 }
 
-function formatTime(ts: number | undefined, locale: Locale): string | null {
+function formatTime(ts: number | undefined, locale: Locale, timeFormat: MessageTimeFormat = "24h"): string | null {
   if (!ts) return null;
   const d = new Date(ts);
   const now = new Date();
   const isToday = d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
-  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: timeFormat === "ampm" });
   if (isToday) return time;
   const date = d.toLocaleDateString(locale, { month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
   return `${date} ${time}`;
@@ -185,12 +190,12 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, settled = false, liveTokensPerSecond }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
   if (message.role === "user") {
-    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} />;
+    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "assistant") {
-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} liveTokensPerSecond={liveTokensPerSecond} />;
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "toolResult") {
     // Rendered inline under its toolCall — skip standalone rendering if paired
@@ -202,12 +207,12 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
       return null;
     }
     if (custom.customType === "compaction") {
-      return <CompactionMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+      return <CompactionMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
     }
     if (custom.display === false) {
-      return <HiddenExtensionView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+      return <HiddenExtensionView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
     }
-    return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} />;
+    return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
   }
   if (message.role === "bashExecution") {
     return <BashExecutionView message={message as BashExecutionMessage} sessionId={sessionId} />;
@@ -233,6 +238,8 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.toolCallsDefaultCollapsed === next.toolCallsDefaultCollapsed
     && prev.thinkingDisplayMode === next.thinkingDisplayMode
     && prev.thinkingAutoFollow === next.thinkingAutoFollow
+    && prev.messageActionsVisible === next.messageActionsVisible
+    && prev.timeFormat === next.timeFormat
     && prev.liveTokensPerSecond === next.liveTokensPerSecond
     && prev.settled === next.settled;
 });
@@ -278,7 +285,7 @@ function ForkSessionButton({ entryId, onFork, forking }: {
   );
 }
 
-function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent }: {  message: UserMessage;
+function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, messageActionsVisible = true, timeFormat = "24h" }: {  message: UserMessage;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
@@ -287,6 +294,8 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (content: string) => void;
+  messageActionsVisible?: boolean;
+  timeFormat?: MessageTimeFormat;
 }) {
   const { t, locale } = useI18n();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -303,7 +312,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
       ? []
       : message.content.filter((b): b is ImageContent => b.type === "image");
 
-  const time = formatTime(message.timestamp, locale);
+  const time = formatTime(message.timestamp, locale, timeFormat);
   const canFork = !!entryId && !!onFork;
   const canNavigate = !!prevAssistantEntryId && !!onNavigate;
 
@@ -363,43 +372,47 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
             display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end",
             gap: 6, marginTop: 3, width: "100%",
           }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-            <MessageCopyActions texts={[content]} bodyRef={bodyRef} />
-          </div>
-          {(canFork || canNavigate) && (
-            <div
-              style={{
-                display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 3,
-              }}
-            >
-              {canNavigate && (
-                <Tooltip content={t("messageView.editFromHereTitle")}>
-                  <button
-                    onClick={() => { onNavigate!(prevAssistantEntryId!); onEditContent?.(content); }}
-                    aria-label={t("messageView.editFromHereTitle")}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 4,
-                      padding: "3px 8px", height: 24, minHeight: 24,
-                      background: "none", border: "none",
-                      borderRadius: 5,
-                      color: "var(--text-dim)",
-                      cursor: "pointer",
-                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400,
-                      whiteSpace: "nowrap",
-                      transition: "color var(--dur-fast) var(--ease-out-warm)",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
-                  >
-                    <CornerUpLeft size={11} strokeWidth={1.8} />
-                    {t("messageView.editFromHere")}
-                  </button>
-                </Tooltip>
+          {messageActionsVisible && (
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                <MessageCopyActions texts={[content]} bodyRef={bodyRef} />
+              </div>
+              {(canFork || canNavigate) && (
+                <div
+                  style={{
+                    display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 3,
+                  }}
+                >
+                  {canNavigate && (
+                    <Tooltip content={t("messageView.editFromHereTitle")}>
+                      <button
+                        onClick={() => { onNavigate!(prevAssistantEntryId!); onEditContent?.(content); }}
+                        aria-label={t("messageView.editFromHereTitle")}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          padding: "3px 8px", height: 24, minHeight: 24,
+                          background: "none", border: "none",
+                          borderRadius: 5,
+                          color: "var(--text-dim)",
+                          cursor: "pointer",
+                          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400,
+                          whiteSpace: "nowrap",
+                          transition: "color var(--dur-fast) var(--ease-out-warm)",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
+                      >
+                        <CornerUpLeft size={11} strokeWidth={1.8} />
+                        {t("messageView.editFromHere")}
+                      </button>
+                    </Tooltip>
+                  )}
+                  {canFork && (
+                    <ForkSessionButton entryId={entryId!} onFork={onFork!} forking={forking} />
+                  )}
+                </div>
               )}
-              {canFork && (
-                <ForkSessionButton entryId={entryId!} onFork={onFork!} forking={forking} />
-              )}
-            </div>
+            </>
           )}
           {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{time}</span>}
           </div>
@@ -426,6 +439,8 @@ function AssistantMessageView({
   thinkingAutoFollow = true,
   liveTokensPerSecond,
   settled = false,
+  messageActionsVisible = true,
+  timeFormat = "24h",
 }: {
   message: AssistantMessage;
   isStreaming?: boolean;
@@ -446,9 +461,11 @@ function AssistantMessageView({
   thinkingAutoFollow?: boolean;
   liveTokensPerSecond?: number | null;
   settled?: boolean;
+  messageActionsVisible?: boolean;
+  timeFormat?: MessageTimeFormat;
 }) {
   const { t, locale } = useI18n();
-  const time = showTimestamp ? formatTime(message.timestamp, locale) : null;
+  const time = showTimestamp ? formatTime(message.timestamp, locale, timeFormat) : null;
   const texts = (message.content ?? []).filter((block): block is TextContent => block.type === "text").map((block) => block.text);
   const canFork = !!forkEntryId && !!onFork;
   const blockItems = (message.content ?? [])
@@ -476,12 +493,14 @@ function AssistantMessageView({
     -1,
   );
   const actionRow =
-    !isStreaming && (texts.some((text) => text.trim()) || time || canFork) ? (
+    !isStreaming && (time || (messageActionsVisible && (texts.some((text) => text.trim()) || canFork))) ? (
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
-          <MessageCopyActions texts={texts} bodyRef={bodyRef} />
-          {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
-        </div>
+        {messageActionsVisible && (
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
+            <MessageCopyActions texts={texts} bodyRef={bodyRef} />
+            {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+          </div>
+        )}
         {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}
       </div>
     ) : null;
@@ -1417,7 +1436,7 @@ function PairedResult({ text, isEmpty, isError, onOpenFile, cwd }: {
  * centered pill ("Compaction" + the maintenance method recorded on the
  * entry, for omp >= 17.4) that expands into the compaction summary below it.
  */
-function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+function CompactionMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; timeFormat?: MessageTimeFormat }) {
   const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const { copied, copy: copyContent } = useCopyFeedback();
@@ -1428,7 +1447,7 @@ function CompactionMessageView({ message, cwd, onOpenFile }: { message: CustomMe
     if (!normalized) return "";
     return normalized.length > 92 ? `${normalized.slice(0, 92)}…` : normalized;
   }, [parsedSummary.body]);
-  const time = formatTime(message.timestamp, locale);
+  const time = formatTime(message.timestamp, locale, timeFormat);
   // omp ≥17.4 compaction entries carry the maintenance method and the real
   // post-compaction token count; older sessions only have tokensBefore.
   const details = (message.details ?? null) as { tokensBefore?: unknown; tokensAfter?: unknown; method?: unknown } | null;
@@ -1611,7 +1630,7 @@ function friendlyHiddenLabel(customType: string, t: (key: string) => string): st
   return customType.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+function HiddenExtensionView({ message, cwd, onOpenFile, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; timeFormat?: MessageTimeFormat }) {
   const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -1627,7 +1646,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
   const hasDetails = message.details !== undefined;
   const detailsText = hasDetails ? safeJson(message.details) : "";
   const label = friendlyHiddenLabel(message.customType, t);
-  const time = formatTime(message.timestamp, locale);
+  const time = formatTime(message.timestamp, locale, timeFormat);
 
   return (
     <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}>
@@ -1798,7 +1817,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile }: { message: CustomMess
   );
 }
 
-function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void }) {
+function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; timeFormat?: MessageTimeFormat }) {
   const { t, locale } = useI18n();
   const [contentExpanded, setContentExpanded] = useState(true);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -1815,7 +1834,7 @@ function CustomMessageView({ message, cwd, onOpenFile }: { message: CustomMessag
     : message.customType === "advisor"
       ? t("messageView.advisorLabel")
       : formatCustomType(message.customType);
-  const time = formatTime(message.timestamp, locale);
+  const time = formatTime(message.timestamp, locale, timeFormat);
 
 
   return (
