@@ -1,11 +1,12 @@
 "use client";
 
-import { Fragment, memo, useState, useId, useRef, useEffect, useMemo, useCallback, type ComponentProps } from "react";
+import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type ComponentProps } from "react";
 import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
+import { isMessageOverflowing } from "@/lib/message-overflow";
 import { isEmptyThinkingBlock } from "@/lib/message-display";
 import { splitPathTokens } from "@/lib/markdown-path-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
@@ -299,6 +300,9 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
 }) {
   const { t, locale } = useI18n();
   const bodyRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
   const content =
     typeof message.content === "string"
       ? message.content
@@ -312,6 +316,23 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
       ? []
       : message.content.filter((b): b is ImageContent => b.type === "image");
 
+  // The card is capped at USER_BUBBLE_MAX_HEIGHT and scrolls internally;
+  // when the content exceeds the cap, offer a "show full input" toggle so
+  // long messages can be read without scrolling inside the bubble.
+  useLayoutEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+    const updateOverflow = () => setHasOverflow(isMessageOverflowing(element));
+    updateOverflow();
+    element.addEventListener("scroll", updateOverflow, { passive: true });
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateOverflow) : null;
+    observer?.observe(element);
+    return () => {
+      element.removeEventListener("scroll", updateOverflow);
+      observer?.disconnect();
+    };
+  }, [content, imageBlocks.length]);
+
   const time = formatTime(message.timestamp, locale, timeFormat);
   const canFork = !!entryId && !!onFork;
   const canNavigate = !!prevAssistantEntryId && !!onNavigate;
@@ -323,6 +344,9 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", maxWidth: "85%", minWidth: 0 }}>
         <div
           className="chat-message-card"
+          ref={cardRef}
+          data-overflow={hasOverflow && !expanded ? "true" : undefined}
+          tabIndex={-1}
           style={{
             maxWidth: "100%",
             minWidth: 0,
@@ -335,7 +359,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
             lineHeight: 1.6,
             color: "var(--text)",
             wordBreak: "break-word",
-            maxHeight: USER_BUBBLE_MAX_HEIGHT,
+            maxHeight: expanded ? "none" : USER_BUBBLE_MAX_HEIGHT,
             overflowY: "auto",
           }}
         >
@@ -365,6 +389,18 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
           )}
  {content && <div data-message-text ref={bodyRef}><SafeMarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{content}</SafeMarkdownBody></div>}
         </div>
+        {hasOverflow && (
+          <button
+            type="button"
+            className="message-overflow-toggle ui-focus-ring"
+            aria-expanded={expanded}
+            aria-label={expanded ? t("messageView.collapseInput") : t("messageView.showFullInput")}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <span>{expanded ? t("messageView.collapseInput") : t("messageView.showFullInput")}</span>
+            <ChevronDown size={12} strokeWidth={1.8} aria-hidden="true" style={{ transform: expanded ? "rotate(180deg)" : "none" }} />
+          </button>
+        )}
 
         {/* Bottom row: action buttons + timestamp — inside the bubble's column,
             spanning its width, so the timestamp aligns with its right edge. */}
