@@ -24,7 +24,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { isBenignNonRepoEntry } from "@/lib/git-nonrepo";
+import { filterBenignGitEntries } from "@/lib/git-nonrepo";
 
 export interface DiagnosticsData {
   server: { node: string; platform: string; arch: string; uptimeSeconds: number; tools?: Record<string, boolean> };
@@ -168,10 +168,12 @@ function maybeAutoFix(): void {
 // Display order for the ownership coverage badges (doc 16 nine domains).
 const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "settings", "commands", "remote"] as const;
 
-// Benign non-repo git entries (a plain folder is a legitimate workspace) are
-// excluded from the health math so a non-git workspace can never flip the
-// banner to Degraded — even stale ones recorded before the routes learned to
-// skip them. Real git failures (timeouts, `git_failed: …`) still degrade.
+// Benign git entries are excluded from the health math so a non-git or
+// merely slow repository can never flip the banner to Degraded — even stale
+// ones recorded before the routes learned to skip them. Read-only git ops
+// (status/branches/diff) are fired automatically by background polling and
+// their failure is visible at the point of use; write ops (checkout/commit/
+// push) are explicit user actions and still degrade.
 
 /**
  * Overall health. Beyond omp installation: a missing Rust host binary (rust
@@ -183,7 +185,7 @@ const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "setti
 export function healthOf(d: DiagnosticsData): BackendHealth {
   if (!d.omp.installed) return "error";
   if (d.rustHost && d.rustHost.mode !== "node" && !d.rustHost.available) return "error";
-  const backendErrors = (d.backendErrors ?? []).filter((e) => !isBenignNonRepoEntry(e));
+  const backendErrors = filterBenignGitEntries(d.backendErrors ?? []);
   if (backendErrors.some((e) => e.kind === "host_unavailable" || e.kind === "host_crash")) return "error";
   const failures = d.rpc.recentFailures?.length ?? 0;
   if (failures >= 2) return "error";
@@ -461,7 +463,7 @@ function BackendDiagnosticsPopoverView() {
 
   const health = diag ? healthOf(diag) : null;
   const healthColor = health === null ? "var(--text-dim)" : health === "ok" ? "var(--status-success)" : health === "warn" ? "var(--status-warning)" : "var(--status-error)";
-  const backendErrors = diag?.backendErrors ?? [];
+  const backendErrors = filterBenignGitEntries(diag?.backendErrors ?? []);
 
   return (
     <div style={{ minWidth: 300, maxWidth: 380, padding: 8, display: "flex", flexDirection: "column", gap: 7 }}>
@@ -801,7 +803,7 @@ function BackendDiagnosticsFullView() {
 
   const health = diag ? healthOf(diag) : null;
   const healthColor = health === null ? "var(--text-dim)" : health === "ok" ? "var(--status-success)" : health === "warn" ? "var(--status-warning)" : "var(--status-error)";
-  const backendErrors = diag?.backendErrors ?? [];
+  const backendErrors = filterBenignGitEntries(diag?.backendErrors ?? []);
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 18 }}>

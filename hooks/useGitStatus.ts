@@ -18,10 +18,14 @@ export function useGitStatus(cwd: string | null | undefined, enabled: boolean = 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const aliveRef = useRef(true);
-
+  const inFlightRef = useRef(false);
   const load = useCallback(
     async (silent: boolean) => {
       if (!cwd) return;
+      // A slow repository can outlive the 5s interval; never stack polls —
+      // at most one in-flight request per cwd, the next tick catches up.
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       if (!silent) {
         setLoading(true);
         setError(null);
@@ -37,6 +41,7 @@ export function useGitStatus(cwd: string | null | undefined, enabled: boolean = 
         setStatus(null);
         setError(e instanceof Error ? e.message : String(e));
       } finally {
+        inFlightRef.current = false;
         if (!aliveRef.current || silent) return;
         setLoading(false);
       }
@@ -57,11 +62,12 @@ export function useGitStatus(cwd: string | null | undefined, enabled: boolean = 
       if (document.visibilityState === "visible") void load(true);
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      aliveRef.current = false;
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+      return () => {
+        aliveRef.current = false;
+        inFlightRef.current = false;
+        window.clearInterval(interval);
+        document.removeEventListener("visibilitychange", onVisibility);
+      };
   }, [cwd, enabled, load]);
 
   const refresh = useCallback(() => void load(false), [load]);
@@ -106,8 +112,13 @@ export function useGitStats(cwds: string[], enabled: boolean = true): Record<str
       return;
     }
     let disposed = false;
+    // A slow repository can outlive the 5s interval; never stack rounds —
+    // at most one in-flight batch, the next tick catches up.
+    let inFlight = false;
 
     const poll = async () => {
+      if (inFlight) return;
+      inFlight = true;
       const results = await Promise.allSettled(list.map((cwd) => client.git.changes(cwd)));
       const next: Record<string, CwdGitStats> = {};
       results.forEach((result, index) => {
@@ -134,6 +145,7 @@ export function useGitStats(cwds: string[], enabled: boolean = true): Record<str
           diffDeleted: response.diffDeleted ?? 0,
         };
       });
+      inFlight = false;
       if (disposed) return;
       // Stable reference while the data is unchanged.
       setStats((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));

@@ -24,8 +24,10 @@ use std::sync::Arc;
 pub const IPC_PROTOCOL_VERSION: u32 = 1;
 pub const MAX_FRAME_BYTES: usize = 1024 * 1024;
 /// Hard cap on concurrent client connections (per-thread handling): a local
-/// flood must exhaust the cap, not the process (v4 P28 crash boundary).
-pub const MAX_CONNECTIONS: usize = 16;
+/// flood must exhaust the cap, not the process (v4 P28 crash boundary). The
+/// cap must cover the shared control connection plus one isolated connection
+/// per in-flight git.* request (the UI polls up to 13 git cwds every 5 s).
+pub const MAX_CONNECTIONS: usize = 32;
 
 pub type Handler = dyn Fn(&str, &JsonValue, &mut dyn FnMut(&str)) -> Result<Option<String>, IpcError>
     + Send

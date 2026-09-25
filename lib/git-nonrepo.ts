@@ -45,3 +45,39 @@ export function isBenignNonRepoEntry(entry: { kind?: unknown; detail?: unknown }
     entry.detail === NON_REPO_DETAIL
   );
 }
+
+// Read-only git operations (status polling, branch listing, file diffs) are
+// fired automatically by the background — the composer bar and the Git tab
+// poll every 5 s, the sidebar probes projects, the file viewer previews
+// diffs — and their failure is always visible at the point of use (an empty
+// bar, an inline panel error). Counting them in the health math would turn a
+// slow or transiently locked repository into an app-wide "Degraded" banner,
+// so they are excluded from health just like the non-repo entries above.
+// Write operations (checkout / commit / push) remain explicit user actions
+// and still degrade health on failure.
+const READ_ONLY_GIT_ERROR_KINDS = [
+  "git_status_failed",
+  "git_branches_failed",
+  "git_diff_failed",
+];
+
+/**
+ * True for a backend-error-ring entry from a read-only (automatically
+ * fired) git operation — safe to exclude from health.
+ */
+export function isBenignGitReadEntry(entry: { kind?: unknown }): boolean {
+  return typeof entry.kind === "string" && READ_ONLY_GIT_ERROR_KINDS.includes(entry.kind);
+}
+
+/**
+ * Ring entries to hide from the health math AND the visible UI: benign
+ * non-repo entries plus read-only git failures. Used by both healthOf and
+ * the diagnostics display so the badge and the error list can never
+ * disagree. The raw ring stays intact for the diagnostics report, where
+ * git noise is informative rather than alarming.
+ * Generic so the caller's concrete entry shape (e.g. `at: number`,
+ * `detail: string`) is preserved through the filter.
+ */
+export function filterBenignGitEntries<T extends { kind?: unknown; detail?: unknown }>(entries: T[]): T[] {
+  return entries.filter((e) => !isBenignNonRepoEntry(e) && !isBenignGitReadEntry(e));
+}

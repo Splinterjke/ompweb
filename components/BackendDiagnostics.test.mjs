@@ -63,12 +63,20 @@ test("healthOf: benign non-repo git entries never degrade, real git failures do"
   const benign2 = { at: 2, kind: "git_status_failed", detail: "not a git repository" };
   assert.equal(healthOf({ ...base, backendErrors: [benign] }), "ok");
   assert.equal(healthOf({ ...base, backendErrors: [benign, benign2, benign, benign2] }), "ok");
-  // A REAL git failure (timeout / git_failed) is not benign and still degrades.
-  const real = { at: 3, kind: "git_status_failed", detail: "git operation timed out" };
-  assert.equal(healthOf({ ...base, backendErrors: [benign, real] }), "warn");
-  assert.equal(healthOf({ ...base, backendErrors: [real, real] }), "error");
+  // Read-only git failures (status/branches/diff) are fired automatically by
+  // background polling and are always visible at the point of use (empty bar,
+  // inline panel error), so even a real timeout on a slow repository must not
+  // degrade the whole app.
+  const realRead = { at: 3, kind: "git_status_failed", detail: "git operation timed out" };
+  assert.equal(healthOf({ ...base, backendErrors: [benign, realRead] }), "ok");
+  assert.equal(healthOf({ ...base, backendErrors: [realRead, realRead, realRead] }), "ok");
+  // Explicit user git actions (commit / push / checkout) are real failures
+  // and still degrade.
+  const realWrite = { at: 4, kind: "git_commit_failed", detail: "git failed" };
+  assert.equal(healthOf({ ...base, backendErrors: [benign, realWrite] }), "warn");
+  assert.equal(healthOf({ ...base, backendErrors: [realWrite, realWrite] }), "error");
   // A real non-git failure still degrades alongside the benign noise.
-  const scan = { at: 4, kind: "session_scan_failed", detail: "x" };
+  const scan = { at: 5, kind: "session_scan_failed", detail: "x" };
   assert.equal(healthOf({ ...base, backendErrors: [benign, benign2, scan] }), "warn");
 });
 

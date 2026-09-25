@@ -281,10 +281,16 @@ export class RustHostManager {
 
   async controlRequest(method: string, params: Record<string, unknown>, timeoutMs = 30_000): Promise<unknown> {
     await this.ensure();
-    // These operations can block on a child pipe, script, or network. Keep
-    // the shared control channel free for cancellation and session state.
-    if (["agent.send", "commands.run", "git.push"].includes(method)) {
-      return this.isolatedRequest(method, params, method === "commands.run" ? Math.max(timeoutMs, 65_000) : timeoutMs);
+    // These operations can block on a child pipe, script, or network, or run
+    // long git subprocesses — `git status --untracked-files=all` /
+    // `git diff HEAD --shortstat` on a large working tree can take 15–30 s
+    // of wall time. Keep the shared control channel free for cancellation,
+    // session state and settings — otherwise a slow repo's background git
+    // polling queues every other host request (sessions, settings, agent
+    // control) behind it and degrades the whole app.
+    if (method.startsWith("git.") || ["agent.send", "commands.run"].includes(method)) {
+      const gitBudget = method.startsWith("git.") ? Math.max(timeoutMs, 90_000) : timeoutMs;
+      return this.isolatedRequest(method, params, method === "commands.run" ? Math.max(gitBudget, 65_000) : gitBudget);
     }
     if (!this.controlPromise && (!this.control || this.control.destroyed)) {
       const connecting = this.connectControl(timeoutMs).finally(() => {

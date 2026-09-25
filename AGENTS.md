@@ -395,6 +395,13 @@ handled or safely ignored.
   `invalidateSessionFileListCache()` — never add a session-mutation path that
   forgets this. Regression test: `session-reader.test.mjs`.
 
+### Git health and background polling
+- Read-only git failures (`git_status_failed`, `git_branches_failed`, `git_diff_failed`) are fired automatically by background polling (composer bar, Git tab, sidebar badges all poll `/api/git/status` every 5 s) and their failure is always visible at the point of use (empty bar, inline panel error). They therefore MUST NOT degrade app health or appear in the diagnostics error list — `lib/git-nonrepo.ts` `filterBenignGitEntries()` is applied in both `healthOf` and the BackendDiagnostics views so the badge and the list can never disagree. Write operations (checkout/commit/push) are explicit user actions and still degrade.
+- The raw backend-error ring keeps git read entries (the diagnostics report is a support artifact where git noise is informative) — do not "clean" them out of the ring.
+- The routes skip `recordBackendError` for non-repo workspaces (`isNonRepositoryError`, `not_a_git_repository` code / "Not a Git repository" message) so a plain folder can never land an entry in the ring.
+- Client git pollers (`useGitStatus`, `useGitStats`, `GitChangesPanel`) carry an in-flight guard: never stack a new poll round while the previous one is still running — a slow repository outlives the 5 s interval and stacked rounds saturate the host and turn every git call into a timeout.
+- Host side: the Rust `git.status` handler runs its four post-status calls (branch/upstream/counts/diff) concurrently (each on its own `thread::spawn`, joined via a `join_git` helper in `git_service.rs`), and `rust-rpc-process.ts` routes every `git.*` method over an isolated IPC connection (not just `git.push`) so a slow git call can never block the shared control channel. `ipc_server.rs` `MAX_CONNECTIONS` must stay ≥ shared control + one per in-flight git.* request (the UI polls up to 13 cwds).
+
 ### Chat scroll-follow
 - `useAgentSession` follows the conversation: the effect depends on both
   `messages` (boundaries) and `streamState` (every token batch) and throttles

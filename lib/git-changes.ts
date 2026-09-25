@@ -15,7 +15,11 @@ import {
 } from "./git-status";
 
 const execFileAsync = promisify(execFile);
-const GIT_TIMEOUT_MS = 10_000;
+// `git status --untracked-files=all` and `git diff HEAD --shortstat` on a
+// large working tree can each take 15–30 s (measured 11 s + 27 s on a real
+// repo); 10 s timed those out on every background poll. Keep in parity with
+// the Rust host's GIT_TIMEOUT (crates/ompweb-host/src/git_service.rs).
+const GIT_TIMEOUT_MS = 45_000;
 const GIT_STATUS_MAX_BUFFER = 8 * 1024 * 1024;
 
 async function git(cwd: string, args: string[], maxBuffer = GIT_STATUS_MAX_BUFFER): Promise<string> {

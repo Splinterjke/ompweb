@@ -79,7 +79,12 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
+    // A slow repository can outlive the 5s interval; never stack requests —
+    // at most one in-flight fetch, the next tick catches up.
+    let inFlight = false;
     const load = (silent: boolean) => {
+      if (inFlight) return;
+      inFlight = true;
       if (!silent) {
         setLoading(true);
         setError(null);
@@ -119,6 +124,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
           setError(e instanceof Error ? e.message : String(e));
         })
         .finally(() => {
+          inFlight = false;
           if (cancelled || silent) return;
           setLoading(false);
           onRefreshDoneRef.current?.();

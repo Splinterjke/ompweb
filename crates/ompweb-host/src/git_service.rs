@@ -15,7 +15,13 @@ use crate::file_service::is_path_within_any;
 use crate::ipc_server::{json_str, IpcError};
 use crate::process_visibility::hide_console_window;
 
-const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+// `git status --untracked-files=all` and `git diff HEAD --shortstat` on a
+// large working tree (tens of thousands of files) can each take 15–30 s of
+// wall time on a busy disk (measured 11 s + 27 s on a real repo). 10 s timed
+// those out on every 5 s background poll, flooding the backend-error ring
+// with git_status_failed entries. 45 s covers realistic local repos while
+// still bounding a genuinely hung git subprocess.
+const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 /// Mirror of TEXT_PREVIEW_MAX_BYTES (lib/file-types.ts) — diff previews cap
 /// at the same bound as file reads so a huge diff never floods the IPC frame.
 pub const TEXT_PREVIEW_MAX_BYTES: u64 = 256 * 1024;
@@ -51,6 +57,12 @@ fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
         });
     }
     Ok(String::from_utf8_lossy(&result.stdout).to_string())
+}
+
+/// Join a git worker thread; a panicking worker is a git failure, never a
+/// host crash.
+fn join_git(handle: thread::JoinHandle<Result<String, String>>) -> Result<String, String> {
+    handle.join().unwrap_or_else(|_| Err("git worker panicked".to_string()))
 }
 
 fn find_repository_root(cwd: &str) -> Option<String> {
@@ -227,41 +239,37 @@ fn status_inner(cwd: &str) -> Result<String, GitError> {
             json_str(&entry.worktree_status),
         ));
     }
-    let branch = run_git(
-        &repository_root,
-        &["symbolic-ref", "--quiet", "--short", "HEAD"],
-    )
-    .map(|v| v.trim().to_string())
-    .unwrap_or_else(|_| "HEAD".to_string());
-    let upstream = run_git(
-        &repository_root,
-        &[
-            "rev-parse",
-            "--abbrev-ref",
-            "--symbolic-full-name",
-            "@{upstream}",
-        ],
-    )
-    .map(|v| v.trim().to_string())
-    .ok();
-    let counts = run_git(
-        &repository_root,
-        &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
-    )
-    .map(|v| {
-        v.split_whitespace()
-            .filter_map(|s| s.parse::<u64>().ok())
-            .collect::<Vec<_>>()
-    })
-    .unwrap_or_default();
-    let behind = counts.first().copied().unwrap_or(0);
-    let ahead = counts.get(1).copied().unwrap_or(0);
+    // The four calls below are mutually independent (Node's getGitStatus
+    // runs them with Promise.all). Run them concurrently so a slow git
+    // binary (large working tree, slow filesystem) cannot stretch a single
+    // status call by the sum of all four 10 s timeouts, which would stall
+    // the shared IPC connection behind it.
+    let root_branch = repository_root.clone();
+    let root_upstream = repository_root.clone();
+    let root_counts = repository_root.clone();
+    let root_diff = repository_root.clone();
+    let branch_handle = thread::spawn(move || run_git(&root_branch, &["symbolic-ref", "--quiet", "--short", "HEAD"]));
+    let upstream_handle = thread::spawn(move || {
+        run_git(&root_upstream, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+    });
+    let counts_handle =
+        thread::spawn(move || run_git(&root_counts, &["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]));
     // Tracked changes vs HEAD (staged + unstaged); untracked files have no
     // diff against HEAD and are excluded by design. A fresh repo without
     // commits has no HEAD — treat as no changes.
-    let (diff_added, diff_deleted) = run_git(&repository_root, &["diff", "HEAD", "--shortstat"])
-        .map(|s| parse_shortstat(&s))
-        .unwrap_or((0, 0));
+    let shortstat_handle = thread::spawn(move || run_git(&root_diff, &["diff", "HEAD", "--shortstat"]));
+
+    let branch = join_git(branch_handle)
+        .map(|v| v.trim().to_string())
+        .unwrap_or_else(|_| "HEAD".to_string());
+    let upstream = join_git(upstream_handle).map(|v| v.trim().to_string()).ok();
+    let counts = join_git(counts_handle)
+        .map(|v| v.split_whitespace().filter_map(|s| s.parse::<u64>().ok()).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let behind = counts.first().copied().unwrap_or(0);
+    let ahead = counts.get(1).copied().unwrap_or(0);
+    let (diff_added, diff_deleted) =
+        join_git(shortstat_handle).map(|s| parse_shortstat(&s)).unwrap_or((0, 0));
     Ok(format!(
         "{{\"isGitRepository\":true,\"repositoryRoot\":{},\"files\":[{}],\"branch\":{},\"upstream\":{},\"ahead\":{},\"behind\":{},\"diffAdded\":{},\"diffDeleted\":{}}}",
         json_str(&repository_root),
