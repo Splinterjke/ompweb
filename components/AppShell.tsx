@@ -2217,7 +2217,7 @@ export function AppShell() {
                     <div style={{ display: fileTabs.length > 0 ? "block" : "none", height: "100%", minHeight: 0 }}>
                       {fileTabs.map((tab) => (
                         <div key={tab.id} style={{ display: tab.id === activeFileTabId ? "block" : "none", height: "100%", minHeight: 0 }}>
-                          <FileViewer filePath={tab.filePath} cwd={activeCwd ?? undefined} sourceSessionId={tab.sourceSessionId} gitRefreshKey={explorerRefreshKey} onMentionLines={tab.id === activeFileTabId && rightPanelOpen ? handleFileLineMention : undefined} onOpenFile={(filePath) => handleOpenFile(filePath, getFileName(filePath), tab.sourceSessionId)} />
+                          <FileViewer filePath={tab.filePath} cwd={activeCwd ?? undefined} sourceSessionId={tab.sourceSessionId} gitRefreshKey={explorerRefreshKey} onMentionLines={tab.id === activeFileTabId && rightPanelOpen ? handleFileLineMention : undefined} onOpenFile={(filePath) => handleOpenFile(filePath, getFileName(filePath), tab.sourceSessionId)} active={tab.id === activeFileTabId && rightPanelOpen} />
                         </div>
                       ))}
                     </div>

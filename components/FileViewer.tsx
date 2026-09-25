@@ -39,6 +39,7 @@ interface Props {
   onOpenFile?: (filePath: string) => void;
   onMentionLines?: (relativePath: string, startLine: number, endLine: number) => void;
   gitRefreshKey?: number;
+  active?: boolean;
 }
 
 interface FileData {
@@ -409,7 +410,7 @@ export function DiffView({ patch }: { patch: string }) {
   );
 }
 
-function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
+function ImageViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [bust, setBust] = useState(0);
@@ -419,8 +420,16 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
   const esRef = useRef<EventSource | null>(null);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
+  const retry = useCallback(() => {
+    setError(null);
+    setBust((value) => value + 1);
+  }, []);
 
   useEffect(() => {
+    if (!active) {
+      setWatching(false);
+      return;
+    }
     setBust(0);
     setSize(null);
     setNaturalSize(null);
@@ -450,7 +459,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
       es.close();
       esRef.current = null;
     };
-  }, [filePath, sourceSessionId]);
+  }, [active, filePath, sourceSessionId]);
 
   const src = getFileApiUrl(filePath, "read", sourceSessionId, bust ? { v: bust } : undefined);
 
@@ -511,7 +520,10 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
         }}
       >
         {error ? (
-          <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>{error}</div>
+          <div role="alert" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>
+            <div>{error}</div>
+            <button type="button" className="load-retry-button" onClick={retry} style={{ minHeight: 32, padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{t("chatWindow.retry")}</button>
+          </div>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -543,7 +555,7 @@ function formatDuration(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
+function AudioViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [bust, setBust] = useState(0);
@@ -553,8 +565,16 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
   const esRef = useRef<EventSource | null>(null);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
+  const retry = useCallback(() => {
+    setError(null);
+    setBust((value) => value + 1);
+  }, []);
 
   useEffect(() => {
+    if (!active) {
+      setWatching(false);
+      return;
+    }
     setBust(0);
     setSize(null);
     setDuration(null);
@@ -586,7 +606,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
       es.close();
       esRef.current = null;
     };
-  }, [filePath, sourceSessionId]);
+  }, [active, filePath, sourceSessionId]);
 
   const src = getFileApiUrl(filePath, "read", sourceSessionId, bust ? { v: bust } : undefined);
 
@@ -641,8 +661,9 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
       >
         <div style={{ width: "min(680px, 100%)" }}>
           {error && (
-            <div style={{ color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", marginBottom: 12, textAlign: "center" }}>
-              {error}
+            <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", marginBottom: 12, textAlign: "center" }}>
+              <span>{error}</span>
+              <button type="button" className="load-retry-button" onClick={retry} style={{ minHeight: 32, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{t("chatWindow.retry")}</button>
             </div>
           )}
           <audio
@@ -721,7 +742,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId }: Props) {
   );
 }
 
-function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
+function DocumentViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [bust, setBust] = useState(0);
@@ -730,12 +751,20 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
   const esRef = useRef<EventSource | null>(null);
 
   const ext = getFileExt(filePath);
+  const retry = useCallback(() => {
+    setError(null);
+    setBust((value) => value + 1);
+  }, []);
   const isPdf = ext === "pdf";
   const previewUrl = isPdf
     ? getFileApiUrl(filePath, "read", sourceSessionId, bust ? { v: bust } : undefined)
     : getFileApiUrl(filePath, "preview", sourceSessionId, bust ? { v: bust } : undefined);
 
   useEffect(() => {
+    if (!active) {
+      setWatching(false);
+      return;
+    }
     setBust(0);
     setSize(null);
     setError(null);
@@ -791,7 +820,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
       es.close();
       esRef.current = null;
     };
-  }, [filePath, isPdf, sourceSessionId]);
+  }, [active, filePath, isPdf, sourceSessionId]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -811,7 +840,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
         <span style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={filePath}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
-        <span style={{ marginLeft: "auto" }}>{ext === "docx" ? t("fileViewer.docxPreview") : "pdf"}</span>
+        <span style={{ marginLeft: "auto" }}>{ext === "docx" ? t("fileViewer.docxPreview") : t("fileViewer.pdfType")}</span>
         {size != null && <span>{formatSize(size)}</span>}
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
         <span
@@ -833,8 +862,9 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
         {error ? (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>
-            {error}
+          <div role="alert" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>
+            <div>{error}</div>
+            <button type="button" className="load-retry-button" onClick={retry} style={{ minHeight: 32, padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{t("chatWindow.retry")}</button>
           </div>
         ) : (
           <iframe
@@ -850,23 +880,23 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
   );
 }
 
-export function FileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionLines, gitRefreshKey }: Props) {
+export function FileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionLines, gitRefreshKey, active = true }: Props) {
   if (isImagePath(filePath)) {
-    return <ImageViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} />;
+    return <ImageViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} active={active} />;
   }
   if (isAudioPath(filePath)) {
-    return <AudioViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} />;
+    return <AudioViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} active={active} />;
   }
   if (isVideoPath(filePath)) {
     return <VideoViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} />;
   }
   if (isDocumentPreviewPath(filePath)) {
-    return <DocumentViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} />;
+    return <DocumentViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} active={active} />;
   }
-  return <TextFileViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} onOpenFile={onOpenFile} onMentionLines={onMentionLines} gitRefreshKey={gitRefreshKey} />;
+  return <TextFileViewer filePath={filePath} cwd={cwd} sourceSessionId={sourceSessionId} onOpenFile={onOpenFile} onMentionLines={onMentionLines} gitRefreshKey={gitRefreshKey} active={active} />;
 }
 
-function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionLines, gitRefreshKey }: Props) {
+function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionLines, gitRefreshKey, active = true }: Props) {
   const { t } = useI18n();
   const { isDark } = useTheme();
   const [data, setData] = useState<FileData | null>(null);
@@ -919,6 +949,11 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
         return null;
       });
   }, [sourceSessionId]);
+  const retryContent = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    void fetchContent(filePath).finally(() => setLoading(false));
+  }, [fetchContent, filePath]);
 
   const fetchGitDiff = useCallback(async (targetPath: string) => {
     const requestId = ++gitDiffRequestRef.current;
@@ -940,6 +975,10 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
 
   // Initial load + SSE watch setup
   useEffect(() => {
+    if (!active) {
+      setWatching(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     setData(null);
@@ -989,11 +1028,12 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
       es.close();
       esRef.current = null;
     };
-  }, [filePath, fetchContent, fetchGitDiff, sourceSessionId]);
+  }, [active, filePath, fetchContent, fetchGitDiff, sourceSessionId]);
 
   useEffect(() => {
+    if (!active) return;
     void fetchGitDiff(filePath);
-  }, [fetchGitDiff, filePath, gitRefreshKey]);
+  }, [active, fetchGitDiff, filePath, gitRefreshKey]);
 
   const hasGitDiff = gitDiff?.supported === true && typeof gitDiff.patch === "string";
 
@@ -1079,16 +1119,27 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
 
   if (loading) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-        {t("fileViewer.loading")}
+      <div role="status" aria-busy="true" aria-label={t("fileViewer.loading")} style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12, padding: 24, boxSizing: "border-box", overflow: "hidden" }}>
+        <div aria-hidden="true" className="skeleton" style={{ width: "44%", height: 14 }} />
+        <div aria-hidden="true" className="skeleton" style={{ width: "92%", height: 12 }} />
+        <div aria-hidden="true" className="skeleton" style={{ width: "84%", height: 12 }} />
+        <div aria-hidden="true" className="skeleton" style={{ width: "88%", height: 12 }} />
+        <div aria-hidden="true" className="skeleton" style={{ width: "76%", height: 12 }} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-        {error}
+      <div role="alert" style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>
+        <div>{error}</div>
+        <button
+          type="button"
+          onClick={retryContent}
+          style={{ minHeight: 36, padding: "6px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+        >
+          {t("chatWindow.retry")}
+        </button>
       </div>
     );
   }

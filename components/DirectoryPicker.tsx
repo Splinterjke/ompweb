@@ -233,7 +233,19 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
           ) : (
             <div style={{ padding: 8, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("directoryPicker.noSubdirectories")}</div>
           )}
-          {(loadError || error) && <div style={{ padding: "8px", color: "var(--status-error)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{loadError ?? error}</div>}
+          {(loadError || error) && (
+            <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px", color: "var(--status-error)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+              <span>{loadError ?? error}</span>
+              <button
+                className="load-retry-button"
+                type="button"
+                onClick={() => void navigateTo(currentPath || undefined)}
+                style={{ minHeight: 32, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+              >
+                {t("directoryPicker.retry")}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="directory-picker-footer" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexShrink: 0, padding: "10px 18px", borderTop: "1px solid var(--border)" }}>

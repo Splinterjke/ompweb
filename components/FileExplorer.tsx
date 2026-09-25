@@ -953,16 +953,26 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
         </div>
       )}
 
-      <div role="tree" aria-label={t("sessionSidebar.explorer")} style={{ padding: "2px 4px" }}>
+      <div role="tree" aria-label={t("sessionSidebar.explorer")} aria-busy={loading} style={{ padding: "2px 4px" }}>
         {!loading && missingWorkspace && (
           <div style={{ padding: "6px 8px", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflowWrap: "anywhere", borderBottom: "1px solid var(--border)" }}>
             {t("fileExplorer.workspaceMissing", { parent: missingWorkspace })}
           </div>
         )}
         {loading ? (
-          <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
+          <div role="status" aria-live="polite" style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.loadingFiles")}</div>
         ) : error ? (
-          <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>{error}</div>
+          <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>
+            <span>{error}</span>
+            <button
+              className="load-retry-button"
+              type="button"
+              onClick={() => setTreeRefreshKey((key) => key + 1)}
+              style={{ minHeight: 32, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
+            >
+              {t("chatWindow.retry")}
+            </button>
+          </div>
         ) : (
           roots.map((node) => (
             <TreeNode
