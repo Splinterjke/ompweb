@@ -72,17 +72,22 @@ const MESSAGE_ACTIONS_VISIBLE_STORAGE_KEY = "omp-web:message-actions-visible";
 const PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY = "omp-web:process-details-auto-expand";
 const MESSAGE_TIME_FORMAT_STORAGE_KEY = "omp-web:message-time-format";
 const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
-const SESSION_GIT_STATS_STORAGE_KEY = "omp-web:session-git-stats";
+const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
+const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
+const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
 export type MessageTimeFormat = "24h" | "ampm";
+export type GitStatsPlacement = "inline" | "second" | "hidden";
+export type HubBarLayout = "stack" | "row";
+export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
 const GIT_GRAPH_MAX_SIZE = 95;
 const GIT_GRAPH_SIZE_PRESETS = [40, 50, 60, 70, 80, 90, 95];
 export type ThinkingDisplayMode = "auto" | "collapsed" | "expanded";
 const SIDEBAR_MIN_WIDTH = 200;
-const SIDEBAR_MAX_WIDTH = 520;
+const SIDEBAR_MAX_WIDTH = 720;
 const RIGHT_PANEL_MIN_WIDTH = 220;
-const RIGHT_PANEL_MAX_WIDTH = 640;
+const RIGHT_PANEL_MAX_WIDTH = 880;
 const RIGHT_PANEL_DEFAULT_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 260;
 function clampSidebarWidth(width: number): number {
@@ -217,14 +222,44 @@ export function AppShell() {
       return true;
     }
   });
-  // Per-session git change stats under session names (Interface & Behavior
-  // switch). Absent or corrupt stored values keep the stats visible.
-  const [sessionGitStatsVisible, setSessionGitStatsVisible] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
+  // Git change stats placement in the sidebar workspace name row (Interface
+  // & Behavior select). The legacy boolean key maps "false" → "hidden";
+  // absent or corrupt stored values keep the stats visible (inline).
+  const [gitStatsPlacement, setGitStatsPlacement] = useState<GitStatsPlacement>(() => {
+    if (typeof window === "undefined") return "inline";
     try {
-      return window.localStorage.getItem(SESSION_GIT_STATS_STORAGE_KEY) !== "false";
+      const raw = window.localStorage.getItem(GIT_STATS_PLACEMENT_STORAGE_KEY);
+      if (raw === "inline" || raw === "second" || raw === "hidden") return raw;
+      return window.localStorage.getItem("omp-web:session-git-stats") === "false" ? "hidden" : "inline";
     } catch {
-      return true;
+      return "inline";
+    }
+  });
+  // Composer hub bar stacking: "stack" (vertical column, default) or "row"
+  // (compact bars in one horizontal row; an expanded bar moves above the row).
+  const [hubBarLayout, setHubBarLayout] = useState<HubBarLayout>(() => {
+    if (typeof window === "undefined") return "stack";
+    try {
+      return window.localStorage.getItem(HUB_BAR_LAYOUT_STORAGE_KEY) === "row" ? "row" : "stack";
+    } catch {
+      return "stack";
+    }
+  });
+  // Per-bar visibility for the composer hub bars (Interface & Behavior
+  // checkboxes). Absent or corrupt stored values keep all bars visible.
+  const [hubBarsVisible, setHubBarsVisible] = useState<HubBarsVisibility>(() => {
+    if (typeof window === "undefined") return { git: true, tasks: true, subagents: true };
+    try {
+      const raw = window.localStorage.getItem(HUB_BARS_VISIBLE_STORAGE_KEY);
+      if (!raw) return { git: true, tasks: true, subagents: true };
+      const parsed = JSON.parse(raw) as Partial<HubBarsVisibility> | null;
+      return {
+        git: parsed?.git !== false,
+        tasks: parsed?.tasks !== false,
+        subagents: parsed?.subagents !== false,
+      };
+    } catch {
+      return { git: true, tasks: true, subagents: true };
     }
   });
   // Cap expanded tool-call output at a fixed height (Interface & Behavior
@@ -398,10 +433,10 @@ export function AppShell() {
       // The preference still applies for this page load.
     }
   }, []);
-  const handleSessionGitStatsChange = useCallback((visible: boolean) => {
-    setSessionGitStatsVisible(visible);
+  const handleGitStatsPlacementChange = useCallback((placement: GitStatsPlacement) => {
+    setGitStatsPlacement(placement);
     try {
-      window.localStorage.setItem(SESSION_GIT_STATS_STORAGE_KEY, String(visible));
+      window.localStorage.setItem(GIT_STATS_PLACEMENT_STORAGE_KEY, placement);
     } catch {
       // The preference still applies for this page load.
     }
@@ -450,6 +485,22 @@ export function AppShell() {
     setPanelsSwapped(swapped);
     try {
       window.localStorage.setItem(PANELS_SWAPPED_STORAGE_KEY, String(swapped));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleHubBarLayoutChange = useCallback((layout: HubBarLayout) => {
+    setHubBarLayout(layout);
+    try {
+      window.localStorage.setItem(HUB_BAR_LAYOUT_STORAGE_KEY, layout);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleHubBarsVisibleChange = useCallback((next: HubBarsVisibility) => {
+    setHubBarsVisible(next);
+    try {
+      window.localStorage.setItem(HUB_BARS_VISIBLE_STORAGE_KEY, JSON.stringify(next));
     } catch {
       // The preference still applies for this page load.
     }
@@ -1506,7 +1557,7 @@ export function AppShell() {
         onOpenArchive={() => setArchiveBrowserOpen(true)}
         updateAvailable={appUpdateAvailable || ompUpdateAvailable}
         settingsOpen={settingsTab !== null}
-        showSessionGitStats={sessionGitStatsVisible}
+        gitStatsPlacement={gitStatsPlacement}
       />
     </>
   );
@@ -2061,6 +2112,8 @@ export function AppShell() {
               messageActionsVisible={messageActionsVisible}
               processDetailsAutoExpand={processDetailsAutoExpand}
               messageTimeFormat={messageTimeFormat}
+              hubBarLayout={hubBarLayout}
+              hubBarsVisible={hubBarsVisible}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
             />
@@ -2247,7 +2300,7 @@ export function AppShell() {
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
-    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} showJumpToBottomButton={showJumpToBottomButton} onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} sessionGitStatsVisible={sessionGitStatsVisible} onSessionGitStatsChange={handleSessionGitStatsChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
+    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} showJumpToBottomButton={showJumpToBottomButton} onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} gitStatsPlacement={gitStatsPlacement} onGitStatsPlacementChange={handleGitStatsPlacementChange} hubBarLayout={hubBarLayout} onHubBarLayoutChange={handleHubBarLayoutChange} hubBarsVisible={hubBarsVisible} onHubBarsVisibleChange={handleHubBarsVisibleChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
     <UsageDashboardModal
       open={usageDashboardOpen}
       onOpenChange={setUsageDashboardOpen}

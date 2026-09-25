@@ -3,6 +3,7 @@
 import { memo, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { AgentMessage, ManagedProject, SessionInfo } from "@/lib/types";
+import type { GitStatsPlacement } from "./AppShell";
 import { useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { DirectoryPicker } from "./DirectoryPicker";
@@ -90,8 +91,10 @@ interface Props {
   /** True while the Settings modal is open — drives the footer row's
    *  collapse chevron (right when closed, down when open). */
   settingsOpen?: boolean;
-  /** Show git change stats under session names (Interface & Behavior setting). */
-  showSessionGitStats?: boolean;
+  /** Placement of git change stats in the workspace name row (Interface
+   *  & Behavior setting): inline (same row), second (line below the name),
+   *  or hidden. */
+  gitStatsPlacement?: GitStatsPlacement;
 }
 
 interface WorktreeEntry {
@@ -607,7 +610,7 @@ function OmpWebTitle() {
     </button>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, showSessionGitStats }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, gitStatsPlacement = "inline" }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1339,7 +1342,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
   // header (moved here from under session names). The hook dedupes + caps,
   // so a long project list stays bounded.
   const gitStatsProjects = useMemo(() => {
-    if (!showSessionGitStats) return [] as string[];
+    if (gitStatsPlacement === "hidden") return [] as string[];
     const seen = new Set<string>();
     const list: string[] = [];
     for (const { project } of visibleProjectEntries) {
@@ -1349,8 +1352,8 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       }
     }
     return list;
-  }, [showSessionGitStats, visibleProjectEntries]);
-  const gitStatsByPath = useGitStats(gitStatsProjects, Boolean(showSessionGitStats));
+  }, [gitStatsPlacement, visibleProjectEntries]);
+  const gitStatsByPath = useGitStats(gitStatsProjects, gitStatsPlacement !== "hidden");
 
   // Drop persisted expansion keys whose project no longer exists (removed or
   // vanished), so the storage stays bounded to real projects. Only runs after
@@ -2104,6 +2107,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 onNewSession={handleNewSessionInProject}
                 onOpenGitGraph={onOpenGitGraph}
                 gitStats={gitStatsByPath}
+                gitStatsPlacement={gitStatsPlacement}
               />
             );
           })}
@@ -2421,6 +2425,8 @@ interface ProjectRowProps {
   onOpenGitGraph?: (path: string) => void;
   /** Per-project git stats for the workspace header chip. */
   gitStats?: Record<string, CwdGitStats> | null;
+  /** Placement of the git stats chip: inline, second line, or hidden. */
+  gitStatsPlacement: GitStatsPlacement;
 }
 
 /** One project in the sidebar: a card row matching the session items' visual
@@ -2458,6 +2464,7 @@ function ProjectRow({
   onNewSession,
   onOpenGitGraph,
   gitStats,
+  gitStatsPlacement,
 }: ProjectRowProps) {
   const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
@@ -2529,6 +2536,20 @@ function ProjectRow({
     ? tree.slice(0, MAX_PROJECT_SESSIONS)
     : tree;
   const showActions = hovered || focusWithin || actionMenuOpen;
+  // "second" placement renders the git stats on a dedicated line under the
+  // workspace name, so the header grows from a fixed 30px row to a two-line
+  // card; "inline" keeps the stats in the same row (previous behavior).
+  const secondLineStats = gitStatsPlacement === "second" && Boolean(gitStatsLabel);
+  const statsChipStyle = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontFamily: "var(--font-mono)",
+    fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
+    lineHeight: 1,
+    color: "var(--text-dim)",
+    fontVariantNumeric: "tabular-nums",
+  } as const;
 
   return (
     <section className="sidebar-project" data-active={isActive ? "true" : "false"} style={{ marginBottom: 12 }}>
@@ -2555,9 +2576,9 @@ function ProjectRow({
           display: "flex",
           alignItems: "center",
           gap: 2,
-          height: 30,
+          height: secondLineStats ? "auto" : 30,
           margin: 0,
-          padding: "0 6px 0 0",
+          padding: secondLineStats ? "2px 6px" : "0 6px 0 0",
           borderRadius: "var(--radius-control)",
           background: isActive
             ? (hovered ? "var(--bg-hover)" : "var(--bg-subtle)")
@@ -2618,36 +2639,55 @@ function ProjectRow({
               minWidth: 0,
               alignSelf: "stretch",
               display: "flex",
+              flexDirection: secondLineStats ? "column" : "row",
               alignItems: "center",
-              gap: 7,
-              padding: "0 4px 0 10px",
+              gap: secondLineStats ? 2 : 7,
+              padding: secondLineStats ? "4px 4px 4px 10px" : "0 4px 0 10px",
               background: "none", border: "none",
               color: isActive ? "var(--text)" : hovered ? "var(--text)" : "var(--text-muted)",
               cursor: "pointer",
               textAlign: "left",
             }}
           >
-            <Folder
-              size={15}
-              strokeWidth={1.8}
-              style={{ flexShrink: 0, color: isActive ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)", transition: "color var(--dur-fast) var(--ease-out-warm)" }}
-              aria-hidden="true"
-            />
             <span
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
                 minWidth: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                fontFamily: "var(--font-mono)",
-                fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
-                fontWeight: 600,
-                letterSpacing: "-0.01em",
-                lineHeight: 1.25,
+                flex: 1,
               }}
             >
-              {label}
+              <Folder
+                size={15}
+                strokeWidth={1.8}
+                style={{ flexShrink: 0, color: isActive ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)", transition: "color var(--dur-fast) var(--ease-out-warm)" }}
+                aria-hidden="true"
+              />
+              <span
+                style={{
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                  fontWeight: 600,
+                  letterSpacing: "-0.01em",
+                  lineHeight: 1.25,
+                }}
+              >
+                {label}
+              </span>
             </span>
+            {secondLineStats && gitStatsLabel && (
+              <span
+                title={gitStatsLabel}
+                style={{ ...statsChipStyle, paddingLeft: 22, maxWidth: "100%", flexShrink: 1 }}
+              >
+                {gitStatsLabel}
+              </span>
+            )}
           </button>
         )}
         {worktreeBranch && worktreeToggleRef && (
@@ -2682,10 +2722,10 @@ function ProjectRow({
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
           </button>
         )}
-        {gitStatsLabel && (
+        {gitStatsPlacement === "inline" && gitStatsLabel && (
           <span
             title={gitStatsLabel}
-            style={{ flexShrink: 0, maxWidth: 128, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", lineHeight: 1, color: "var(--text-dim)", fontVariantNumeric: "tabular-nums" }}
+            style={{ ...statsChipStyle, flexShrink: 0, maxWidth: 128 }}
           >
             {gitStatsLabel}
           </span>

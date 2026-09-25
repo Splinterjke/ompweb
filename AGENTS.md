@@ -215,7 +215,7 @@ components/
   SessionSidebar.tsx  session tree + FileExplorer
   ChatWindow.tsx      chat composition + completion sound wrapper
   ChatInput.tsx       input bar + model/thinking/tools/compact controls
-  ComposerPanels.tsx  composer-attached todo + subagent panels (collapsible, live states)
+  ComposerPanels.tsx  composer hub bars: git changes, todo plan, subagents (stack or row layout, per-bar visibility)
   TodoList.tsx        todo phase grid with preview/show-all (used by ComposerPanels)
   SubagentTranscriptDialog.tsx  task + final output summary dialog (wide, screen-adaptive)
   MessageView.tsx     renders one message (user/assistant/toolCall/toolResult)
@@ -297,12 +297,32 @@ handled or safely ignored.
 - `useAgentSession` still treats per-session SSE as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs or half-open connections.
 - Prompt runs use a monotonic run id; late SSE or slow reconciliation responses from an old run must be ignored so they cannot resurrect stale streaming bubbles.
 
-### Composer-attached panels (`components/ComposerPanels.tsx`)
-- The live todo plan (`TodoList`) and the subagent roster live **pinned above
-  the chat input**, not inside the scrollable message list. `ComposerPanels`
-  renders both, each independently collapsible via its header row (`chevron`);
-  panels start collapsed (headers always show live progress / running-summary).
-  Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
+### Composer-attached hub bars (`components/ComposerPanels.tsx`)
+- The live todo plan (`TodoList`), the subagent roster and the git changes
+  bar (`GitChangesBar`) live **pinned above the chat input**, not inside the
+  scrollable message list. `ComposerPanels` renders each as an independently
+  collapsible bar (header row with chevron); bars start collapsed (headers
+  always show live progress / running-summary).
+- **Stacking** (`layout` prop, "Interface & Behavior" → Hub bar layout):
+  `"stack"` (vertical column, default) or `"row"` (compact bars share one
+  horizontal line). In row mode every bar owns a *stable slot* of one
+  wrapping flex row — expansion only changes slot styles (`flex: 0 0 100%` +
+  `order: -1` for an expanded bar, which takes a full-width line above the
+  collapsed ones), never the element's position. NEVER move a bar to a
+  different tree position based on its own data (e.g. git presence): the git
+  bar owns its poll and would remount on every presence flip, resetting its
+  status and looping.
+- **Per-bar visibility** (`showGit`/`showTasks`/`showSubagents` props,
+  "Interface & Behavior" → Hub bar visibility): each bar can be hidden
+  separately. The git bar stays *mounted* while enabled (its slot is
+  `display: none` until the poll reports a repo with changes) so polling
+  keeps running; `gitPresent` via `onPresenceChange` gates the slot.
+- **Workspace git stats** ("Interface & Behavior" → Workspace git stats):
+  `gitStatsPlacement` (`"inline" | "second" | "hidden"`, AppShell →
+  `SessionSidebar`) places the change counts in the sidebar workspace
+  header — inline chip on the name row, a second line under the name, or
+  hidden (hidden workspaces are not polled).
+- Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
   for terminal states) fed by the same `subagent_lifecycle`/`subagent_progress`
   SSE frames; clicking a chip opens the transcript dialog. `TodoList` keeps a
   non-collapsible default (`collapsible` prop) for SSR tests.

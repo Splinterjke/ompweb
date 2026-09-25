@@ -3196,7 +3196,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               modelCapacity={modelCapacity ?? null}
               generationSpeed={generationSpeed ?? null}
               open={contextOpen}
-              isMobile={isMobile}
               onToggle={() => setContextOpen((open) => !open)}
             />
           </div>

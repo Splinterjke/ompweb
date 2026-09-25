@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check, Copy } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import type { TodoPhase, SessionStatsInfo, GenerationSpeedInfo } from "@/lib/pi-types";
@@ -8,17 +8,41 @@ import type { SubagentActivityEvent, SubagentInfo } from "@/lib/subagent-types";
 import { formatCost } from "@/lib/subagent-format";
 import { formatCompactNumber, formatPercent, getCacheHitRate } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
+import { GitChangesBar } from "./GitChangesBar";
 import { TodoList } from "./TodoList";
 import { SubagentHub } from "./SubagentHub";
+import type { HubBarLayout } from "./AppShell";
 
 /**
- * Panels attached above the composer: the live todo plan plus the subagent
- * hub. Each is independently collapsible via its header row and starts
- * collapsed; the headers always show live progress / running-summary.
- * Rendered pinned above the chat input. Selecting a hub row opens the
- * subagent in the right-hand Agents panel.
+ * Composer hub bars: git changes, tasks (todo plan), and subagents. Each bar
+ * is independently collapsible via its header row and starts collapsed; the
+ * headers always show live progress / running-summary. Stacking is
+ * configurable via `layout` — "stack" (vertical column, the default) or
+ * "row" (compact bars in one horizontal row, where an expanded bar moves
+ * above the row while the others stay side by side). Rendered pinned above
+ * the chat input. Selecting a subagent row opens it in the right-hand Agents
+ * panel.
  */
-export function ComposerPanels({ todoPhases, subagents = [], subagentEvents, onSelectSubagent, defaultExpanded = false, planModeActive = false }: {
+export function ComposerPanels({
+  cwd,
+  onOpenGitTab,
+  onCommitWithAgent,
+  onCommitted,
+  todoPhases,
+  subagents = [],
+  subagentEvents,
+  onSelectSubagent,
+  layout = "stack",
+  showGit = true,
+  showTasks = true,
+  showSubagents = true,
+  defaultExpanded = false,
+  planModeActive = false,
+}: {
+  cwd?: string | null;
+  onOpenGitTab?: () => void;
+  onCommitWithAgent?: (message: string) => boolean | Promise<boolean>;
+  onCommitted?: (hash: string) => void;
   todoPhases: TodoPhase[];
   /** Live subagent roster; the hub renders it pinned above the input. */
   subagents?: SubagentInfo[];
@@ -26,24 +50,102 @@ export function ComposerPanels({ todoPhases, subagents = [], subagentEvents, onS
   subagentEvents?: Record<string, SubagentActivityEvent[]>;
   /** Open a subagent in the right-hand Agents panel. */
   onSelectSubagent?: (subagent: SubagentInfo) => void;
+  /** "stack" (vertical column, default) or "row" (horizontal, compact). */
+  layout?: HubBarLayout;
+  /** Show the git changes bar (Interface & Behavior). */
+  showGit?: boolean;
+  /** Show the tasks bar (Interface & Behavior). */
+  showTasks?: boolean;
+  /** Show the subagents bar (Interface & Behavior). */
+  showSubagents?: boolean;
   /** Initial expansion of the panels (default: collapsed). */
   defaultExpanded?: boolean;
   /** True while a plan surface (PlanPanel) owns the task grid: hide the
    *  duplicate TodoList so tasks render exactly once. */
   planModeActive?: boolean;
 }) {
-  if (todoPhases.length === 0 && subagents.length === 0) return null;
+  // Lifted expansion state so the row layout can move an expanded bar above
+  // the horizontal row while the others stay collapsed.
+  const [gitExpanded, setGitExpanded] = useState(false);
+  const [todoCollapsed, setTodoCollapsed] = useState(!defaultExpanded);
+  const [subagentCollapsed, setSubagentCollapsed] = useState(!defaultExpanded);
+  // Whether the git bar has renderable content (a repo with changes). The
+  // bar owns the data fetch, so it must stay mounted even when it would
+  // render null; in row mode we hide its empty slot until content exists.
+  const [gitPresent, setGitPresent] = useState(false);
+
+  const showTodoBar = showTasks && todoPhases.length > 0 && !planModeActive;
+  const showSubagentBar = showSubagents && subagents.length > 0;
+
+  const gitBar = showGit ? (
+    <GitChangesBar
+      cwd={cwd}
+      onCommitted={onCommitted}
+      onOpenGitTab={onOpenGitTab}
+      onCommitWithAgent={onCommitWithAgent}
+      expanded={gitExpanded}
+      onExpandedChange={setGitExpanded}
+      onPresenceChange={setGitPresent}
+    />
+  ) : null;
+  const todoBar = showTodoBar ? (
+    <TodoList
+      phases={todoPhases}
+      collapsible
+      defaultExpanded={defaultExpanded}
+      collapsed={todoCollapsed}
+      onCollapsedChange={setTodoCollapsed}
+    />
+  ) : null;
+  const subagentBar = showSubagentBar ? (
+    <SubagentHub
+      subagents={subagents}
+      subagentEvents={subagentEvents}
+      onSelectSubagent={onSelectSubagent ?? (() => {})}
+      defaultExpanded={defaultExpanded}
+      collapsed={subagentCollapsed}
+      onCollapsedChange={setSubagentCollapsed}
+    />
+  ) : null;
+
+  // The git bar reports its renderable content (repo with changes) via
+  // onPresenceChange; it stays mounted while enabled so its polling keeps
+  // running, but contributes nothing visually until content exists.
+  const gitVisible = showGit && gitPresent;
+  const anyVisible = gitVisible || todoBar !== null || subagentBar !== null;
+
+  // With the git bar disabled and no other bars there is nothing to show.
+  if (!showGit && !anyVisible) return null;
+
+  // Row layout: every bar lives in a stable slot of one wrapping flex row.
+  // Expansion and visibility only toggle slot styles (flex-basis/order and
+  // display), never the element's position, so bars never remount while the
+  // git bar re-polls or the user expands/collapses. An expanded bar takes a
+  // full-width line above the collapsed ones via `order: -1`; the git slot
+  // is display:none while it has no content (the bar stays mounted polling).
+  if (layout === "row") {
+    const slotStyle = (visible: boolean, expanded: boolean): CSSProperties =>
+      !visible
+        ? { display: "none" }
+        : expanded
+          ? { flex: "0 0 100%", minWidth: 0, order: -1 }
+          : { flex: "1 1 0", minWidth: 0, order: 0 };
+
+    return (
+      <div className="hub-bars hub-bars--row" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
+        {gitBar && <div key="git" style={slotStyle(gitVisible, gitExpanded)}>{gitBar}</div>}
+        {todoBar && <div key="tasks" style={slotStyle(true, !todoCollapsed)}>{todoBar}</div>}
+        {subagentBar && <div key="subagents" style={slotStyle(true, !subagentCollapsed)}>{subagentBar}</div>}
+      </div>
+    );
+  }
+
+  // Default: vertical column (previous behavior).
   return (
-    <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
-      {todoPhases.length > 0 && !planModeActive && <TodoList phases={todoPhases} collapsible defaultExpanded={defaultExpanded} />}
-      {subagents.length > 0 && (
-        <SubagentHub
-          subagents={subagents}
-          subagentEvents={subagentEvents}
-          onSelectSubagent={onSelectSubagent ?? (() => {})}
-          defaultExpanded={defaultExpanded}
-        />
-      )}
+    <div className="hub-bars" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
+      {gitBar}
+      {todoBar}
+      {subagentBar}
     </div>
   );
 }

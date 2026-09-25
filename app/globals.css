@@ -3837,6 +3837,27 @@ html[data-hidden="true"] :is(.chat-input-beam-rect, .icon-spin, .animate-spin, [
   color: var(--text);
 }
 
+/* Composer hub bars container (ComposerPanels): the git-changes bar, tasks
+   and subagents bars share one container. The container owns the uniform
+   6px gap, so the git bar's own 8px bottom margin is neutralized inside it. */
+.hub-bars .chat-git-bar {
+  margin-bottom: 0;
+}
+
+/* Row layout (Interface & Behavior): the collapsed bars share one horizontal
+   row. Each item is allowed to shrink (inline min-width: 0); inside the git
+   bar the branch name yields to the stat chips — it truncates first. */
+.hub-bars--row .chat-git-bar__branch {
+  max-width: none;
+  flex: 1;
+  min-width: 0;
+}
+.hub-bars--row .chat-git-bar__stats {
+  min-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+}
+
 .chat-git-bar__branch {
   font-family: var(--font-mono);
   font-size: 12px;

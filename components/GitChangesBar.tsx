@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, GitBranch } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGitStatus } from "@/hooks/useGitStatus";
@@ -25,6 +25,13 @@ interface Props {
   /** Delivers a commit message to the agent instead of committing directly. */
   /** Return true when the prompt was actually sent (false = agent busy). */
   onCommitWithAgent?: (message: string) => boolean | Promise<boolean>;
+  /** Controlled expanded state (parent owns the value). When omitted the bar
+   *  keeps its own internal state. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  /** Reports whether the bar has renderable content (repo with changes).
+   *  Fires after mount and whenever the presence changes. */
+  onPresenceChange?: (present: boolean) => void;
 }
 
 /**
@@ -35,10 +42,22 @@ interface Props {
  * Uses the shared {@link useGitStatus} hook (5 s poll + visibility refresh)
  * so the bar stays in sync with the Git tab without duplicating logic.
  */
-export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgent }: Props) {
+export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgent, expanded: expandedProp, onExpandedChange, onPresenceChange }: Props) {
   const { t } = useI18n();
   const { status, refresh } = useGitStatus(cwd, true);
-  const [expanded, setExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isControlled = onExpandedChange !== undefined;
+  const expanded = isControlled ? (expandedProp ?? false) : internalExpanded;
+  const toggleExpanded = () => {
+    const next = !expanded;
+    if (!isControlled) setInternalExpanded(next);
+    onExpandedChange?.(next);
+  };
+
+  const hasContent = Boolean(status?.isGitRepository && status.files.length > 0);
+  useEffect(() => {
+    onPresenceChange?.(hasContent);
+  }, [hasContent, onPresenceChange]);
 
   if (!status || !status.isGitRepository) return null;
 
@@ -63,7 +82,7 @@ export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgen
       <button
         type="button"
         className="chat-git-bar__header composer-panel-header"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggleExpanded}
         aria-expanded={expanded}
       >
         <GitBranch size={14} aria-hidden />

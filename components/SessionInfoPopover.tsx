@@ -11,7 +11,6 @@ interface SessionInfoButtonProps {
   modelCapacity: { contextWindow?: number; maxTokens?: number } | null;
   generationSpeed: GenerationSpeedInfo | null;
   open: boolean;
-  isMobile: boolean;
   onToggle: () => void;
 }
 
@@ -20,7 +19,7 @@ interface SessionInfoButtonProps {
  * top bar). Shows input/output/cache tokens, max output, cache rate, context
  * fill, cost and speed; opens the full session stats popover.
  */
-export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, generationSpeed, open, isMobile, onToggle }: SessionInfoButtonProps) {
+export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, generationSpeed, open, onToggle }: SessionInfoButtonProps) {
   const { t, locale } = useI18n();
   const tok = sessionStats?.tokens;
   const c = sessionStats?.cost ?? 0;
@@ -75,7 +74,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
         display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
         height: 24, padding: "0 8px",
         borderRadius: "var(--radius-control)",
-        minWidth: isMobile ? 32 : 0,
+        minWidth: 0,
         overflow: "hidden",
         background: open ? "var(--bg-selected)" : "none",
         border: "none",
@@ -93,12 +92,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
         e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
       }}
     >
-      {isMobile && (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
-        </svg>
-      )}
-      {!isMobile && tok && tok.input > 0 && (
+      {tok && tok.input > 0 && (
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="5" y1="8.5" x2="5" y2="1.5" /><polyline points="2 4 5 1.5 8 4" />
@@ -106,7 +100,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
           {formatCompactNumber(tok.input)}
         </span>
       )}
-      {!isMobile && tok && tok.output > 0 && (
+      {tok && tok.output > 0 && (
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
@@ -114,7 +108,7 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
           {formatCompactNumber(tok.output)}
         </span>
       )}
-      {!isMobile && tok && tok.cacheRead > 0 && (
+      {tok && tok.cacheRead > 0 && (
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M8.5 5a3.5 3.5 0 1 1-1-2.45" /><polyline points="6.5 1.5 8.5 2.5 7.5 4.5" />
@@ -122,10 +116,10 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
           {formatCompactNumber(tok.cacheRead)}
         </span>
       )}
-      {!isMobile && modelCapacity?.maxTokens && (
+      {modelCapacity?.maxTokens && (
         <span style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>↗ {formatCompactNumber(modelCapacity.maxTokens)}</span>
       )}
-      {!isMobile && cacheRateStr && (
+      {cacheRateStr && (
         <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
           <CircleCheck size={12} strokeWidth={1.8} aria-hidden="true" />
           {cacheRateStr}
@@ -139,17 +133,17 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
           {ctxStr}
         </span>
       )}
-      {!isMobile && costStr && (
+      {costStr && (
         <span style={{ display: "flex", alignItems: "center", color: "var(--text)", fontWeight: 500 }}>
           {costStr}
         </span>
       )}
-      {!isMobile && speedStr && (
+      {speedStr && (
         <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)", fontWeight: 600 }}>
           {speedStr}
         </span>
       )}
-      {!isMobile && averageSpeedStr && (
+      {averageSpeedStr && (
         <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
           {averageSpeedStr}
         </span>

@@ -39,6 +39,10 @@ type SubagentHubProps = {
   onSelectSubagent: (subagent: SubagentInfo) => void;
   /** Initial expansion (default: collapsed so the composer remains compact). */
   defaultExpanded?: boolean;
+  /** Controlled collapsed state (parent owns the value). When omitted the
+   *  hub keeps its own internal state. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 };
 
 function Metric({ icon: Icon, label, children }: {
@@ -348,9 +352,18 @@ export function SubagentHub({
   subagentEvents = {},
   onSelectSubagent,
   defaultExpanded = false,
+  collapsed: collapsedProp,
+  onCollapsedChange,
 }: SubagentHubProps) {
   const { t } = useI18n();
-  const [collapsed, setCollapsed] = useState(!defaultExpanded);
+  const [internalCollapsed, setInternalCollapsed] = useState(!defaultExpanded);
+  const isControlled = onCollapsedChange !== undefined;
+  const collapsed = isControlled ? (collapsedProp ?? false) : internalCollapsed;
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    if (!isControlled) setInternalCollapsed(next);
+    onCollapsedChange?.(next);
+  };
   const runningCount = subagents.filter((subagent) => subagent.source !== "history" && subagent.status === "started").length;
   const treeItems = useMemo(() => buildSubagentHubTree(subagents), [subagents]);
 
@@ -370,7 +383,7 @@ export function SubagentHub({
         type="button"
         className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-text-muted composer-panel-header"
         aria-expanded={!collapsed}
-        onClick={() => setCollapsed((value) => !value)}
+        onClick={toggleCollapsed}
         title={collapsed ? t("chatWindow.subagentHub.expand") : t("chatWindow.subagentHub.collapse")}
         style={{
           fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",

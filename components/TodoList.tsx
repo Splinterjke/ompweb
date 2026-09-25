@@ -21,12 +21,23 @@ interface TodoListProps {
   collapsible?: boolean;
   /** Initial expansion when `collapsible` (default: collapsed). */
   defaultExpanded?: boolean;
+  /** Controlled collapsed state (parent owns the value). When omitted the
+   *  list keeps its own internal state. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export function TodoList({ phases = [], collapsible = false, defaultExpanded = false }: TodoListProps) {
+export function TodoList({ phases = [], collapsible = false, defaultExpanded = false, collapsed: collapsedProp, onCollapsedChange }: TodoListProps) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const [collapsed, setCollapsed] = useState(collapsible ? !defaultExpanded : false);
+  const [internalCollapsed, setInternalCollapsed] = useState(collapsible ? !defaultExpanded : false);
+  const isControlled = onCollapsedChange !== undefined;
+  const collapsed = isControlled ? (collapsedProp ?? false) : internalCollapsed;
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    if (!isControlled) setInternalCollapsed(next);
+    onCollapsedChange?.(next);
+  };
 
   if (phases.length === 0) return null;
 
@@ -66,7 +77,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
         <button
           type="button"
           aria-expanded={!collapsed}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={toggleCollapsed}
           title={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}
           className={`${headerRowClass} ${headerBorderClass} w-full cursor-pointer text-left composer-panel-header`}
           style={{ background: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}

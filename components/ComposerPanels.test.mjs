@@ -17,7 +17,62 @@ test("renders nothing when there are no tasks or subagents", () => {
     todoPhases: [],
     subagents: [],
     onSelectSubagent: noop,
+    showGit: false,
   })), "");
+});
+
+test("row layout keeps collapsed bars in one horizontal row", () => {
+  const html = renderToStaticMarkup(React.createElement(ComposerPanels, {
+    todoPhases: [{ name: "Implementation", tasks: [{ content: "Wire panels", status: "in_progress" }] }],
+    subagents: [{ id: "s1", agent: "scout", status: "started", task: "Map the surface", index: 0 }],
+    onSelectSubagent: noop,
+    layout: "row",
+    showGit: false,
+  }));
+  assert.match(html, /hub-bars--row/);
+  // Both collapsed bars are slots of the wrapping row: each takes an equal
+  // share of the line (flex: 1 1 0%) in DOM order. Static markup drops the
+  // space after the style colon, so match the serialized form.
+  const slotCount = (html.match(/flex:1 1 0;/g) || []).length;
+  assert.equal(slotCount, 2);
+  assert.ok(html.indexOf(">Tasks<") !== -1);
+  assert.ok(html.indexOf(">Subagents<") !== -1);
+  // No bar is expanded (no full-width slot).
+  assert.doesNotMatch(html, /flex:0 0 100%/);
+  // Collapsed: task content and subagent chips are not rendered.
+  assert.doesNotMatch(html, /Wire panels/);
+  assert.doesNotMatch(html, /Map the surface/);
+});
+
+test("row layout lifts an expanded bar above the collapsed row", () => {
+  const html = renderToStaticMarkup(React.createElement(ComposerPanels, {
+    todoPhases: [{ name: "Implementation", tasks: [{ content: "Wire panels", status: "in_progress" }] }],
+    subagents: [{ id: "s1", agent: "scout", status: "started", task: "Map the surface", index: 0 }],
+    onSelectSubagent: noop,
+    layout: "row",
+    showGit: false,
+    defaultExpanded: true,
+  }));
+  assert.match(html, /hub-bars--row/);
+  // Expanded bars take full-width lines (flex: 0 0 100%) ahead of the row
+  // (order: -1) instead of sharing it.
+  assert.match(html, /flex:0 0 100%/);
+  assert.match(html, /order:-1/);
+  // Expanded content is visible for both panels.
+  assert.match(html, /Wire panels/);
+  assert.match(html, /Map the surface/);
+});
+
+test("per-bar visibility hides individual bars", () => {
+  const html = renderToStaticMarkup(React.createElement(ComposerPanels, {
+    todoPhases: [{ name: "Implementation", tasks: [{ content: "Wire panels", status: "in_progress" }] }],
+    subagents: [{ id: "s1", agent: "scout", status: "started", task: "Map the surface", index: 0 }],
+    onSelectSubagent: noop,
+    showGit: false,
+    showTasks: false,
+  }));
+  assert.doesNotMatch(html, /Tasks/);
+  assert.match(html, /Subagents/);
 });
 
 test("attaches todo plan and subagent roster with live states", () => {
