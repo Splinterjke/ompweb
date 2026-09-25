@@ -368,7 +368,7 @@ export function SubagentHub({
     >
       <button
         type="button"
-        className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-text-muted"
+        className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-text-muted composer-panel-header"
         aria-expanded={!collapsed}
         onClick={() => setCollapsed((value) => !value)}
         title={collapsed ? t("chatWindow.subagentHub.expand") : t("chatWindow.subagentHub.collapse")}

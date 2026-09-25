@@ -241,7 +241,7 @@ function stringRecord(value: unknown, name: string): void {
 
 function projectRoot(cwd: string): string {
   try {
-    return resolve(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim());
+    return resolve(execFileSync("git", ["-c", "safe.directory=*", "-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] }).trim());
   } catch {
     return resolve(cwd);
   }

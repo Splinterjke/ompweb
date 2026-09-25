@@ -4,6 +4,7 @@ import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { checkoutGitBranch } from "@/lib/git-changes";
+import { invalidateGitReadCache } from "@/lib/git-cache";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
     // implementation exists only for OMPWEB_BACKEND=node.
     if (rustBackendActive()) {
       try {
+        invalidateGitReadCache();
         return NextResponse.json({ success: true, ...(await hostClient.git.checkout([...roots], cwd, branch)) });
       } catch (error) {
         // Non-repo is a normal situation, not a backend failure.
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 400 });
       }
     }
+    invalidateGitReadCache();
     return NextResponse.json({ success: true, ...(await checkoutGitBranch(cwd, branch)) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code: "git_checkout_failed" }, { status: 400 });

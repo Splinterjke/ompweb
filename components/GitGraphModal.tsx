@@ -266,6 +266,14 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
     }
   }, [resetPaneWidths]);
 
+// ClientError is a plain object ({ code, message, retryable }), not an
+// Error instance — String(err) on it yields "[object Object]".
+const describeError = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
+  return String(err);
+};
+
   const load = useCallback(async () => {
     if (!cwd) return;
     setLoading(true);
@@ -274,7 +282,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
       const data = await client.git.log(cwd, 400);
       setPayload(data);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      setError(describeError(loadError));
     } finally {
       setLoading(false);
     }
@@ -297,7 +305,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { o
       const data = await client.git.commitDiff(cwd, commit.hash, file.path);
       setDiff({ file: file.path, diff: data.diff, binary: data.binary, truncated: data.truncated });
     } catch (diffLoadError) {
-      setDiffError(diffLoadError instanceof Error ? diffLoadError.message : String(diffLoadError));
+      setDiffError(describeError(diffLoadError));
     } finally {
       setDiffLoading(null);
     }

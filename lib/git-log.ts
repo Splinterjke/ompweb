@@ -2,7 +2,8 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
-const GIT_TIMEOUT_MS = 15_000;
+// `git log --all --graph --numstat` is the heaviest call on large repos;
+const GIT_TIMEOUT_MS = 60_000;
 const GIT_LOG_MAX_BUFFER = 16 * 1024 * 1024;
 const DIFF_DISPLAY_MAX_BYTES = 1024 * 1024;
 
@@ -16,7 +17,7 @@ const NUMSTAT_RE = /^(\d+|-)\t(\d+|-)\t(.+)$/;
 const NUMSTAT_LINE_RE = /^[|/.\\o ]*(\d+|-)\t(\d+|-)\t(.+)$/;
 
 async function git(cwd: string, args: string[], maxBuffer = GIT_LOG_MAX_BUFFER): Promise<string> {
-  const { stdout } = await execFileAsync("git", ["-C", cwd, ...args], {
+  const { stdout } = await execFileAsync("git", ["-c", "safe.directory=*", "-C", cwd, ...args], {
     timeout: GIT_TIMEOUT_MS,
     maxBuffer,
     env: { ...process.env, LC_ALL: "C" },

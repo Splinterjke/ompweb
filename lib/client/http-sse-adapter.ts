@@ -29,6 +29,7 @@ import type { SchedulerWithState } from "@/lib/scheduler-types";
 import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 import type { SessionInfo } from "@/lib/types";
 import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
+import type { GitStatusResponse } from "@/lib/git-types";
 import type { NativeSettings } from "@/lib/omp/settings-config";
 import { subscribeSessionsChanged } from "../session-change-bus";
 
@@ -210,6 +211,12 @@ class HttpGitClient implements GitClient {
     );
     delete (body as { error?: string }).error;
     return body;
+  }
+  async changes(cwd: string): Promise<GitStatusResponse> {
+    return rawRequest<GitStatusResponse & { error?: string }>(
+      `/api/git/status?cwd=${encodeURIComponent(cwd)}`,
+      { cache: "no-store" },
+    );
   }
   async commit(cwd: string, message: string): Promise<{ hash?: string }> {
     return rawRequest<{ hash?: string; error?: string }>("/api/git/commit", {

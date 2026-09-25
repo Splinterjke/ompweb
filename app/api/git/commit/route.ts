@@ -4,6 +4,7 @@ import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { commitGitChanges } from "@/lib/git-changes";
+import { invalidateGitReadCache } from "@/lib/git-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     // implementation exists only for OMPWEB_BACKEND=node.
     if (rustBackendActive()) {
       try {
+        invalidateGitReadCache();
         return NextResponse.json({ success: true, ...(await hostClient.git.commit([...roots], cwd, message)) });
       } catch (error) {
         // Non-repo is a normal situation, not a backend failure.
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 400 });
       }
     }
+    invalidateGitReadCache();
     const result = await commitGitChanges(cwd, message);
     return NextResponse.json({ success: true, ...result });
   } catch (error) {

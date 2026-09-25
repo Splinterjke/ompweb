@@ -28,6 +28,11 @@ fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let mut cmd = Command::new("git");
+        // The host can run as a different user than the repo owner
+        // (container bind mounts, root vs user); bypass git's "dubious
+        // ownership" guard so status/rev-parse keep working. Access
+        // control is the file-root allowlist, not git's uid check.
+        cmd.arg("-c").arg("safe.directory=*");
         cmd.arg("-C").arg(&cwd_owned).args(&args_owned);
         cmd.env("LC_ALL", "C");
         hide_console_window(&mut cmd);
@@ -119,6 +124,25 @@ fn classify(index_status: &str, worktree_status: &str) -> (&'static str, &'stati
     ("modified", "M")
 }
 
+/// Parse `git diff --shortstat` output
+/// ("3 files changed, 42 insertions(+), 7 deletions(-)") into
+/// (insertions, deletions). Missing halves read as zero.
+fn parse_shortstat(output: &str) -> (u64, u64) {
+    let s = output.trim();
+    let num_before = |needle: &str| -> u64 {
+        match s.rfind(needle) {
+            Some(idx) => s[..idx]
+                .split_whitespace()
+                .next_back()
+                .and_then(|tok| tok.parse().ok())
+                .unwrap_or(0),
+            None => 0,
+        }
+    };
+    (num_before(" insertions"), num_before(" deletions"))
+}
+
+
 #[derive(Debug, PartialEq)]
 enum GitError {
     NotARepository,
@@ -174,7 +198,7 @@ fn status_inner(cwd: &str) -> Result<String, GitError> {
         Some(root) => root,
         None => {
             return Ok(
-                "{\"isGitRepository\":false,\"repositoryRoot\":null,\"files\":[],\"branch\":null,\"upstream\":null,\"ahead\":0,\"behind\":0}"
+                "{\"isGitRepository\":false,\"repositoryRoot\":null,\"files\":[],\"branch\":null,\"upstream\":null,\"ahead\":0,\"behind\":0,\"diffAdded\":0,\"diffDeleted\":0}"
                     .to_string(),
             );
         }
@@ -232,14 +256,22 @@ fn status_inner(cwd: &str) -> Result<String, GitError> {
     .unwrap_or_default();
     let behind = counts.first().copied().unwrap_or(0);
     let ahead = counts.get(1).copied().unwrap_or(0);
+    // Tracked changes vs HEAD (staged + unstaged); untracked files have no
+    // diff against HEAD and are excluded by design. A fresh repo without
+    // commits has no HEAD — treat as no changes.
+    let (diff_added, diff_deleted) = run_git(&repository_root, &["diff", "HEAD", "--shortstat"])
+        .map(|s| parse_shortstat(&s))
+        .unwrap_or((0, 0));
     Ok(format!(
-        "{{\"isGitRepository\":true,\"repositoryRoot\":{},\"files\":[{}],\"branch\":{},\"upstream\":{},\"ahead\":{},\"behind\":{}}}",
+        "{{\"isGitRepository\":true,\"repositoryRoot\":{},\"files\":[{}],\"branch\":{},\"upstream\":{},\"ahead\":{},\"behind\":{},\"diffAdded\":{},\"diffDeleted\":{}}}",
         json_str(&repository_root),
         files,
         json_str(&branch),
         match upstream { Some(u) => json_str(&u).to_string(), None => "null".to_string() },
         ahead,
         behind,
+        diff_added,
+        diff_deleted,
     ))
 }
 
@@ -787,5 +819,17 @@ mod tests {
             .unwrap()
             .contains("\"supported\":false"));
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn parse_shortstat_handles_variants() {
+        assert_eq!(
+            parse_shortstat("3 files changed, 42 insertions(+), 7 deletions(-)"),
+            (42, 7)
+        );
+        assert_eq!(parse_shortstat("1 file changed, 2 insertions(+)"), (2, 0));
+        assert_eq!(parse_shortstat("1 file changed, 3 deletions(-)"), (0, 3));
+        assert_eq!(parse_shortstat(""), (0, 0));
+        assert_eq!(parse_shortstat("0 files changed"), (0, 0));
     }
 }

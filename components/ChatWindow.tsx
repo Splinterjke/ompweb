@@ -1,7 +1,7 @@
 "use client";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ArrowDown, ChevronDown } from "lucide-react";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { countToolCallBlocks, getDisplayableAssistantBlocks, splitFinalAssistantBlocks } from "@/lib/message-display";
@@ -12,6 +12,7 @@ import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
+import { GitChangesBar } from "./GitChangesBar";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import { EmptyChatHero } from "./EmptyChatHero";
 import { useAgentSession, type AgentPhase, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
@@ -59,6 +60,10 @@ interface Props {
   onSessionStatsChange?: (stats: SessionStatsInfo | null) => void;
   /** Show the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
+  /** Show the jump-to-bottom button above the composer (Interface & Behavior switch). */
+  showJumpToBottomButton?: boolean;
+  /** Opens the Git tab in the right workbench (from the composer git bar). */
+  onOpenGitTab?: () => void;
   onOpenFile?: (filePath: string) => void;
   /** Open a subagent from the composer's SubagentHub in the right panel. */
   onSelectSubagent?: (subagent: SubagentInfo) => void;
@@ -547,7 +552,11 @@ const CommittedTranscript = memo(function CommittedTranscript({
     </>
   );
 });
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+// Distance from the chat bottom that still counts as "at the bottom" for the
+// jump-to-bottom button; a small tolerance absorbs the content padding below
+// the end marker so the button does not flicker in at the very end.
+const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, onOpenGitTab, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
@@ -584,7 +593,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
     isNew,
     sessionIdRef, messagesEndRef, scrollContainerRef,
-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession,
+    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession, scrollToBottom,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
     toolPreset, handleToolPresetChange,
     removeQueuedMessage, promoteQueuedToSteer,
@@ -741,6 +750,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }, [groups, messages, groupsKey]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  // Drives the jump-to-bottom button: true while the viewport is within
+  // JUMP_TO_BOTTOM_THRESHOLD_PX of the end. Programmatic scrolls update it
+  // explicitly because they do not always fire the scroll event.
+  const [atBottom, setAtBottom] = useState(true);
+  const syncAtBottom = useCallback((el: HTMLDivElement) => {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= JUMP_TO_BOTTOM_THRESHOLD_PX;
+    setAtBottom((prev) => (prev === nearBottom ? prev : nearBottom));
+  }, []);
   // Measured heights shift which group sits at any scroll offset; the window
   // must re-derive when a measurement lands (plain `revision` on the cache
   // would not re-render React, so this is state).
@@ -756,8 +773,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       scrollRafRef.current = null;
       setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
       setViewportHeight((prev) => (prev === el.clientHeight ? prev : el.clientHeight));
+      syncAtBottom(el);
     });
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, syncAtBottom]);
   // `onScroll` is not guaranteed to fire when the first session render sets
   // scrollTop programmatically. Seed the viewport dimensions immediately and
   // keep them in sync with the chat column so the virtual window can detect
@@ -768,12 +786,21 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     const syncViewport = () => {
       setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
       setViewportHeight((prev) => (prev === el.clientHeight ? prev : el.clientHeight));
+      syncAtBottom(el);
     };
     syncViewport();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncViewport);
     observer?.observe(el);
     return () => observer?.disconnect();
-  }, [loading, session?.id]);
+  }, [loading, session?.id, scrollContainerRef, syncAtBottom]);
+  // The jump-to-bottom button must track programmatic scrolls and content
+  // growth, not just user scroll events: re-derive from the live DOM on
+  // every scroll batch and layout revision.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    syncAtBottom(el);
+  }, [scrollTop, viewportHeight, layoutRevision, scrollContainerRef, syncAtBottom]);
   // 测量落定后按意图校正滚动位置：打开会话时锚定到底部、minimap 节点
   // 跳转时锚定到目标组。测量在多次 rAF 批次中逐批落定（每次滚动暴露的
   // 新组才被实测），因此锚定保持存活、每次 layoutRevision 都用最新缓存
@@ -858,16 +885,27 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
     setViewportHeight((prev) => (prev === el.clientHeight ? prev : el.clientHeight));
   }, [layout, scrollContainerRef, messagesEndRef]);
+  // Latest applyPendingAnchor in a ref so the session-open anchor effect below
+  // can depend only on session?.id. With applyPendingAnchor itself in the deps
+  // the effect re-ran on every layout change (i.e. every committed message),
+  // re-arming the bottom anchor and its 300ms retry — which yanked the user
+  // back to the bottom mid-run, e.g. right after a thinking block finished and
+  // the next message committed. The anchor now (re)arms only on session
+  // change; the layoutRevision effect and user-scroll cancels are the only
+  // other writers of pendingAnchorRef.
+  const applyPendingAnchorRef = useRef(applyPendingAnchor);
+  applyPendingAnchorRef.current = applyPendingAnchor;
   // 打开会话：锚定底部 + 300ms 兜底重试（测量 revision 迟迟不到时按当时
   // DOM 校正一次；用户滚动/点击会取消，重试时锚定已空则无操作）。
   useEffect(() => {
     pendingAnchorRef.current = { kind: "bottom" };
+    lastBottomScrollHeightRef.current = null;
     if (anchorRetryTimerRef.current !== null) clearTimeout(anchorRetryTimerRef.current);
     anchorRetryTimerRef.current = window.setTimeout(() => {
       anchorRetryTimerRef.current = null;
-      applyPendingAnchor();
+      applyPendingAnchorRef.current();
     }, 300);
-  }, [session?.id, applyPendingAnchor]);
+  }, [session?.id]);
   useEffect(() => {
     applyPendingAnchor();
   }, [layoutRevision, applyPendingAnchor]);
@@ -1410,6 +1448,17 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       </div>
 
       <div className="relative" style={{ flexShrink: 0 }}>
+        {showJumpToBottomButton && !atBottom && (
+          <button
+            type="button"
+            className="chat-jump-to-bottom"
+            aria-label={t("chatWindow.scrollToBottom")}
+            title={t("chatWindow.scrollToBottom")}
+            onClick={() => scrollToBottom("smooth")}
+          >
+            <ArrowDown size={16} aria-hidden />
+          </button>
+        )}
         <div
           style={{
             padding: chatColumnPadding,
@@ -1425,6 +1474,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 />
               </div>
             )}
+            <GitChangesBar
+              cwd={messageCwd}
+              onOpenGitTab={onOpenGitTab}
+              onCommitWithAgent={(message) =>
+                handleSend(t("gitChangesBar.commitWithAgentPrompt", { message }))
+              }
+            />
             <ComposerPanels
               todoPhases={todoPhases}
               subagents={subagents ?? []}

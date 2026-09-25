@@ -65,7 +65,7 @@ export function invalidateProjectCache(): void {
 }
 
 async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync("git", ["-C", cwd, ...args], {
+  const { stdout } = await execFileAsync("git", ["-c", "safe.directory=*", "-C", cwd, ...args], {
     timeout: 10_000,
     maxBuffer: 1024 * 1024,
     // Pin the message locale so error-text matching (e.g. the dirty-worktree

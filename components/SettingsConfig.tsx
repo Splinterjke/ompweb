@@ -266,6 +266,8 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
   { id: "git-graph-modal-size", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.gitGraphModalSize", descKey: "settingsConfig.gitGraphModalSizeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "GitGraph modal size", fallbackDesc: "Size of the Git graph modal as a percentage of the window. Choose a preset size between 40% and 95%.", scope: "UI" },
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
+  { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
+  { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Show git change counts (files, +added −deleted) in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
   { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
   { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
@@ -493,7 +495,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, sessionGitStatsVisible = true, onSessionGitStatsChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -503,6 +505,12 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Show the Session Info button below the composer (Interface & Behavior). */
   sessionInfoButtonVisible?: boolean;
   onSessionInfoButtonChange?: (visible: boolean) => void;
+  /** Show the jump-to-bottom button above the composer (Interface & Behavior). */
+  showJumpToBottomButton?: boolean;
+  onShowJumpToBottomButtonChange?: (visible: boolean) => void;
+  /** Show git change stats in workspace headers in the sidebar (Interface & Behavior). */
+  sessionGitStatsVisible?: boolean;
+  onSessionGitStatsChange?: (visible: boolean) => void;
   /** Cap expanded tool-call output height (Interface & Behavior). */
   toolOutputCapEnabled?: boolean;
   onToolOutputCapChange?: (enabled: boolean) => void;
@@ -1013,6 +1021,12 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">
                     <ToggleSwitch checked={sessionInfoButtonVisible} onChange={(next) => onSessionInfoButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="jump-to-bottom-button" label={t("settingsConfig.jumpToBottomButton")} description={t("settingsConfig.jumpToBottomButtonDesc")} scope="UI">
+                    <ToggleSwitch checked={showJumpToBottomButton} onChange={(next) => onShowJumpToBottomButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="session-git-stats" label={t("settingsConfig.sessionGitStats")} description={t("settingsConfig.sessionGitStatsDesc")} scope="UI">
+                    <ToggleSwitch checked={sessionGitStatsVisible} onChange={(next) => onSessionGitStatsChange?.(next)} />
                   </NativeSetting>
                   <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
                     <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />

@@ -5,6 +5,12 @@ import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getGitStatus } from "@/lib/git-changes";
+import { withGitReadCache } from "@/lib/git-cache";
+
+// Short-TTL cache: the git tab, the composer git bar and the sidebar badges
+// all poll this endpoint for the same repo; the cache collapses them into a
+// single `git status` (single-flight) and serves repeats without spawning git.
+const STATUS_TTL_MS = 5000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,22 +40,20 @@ export async function GET(request: NextRequest) {
     // Doc 16 route 10: in Rust mode the host owns local git (status parity
     // against the Node implementation is frozen by lib/git-parity.test.mjs);
     // the Node path exists only for the explicit OMPWEB_BACKEND=node rollback.
-    if (rustBackendActive()) {
-      try {
-        return NextResponse.json(await hostClient.git.status([...allowedRoots], cwd));
-      } catch (error) {
-        // A non-repo is a normal situation, not a backend failure — recording
-        // it would degrade the whole app for every non-git workspace.
-        if (!isNonRepositoryError(error)) {
-          recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
-        }
-        const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_status_failed";
-        return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json(await getGitStatus(cwd));
+    // ?refresh=1 bypasses the cache (manual refresh / right after a commit).
+    const refresh = request.nextUrl.searchParams.get("refresh") === "1";
+    const status = refresh
+      ? await (rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd))
+      : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, () =>
+          rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd));
+    return NextResponse.json(status);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    // A non-repo is a normal situation, not a backend failure — recording
+    // it would degrade the whole app for every non-git workspace.
+    if (!isNonRepositoryError(error)) {
+      recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
+    }
+    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_status_failed";
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
   }
 }

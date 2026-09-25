@@ -6,6 +6,7 @@
 import type { AgentEventFrame, ConnectedFrame, SessionDestroyedFrame } from "@/lib/contracts/agent-envelope";
 import type { SessionInfo } from "@/lib/types";
 import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
+import type { GitStatusResponse } from "@/lib/git-types";
 import type { GitHubRepoStatus } from "@/lib/github";
 import type { NativeSettings } from "@/lib/omp/settings-config";
 import type { ScheduleSpec } from "@/lib/schedule";
@@ -94,6 +95,8 @@ export interface GitHubStatusPayload {
 export interface GitClient {
   /** GET /api/github/status?cwd=&refresh= — workspace repo/branch state. */
   status(cwd: string, options?: { refresh?: boolean }): Promise<GitHubStatusPayload>;
+  /** GET /api/git/status?cwd= — local working-tree changes (files + counts). */
+  changes(cwd: string): Promise<GitStatusResponse>;
   /** POST /api/git/commit — commit workspace changes; resolves { hash? }. */
   commit(cwd: string, message: string): Promise<{ hash?: string }>;
   /** POST /api/git/push — push current branch; resolves { branch? }. */

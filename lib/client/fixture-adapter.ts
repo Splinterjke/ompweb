@@ -15,6 +15,7 @@ import type {
   SubscriptionState,
   SystemClient,
 } from "./types";
+import type { GitStatusResponse } from "@/lib/git-types";
 import type { SessionInfo } from "@/lib/types";
 
 export interface FixtureState {
@@ -28,6 +29,8 @@ export interface FixtureState {
   emitSessionsChanged(ids: string[]): void;
   /** Serve a git status payload once (null = no repo). */
   setGitStatus(payload: GitHubStatusPayload | null): void;
+  /** Serve a local git working-tree status once (null = no repo). */
+  setGitChanges(payload: GitStatusResponse | null): void;
   /** Fail the next git mutation once. */
   failNextGit(error: Error): void;
 }
@@ -82,6 +85,9 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
     },
     setGitStatus(payload) {
       nextGitStatus = payload;
+    },
+    setGitChanges(payload) {
+      nextGitChanges = payload;
     },
     failNextGit(error) {
       nextGitFailure = error;
@@ -138,6 +144,7 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
   };
 
   let nextGitStatus: GitHubStatusPayload | null = null;
+  let nextGitChanges: GitStatusResponse | null = null;
   let nextGitFailure: Error | null = null;
 
   // Fixture git: no network; the panel's commit/push/status flows are
@@ -150,6 +157,14 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
         return payload;
       }
       return { repo: null };
+    },
+    async changes() {
+      if (nextGitChanges) {
+        const payload = nextGitChanges;
+        nextGitChanges = null;
+        return payload;
+      }
+      return { isGitRepository: false, repositoryRoot: null, files: [] };
     },
     async commit() {
       if (nextGitFailure) {

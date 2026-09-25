@@ -225,10 +225,10 @@ export function RightWorkbench({
     setLayout((current) => current.panes.length >= 2 ? current : { ...current, orientation: "vertical", panes: [...current.panes, { id: `pane-${current.panes.length + 1}`, tabs: [], active: null }] });
   }, []);
 
-  const renderView = useCallback((view: WorkbenchView) => {
+  const renderView = useCallback((view: WorkbenchView, active: boolean) => {
     if (view === "files") return files;
     if (view === "agents") return agents;
-    if (view === "git") return cwd && onOpenFile ? <GitChangesPanel cwd={cwd} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
+    if (view === "git") return cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
     return <BrowserView />;
   }, [agents, cwd, files, onOpenFile]);
@@ -302,7 +302,7 @@ export function RightWorkbench({
           <h2 style={{ margin: "0 0 6px", fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", color: "var(--text)", fontWeight: 650 }}>{t("rightWorkbench.emptyTitle") === "rightWorkbench.emptyTitle" ? "Open a workspace" : t("rightWorkbench.emptyTitle")}</h2>
           <p style={{ margin: "0 0 18px", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.55 }}>{t("rightWorkbench.emptyHint") === "rightWorkbench.emptyHint" ? "Pick an entry to open a workspace here; add a top/bottom split when needed." : t("rightWorkbench.emptyHint")}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, textAlign: "left" }}>
-            {emptyActions.map((view) => { const meta = VIEW_META[view]; const Icon = meta.icon; return <button key={view} type="button" onClick={() => openView(view)} style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 52, padding: "9px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", textAlign: "left", transition: "border-color var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}><Icon size={17} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" /><span><strong style={{ display: "block", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}>{labelFor(t, view)}</strong><small style={{ display: "block", marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{view === "files" ? "Browse workspace files" : view === "agents" ? "View task progress" : view === "sidechat" ? "Draft a follow-up question" : "Preview web pages"}</small></span></button>; })}
+            {emptyActions.map((view) => { const meta = VIEW_META[view]; const Icon = meta.icon; return <button key={view} type="button" onClick={() => openView(view)} style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 52, padding: "9px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", textAlign: "left", transition: "border-color var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}><Icon size={17} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" /><span><strong style={{ display: "block", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}>{labelFor(t, view)}</strong><small style={{ display: "block", marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{view === "files" ? "Browse workspace files" : view === "agents" ? "View task progress" : view === "git" ? "Working tree changes" : view === "sidechat" ? "Draft a follow-up question" : "Preview web pages"}</small></span></button>; })}
           </div>
         </div>
       </div>
@@ -334,7 +334,7 @@ export function RightWorkbench({
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
           {pane.tabs.map((view) => (
             <div key={view} aria-hidden={pane.active !== view} style={{ position: "absolute", inset: 0, visibility: pane.active === view ? "visible" : "hidden", pointerEvents: pane.active === view ? "auto" : "none", opacity: pane.active === view ? 1 : 0, transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
-              {renderView(view)}
+              {renderView(view, pane.active === view)}
             </div>
           ))}
           {!pane.active && <div style={{ height: "100%", display: "grid", placeItems: "center", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", padding: 16, textAlign: "center" }}>Click the + above to add a workspace</div>}

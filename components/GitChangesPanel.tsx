@@ -13,9 +13,13 @@ import {
   normalizeFilePathSlashes,
 } from "@/lib/file-paths";
 import type { GitFileDiffResponse, GitStatusResponse } from "@/lib/git-types";
+import { GitCommitForm } from "./GitCommitForm";
+// Poll interval while the git tab is the active workbench view.
+const GIT_POLL_INTERVAL_MS = 5000;
 
 interface Props {
   cwd: string;
+  active?: boolean;
   refreshKey?: number;
   onOpenFile: (filePath: string, fileName: string) => void;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
@@ -40,7 +44,7 @@ async function fetchPatch(cwd: string, filePath: string): Promise<GitFileDiffRes
   return res.json() as Promise<GitFileDiffResponse>;
 }
 
-export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRefreshDone }: Props) {
+export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, onAtMention, onRefreshDone }: Props) {
   const { t, tn } = useI18n();
   const [files, setFiles] = useState<GitStatusResponse["files"]>([]);
   const [isRepo, setIsRepo] = useState(false);
@@ -56,6 +60,10 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const filterInputRef = useRef<HTMLInputElement>(null);
   const patchRequestRef = useRef(0);
+  // Bumped whenever a status poll observes a changed worktree; drives a
+  // re-fetch of the selected file's diff so the preview never goes stale.
+  const [statusVersion, setStatusVersion] = useState(0);
+  const statusSignatureRef = useRef("");
   const refreshToken = `${refreshKey ?? 0}:${treeRefreshKey}`;
 
   // Keep the refresh-done callback in a ref so its identity cannot re-trigger
@@ -63,37 +71,71 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
   const onRefreshDoneRef = useRef(onRefreshDone);
   onRefreshDoneRef.current = onRefreshDone;
 
+  // The git tab used to fetch exactly once on mount, so files committed by
+  // the agent (or a terminal) stayed listed as "changed" until a manual
+  // refresh. While the tab is active we poll on a short interval and
+  // re-fetch on tab re-focus; silent polls keep the last good data on a
+  // transient error instead of blanking the panel.
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchStatus(cwd)
-      .then((status) => {
-        if (cancelled) return;
-        const nextFiles = status.isGitRepository ? status.files : [];
-        setFiles(nextFiles);
-        setIsRepo(status.isGitRepository);
-        // Keep the selection when it still exists; otherwise preview the first
-        // changed file so the diff pane is never blank behind a file list.
-        setSelectedPath((prev) =>
-          prev && nextFiles.some((f) => f.filePath === prev)
-            ? prev
-            : nextFiles[0]?.filePath ?? null,
-        );
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setFiles([]);
-        setIsRepo(false);
-        setSelectedPath(null);
-        setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-        onRefreshDoneRef.current?.();
-      });
-    return () => { cancelled = true; };
-  }, [cwd, refreshToken]);
+    const load = (silent: boolean) => {
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
+      fetchStatus(cwd)
+        .then((status) => {
+          if (cancelled) return;
+          const nextFiles = status.isGitRepository ? status.files : [];
+          setFiles(nextFiles);
+          setIsRepo(status.isGitRepository);
+          const signature = [
+            status.isGitRepository ? 1 : 0,
+            status.branch ?? "",
+            status.ahead ?? 0,
+            status.behind ?? 0,
+            ...nextFiles.map((f) => `${f.filePath}|${f.status}|${f.indexStatus}|${f.worktreeStatus}`),
+          ].join("\n");
+          if (signature !== statusSignatureRef.current) {
+            statusSignatureRef.current = signature;
+            setStatusVersion((v) => v + 1);
+          }
+          // Keep the selection when it still exists; otherwise preview the first
+          // changed file so the diff pane is never blank behind a file list.
+          setSelectedPath((prev) =>
+            prev && nextFiles.some((f) => f.filePath === prev)
+              ? prev
+              : nextFiles[0]?.filePath ?? null,
+          );
+          setError(null);
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          if (silent) return; // keep the last good data on a transient failure
+          setFiles([]);
+          setIsRepo(false);
+          setSelectedPath(null);
+          setError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => {
+          if (cancelled || silent) return;
+          setLoading(false);
+          onRefreshDoneRef.current?.();
+        });
+    };
+    load(false);
+    const interval = window.setInterval(() => load(true), GIT_POLL_INTERVAL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") load(true);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [cwd, refreshToken, active]);
 
   useEffect(() => {
     if (!selectedPath) {
@@ -120,7 +162,7 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
       .finally(() => {
         if (requestId === patchRequestRef.current) setPatchLoading(false);
       });
-  }, [cwd, selectedPath, refreshToken]);
+  }, [cwd, selectedPath, refreshToken, statusVersion]);
 
   const filteredFiles = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -463,6 +505,11 @@ export function GitChangesPanel({ cwd, refreshKey, onOpenFile, onAtMention, onRe
               <DiffView patch={patch} />
             )}
           </div>
+          <GitCommitForm
+            cwd={cwd}
+            className="chat-git-bar__commit--pinned"
+            onCommitted={() => setTreeRefreshKey((k) => k + 1)}
+          />
         </>
       )}
     </div>

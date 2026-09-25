@@ -19,7 +19,7 @@ const GIT_TIMEOUT_MS = 10_000;
 const GIT_STATUS_MAX_BUFFER = 8 * 1024 * 1024;
 
 async function git(cwd: string, args: string[], maxBuffer = GIT_STATUS_MAX_BUFFER): Promise<string> {
-  const { stdout } = await execFileAsync("git", ["-C", cwd, ...args], {
+  const { stdout } = await execFileAsync("git", ["-c", "safe.directory=*", "-C", cwd, ...args], {
     timeout: GIT_TIMEOUT_MS,
     maxBuffer,
     env: { ...process.env, LC_ALL: "C" },
@@ -109,10 +109,24 @@ async function readStatusEntries(repositoryRoot: string): Promise<GitPorcelainEn
   return parseGitPorcelainV1(output);
 }
 
+/** Parse `git diff --shortstat` output ("3 files changed, 42 insertions(+), 7 deletions(-)"). */
+function parseShortStat(output: string): { added: number; deleted: number } {
+  const s = output.trim();
+  const numBefore = (needle: string): number => {
+    const idx = s.lastIndexOf(needle);
+    if (idx < 0) return 0;
+    const tokens = s.slice(0, idx).trim().split(/\s+/);
+    const last = tokens[tokens.length - 1];
+    const n = Number(last);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return { added: numBefore(" insertions"), deleted: numBefore(" deletions") };
+}
+
 export async function getGitStatus(cwd: string): Promise<GitStatusResponse> {
   const repositoryRoot = await findRepositoryRoot(cwd);
   if (!repositoryRoot) {
-    return { isGitRepository: false, repositoryRoot: null, files: [], branch: null, upstream: null, ahead: 0, behind: 0 };
+    return { isGitRepository: false, repositoryRoot: null, files: [], branch: null, upstream: null, ahead: 0, behind: 0, diffAdded: 0, diffDeleted: 0 };
   }
 
   const entries = await readStatusEntries(repositoryRoot);
@@ -128,14 +142,17 @@ export async function getGitStatus(cwd: string): Promise<GitStatusResponse> {
     }];
   });
 
-  const [branch, upstream, counts] = await Promise.all([
+  const [branch, upstream, counts, shortstat] = await Promise.all([
     git(repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]).then((value) => value.trim()).catch(() => "HEAD"),
     git(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).then((value) => value.trim()).catch(() => null),
     git(repositoryRoot, ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]).then((value) => value.trim().split(/\s+/).map(Number)).catch(() => [0, 0]),
+    // Tracked changes vs HEAD (staged + unstaged); untracked files have no
+    // diff against HEAD and are excluded by design.
+    git(repositoryRoot, ["diff", "HEAD", "--shortstat"]).then(parseShortStat).catch(() => ({ added: 0, deleted: 0 })),
   ]);
   const behind = Number.isFinite(counts[0]) ? counts[0] : 0;
   const ahead = Number.isFinite(counts[1]) ? counts[1] : 0;
-  return { isGitRepository: true, repositoryRoot, files, branch, upstream, ahead, behind };
+  return { isGitRepository: true, repositoryRoot, files, branch, upstream, ahead, behind, diffAdded: shortstat.added, diffDeleted: shortstat.deleted };
 }
 
 function hasNullByte(content: Buffer): boolean {

@@ -68,7 +68,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
           aria-expanded={!collapsed}
           onClick={() => setCollapsed((value) => !value)}
           title={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}
-          className={`${headerRowClass} ${headerBorderClass} w-full cursor-pointer text-left`}
+          className={`${headerRowClass} ${headerBorderClass} w-full cursor-pointer text-left composer-panel-header`}
           style={{ background: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
         >
           <ListChecks size={15} strokeWidth={1.8} aria-hidden />

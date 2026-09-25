@@ -18,6 +18,11 @@ export interface GitStatusResponse {
   isGitRepository: boolean;
   repositoryRoot: string | null;
   files: GitFileStatus[];
+  /** Lines added across tracked changes vs HEAD (`git diff HEAD --shortstat`);
+   *  untracked files are not counted. */
+  diffAdded?: number;
+  /** Lines removed across tracked changes vs HEAD. */
+  diffDeleted?: number;
   branch?: string | null;
   upstream?: string | null;
   ahead?: number;

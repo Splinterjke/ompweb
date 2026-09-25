@@ -42,7 +42,7 @@ export function parseGitHubRemote(remoteUrl: string): GitHubRepoRef | null {
  */
 export async function resolveGitHubRepo(cwd: string): Promise<GitHubRepoRef | null> {
   try {
-    const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], {
+    const { stdout } = await execFileAsync("git", ["-c", "safe.directory=*", "remote", "get-url", "origin"], {
       cwd,
       timeout: 8000,
     });

@@ -25,6 +25,7 @@ import { UsageSidebarPanel } from "./UsageSidebarPanel";
 import { SeparatorHandle } from "./SeparatorHandle";
 import { SectionChevron } from "./SectionChevron";
 import { readStoredSectionHeight, useAdjacentSectionResize, SECTION_MIN_HEIGHT, SECTION_MIN_CONTENT } from "@/hooks/useSectionResize";
+import { useGitStats, type CwdGitStats } from "@/hooks/useGitStatus";
 
 declare global {
   interface Window {
@@ -89,6 +90,8 @@ interface Props {
   /** True while the Settings modal is open — drives the footer row's
    *  collapse chevron (right when closed, down when open). */
   settingsOpen?: boolean;
+  /** Show git change stats under session names (Interface & Behavior setting). */
+  showSessionGitStats?: boolean;
 }
 
 interface WorktreeEntry {
@@ -604,7 +607,7 @@ function OmpWebTitle() {
     </button>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, showSessionGitStats }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1332,6 +1335,22 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     for (const { project, sessions } of visibleProjectEntries) m.set(project.path, buildSessionTree(sessions));
     return m;
   }, [visibleProjectEntries]);
+  // Paths of the visible workspaces for the git-stats chip in the workspace
+  // header (moved here from under session names). The hook dedupes + caps,
+  // so a long project list stays bounded.
+  const gitStatsProjects = useMemo(() => {
+    if (!showSessionGitStats) return [] as string[];
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const { project } of visibleProjectEntries) {
+      if (project.path && !seen.has(project.path)) {
+        seen.add(project.path);
+        list.push(project.path);
+      }
+    }
+    return list;
+  }, [showSessionGitStats, visibleProjectEntries]);
+  const gitStatsByPath = useGitStats(gitStatsProjects, Boolean(showSessionGitStats));
 
   // Drop persisted expansion keys whose project no longer exists (removed or
   // vanished), so the storage stays bounded to real projects. Only runs after
@@ -2084,6 +2103,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 homeDir={homeDir}
                 onNewSession={handleNewSessionInProject}
                 onOpenGitGraph={onOpenGitGraph}
+                gitStats={gitStatsByPath}
               />
             );
           })}
@@ -2399,6 +2419,8 @@ interface ProjectRowProps {
   onNewSession?: (path: string) => void;
   /** Open the GitGraph for this workspace. */
   onOpenGitGraph?: (path: string) => void;
+  /** Per-project git stats for the workspace header chip. */
+  gitStats?: Record<string, CwdGitStats> | null;
 }
 
 /** One project in the sidebar: a card row matching the session items' visual
@@ -2435,9 +2457,17 @@ function ProjectRow({
   onToggleWorktrees,
   onNewSession,
   onOpenGitGraph,
+  gitStats,
 }: ProjectRowProps) {
   const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
+  // Workspace-level git change summary shown in the header (moved here from
+  // under session names).
+  const gitStatsLabel = useMemo(() => {
+    const s = gitStats?.[project.path];
+    if (!s || s.files === 0) return null;
+    return t("sessionSidebar.gitStats", { files: s.files, added: s.diffAdded, deleted: s.diffDeleted });
+  }, [gitStats, project.path, t]);
   const [focusWithin, setFocusWithin] = useState(false);
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -2649,6 +2679,14 @@ function ProjectRow({
             <span aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }}>·</span>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
           </button>
+        )}
+        {gitStatsLabel && (
+          <span
+            title={gitStatsLabel}
+            style={{ flexShrink: 0, maxWidth: 128, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", lineHeight: 1, color: "var(--text-dim)", fontVariantNumeric: "tabular-nums" }}
+          >
+            {gitStatsLabel}
+          </span>
         )}
         <div style={{ flex: 1 }} />
         {/* Open GitGraph for this workspace (matches the top-panel GitGraph button).
@@ -3147,7 +3185,6 @@ const SessionTreeItem = memo(function SessionTreeItem({
   const isSelected = sessionId === selectedSessionId;
   const isRunning = runningSessionIds.has(sessionId);
   const isUnread = unreadSessionIds.has(sessionId);
-
   // Stable callbacks: depend only on primitives / stable parent callbacks so
   // SessionItem's React.memo stays effective across re-renders.
   const handleClick = useCallback(() => {
@@ -3496,8 +3533,8 @@ const SessionItem = memo(function SessionItem({
       ) : (
         <>
           {depth > 0 && <GitBranch size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />}
-          <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
-            <span title={title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
+          <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", flex: 1, minWidth: 0 }}>
+            <span title={title} style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
               {title}
             </span>
           </button>
