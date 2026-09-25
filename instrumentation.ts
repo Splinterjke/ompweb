@@ -80,4 +80,67 @@ export async function register(): Promise<void> {
       console.warn(`[omp-web] omp utility warm-up failed (routes will retry on demand): ${detail} — ${hint}`);
     }
   })();
+
+  // Crash/stall journal: a long-running server that dies or wedges while the
+  // user is away leaves no trace in a terminal that no longer exists (CLI
+  // runs are killed with their terminal; pages then show endless loading
+  // until the process is restarted). Append fatal errors and event-loop
+  // stalls to a file so the next incident explains itself. Node's default
+  // crash semantics are preserved — this only adds the record before exiting.
+  // fs/path are node-only and this file is also bundled for the edge runtime,
+  // so they are imported dynamically like the other node-only deps.
+  const { appendFileSync, mkdirSync, renameSync, statSync } = await import("fs");
+  const { join } = await import("path");
+  const { getConfigRoot } = await import("@/lib/omp/paths");
+  const logDir = join(getConfigRoot(), "omp-web");
+  const logPath = join(logDir, "diagnostics.log");
+  const appendDiag = (kind: string, detail: string) => {
+    try {
+      mkdirSync(logDir, { recursive: true });
+      try {
+        if (statSync(logPath).size > 1_000_000) renameSync(logPath, `${logPath}.old`);
+      } catch {
+        // First write or unreadable — append anyway.
+      }
+      appendFileSync(logPath, `${new Date().toISOString()} [${kind}] ${detail}\n`, { encoding: "utf8" });
+    } catch {
+      // Diagnostics must never crash the server.
+    }
+  };
+  const describe = (value: unknown) =>
+    value instanceof Error ? `${value.name}: ${value.message}\n${value.stack ?? ""}` : String(value);
+  process.on("uncaughtException", (error) => {
+    appendDiag("crash", `uncaughtException ${describe(error)}`);
+    // An uncaughtException listener suppresses Node's default exit; keep the
+    // crash-visible semantics by exiting explicitly.
+    process.exit(2);
+  });
+  process.on("unhandledRejection", (reason) => {
+    appendDiag("crash", `unhandledRejection ${describe(reason)}`);
+    // Same as above: preserve Node's crash-on-unhandled-rejection default.
+    process.exit(2);
+  });
+  let lastTick = Date.now();
+  let lastCpu = process.cpuUsage();
+  const watchdog = setInterval(() => {
+    const now = Date.now();
+    const cpu = process.cpuUsage();
+    const drift = now - lastTick;
+    const cpuMs = (cpu.user - lastCpu.user + cpu.system - lastCpu.system) / 1000;
+    lastTick = now;
+    lastCpu = cpu;
+    if (drift > 45_000) {
+      // Wall-clock drift alone cannot tell a blocked loop from a sleeping
+      // machine: an hour with the lid closed looks like an hour-long stall
+      // but burns no CPU. Label accordingly so the journal does not mislead
+      // the next long-idle investigation.
+      const seconds = Math.round(drift / 1000);
+      if (cpuMs < Math.min(5_000, drift / 2)) {
+        appendDiag("sleep", `event loop gap of ~${seconds}s with negligible CPU time — machine was asleep/suspended or CPU-starved, not a synchronous block`);
+      } else {
+        appendDiag("stall", `event loop unresponsive for ~${seconds}s — a synchronous operation is blocking every request`);
+      }
+    }
+  }, 15_000);
+  watchdog.unref?.();
 }
