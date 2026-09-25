@@ -113,6 +113,33 @@ async function readStatusEntries(repositoryRoot: string): Promise<GitPorcelainEn
   return parseGitPorcelainV1(output);
 }
 
+// Find the single status entry for `relativePath`. Scoped to that file
+// (git honours the pathspec): a full-tree `--untracked-files=all` scan takes
+// seconds on large repos and made every single-file diff request feel like
+// it never loaded. The scoped form returns the identical per-file entry in
+// ~250 ms. `:(literal)` keeps glob metacharacters in file names from being
+// read as pathspec patterns. A staged new file can only be recognised as a
+// rename target over the full tree (rename detection pairs its deletion
+// with the new file), so fall back to the full scan in that rare case to
+// preserve the original-path pairing the diff preview depends on.
+async function findStatusEntry(
+  repositoryRoot: string,
+  relativePath: string,
+): Promise<GitPorcelainEntry | null> {
+  const scoped = await git(repositoryRoot, [
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=all",
+    "--",
+    `:(literal)${relativePath}`,
+  ]);
+  const entry = parseGitPorcelainV1(scoped).find((candidate) => candidate.path === relativePath);
+  if (entry && entry.indexStatus !== "A") return entry;
+  const entries = await readStatusEntries(repositoryRoot);
+  return entries.find((candidate) => candidate.path === relativePath) ?? null;
+}
+
 /** Parse `git diff --shortstat` output ("3 files changed, 42 insertions(+), 7 deletions(-)"). */
 function parseShortStat(output: string): { added: number; deleted: number } {
   const s = output.trim();
@@ -236,8 +263,7 @@ export async function getGitFileDiff(cwd: string, filePath: string): Promise<Git
     return { supported: false };
   }
   const relativePath = toGitPath(path.relative(realRepositoryRoot, realFilePath));
-  const entries = await readStatusEntries(realRepositoryRoot);
-  const entry = entries.find((candidate) => candidate.path === relativePath);
+  const entry = await findStatusEntry(realRepositoryRoot, relativePath);
   if (!entry) return { supported: false };
 
   const { status } = classifyGitStatus(entry);

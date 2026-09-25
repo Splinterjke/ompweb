@@ -540,17 +540,33 @@ fn create_tracked_file_patch(
     run_git(repository_root, &args).ok()
 }
 
-/// Parse `git status --porcelain=v1 -z` into entries keyed by relative path,
-/// then find the single entry whose path equals `relative_path`.
+/// Find the single status entry for `relative_path`. Scoped to that file
+/// (`git status` honours the pathspec): a full-tree `--untracked-files=all`
+/// scan takes seconds on large repos (11 s measured on a 3 GB working tree)
+/// and was what made every single-file diff request feel like it never
+/// loaded. The scoped form returns the identical per-file entry in ~250 ms.
+/// `:(literal)` keeps glob metacharacters in file names from being read as
+/// pathspec patterns. A staged new file can only be recognised as a rename
+/// target over the full tree (rename detection pairs its deletion with the
+/// new file), so fall back to the full scan in that rare case to preserve
+/// the original-path pairing the diff preview depends on.
 fn find_status_entry(repository_root: &str, relative_path: &str) -> Option<PrEntry> {
-    let output = run_git(
+    let literal = format!(":(literal){relative_path}");
+    let scoped = run_git(
+        repository_root,
+        &["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", &literal],
+    )
+    .ok()?;
+    let entry = parse_porcelain_v1(&scoped).into_iter().find(|e| e.path == relative_path)?;
+    if entry.index_status != "A" {
+        return Some(entry);
+    }
+    let full = run_git(
         repository_root,
         &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
     )
     .ok()?;
-    parse_porcelain_v1(&output)
-        .into_iter()
-        .find(|e| e.path == relative_path)
+    parse_porcelain_v1(&full).into_iter().find(|e| e.path == relative_path)
 }
 
 /// Diff preview for one file: `{supported, status?, patch?}`. Mirrors
