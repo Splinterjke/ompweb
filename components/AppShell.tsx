@@ -14,6 +14,7 @@ import { toast } from "./ui/toast";
 import { ChatWindow } from "./ChatWindow";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
+import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
@@ -106,11 +107,7 @@ const CommandPalette = dynamic(() => import("./CommandPalette").then((m) => m.Co
 
 function PanelLoadingFallback() {
   const { t } = useI18n();
-  return (
-    <div role="status" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-      {t("appShell.loading")}
-    </div>
-  );
+  return <WorkspaceState kind="loading" title={t("appShell.loading")} />;
 }
 
 function UpdateToast({ currentVersion, availableVersion, command, onOpenSettings }: {
@@ -2068,34 +2065,27 @@ export function AppShell() {
               onSelectSubagent={handleSubagentSelect}
             />
           ) : initialCwdStatus === "validating" ? (
-            <div
-              role="status"
-              style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, color: "var(--text-muted)", textAlign: "center" }}
-            >
-              <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>{t("appShell.openingWorkspace")}</div>
-              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-                {initialNavigation.requestedCwd}
-              </div>
-            </div>
+            <WorkspaceState
+              kind="loading"
+              title={t("appShell.openingWorkspace")}
+              detail={<span className="workspace-state-path">{initialNavigation.requestedCwd}</span>}
+            />
           ) : initialCwdStatus === "error" ? (
-            <div
-              role="alert"
-              style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, color: "var(--text-muted)", textAlign: "center" }}
-            >
-              <div style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)" }}>{t("appShell.unableToOpenWorkspace")}</div>
-              <div style={{ maxWidth: "min(720px, 100%)", overflowWrap: "anywhere", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-                {initialNavigation.requestedCwd}
-              </div>
-              <div style={{ maxWidth: 720, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{initialCwdError}</div>
-            </div>
+            <WorkspaceState
+              kind="error"
+              title={t("appShell.unableToOpenWorkspace")}
+              detail={(
+                <>
+                  <span className="workspace-state-path">{initialNavigation.requestedCwd}</span>
+                  <span>{initialCwdError}</span>
+                </>
+              )}
+            />
           ) : !showPlaceholder ? (
             <PanelLoadingFallback />
+          ) : activeCwd ? (
+            <WorkspaceState kind="empty" title={t("appShell.selectSessionHint")} />
           ) : (
-            activeCwd ? (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(16px * var(--ui-font-scale-lg, 1))" }}>
-                <span className="display-serif">{t("appShell.selectSessionHint")}</span>
-              </div>
-            ) : (
               <div style={{ position: "absolute", top: 12, left: 12, display: "flex", alignItems: "flex-start", gap: 8, userSelect: "none", pointerEvents: "none" }}>
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
                   <line x1="20" y1="12" x2="4" y2="12" /><polyline points="10 6 4 12 10 18" />
@@ -2120,7 +2110,6 @@ export function AppShell() {
                   </div>
                 </div>
               </div>
-            )
           )}
         </div>
         {/* Bottom terminal bar. It remains independent from the right

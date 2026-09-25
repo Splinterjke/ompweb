@@ -144,9 +144,13 @@ export async function GET(request: Request) {
     // list and load them into the editor (env/headers stripped by redactMcpServer).
     const userServers = user.servers.map(({ name, config }) => ({ name, config: redactMcpServer(config) }));
     const sessionId = params.get("sessionId");
+    // `live=0` skips the live status fetch (which can spawn/wait on an OMP
+    // child); the UI then fetches live status separately so the static
+    // inventory paints first.
+    const includeLive = params.get("live") !== "0";
     let liveServers: McpLiveServer[] | undefined;
     let liveError: string | undefined;
-    if (sessionId) {
+    if (includeLive && sessionId) {
       try {
         let session = getRpcSession(sessionId);
         if (!session?.isAlive()) {

@@ -124,22 +124,32 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
 
   const load = useCallback(async () => {
     setLoading(true);
+    setMessage(null);
+    setLiveError(null);
     try {
       const params = new URLSearchParams();
       if (activeCwd) params.set("cwd", activeCwd);
       if (sessionId) params.set("sessionId", sessionId);
-      const response = await fetch(`/api/mcp?${params}`);
-      const data = (await response.json()) as {
-        workspaces?: McpWorkspace[];
-        user?: McpUserConfig;
-        userServers?: McpServer[];
-        builtinPresets?: BuiltinMcpPreset[];
-        inventory?: McpLiveServer[];
-        liveServers?: McpLiveServer[];
-        liveError?: string;
-        error?: string;
+
+      const read = async (includeLive: boolean) => {
+        const requestParams = new URLSearchParams(params);
+        requestParams.set("live", includeLive ? "1" : "0");
+        const response = await fetch(`/api/mcp?${requestParams}`);
+        const data = (await response.json()) as {
+          workspaces?: McpWorkspace[];
+          user?: McpUserConfig;
+          userServers?: McpServer[];
+          builtinPresets?: BuiltinMcpPreset[];
+          inventory?: McpLiveServer[];
+          liveServers?: McpLiveServer[];
+          liveError?: string;
+          error?: string;
+        };
+        if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+        return data;
       };
-      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
+
+      const data = await read(false);
       const all = data.workspaces ?? [];
       setWorkspaces(all);
       // Active scope: the requested workspace if present in the allow-listed set,
@@ -158,6 +168,18 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
       setInventory(Array.isArray(data.inventory) ? data.inventory : null);
       setLiveError(data.liveError ?? null);
       setSelected((current) => (current && activeServers.some((server) => server.name === current) ? current : null));
+
+      // Live status can start or reuse an OMP child and wait for /mcp list.
+      // Keep it off the initial paint path; the static inventory is already
+      // useful and the live result can replace it when the command responds.
+      if (sessionId) {
+        void read(true).then((liveData) => {
+          setLiveServers(Array.isArray(liveData.liveServers) ? liveData.liveServers : null);
+          setLiveError(liveData.liveError ?? null);
+        }).catch((error) => {
+          setLiveError(error instanceof Error ? error.message : String(error));
+        });
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       setMessage(detail);

@@ -780,6 +780,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
   const currentTab = getNormalizedActive(activeTab);
 
+  const nativeSettingsRequired = currentTab === "general" || currentTab === "safety" || currentTab === "models" || currentTab === "intelligence" || currentTab === "mcp" || currentTab === "native";
+
   useEffect(() => {
     if (currentTab !== "system" || hasCheckedUpdates || ompUpdateDisabled) return;
     setHasCheckedUpdates(true);
@@ -948,7 +950,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
               )}
 
               <div style={contentStyle}>
-            {nativeSettingsError && (
+            {nativeSettingsRequired && nativeSettingsError && (
               <div role="alert" style={{ margin: 16, padding: "10px 14px", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", border: "1px solid var(--status-error)", color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "flex", alignItems: "center", gap: 8 }}>
                 <AlertCircle size={14} aria-hidden="true" /> {nativeSettingsError}
               </div>

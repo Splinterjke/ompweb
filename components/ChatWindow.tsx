@@ -13,6 +13,7 @@ import { ExtensionDialog } from "./ExtensionDialog";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
 import { GitChangesBar } from "./GitChangesBar";
+import { WorkspaceState } from "./WorkspaceState";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import { EmptyChatHero } from "./EmptyChatHero";
 import { useAgentSession, type AgentPhase, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
@@ -1196,25 +1197,25 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   const belowEditorWidgets = extensionWidgets.filter((widget) => widget.placement === "belowEditor");
 
   if (loading) {
-    return (
-      <div role="status" className="flex h-full items-center justify-center" style={{ color: "var(--text-muted)" }}>
-        {t("chatWindow.loadingSession")}
-      </div>
-    );
+    return <WorkspaceState kind="loading" title={t("chatWindow.loadingSession")} />;
   }
 
   if (error) {
     return (
-      <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center" style={{ color: "var(--accent-strong)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-        <div>{error}</div>
-        <button
-          type="button"
-          onClick={retrySession}
-          style={{ minHeight: 36, padding: "6px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontWeight: 600, transition: "background var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}
-        >
-          {t("chatWindow.retry")}
-        </button>
-      </div>
+      <WorkspaceState
+        kind="error"
+        title={error}
+        detail={(
+          <button
+            className="load-retry-button"
+            type="button"
+            onClick={retrySession}
+            style={{ justifySelf: "start", minHeight: 36, padding: "6px 14px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontWeight: 600 }}
+          >
+            {t("chatWindow.retry")}
+          </button>
+        )}
+      />
     );
   }
 
@@ -1232,7 +1233,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
             {[0, 0.8, 1.6].map((delay) => (
               <div
                 key={delay}
-                className="drop-ripple-ring absolute h-[720px] w-[720px] rounded-full border-[1.5px] border-solid"
+                className="drop-ripple-ring absolute h-180 w-180 rounded-full border-[1.5px] border-solid"
                 style={{ transformOrigin: "center", animationDelay: `${delay}s` }}
               />
             ))}

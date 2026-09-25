@@ -869,7 +869,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     });
   }, [draftKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (value === lastMeasuredValueRef.current) return;
     lastMeasuredValueRef.current = value;
     const ta = textareaRef.current;
@@ -1531,14 +1531,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     },
     [isStreaming, onSteer, onFollowUp, onAbort, slashMenuOpen, slashQuery, filteredSlashCommands, slashActiveIndex, applySlashCommand, sendQueued, handleSend, getNextSlashIndex, atMenuOpen, atQuery, atMatches, atActiveIndex, applyAtCompletion, historyMenuOpen, inputHistory, historyActiveIndex, applyHistoryInput, value, startFreshDictation]
   );
-
-  const handleInput = useCallback(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    lastMeasuredValueRef.current = ta.value;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-  }, []);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = Array.from(e.clipboardData?.items ?? []);
@@ -2438,7 +2430,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               borderRadius: "var(--radius-card)",
               padding: "12px 12px 10px 14px",
               boxShadow: isStreaming ? "0 0 14px -2px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow-card)" : "var(--shadow-card)",
-              transition: "border-color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm), box-shadow var(--dur-med) var(--ease-out-warm)",
               position: "relative",
             } as React.CSSProperties}
           >
@@ -2517,7 +2508,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               const el = e.currentTarget;
               updateAtQuery(el.value, el.selectionStart);
             }}
-            onInput={handleInput}
             onPaste={handlePaste}
             placeholder={t("chatInput.placeholder")}
             rows={1}
