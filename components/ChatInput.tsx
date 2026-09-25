@@ -447,6 +447,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   narrowColumn = false,
 }: Props, ref) {
   const isMobile = useIsMobile();
+  const composerId = React.useId();
+  const historyListboxId = `${composerId}-history`;
+  const slashListboxId = `${composerId}-slash`;
+  const atListboxId = `${composerId}-at`;
   const sessionInfoWrapRef = useRef<HTMLDivElement | null>(null);
   const [mobileEnterToSend, setMobileEnterToSend] = useState(false);
   useEffect(() => {
@@ -1058,6 +1062,23 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     && atServerResult.cwd === cwd
     && atServerResult.query === atQueryText;
   const atMatches: FileIndexEntry[] = serverResultInUse ? atServerResult.matches : atLocalMatches;
+  const historyMenuVisible = historyMenuOpen && inputHistory.length > 0;
+  const slashMenuVisible = slashMenuOpen && slashQuery !== null;
+  const atMenuVisible = atMenuOpen && atQuery !== null;
+  const composerMenuId = historyMenuVisible
+    ? historyListboxId
+    : slashMenuVisible
+      ? slashListboxId
+      : atMenuVisible
+        ? atListboxId
+        : undefined;
+  const composerActiveDescendant = historyMenuVisible
+    ? `${historyListboxId}-${historyActiveIndex}`
+    : slashMenuVisible && filteredSlashCommands.length > 0
+      ? `${slashListboxId}-${slashActiveIndex}`
+      : atMenuVisible && atMatches.length > 0
+        ? `${atListboxId}-${atActiveIndex}`
+        : undefined;
 
   // Open/reset the menu whenever the @token appears or changes (mirrors the
   // slash menu: Escape closes it, the next keystroke re-opens it).
@@ -1858,7 +1879,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
         {/* Main input */}
         <div style={{ position: "relative" }}>
-          {historyMenuOpen && inputHistory.length > 0 && (
+          {historyMenuVisible && (
             <div
               ref={historyMenuRef}
               className="dropdown-surface"
@@ -1899,6 +1920,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 </svg>
               </div>
               <div
+                id={historyListboxId}
+                role="listbox"
+                aria-label={t("chatInput.inputHistory")}
                 style={{
                   maxHeight: "calc(min(44vh, 360px) - 31px)",
                   overflowY: "auto",
@@ -1914,6 +1938,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         historyItemRefs.current[index] = node;
                       }}
                       type="button"
+                      id={`${historyListboxId}-${index}`}
+                      role="option"
+                      aria-selected={active}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         applyHistoryInput(item);
@@ -1947,7 +1974,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             </div>
           )}
-          {slashMenuOpen && slashQuery !== null && (
+          {slashMenuVisible && (
             <div
               className="dropdown-surface"
               style={{
@@ -1975,6 +2002,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <span style={{ fontFamily: "var(--font-mono)" }}>{t("chatInput.tabEnterHint")}</span>
               </div>
               <div
+                id={slashListboxId}
+                role="listbox"
+                aria-label={t("chatInput.slashCommandsHeader", { countLabel: slashCommandCountLabel })}
                 style={{
                   maxHeight: "calc(min(56vh, 460px) - 34px)",
                   overflowY: "auto",
@@ -1987,7 +2017,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   </div>
                 ) : (
                   groupedSlashCommands.map((group) => (
-                    <section key={group.source} style={{ marginBottom: 12 }}>
+                    <section key={group.source} role="group" aria-label={t(SLASH_SOURCE_GROUP_LABEL_KEYS[group.source])} style={{ marginBottom: 12 }}>
                       <div
                         style={{
                           position: "sticky",
@@ -2025,6 +2055,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                                 slashItemRefs.current[index] = node;
                               }}
                               type="button"
+                              id={`${slashListboxId}-${index}`}
+                              role="option"
+                              aria-selected={active}
                               onMouseDown={(e) => {
                                 e.preventDefault();
                                 applySlashCommand(command);
@@ -2084,7 +2117,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             </div>
           )}
-          {atMenuOpen && atQuery !== null && (() => {
+          {atMenuVisible && (() => {
             const indexLoading = fileIndexLoading && (!fileIndex || fileIndex.cwd !== cwd);
             const matchCountLabel = tn("chatInput.matchCount", atMatches.length);
             // With a truncated index, local results are provisional — the
@@ -2124,6 +2157,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <span style={{ fontFamily: "var(--font-mono)" }}>{t("chatInput.tabEnterHint")}</span>
                 </div>
                 <div
+                  id={atListboxId}
+                  role="listbox"
+                  aria-label={t("chatInput.filesHeader", { countLabel: matchCountLabel })}
                   style={{
                     maxHeight: "calc(min(48vh, 400px) - 34px)",
                     overflowY: "auto",
@@ -2146,6 +2182,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             atItemRefs.current[index] = node;
                           }}
                           type="button"
+                          id={`${atListboxId}-${index}`}
+                          role="option"
+                          aria-selected={active}
                           onMouseDown={(e) => {
                             e.preventDefault();
                             applyAtCompletion(entry);
@@ -2451,6 +2490,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           <textarea
             ref={textareaRef}
             aria-label={t("chatInput.composerLabel")}
+            aria-expanded={Boolean(composerMenuId)}
+            aria-controls={composerMenuId}
+            aria-activedescendant={composerActiveDescendant}
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
