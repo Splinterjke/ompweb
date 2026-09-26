@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendAgentCommand } from "@/lib/agent-client";
@@ -148,7 +149,8 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {group.resources.map((resource) => (
               <div key={`${resource.kind}:${resource.path}`} style={{ minWidth: 0 }}>
-                <div
+                <Tooltip content={resource.path}>
+                  <div
                   style={{
                     fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                     color: "var(--text)",
@@ -157,11 +159,12 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
-                  title={resource.path}
                 >
                   {resource.name}
                 </div>
-                <div
+                </Tooltip>
+                <Tooltip content={resource.path}>
+                  <div
                   style={{
                     fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                     color: "var(--text-dim)",
@@ -171,10 +174,10 @@ function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                     whiteSpace: "nowrap",
                     marginTop: 1,
                   }}
-                  title={resource.path}
                 >
                   {resource.relativePath}
                 </div>
+                </Tooltip>
               </div>
             ))}
           </div>
@@ -227,11 +230,11 @@ function Toggle({
   label: string;
 }) {
   return (
-    <button
+    <Tooltip content={label}>
+      <button
       type="button"
       onClick={onToggle}
       disabled={loading}
-      title={label}
       aria-label={label}
       aria-pressed={enabled}
       style={{
@@ -263,6 +266,7 @@ function Toggle({
         }}
       />
     </button>
+    </Tooltip>
   );
 }
 
@@ -523,14 +527,15 @@ function PackageDetail({
           >
             {busyKey === `update:${key}` ? t("pluginsConfig.updating") : t("pluginsConfig.update")}
           </button>
-          <button
+          <Tooltip content={sessionId ? t("pluginsConfig.reloadCurrentSession") : t("pluginsConfig.openSessionToReload")}>
+            <button
             onClick={onReloadSession}
             disabled={!sessionId || reloadBusy || busy}
             style={buttonStyle(!sessionId || reloadBusy || busy)}
-            title={sessionId ? t("pluginsConfig.reloadCurrentSession") : t("pluginsConfig.openSessionToReload")}
           >
             {reloadBusy ? t("pluginsConfig.reloading") : t("pluginsConfig.reloadSession")}
           </button>
+          </Tooltip>
           <button
             onClick={() => setConfirmRemove(true)}
             disabled={busy || reloadBusy}
@@ -1028,12 +1033,13 @@ export function PluginsConfig({
         >
           <div style={{ minWidth: 0, flex: 1, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden" }}>
             {data?.diagnostics.length ? (
-              <span
-                title={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}
+              <Tooltip content={data.diagnostics.map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`).join("\n")}>
+                <span
                 style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--status-error)" : "var(--status-warning)" }}
               >
                 {tn("pluginsConfig.diagnosticCount", data.diagnostics.length)}
               </span>
+              </Tooltip>
             ) : (
               <span>
                 {data

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -165,51 +166,50 @@ export function SettingsTabs({
           const disabled = Boolean(needsWorkspace && !workspaceReady);
           const enabledIndex = SETTINGS_CATEGORIES.slice(0, index).filter((tab) => !(tab.needsWorkspace && !workspaceReady)).length;
           return (
-            <button
-              key={id}
-              ref={selected ? selectedButtonRef : undefined}
-              type="button"
-              role="tab"
-              id={`settings-tab-${id}`}
-              aria-selected={selected}
-              aria-controls={`settings-panel-${id}`}
-              aria-label={collapsed ? `${displayLabel}: ${displayDescription}` : undefined}
-              title={collapsed ? `${displayLabel} — ${displayDescription}` : undefined}
-              tabIndex={selected ? 0 : -1}
-              disabled={disabled}
-              onClick={() => onSelect(id)}
-              onKeyDown={(event) => onKeyDown(event, enabledIndex)}
-              style={{
-                display: "flex",
-                alignItems: collapsed ? "center" : "flex-start",
-                justifyContent: collapsed ? "center" : undefined,
-                gap: 10,
-                padding: collapsed ? "9px 0" : "9px 10px",
-                border: "none",
-                borderRadius: "var(--radius-control)",
-                background: "transparent",
-                color: selected ? "var(--text)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
-                cursor: disabled ? "not-allowed" : "pointer",
-                opacity: disabled ? 0.5 : 1,
-                textAlign: "left",
-                transition: "background var(--dur-fast), color var(--dur-fast)",
-                width: "100%",
-                position: "relative",
-                zIndex: 1,
-              }}
-            >
-              <Icon size={16} aria-hidden="true" style={{ marginTop: collapsed ? 0 : 2, flexShrink: 0, color: selected ? "var(--accent)" : "currentColor" }} />
-              {!collapsed && (
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: selected ? 600 : 500, lineHeight: 1.3, color: selected ? "var(--text)" : "inherit" }}>
-                    {displayLabel}
+                        <Tooltip key={id} content={collapsed ? `${displayLabel} — ${displayDescription}` : undefined}>
+              <button
+                ref={selected ? selectedButtonRef : undefined}
+                type="button"
+                role="tab"
+                id={`settings-tab-${id}`}
+                aria-selected={selected}
+                aria-controls={`settings-panel-${id}`}
+                aria-label={collapsed ? `${displayLabel}: ${displayDescription}` : undefined}
+                disabled={disabled}
+                onClick={() => onSelect(id)}
+                onKeyDown={(event) => onKeyDown(event, enabledIndex)}
+                style={{
+                  display: "flex",
+                  alignItems: collapsed ? "center" : "flex-start",
+                  justifyContent: collapsed ? "center" : undefined,
+                  gap: 10,
+                  padding: collapsed ? "9px 0" : "9px 10px",
+                  border: "none",
+                  borderRadius: "var(--radius-control)",
+                  background: "transparent",
+                  color: selected ? "var(--text)" : disabled ? "var(--text-dim)" : "var(--text-muted)",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  opacity: disabled ? 0.5 : 1,
+                  textAlign: "left",
+                  transition: "background var(--dur-fast), color var(--dur-fast)",
+                  width: "100%",
+                  position: "relative",
+                  zIndex: 1,
+                }}
+              >
+                <Icon size={16} aria-hidden="true" style={{ marginTop: collapsed ? 0 : 2, flexShrink: 0, color: selected ? "var(--accent)" : "currentColor" }} />
+                {!collapsed && (
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <div style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: selected ? 600 : 500, lineHeight: 1.3, color: selected ? "var(--text)" : "inherit" }}>
+                      {displayLabel}
+                    </div>
+                    <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {displayDescription}
+                    </div>
                   </div>
-                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {displayDescription}
-                  </div>
-                </div>
-              )}
-            </button>
+                )}
+              </button>
+            </Tooltip>
           );
         })}
       </nav>
@@ -229,27 +229,27 @@ export function SettingsTabs({
         const disabled = Boolean(needsWorkspace && !workspaceReady);
         const enabledIndex = SETTINGS_CATEGORIES.slice(0, index).filter((tab) => !(tab.needsWorkspace && !workspaceReady)).length;
         return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`settings-tab-${id}`}
-            aria-selected={selected}
-            aria-controls={`settings-panel-${id}`}
-            aria-label={`${displayLabel}: ${displayDescription}`}
-            title={displayDescription}
-            tabIndex={selected ? 0 : -1}
-            disabled={disabled}
-            onClick={() => onSelect(id)}
-            onKeyDown={(event) => onKeyDown(event, enabledIndex)}
-            style={{ display: "inline-flex", alignItems: "flex-start", gap: 5, padding: "6px 9px", border: "none", borderRadius: "var(--radius-control)", background: selected ? "var(--bg-selected)" : "transparent", color: selected ? "var(--text)" : "var(--text-muted)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", whiteSpace: "nowrap", textAlign: "left", minWidth: 150 }}
-          >
-            <Icon size={13} aria-hidden="true" />
-            <span style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-              <span style={{ fontWeight: selected ? 600 : 500 }}>{displayLabel}</span>
-              <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 400, lineHeight: 1.25 }}>{displayDescription}</span>
-            </span>
-          </button>
+                    <Tooltip key={id} content={displayDescription}>
+            <button
+              type="button"
+              role="tab"
+              id={`settings-tab-${id}`}
+              aria-selected={selected}
+              aria-controls={`settings-panel-${id}`}
+              aria-label={`${displayLabel}: ${displayDescription}`}
+              tabIndex={selected ? 0 : -1}
+              disabled={disabled}
+              onClick={() => onSelect(id)}
+              onKeyDown={(event) => onKeyDown(event, enabledIndex)}
+              style={{ display: "inline-flex", alignItems: "flex-start", gap: 5, padding: "6px 9px", border: "none", borderRadius: "var(--radius-control)", background: selected ? "var(--bg-selected)" : "transparent", color: selected ? "var(--text)" : "var(--text-muted)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", whiteSpace: "nowrap", textAlign: "left", minWidth: 150 }}
+            >
+              <Icon size={13} aria-hidden="true" />
+              <span style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: selected ? 600 : 500 }}>{displayLabel}</span>
+                <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", color: "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 400, lineHeight: 1.25 }}>{displayDescription}</span>
+              </span>
+            </button>
+          </Tooltip>
         );
       })}
     </nav>

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
@@ -154,18 +155,20 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
             <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7, display: "flex", alignItems: "center" }}>
               {getFileIcon(tab.label, 13)}
             </span>
-            <span
+            <Tooltip content={tab.filePath}>
+              <span
               style={{
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 flex: 1,
                 fontWeight: isActive ? 500 : 400,
               }}
-              title={tab.filePath}
             >
               {tab.label}
             </span>
-            <button
+            </Tooltip>
+            <Tooltip content={t("tabBar.close")}>
+              <button
               onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
               tabIndex={isActive ? 0 : -1}
               onKeyDown={(event) => event.stopPropagation()}
@@ -184,11 +187,11 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
                 flexShrink: 0,
                 transition: `background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)`,
               }}
-              title={t("tabBar.close")}
               aria-label={t("tabBar.closeTab", { label: tab.label })}
             >
               <X size={11} strokeWidth={2} aria-hidden="true" />
             </button>
+            </Tooltip>
           </div>
         );
       })}

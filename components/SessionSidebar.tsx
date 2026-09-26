@@ -278,10 +278,10 @@ function SidebarIconButton({
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <button
+    <Tooltip content={title ?? label}>
+      <button
       type="button"
       aria-label={label}
-      title={title ?? label}
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
@@ -301,6 +301,7 @@ function SidebarIconButton({
     >
       {children}
     </button>
+    </Tooltip>
   );
 }
 
@@ -588,7 +589,8 @@ function OmpWebTitle() {
   }, []);
 
   return (
-    <button
+    <Tooltip content={showVersion ? "Show ompweb name" : "Show ompweb version"}>
+      <button
       onClick={handleClick}
       style={{
         background: "none", border: "none", padding: 0, cursor: "pointer",
@@ -597,7 +599,6 @@ function OmpWebTitle() {
         minWidth: "6ch",
         lineHeight: 1,
       }}
-      title={showVersion ? "Show ompweb name" : "Show ompweb version"}
     >
       {!scrambling && !showVersion ? (
         <>
@@ -608,6 +609,7 @@ function OmpWebTitle() {
         <span style={{ color: showVersion ? "var(--accent)" : "var(--text)" }}>{display}</span>
       )}
     </button>
+    </Tooltip>
   );
 }
 export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, gitStatsPlacement = "inline" }: Props) {
@@ -1889,11 +1891,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
             void handleImportSession(file);
           }}
         />
-        <button
+        <Tooltip content={selectedCwd ? t("sessionSidebar.newSessionIn", { cwd: selectedCwd }) : t("sessionSidebar.selectProjectFirst")}>
+          <button
           onClick={handleNewSession}
           disabled={!selectedCwd}
           className="sidebar-new-session"
-          title={selectedCwd ? t("sessionSidebar.newSessionIn", { cwd: selectedCwd }) : t("sessionSidebar.selectProjectFirst")}
           style={{
             width: "100%",
             height: 38,
@@ -1926,6 +1928,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           <Plus size={15} strokeWidth={2.2} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" />
           <span>{t("sessionSidebar.new")}</span>
         </button>
+        </Tooltip>
       </div>
 
       {/* Workspaces section header: label + search / filter / add */}
@@ -2187,7 +2190,6 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 <button
                   onClick={() => fileExplorerRef.current?.openUploadPicker()}
                   disabled={explorerUploadBusy}
-                  title={t("sessionSidebar.uploadFilesTitle")}
                   aria-label={t("sessionSidebar.uploadFiles")}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -2201,7 +2203,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                     opacity: explorerUploadBusy ? 0.6 : 1,
                     transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
                   }}
-                  onMouseEnter={(e) => { if (explorerUploadBusy) return; e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
+                  onMouseEnter={(e) => { if (explorerUploadBusy) return; e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
                   onMouseLeave={(e) => { if (explorerUploadBusy) return; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.background = "none"; }}
                 >
                   <Upload size={13} strokeWidth={2} aria-hidden="true" />
@@ -2215,7 +2217,6 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                   if (onExplorerRefresh) onExplorerRefresh();
                   else setExplorerKey((k) => k + 1);
                 }}
-                title={t("sessionSidebar.refreshExplorer")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
                   width: 26, height: 26, padding: 0, marginRight: 6,
@@ -2227,7 +2228,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                   flexShrink: 0,
                   transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
                 }}
-                onMouseEnter={(e) => { if (explorerRefreshing) return; e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
+                onMouseEnter={(e) => { if (explorerRefreshing) return; e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
                 onMouseLeave={(e) => { if (explorerRefreshing) return; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.background = "none"; }}
               >
                 {explorerRefreshing ? (
@@ -2294,10 +2295,10 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       />
       <div style={{ borderTop: "1px solid var(--border)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center" }}>
-        <button
+        <Tooltip content={t("chatInput.settings")}>
+          <button
           className="sidebar-settings-row"
           onClick={onOpenSettings}
-          title={t("chatInput.settings")}
           aria-label={t("chatInput.settings")}
           style={{
             flex: 1,
@@ -2355,11 +2356,12 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
             }}
           />
         </button>
+        </Tooltip>
         {onOpenRemote && (
-          <button
+          <Tooltip content={t("settingsConfig.remoteAccess")}>
+            <button
             type="button"
             onClick={onOpenRemote}
-            title={t("settingsConfig.remoteAccess")}
             aria-label={t("settingsConfig.remoteAccess")}
             style={{
               width: 36,
@@ -2379,6 +2381,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           >
             <Smartphone size={14} strokeWidth={2} aria-hidden="true" />
           </button>
+          </Tooltip>
         )}
         </div>
       </div>
@@ -2629,18 +2632,17 @@ function ProjectRow({
             />
           </div>
         ) : (
-          <button
+          <Tooltip content={project.path}>
+            <button
             className="sidebar-project-identity"
             onClick={() => onActivate(project.path)}
             aria-current={isActive ? "true" : undefined}
-            title={project.path}
             style={{
               flex: "0 1 auto",
               minWidth: 0,
               alignSelf: "stretch",
               display: "flex",
               flexDirection: secondLineStats ? "column" : "row",
-              alignItems: "center",
               gap: secondLineStats ? 2 : 7,
               padding: secondLineStats ? "4px 4px 4px 10px" : "0 4px 0 10px",
               background: "none", border: "none",
@@ -2681,30 +2683,32 @@ function ProjectRow({
               </span>
             </span>
             {secondLineStats && gitStatsLabel && (
-              <span
-                title={gitStatsLabel}
-                style={{ ...statsChipStyle, paddingLeft: 22, maxWidth: "100%", flexShrink: 1 }}
+              <Tooltip content={gitStatsLabel}>
+                <span
+                style={{ ...statsChipStyle, maxWidth: "100%", flexShrink: 1 }}
               >
                 {gitStatsLabel}
               </span>
+              </Tooltip>
             )}
           </button>
+          </Tooltip>
         )}
         {worktreeBranch && worktreeToggleRef && (
-          <button
+          <Tooltip content={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}>
+            <button
+            className="sidebar-project-action"
             type="button"
             ref={worktreeToggleRef}
             onClick={onToggleWorktrees}
             aria-expanded={worktreeOpen}
             aria-haspopup="menu"
-            title={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 5,
-              flexShrink: 0,
+              flex: "0 1 auto",
               minWidth: 0,
-              maxWidth: 104,
               height: 24,
               padding: "0 6px",
               border: "none",
@@ -2721,14 +2725,16 @@ function ProjectRow({
             <span aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }}>·</span>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
           </button>
+          </Tooltip>
         )}
         {gitStatsPlacement === "inline" && gitStatsLabel && (
-          <span
-            title={gitStatsLabel}
+          <Tooltip content={gitStatsLabel}>
+            <span
             style={{ ...statsChipStyle, flexShrink: 0, maxWidth: 128 }}
           >
             {gitStatsLabel}
           </span>
+          </Tooltip>
         )}
         <div style={{ flex: 1 }} />
         {/* Open GitGraph for this workspace (matches the top-panel GitGraph button).
@@ -2740,7 +2746,6 @@ function ProjectRow({
             className="sidebar-project-action"
             onClick={() => onOpenGitGraph?.(project.path)}
             aria-label={t("appShell.githubStatus")}
-            title={t("appShell.githubStatus")}
             style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-dim)", cursor: "pointer", lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
           >
             <GitBranch size={13} strokeWidth={2} aria-hidden="true" />
@@ -2754,16 +2759,15 @@ function ProjectRow({
             className="sidebar-project-action"
             onClick={() => onNewSession?.(project.path)}
             aria-label={t("sessionSidebar.newSessionIn", { cwd: project.path })}
-            title={t("sessionSidebar.newSessionIn", { cwd: project.path })}
             style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-dim)", cursor: "pointer", lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
           >
             <Plus size={13} strokeWidth={2} aria-hidden="true" />
           </button>
         </Tooltip>
         {hasActivity && (
-          <span
+          <Tooltip content={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0 })}>
+            <span
             aria-label={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0 })}
-            title={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0 })}
             className="sidebar-project-activity"
             data-running={(activity?.running ?? 0) > 0 ? "true" : "false"}
             role="status"
@@ -2781,26 +2785,28 @@ function ProjectRow({
               }}
             />
           </span>
+          </Tooltip>
         )}
         <div
           style={{
             flexShrink: 0,
           }}
         >
-          <button
+          <Tooltip content={t("commandPalette.actions")}>
+            <button
             type="button"
             ref={actionButtonRef}
             className="sidebar-project-action"
             onClick={() => setActionMenuOpen((open) => !open)}
             disabled={removeBusy}
             aria-label={t("commandPalette.actions")}
-            title={t("commandPalette.actions")}
             aria-expanded={actionMenuOpen}
             aria-haspopup="menu"
             style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: "var(--text-dim)", cursor: removeBusy ? "default" : "pointer", opacity: removeBusy ? 0.5 : 1, lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
           >
             <MoreHorizontal size={13} strokeWidth={2} aria-hidden="true" />
           </button>
+          </Tooltip>
           <SidebarPortalMenu
             anchor={actionButtonRef}
             open={actionMenuOpen}
@@ -2839,12 +2845,12 @@ function ProjectRow({
             }}
           />
         </div>
-        <button
+        <Tooltip content={isExpanded ? t("projects.collapseProjectTitle", { path: project.path }) : t("projects.expandProjectTitle", { path: project.path })}>
+          <button
           className="sidebar-project-toggle"
           onClick={() => onToggleExpand(project.path)}
           aria-label={isExpanded ? t("projects.collapseProject", { name: label }) : t("projects.expandProject", { name: label })}
           aria-expanded={isExpanded}
-          title={isExpanded ? t("projects.collapseProjectTitle", { path: project.path }) : t("projects.expandProjectTitle", { path: project.path })}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center",
             width: 22, height: 26, padding: 0, flexShrink: 0,
@@ -2861,6 +2867,7 @@ function ProjectRow({
             aria-hidden="true"
           />
         </button>
+        </Tooltip>
       </div>
 
       {isActive && activeWorktreeSwitcher}
@@ -3016,10 +3023,10 @@ function ProjectWorktreeSwitcher({
                   className="wt-row"
                   style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--border)" }}
                 >
-                  <button
+                  <Tooltip content={wt.path}>
+                    <button
                     onClick={() => onSelectWorktree(wt.path)}
                     aria-pressed={isCurrent}
-                    title={wt.path}
                     style={{
                       flex: 1,
                       minWidth: 0,
@@ -3044,11 +3051,12 @@ function ProjectWorktreeSwitcher({
                     <PathLabel text={wt.branch ?? displayCwd(wt.path, homeDir)} style={{ flex: 1 }} />
                     {wt.isMain && <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.mainBadge")}</span>}
                   </button>
+                  </Tooltip>
                   {!wt.isMain && (
-                    <button
+                    <Tooltip content={t("sessionSidebar.removeWorktreeTitle", { path: wt.path })}>
+                      <button
                       onClick={() => setConfirmDeleteWorktree(wt.path)}
                       disabled={wtBusy}
-                      title={t("sessionSidebar.removeWorktreeTitle", { path: wt.path })}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: 34, height: 28, padding: 0, marginRight: 4,
@@ -3062,6 +3070,7 @@ function ProjectWorktreeSwitcher({
                     >
                       <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
                     </button>
+                    </Tooltip>
                   )}
                 </div>
               );
@@ -3069,14 +3078,14 @@ function ProjectWorktreeSwitcher({
           </div>
 
           {!wtNewOpen ? (
-            <button
+            <Tooltip content={t("sessionSidebar.newWorktreeTitle")}>
+              <button
               onClick={(e) => {
                 e.stopPropagation();
                 setWtNewOpen(true);
                 setWtError(null);
                 setTimeout(() => newInputRef.current?.focus(), 0);
               }}
-              title={t("sessionSidebar.newWorktreeTitle")}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -3094,6 +3103,7 @@ function ProjectWorktreeSwitcher({
               <Plus size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
               <span>{t("sessionSidebar.newWorktree")}</span>
             </button>
+            </Tooltip>
           ) : (
             <div style={{ padding: "6px 8px" }}>
               <input
@@ -3314,8 +3324,8 @@ function RunningSessionIndicator({ size = 14 }: { size?: number }) {
   const { t } = useI18n();
   const reducedMotion = usePrefersReducedMotion();
   return (
-    <span
-      title={t("sessionSidebar.agentRunning")}
+    <Tooltip content={t("sessionSidebar.agentRunning")}>
+      <span
       aria-label={t("sessionSidebar.agentRunningAria")}
       style={{
         width: size,
@@ -3334,6 +3344,7 @@ function RunningSessionIndicator({ size = 14 }: { size?: number }) {
         style={{ width: size - 2, height: size - 2 }}
       />
     </span>
+    </Tooltip>
   );
 }
 
@@ -3341,8 +3352,8 @@ function UnreadSessionIndicator({ size = 14 }: { size?: number }) {
   const { t } = useI18n();
   const reducedMotion = usePrefersReducedMotion();
   return (
-    <span
-      title={t("sessionSidebar.newActivity")}
+    <Tooltip content={t("sessionSidebar.newActivity")}>
+      <span
       aria-label={t("sessionSidebar.newSessionActivity")}
       style={{
         width: size,
@@ -3364,6 +3375,7 @@ function UnreadSessionIndicator({ size = 14 }: { size?: number }) {
         )}
       </svg>
     </span>
+    </Tooltip>
   );
 }
 
@@ -3576,26 +3588,38 @@ const SessionItem = memo(function SessionItem({
         <>
           {depth > 0 && <GitBranch size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />}
           <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", flex: 1, minWidth: 0 }}>
-            <span title={title} style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
+            <Tooltip content={title}>
+              <span style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
               {title}
             </span>
+            </Tooltip>
           </button>
-          {session.worktreeBranch && <span title={t("sessionSidebar.worktreeTitle", { path: session.cwd })} style={{ display: "flex", alignItems: "center", gap: 3, maxWidth: 56, minWidth: 0, overflow: "hidden", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 1 }}><GitBranch size={10} strokeWidth={2.4} aria-hidden="true" /><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span></span>}
-          {hasChildren && <button className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); onToggleCollapse?.(); }} title={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")} aria-label={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")} aria-expanded={!collapsed} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, flexShrink: 0, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }}><ChevronDown size={12} strokeWidth={1.8} aria-hidden="true" /></button>}
+          {session.worktreeBranch && <Tooltip content={t("sessionSidebar.worktreeTitle", { path: session.cwd })}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3, maxWidth: 56, minWidth: 0, overflow: "hidden", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 1 }}><GitBranch size={10} strokeWidth={2.4} aria-hidden="true" /><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span></span>
+          </Tooltip>}
+          {hasChildren && <Tooltip content={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")}>
+            <button className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); onToggleCollapse?.(); }} aria-label={collapsed ? t("sessionSidebar.expandForks") : t("sessionSidebar.collapseForks")} aria-expanded={!collapsed} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, flexShrink: 0, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", transform: collapsed ? "rotate(-90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }}><ChevronDown size={12} strokeWidth={1.8} aria-hidden="true" /></button>
+          </Tooltip>}
           <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
             <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-end", width: 64, height: 24, flexShrink: 0 }}>
               <div aria-hidden={showActions} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, width: "100%", whiteSpace: "nowrap", opacity: showActions ? 0 : 1, pointerEvents: showActions ? "none" : "auto", transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
                 {isRunning && <RunningSessionIndicator size={12} />}
                 {!isRunning && isUnread && <UnreadSessionIndicator size={11} />}
-                {relativeTime && <span title={new Date(session.modified).toLocaleString(locale)} style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>}
+                {relativeTime && <Tooltip content={new Date(session.modified).toLocaleString(locale)}>
+                  <span style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>
+                </Tooltip>}
               </div>
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "flex-end", opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none", transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
-                <button type="button" ref={menuButtonRef} className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); setActionMenuOpen((open) => !open); }} title={t("projects.actions")} aria-label={t("projects.actions")} aria-expanded={actionMenuOpen} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, lineHeight: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: actionMenuOpen ? "var(--text)" : "var(--text-dim)", cursor: "pointer" }}>
+                <Tooltip content={t("projects.actions")}>
+                  <button type="button" ref={menuButtonRef} className="session-item-icon-button" onClick={(event) => { event.stopPropagation(); setActionMenuOpen((open) => !open); }} aria-label={t("projects.actions")} aria-expanded={actionMenuOpen} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, lineHeight: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: actionMenuOpen ? "var(--text)" : "var(--text-dim)", cursor: "pointer" }}>
                   <MoreHorizontal size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
+                </Tooltip>
                 <SidebarPortalMenu anchor={menuButtonRef} open={actionMenuOpen} onClose={() => setActionMenuOpen(false)} placement="above" minWidth={128}>
                   {canOpenInNewWindow && <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { void handleOpenInNewWindow(event); }} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><PanelsTopLeft size={12} strokeWidth={1.9} aria-hidden="true" />{t("sessionSidebar.openInNewWindow")}</button>}
- <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={hasChildren} title={hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive")} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: hasChildren ? "var(--text-dim)" : "var(--text-muted)", cursor: hasChildren ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: hasChildren ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
+ <Tooltip content={hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive")}>
+   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={hasChildren} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: hasChildren ? "var(--text-dim)" : "var(--text-muted)", cursor: hasChildren ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: hasChildren ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
+ </Tooltip>
                   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { startRename(event); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.rename")}</button>
                   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); void handleCopyTranscript(); }} disabled={copyingTranscript} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: copyingTranscript ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: copyingTranscript ? 0.55 : 1 }}>{t("sessionSidebar.copyTranscript")}</button>
                   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmDelete(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.delete")}</button>

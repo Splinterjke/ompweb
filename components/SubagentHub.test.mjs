@@ -66,6 +66,12 @@ function resolveElementTree(node) {
 
   const { type, props } = node;
   if (type === React.Fragment) return resolveElementTree(props.children);
+  // Unwrap the themed Tooltip: the assertable content is the trigger child.
+  // Resolving Base UI's Root would execute its store machine, which the
+  // fake dispatcher cannot emulate.
+  if (typeof type === "function" && (type.name === "Tooltip" || type.displayName === "Tooltip")) {
+    return resolveElementTree(props.children);
+  }
   if (typeof type === "function") return resolveElementTree(type(props));
   if (props.children === undefined) return node;
 

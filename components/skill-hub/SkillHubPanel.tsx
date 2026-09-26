@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * The skill hub panel: catalog grouped by tags + source collections,
  * search and filter, per-group tri-state switches with conflict dialogs,
@@ -134,9 +135,13 @@ export function SkillHubPanel(props: SkillHubPanelProps) {
             </span>
           : null}
         {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
-        {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type="button" className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
+        {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <Tooltip content={tt('row.duplicateHint')}>
+          <button type="button" className={css.opBtn} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button>
+        </Tooltip> : null}
         <span className={css.actions}>
-          <button type="button" className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button>
+          <Tooltip content={updateTitle}>
+            <button type="button" className={css.button} disabled={updateState.status === 'checking'} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button>
+          </Tooltip>
           {updateState.status === 'ready' && updateState.data.updateAvailable && updateState.data.url !== null
             ? <a className={css.updateLink} href={updateState.data.url} target="_blank" rel="noreferrer">{tt('update.newVersion', { version: updateState.data.latestVersion ?? '' })}</a>
             : null}
@@ -150,19 +155,24 @@ export function SkillHubPanel(props: SkillHubPanelProps) {
           <button type="button" className={css.segBtn + (tab === 'market' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('market'); void loadMarket() }}>{tt('view.market')}</button>
         </span>
         <span className={css.workspaceBox}>
-          <input
+          <Tooltip content={tt('panel.workspaceHint')}>
+            <input
             className={css.search + ' ' + css.workspaceInput}
             value={workspaceDraft}
             placeholder={workspace !== '' ? workspace : tt('panel.workspacePlaceholder')}
-            title={tt('panel.workspaceHint')}
             onChange={(event) => { setWorkspaceDraft(event.target.value) }}
             onKeyDown={(event) => { if (event.key === 'Enter') setWorkspace((event.target as HTMLInputElement).value.trim()) }}
           />
+          </Tooltip>
           {workspace !== ''
-            ? <button type="button" className={css.opBtn} title={tt('panel.workspaceClear')} onClick={() => { setWorkspace(''); setWorkspaceDraft('') }}>✕</button>
+            ? <Tooltip content={tt('panel.workspaceClear')}>
+              <button type="button" className={css.opBtn} onClick={() => { setWorkspace(''); setWorkspaceDraft('') }}>✕</button>
+            </Tooltip>
             : null}
         </span>
-        <button type="button" className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
+        <Tooltip content={tt('legend.hint')}>
+          <button type="button" className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }}>?</button>
+        </Tooltip>
         <span className={css.actions}>
           <button type="button" className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
         </span>
@@ -264,7 +274,9 @@ export function SkillHubPanel(props: SkillHubPanelProps) {
           {catalog !== null && (filtered.length !== catalog.skills.length || hub.invocationFilter !== 'all' || sourceFilter !== 'all') ? (
             <div className={css.hintLine} style={{ margin: '2px 2px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <span>{tt('filter.showing', { shown: filtered.length, total: catalog.skills.length, filtered: hub.invocationFilter !== 'all' || sourceFilter !== 'all' ? tt('filter.filteredSuffix') : '' })}</span>
-              {shortenedCount > 0 ? <span title={tt('filter.shortened', { count: shortenedCount })}>{tt('filter.shortened', { count: shortenedCount })}</span> : null}
+              {shortenedCount > 0 ? <Tooltip content={tt('filter.shortened', { count: shortenedCount })}>
+                <span>{tt('filter.shortened', { count: shortenedCount })}</span>
+              </Tooltip> : null}
             </div>
           ) : null}
 

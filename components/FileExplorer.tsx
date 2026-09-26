@@ -188,10 +188,10 @@ function uploadFiles(
 
 function DismissButton({ onClick, title }: { onClick: () => void; title: string }) {
   return (
-    <button
+    <Tooltip content={title}>
+      <button
       type="button"
       onClick={onClick}
-      title={title}
       aria-label={title}
       style={{
         width: 24, height: 24, padding: 0,
@@ -208,6 +208,7 @@ function DismissButton({ onClick, title }: { onClick: () => void; title: string 
     >
       <X size={13} strokeWidth={2.2} aria-hidden="true" />
     </button>
+    </Tooltip>
   );
 }
 
@@ -409,7 +410,8 @@ function TreeNode({
             getFileIcon(node.name, 14)
           )}
         </span>
-        <span
+        <Tooltip content={node.fullPath}>
+          <span
           style={{
             fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             color: "var(--text)",
@@ -418,20 +420,21 @@ function TreeNode({
             whiteSpace: "nowrap",
             flex: 1,
           }}
-          title={node.fullPath}
         >
           {node.name}
         </span>
+        </Tooltip>
         {highlighted && (
-          <span
-            title={t("fileExplorer.newlyUploaded")}
+          <Tooltip content={t("fileExplorer.newlyUploaded")}>
+            <span
             aria-label={t("fileExplorer.newlyUploaded")}
             style={{ width: 6, height: 6, flexShrink: 0, borderRadius: "50%", background: "var(--accent)" }}
           />
+          </Tooltip>
         )}
         {!node.isDir && gitStatus && (
-          <span
-            title={t(GIT_STATUS_LABEL_KEYS[gitStatus.status])}
+          <Tooltip content={t(GIT_STATUS_LABEL_KEYS[gitStatus.status])}>
+            <span
             aria-label={t(GIT_STATUS_LABEL_KEYS[gitStatus.status])}
             style={{
               width: 14,
@@ -445,10 +448,11 @@ function TreeNode({
           >
             {gitStatus.code}
           </span>
+          </Tooltip>
         )}
         {containsGitChanges && (
-          <span
-            title={t("fileExplorer.containsChangedFiles")}
+          <Tooltip content={t("fileExplorer.containsChangedFiles")}>
+            <span
             aria-label={t("fileExplorer.containsChangedFiles")}
             style={{
               width: 6,
@@ -458,6 +462,7 @@ function TreeNode({
               background: "var(--status-modified)",
             }}
           />
+          </Tooltip>
         )}
         {loading && (
           <Loader2 size={10} strokeWidth={2} color="var(--text-dim)" className="icon-spin" style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -544,7 +549,6 @@ function TreeNode({
               void revealInFileManager(node.fullPath);
             }}
             aria-label={revealLabel}
-            title={revealLabel}
             style={{
               display: "flex",
               alignItems: "center",
@@ -899,22 +903,28 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
             <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 22, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
               <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
                 {uploadSummary.uploaded.length > 0 && (
-                  <span title={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })} aria-label={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--status-success)" }}>
+                  <Tooltip content={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })}>
+                    <span aria-label={t("fileExplorer.uploadedCount", { count: uploadSummary.uploaded.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--status-success)" }}>
                     <Check size={13} strokeWidth={2.4} aria-hidden="true" />
                     <span>{uploadSummary.uploaded.length}</span>
                   </span>
+                  </Tooltip>
                 )}
                 {uploadSummary.skipped.length > 0 && (
-                  <span title={t("fileExplorer.skippedCount", { count: uploadSummary.skipped.length })} aria-label={t("fileExplorer.skippedCount", { count: uploadSummary.skipped.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--text-dim)" }}>
+                  <Tooltip content={t("fileExplorer.skippedCount", { count: uploadSummary.skipped.length })}>
+                    <span aria-label={t("fileExplorer.skippedCount", { count: uploadSummary.skipped.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--text-dim)" }}>
                     <CircleMinus size={13} strokeWidth={2} aria-hidden="true" />
                     <span>{uploadSummary.skipped.length}</span>
                   </span>
+                  </Tooltip>
                 )}
                 {uploadSummary.errors.length > 0 && (
-                  <span title={t("fileExplorer.failedCount", { count: uploadSummary.errors.length })} aria-label={t("fileExplorer.failedCount", { count: uploadSummary.errors.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--status-error)" }}>
+                  <Tooltip content={t("fileExplorer.failedCount", { count: uploadSummary.errors.length })}>
+                    <span aria-label={t("fileExplorer.failedCount", { count: uploadSummary.errors.length })} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--status-error)" }}>
                     <TriangleAlert size={13} strokeWidth={2} aria-hidden="true" />
                     <span>{uploadSummary.errors.length}</span>
                   </span>
+                  </Tooltip>
                 )}
               </div>
               {uploadSummary.uploaded.length > 0 && onAtMentions && (
@@ -943,10 +953,12 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
               <DismissButton onClick={() => setUploadSummary(null)} title={t("fileExplorer.dismissUploadResults")} />
             </div>
             {uploadSummary.errors.map((item) => (
-              <div key={item.name} title={item.error} style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>
+              <Tooltip key={item.name} content={item.error}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>
                 <CircleAlert size={11} strokeWidth={2} style={{ flexShrink: 0 }} aria-hidden="true" />
                 <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
               </div>
+              </Tooltip>
             ))}
           </div>
         )}

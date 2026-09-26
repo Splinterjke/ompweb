@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState, useCallback, useMemo, memo, useRef, useEffect } from "react";
 import { FolderGit2 } from "lucide-react";
@@ -354,21 +355,22 @@ export function BranchNavigator({ tree, activeLeafId, onLeafChange, inline, cont
   if (inline) {
     return (
       <div style={{ height: "100%", display: "flex", alignItems: "center" }}>
-        <button
-          ref={btnRef}
-          onClick={() => onToggle ? onToggle() : setOpenInternal((v) => !v)}
-          className="shell-toolbar-btn ui-focus-ring"
-          style={{
-            background: open ? "var(--bg-selected)" : undefined,
-            color: open ? "var(--text)" : undefined,
-          }}
-          title={t("branchNavigator.branches")}
-          aria-label={t("branchNavigator.branches")}
-          aria-haspopup="menu"
-          aria-expanded={open}
-        >
-          {branchIcon}
-        </button>
+                <Tooltip content={t("branchNavigator.branches")}>
+          <button
+            ref={btnRef}
+            onClick={() => onToggle ? onToggle() : setOpenInternal((v) => !v)}
+            className="shell-toolbar-btn ui-focus-ring"
+            style={{
+              background: open ? "var(--bg-selected)" : undefined,
+              color: open ? "var(--text)" : undefined,
+            }}
+            aria-label={t("branchNavigator.branches")}
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
+            {branchIcon}
+          </button>
+        </Tooltip>
         {open && dropdownPos && (
           <div data-branch-panel className="dropdown-surface" style={{
             position: "fixed",

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { TerminalSquare, RefreshCw, RotateCcw, Trash2, X, Maximize2, Minimize2 } from "lucide-react";
@@ -430,9 +431,9 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
     >
       {/* Top drag handle */}
       {!embedded && (open || preserveSession) && (
-        <div
+        <Tooltip content="Drag to resize terminal height; drag to the bottom to hide">
+          <div
           onMouseDown={handleMouseDown}
-          title="Drag to resize terminal height; drag to the bottom to hide"
           style={{
             position: "absolute",
             top: 0,
@@ -443,6 +444,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
             zIndex: 50,
           }}
         />
+        </Tooltip>
       )}
 
       {/* Header toolbar */}
@@ -476,18 +478,20 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
             {status === "connected" ? "ONLINE" : status === "connecting" ? "CONNECTING..." : "DISCONNECTED"}
           </span>
           {status === "disconnected" && (
-            <button
+            <Tooltip content={t("terminal.reconnect")}>
+              <button
               type="button"
               onClick={() => void handleRestart()}
-              title={t("terminal.reconnect")}
               style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer" }}
             >
               <RotateCcw size={10} strokeWidth={2} aria-hidden="true" />
               {t("terminal.reconnect")}
             </button>
+            </Tooltip>
           )}
           {sessionCwd && (
-            <span
+            <Tooltip content={sessionCwd}>
+              <span
               style={{
                 fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                 color: "var(--text-dim)",
@@ -497,54 +501,58 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
-              title={sessionCwd}
             >
               {sessionCwd}
             </span>
+            </Tooltip>
           )}
         </div>
 
         {/* Action buttons */}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <button
+          <Tooltip content={t("terminal.clear") || "Clear"}>
+            <button
             type="button"
             onClick={handleClear}
-            title={t("terminal.clear") || "Clear"}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ width: 24, height: 24, borderRadius: 4 }}
           >
             <Trash2 size={13} strokeWidth={1.8} />
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={t("terminal.restart") || "Restart Session"}>
+            <button
             type="button"
             onClick={handleRestart}
-            title={t("terminal.restart") || "Restart Session"}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ width: 24, height: 24, borderRadius: 4 }}
           >
             <RefreshCw size={13} strokeWidth={1.8} />
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={maximized ? t("terminal.restore") || "Restore" : t("terminal.maximize") || "Maximize"}>
+            <button
             type="button"
             onClick={() => {
               setMaximized((m) => !m);
               setTimeout(() => fitAddonRef.current?.fit(), 100);
             }}
-            title={maximized ? t("terminal.restore") || "Restore" : t("terminal.maximize") || "Maximize"}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ width: 24, height: 24, borderRadius: 4 }}
           >
             {maximized ? <Minimize2 size={13} strokeWidth={1.8} /> : <Maximize2 size={13} strokeWidth={1.8} />}
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={t("terminal.close") || "Close Terminal"}>
+            <button
             type="button"
             onClick={onClose}
-            title={t("terminal.close") || "Close Terminal"}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ width: 24, height: 24, borderRadius: 4 }}
           >
             <X size={14} strokeWidth={1.8} />
           </button>
+          </Tooltip>
         </div>
       </div>
 

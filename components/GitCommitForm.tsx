@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState } from "react";
 import { Bot, Check, ChevronDown, ExternalLink, Loader2 } from "lucide-react";
@@ -43,13 +44,16 @@ export function GitCommitForm({ cwd, onCommitted, onCommitWithAgent, className, 
   const agentAvailable = Boolean(onCommitWithAgent);
 
   const handleCommit = async () => {
-    if (!message.trim() || committing) return;
-
+    if (committing) return;
+    const trimmed = message.trim();
+    // Agent mode accepts an empty message: the agent writes the commit
+    // message itself, following the repository's commit conventions.
+    if (mode !== "agent" && !trimmed) return;
     if (mode === "agent" && onCommitWithAgent) {
       setCommitting(true);
       setCommitError(null);
       try {
-        const sent = await onCommitWithAgent(message.trim());
+        const sent = await onCommitWithAgent(trimmed);
         if (sent) {
           setMessage("");
           setAgentDone(true);
@@ -66,7 +70,7 @@ export function GitCommitForm({ cwd, onCommitted, onCommitWithAgent, className, 
     setCommitting(true);
     setCommitError(null);
     try {
-      const result = await client.git.commit(cwd, message.trim());
+      const result = await client.git.commit(cwd, trimmed);
       setCommitHash((result.hash ?? "").slice(0, 8));
       setMessage("");
       onCommitted?.(result.hash ?? "");
@@ -90,7 +94,7 @@ export function GitCommitForm({ cwd, onCommitted, onCommitWithAgent, className, 
           setCommitError(null);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && message.trim()) void handleCommit();
+          if (e.key === "Enter" && (mode === "agent" || message.trim())) void handleCommit();
         }}
         disabled={committing}
       />
@@ -116,21 +120,22 @@ export function GitCommitForm({ cwd, onCommitted, onCommitWithAgent, className, 
               type="button"
               className="chat-git-bar__commit-btn"
               onClick={() => void handleCommit()}
-              disabled={committing || !message.trim()}
+              disabled={committing || (mode !== "agent" && !message.trim())}
             >
               {committing ? <Loader2 size={13} className="animate-spin" aria-hidden /> : mode === "agent" ? <Bot size={13} aria-hidden /> : <Check size={13} aria-hidden />}
               {committing ? t("gitChangesBar.committing") : mode === "agent" ? t("gitChangesBar.commitWithAgent") : t("gitChangesBar.commit")}
             </button>
-            <button
-              type="button"
-              className="git-commit-split__chevron"
-              onClick={() => setMode((m) => (m === "commit" ? "agent" : "commit"))}
-              title={mode === "commit" ? t("gitChangesBar.commitWithAgent") : t("gitChangesBar.commitTitle")}
-              aria-label={mode === "commit" ? t("gitChangesBar.commitWithAgent") : t("gitChangesBar.commitTitle")}
-              aria-expanded={mode === "agent"}
-            >
-              <ChevronDown size={12} aria-hidden />
-            </button>
+                        <Tooltip content={mode === "commit" ? t("gitChangesBar.commitWithAgent") : t("gitChangesBar.commitTitle")}>
+              <button
+                type="button"
+                className="git-commit-split__chevron"
+                onClick={() => setMode((m) => (m === "commit" ? "agent" : "commit"))}
+                aria-label={mode === "commit" ? t("gitChangesBar.commitWithAgent") : t("gitChangesBar.commitTitle")}
+                aria-expanded={mode === "agent"}
+              >
+                <ChevronDown size={12} aria-hidden />
+              </button>
+            </Tooltip>
           </div>
         ) : (
           <button
@@ -145,15 +150,16 @@ export function GitCommitForm({ cwd, onCommitted, onCommitWithAgent, className, 
         )}
       </div>
       {onOpenGitTab && (
-        <button
-          type="button"
-          className="chat-git-bar__open-tab"
-          onClick={onOpenGitTab}
-          title={t("gitChangesBar.openGitTab")}
-          aria-label={t("gitChangesBar.openGitTab")}
-        >
-          <ExternalLink size={13} aria-hidden />
-        </button>
+                <Tooltip content={t("gitChangesBar.openGitTab")}>
+          <button
+            type="button"
+            className="chat-git-bar__open-tab"
+            onClick={onOpenGitTab}
+            aria-label={t("gitChangesBar.openGitTab")}
+          >
+            <ExternalLink size={13} aria-hidden />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

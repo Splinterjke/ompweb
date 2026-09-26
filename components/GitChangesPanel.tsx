@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AtSign, Check, ExternalLink, GitBranch, RefreshCw, Search, X } from "lucide-react";
@@ -230,14 +231,14 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
           onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
         />
         {filter && (
-          <button
+          <Tooltip content={t("fileExplorer.clearSearch")}>
+            <button
             className="git-clear-filter"
             type="button"
             onClick={() => {
               setFilter("");
               filterInputRef.current?.focus();
             }}
-            title={t("fileExplorer.clearSearch")}
             aria-label={t("fileExplorer.clearSearch")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -250,12 +251,13 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
           >
             <X size={12} strokeWidth={2.4} aria-hidden="true" />
           </button>
+          </Tooltip>
         )}
-        <button
+        <Tooltip content={t("gitChanges.refreshChanges")}>
+          <button
           className="git-refresh"
           type="button"
           onClick={() => setTreeRefreshKey((k) => k + 1)}
-          title={t("gitChanges.refreshChanges")}
           aria-label={t("gitChanges.refreshChanges")}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -268,6 +270,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
         >
           <RefreshCw size={13} strokeWidth={2} aria-hidden="true" />
         </button>
+        </Tooltip>
       </div>
 
       {loading ? (
@@ -350,7 +353,8 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                   <span style={{ flexShrink: 0, display: "flex", alignItems: "center", color: "var(--text-dim)" }}>
                     {getFileIcon(name, 14)}
                   </span>
-                  <span
+                  <Tooltip content={file.filePath}>
+                    <span
                     style={{
                       fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                       color: "var(--text)",
@@ -360,12 +364,13 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                       flex: directory ? "0 0 auto" : 1,
                       maxWidth: directory ? "60%" : undefined,
                     }}
-                    title={file.filePath}
                   >
                     {name}
                   </span>
+                  </Tooltip>
                   {directory && (
-                    <span
+                    <Tooltip content={file.filePath}>
+                      <span
                       style={{
                         flex: "1 1 auto",
                         minWidth: 0,
@@ -377,13 +382,13 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                         direction: "rtl",
                         textAlign: "left",
                       }}
-                      title={file.filePath}
                     >
                       {directory}
                     </span>
+                    </Tooltip>
                   )}
-                  <span
-                    title={t(GIT_STATUS_LABEL_KEYS[file.status])}
+                  <Tooltip content={t(GIT_STATUS_LABEL_KEYS[file.status])}>
+                    <span
                     aria-hidden="true"
                     style={{
                       width: 14,
@@ -397,15 +402,16 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                   >
                     {file.code}
                   </span>
+                  </Tooltip>
                   {isHovered && (
-                    <button
+                    <Tooltip content={t("gitChanges.openFile")}>
+                      <button
                       className="git-change-open-action"
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onOpenFile(file.filePath, getFileName(file.filePath));
                       }}
-                      title={t("gitChanges.openFile")}
                       aria-label={t("gitChanges.openFile")}
                       style={{
                         position: "absolute",
@@ -426,6 +432,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                     >
                       <ExternalLink size={11} strokeWidth={2.2} aria-hidden="true" />
                     </button>
+                    </Tooltip>
                   )}
                 </div>
               );
@@ -442,7 +449,8 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
               minWidth: 0,
             }}
           >
-            <span
+            <Tooltip content={selectedRelative}>
+              <span
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -453,13 +461,13 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
-              title={selectedRelative}
             >
               {selectedRelative}
             </span>
+            </Tooltip>
             {selectedFile && (
-              <span
-                title={t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}
+              <Tooltip content={t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}>
+                <span
                 style={{
                   fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
                   fontWeight: 700,
@@ -469,14 +477,15 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
               >
                 {t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}
               </span>
+              </Tooltip>
             )}
             {onAtMention && (
-              <button
+              <Tooltip content={t("fileExplorer.insertPathIntoChat")}>
+                <button
                 className="git-change-mention-action"
                 type="button"
                 onClick={mentionSelected}
                 disabled={!selectedPath}
-                title={t("fileExplorer.insertPathIntoChat")}
                 aria-label={t("fileExplorer.insertPathIntoChat")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
@@ -493,13 +502,14 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                 <AtSign size={11} strokeWidth={2.2} aria-hidden="true" />
                 {t("fileExplorer.mention")}
               </button>
+              </Tooltip>
             )}
-            <button
+            <Tooltip content={t("gitChanges.openFile")}>
+              <button
               className="git-change-footer-open"
               type="button"
               onClick={openSelected}
               disabled={!selectedPath}
-              title={t("gitChanges.openFile")}
               aria-label={t("gitChanges.openFile")}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -515,6 +525,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
             >
               <ExternalLink size={11} strokeWidth={2.2} aria-hidden="true" />
             </button>
+            </Tooltip>
           </div>
           <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--bg)" }}>
             {patchLoading ? (

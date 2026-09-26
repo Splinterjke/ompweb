@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Bot, CircleAlert, LoaderCircle } from "lucide-react";
@@ -70,7 +71,14 @@ export function SubagentDetailPanel({ subagent, sessionId, onBack }: { subagent:
     };
   }, [loadMessages, subagent.status]);
   return <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 34, padding: "0 9px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}><button type="button" onClick={onBack} aria-label="Back to agents" title="Back to agents" style={{ display: "grid", placeItems: "center", width: 24, height: 24, border: 0, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowLeft size={14} aria-hidden="true" /></button><Bot size={14} style={{ color: "var(--accent)" }} aria-hidden="true" /><strong style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", color: "var(--accent)" }}>{subagent.agent}</strong><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{subagent.task ?? subagent.description ?? ""}</span></div>
+    <div style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 34, padding: "0 9px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+      <Tooltip content="Back to agents">
+        <button type="button" onClick={onBack} aria-label="Back to agents" style={{ display: "grid", placeItems: "center", width: 24, height: 24, border: 0, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowLeft size={14} aria-hidden="true" /></button>
+      </Tooltip>
+      <Bot size={14} style={{ color: "var(--accent)" }} aria-hidden="true" />
+      <strong style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", color: "var(--accent)" }}>{subagent.agent}</strong>
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{subagent.task ?? subagent.description ?? ""}</span>
+    </div>
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 10, display: "grid", alignContent: "start", gap: 8 }}>
       {loading && <div role="status" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><LoaderCircle size={13} className="icon-spin" aria-hidden="true" />Loading subagent messages…</div>}
       {error && <div role="alert" style={{ display: "flex", gap: 6, color: "var(--status-error)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><CircleAlert size={13} aria-hidden="true" />{error}</div>}

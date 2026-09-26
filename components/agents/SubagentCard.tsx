@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { memo, useState } from "react";
 import { Bot, ChevronDown, CircleDollarSign, Clock3, Cpu, Gauge, GitBranch, UserRound } from "lucide-react";
@@ -183,10 +184,12 @@ export const SubagentCard = memo(function SubagentCard({ subagent, onSelect }: {
       {expanded && (
         <div style={{ paddingLeft: 22, display: "flex", flexWrap: "wrap", gap: "2px 8px", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", lineHeight: 1.5 }}>
           {telemetry.map((entry) => (
-            <span key={entry.key} aria-label={entry.label ?? ""} title={entry.label ?? ""} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <Tooltip key={entry.key} content={entry.label ?? ""}>
+              <span aria-label={entry.label ?? ""} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
               <entry.icon size={10} strokeWidth={1.8} aria-hidden />
               {entry.value}
             </span>
+            </Tooltip>
           ))}
           {telemetry.length === 0 && <span>{t(`chatWindow.subagentState.${subagent.status}`)}</span>}
         </div>

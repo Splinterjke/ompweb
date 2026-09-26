@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState } from "react";
 import { Ban, CheckCircle2, ChevronDown, Circle, CircleAlert, CircleDotDashed, ListChecks } from "lucide-react";
@@ -54,10 +55,10 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
   const headerRowClass = "flex items-center gap-2 px-3 py-2 text-text-muted";
   const headerBorderClass = collapsed ? "" : "border-b border-border";
   const progressSpan = (
-    <span
+    <Tooltip content={t("chatWindow.todoProgress", { done, total: tasks.length })}>
+      <span
       className="ml-auto"
       aria-label={t("chatWindow.todoProgress", { done, total: tasks.length })}
-      title={t("chatWindow.todoProgress", { done, total: tasks.length })}
       style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}
     >
       <span>{done}</span>
@@ -65,6 +66,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
       <span>{tasks.length}</span>
       <span>&nbsp;{t("chatWindow.todoComplete")}</span>
     </span>
+    </Tooltip>
   );
 
   return (
@@ -74,13 +76,13 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
       style={{ borderRadius: "var(--radius-card)" }}
     >
       {collapsible ? (
-        <button
+        <Tooltip content={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}>
+          <button
           type="button"
           aria-expanded={!collapsed}
           onClick={toggleCollapsed}
-          title={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}
           className={`${headerRowClass} ${headerBorderClass} w-full cursor-pointer text-left composer-panel-header`}
-          style={{ background: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
+          style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
         >
           <ListChecks size={15} strokeWidth={1.8} aria-hidden />
           <strong className="font-medium text-text">{t("chatWindow.todoList")}</strong>
@@ -96,6 +98,7 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
             }}
           />
         </button>
+        </Tooltip>
       ) : (
         <div className={`${headerRowClass} ${headerBorderClass}`} style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
           <ListChecks size={15} strokeWidth={1.8} aria-hidden />

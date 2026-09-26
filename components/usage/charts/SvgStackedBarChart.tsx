@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../ui/primitives";
 
 import { useState } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -45,8 +46,9 @@ export function SvgStackedBarChart({
           const isHovered = hoveredIndex === idx;
 
           return (
-            <div
-              key={idx}
+            <Tooltip key={idx} content={`${seg.label}: ${valueFormatter(seg.value)} (${pct.toFixed(1)}%)`}>
+              <div
+             
               onMouseEnter={() => setHoveredIndex(idx)}
               onMouseLeave={() => setHoveredIndex(null)}
               style={{
@@ -60,8 +62,8 @@ export function SvgStackedBarChart({
                 cursor: "pointer",
                 filter: isHovered ? "brightness(1.15)" : "none",
               }}
-              title={`${seg.label}: ${valueFormatter(seg.value)} (${pct.toFixed(1)}%)`}
             />
+            </Tooltip>
           );
         })}
       </div>

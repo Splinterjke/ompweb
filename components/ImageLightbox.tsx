@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState, type ImgHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
@@ -44,22 +45,23 @@ export function ClickableImage({ src, alt, ...imgProps }: ClickableImageProps) {
 
   return (
     <>
-      <button
-        type="button"
-        className="image-clickable"
-        onClick={(event) => {
-          // Linked markdown images (`[![alt](img)](url)`) wrap this button in
-          // an anchor; never let the click bubble and navigate away.
-          event.preventDefault();
-          event.stopPropagation();
-          setOpen(true);
-        }}
-        aria-label={alt ? t("imagePreview.openWithAlt", { alt }) : t("imagePreview.open")}
-        title={alt ? t("imagePreview.openWithAlt", { alt }) : t("imagePreview.open")}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={resolvedSrc} alt={alt ?? ""} loading="lazy" {...imgProps} />
-      </button>
+      <Tooltip content={alt ? t("imagePreview.openWithAlt", { alt }) : t("imagePreview.open")}>
+        <button
+          type="button"
+          className="image-clickable"
+          onClick={(event) => {
+            // Linked markdown images (`[![alt](img)](url)`) wrap this button in
+            // an anchor; never let the click bubble and navigate away.
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(true);
+          }}
+          aria-label={alt ? t("imagePreview.openWithAlt", { alt }) : t("imagePreview.open")}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={resolvedSrc} alt={alt ?? ""} loading="lazy" {...imgProps} />
+        </button>
+      </Tooltip>
       {/*
         Portal to <body>: a linked markdown image (`[![alt](img)](url)`) would
         otherwise keep the dialog inside the anchor, so clicks on the viewer
@@ -121,52 +123,56 @@ function ImageLightbox({ src, alt, onClose }: { src: ClickableImageProps["src"];
           <span className="image-lightbox-title">{alt || t("imagePreview.imageTitle")}</span>
           <div className="image-lightbox-actions">
             <div className="image-lightbox-stepper">
-              <button
-                type="button"
-                onClick={() => setZoom((value) => Math.max(ZOOM_MIN, value - ZOOM_STEP))}
-                disabled={zoom <= ZOOM_MIN}
-                title={t("imagePreview.zoomOut")}
-                aria-label={t("imagePreview.zoomOut")}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
+                            <Tooltip content={t("imagePreview.zoomOut")}>
+                <button
+                  type="button"
+                  onClick={() => setZoom((value) => Math.max(ZOOM_MIN, value - ZOOM_STEP))}
+                  disabled={zoom <= ZOOM_MIN}
+                  aria-label={t("imagePreview.zoomOut")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+              </Tooltip>
               <span className="image-lightbox-zoom-value">{Math.round(zoom * 100)}%</span>
+                            <Tooltip content={t("imagePreview.zoomIn")}>
+                <button
+                  type="button"
+                  onClick={() => setZoom((value) => Math.min(ZOOM_MAX, value + ZOOM_STEP))}
+                  disabled={zoom >= ZOOM_MAX}
+                  aria-label={t("imagePreview.zoomIn")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+              </Tooltip>
+            </div>
+                        <Tooltip content={t("imagePreview.resetZoom")}>
               <button
                 type="button"
-                onClick={() => setZoom((value) => Math.min(ZOOM_MAX, value + ZOOM_STEP))}
-                disabled={zoom >= ZOOM_MAX}
-                title={t("imagePreview.zoomIn")}
-                aria-label={t("imagePreview.zoomIn")}
+                className="image-lightbox-icon-button"
+                onClick={() => setZoom(1)}
+                aria-label={t("imagePreview.resetZoom")}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M12 5v14M5 12h14" />
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
                 </svg>
               </button>
-            </div>
-            <button
-              type="button"
-              className="image-lightbox-icon-button"
-              onClick={() => setZoom(1)}
-              title={t("imagePreview.resetZoom")}
-              aria-label={t("imagePreview.resetZoom")}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="image-lightbox-icon-button"
-              onClick={onClose}
-              title={t("imagePreview.close")}
-              aria-label={t("imagePreview.close")}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
+            </Tooltip>
+                        <Tooltip content={t("imagePreview.close")}>
+              <button
+                type="button"
+                className="image-lightbox-icon-button"
+                onClick={onClose}
+                aria-label={t("imagePreview.close")}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
         <div

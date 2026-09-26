@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useMemo, useState, type ReactNode } from "react";
 import {
@@ -51,9 +52,9 @@ function Metric({ icon: Icon, label, children }: {
   children: ReactNode;
 }) {
   return (
-    <span
+    <Tooltip content={label}>
+      <span
       aria-label={label}
-      title={label}
       data-subagent-metric={label}
       style={{
         display: "inline-flex",
@@ -73,6 +74,7 @@ function Metric({ icon: Icon, label, children }: {
       />
       <span>{children}</span>
     </span>
+    </Tooltip>
   );
 }
 
@@ -163,8 +165,8 @@ function ActivityPreview({ events }: { events: SubagentActivityEvent[] | undefin
   const preview = labels.join(" · ");
   const label = `${t("chatWindow.subagentHub.preview")}: ${preview}`;
   return (
-    <span
-      title={label}
+    <Tooltip content={label}>
+      <span
       aria-label={label}
       style={{
         display: "flex",
@@ -184,6 +186,7 @@ function ActivityPreview({ events }: { events: SubagentActivityEvent[] | undefin
         {preview}
       </span>
     </span>
+    </Tooltip>
   );
 }
 
@@ -204,12 +207,12 @@ function SubagentRow({
   const rowLabel = [subagent.agent, task, stateLabel, historyLabel].filter(Boolean).join(" · ");
 
   return (
-    <button
+    <Tooltip content={rowLabel}>
+      <button
       type="button"
       className="ui-focus-ring"
       onClick={() => onSelectSubagent(subagent)}
       aria-label={rowLabel}
-      title={rowLabel}
       style={{
         display: "flex",
         width: "100%",
@@ -246,12 +249,13 @@ function SubagentRow({
         <span style={{ flexShrink: 0, color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
           {subagent.agent}
         </span>
-        <span
-          title={task}
+        <Tooltip content={task}>
+          <span
           style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "inherit" }}
         >
           {task}
         </span>
+        </Tooltip>
         <span style={{ flexShrink: 0, color: live ? "var(--text-muted)" : "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
           {stateLabel}
         </span>
@@ -272,6 +276,7 @@ function SubagentRow({
       <ActivityLine subagent={subagent} />
       <ActivityPreview events={events} />
     </button>
+    </Tooltip>
   );
 }
 
@@ -379,27 +384,26 @@ export function SubagentHub({
         background: "var(--bg-subtle)",
       }}
     >
-      <button
+      <Tooltip content={collapsed ? t("chatWindow.subagentHub.expand") : t("chatWindow.subagentHub.collapse")}>
+        <button
         type="button"
         className="ui-focus-ring flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-text-muted composer-panel-header"
         aria-expanded={!collapsed}
         onClick={toggleCollapsed}
-        title={collapsed ? t("chatWindow.subagentHub.expand") : t("chatWindow.subagentHub.collapse")}
         style={{
           fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
           border: "none",
           borderBottom: collapsed ? "none" : "thin solid var(--border)",
-          background: "transparent",
           fontFamily: "inherit",
           wordBreak: "keep-all",
         }}
       >
         <Network size={15} strokeWidth={1.8} aria-hidden style={{ flexShrink: 0 }} />
         <strong className="font-medium text-text">{t("chatWindow.subagentsPanel")}</strong>
-        <span
+        <Tooltip content={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}>
+          <span
           className="ml-auto"
           aria-label={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}
-          title={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}
           style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}
         >
           <span>{runningCount}</span>
@@ -407,6 +411,7 @@ export function SubagentHub({
           <span>{subagents.length}</span>
           <span>&nbsp;{t("chatWindow.subagentBusy")}</span>
         </span>
+        </Tooltip>
         <ChevronDown
           size={14}
           strokeWidth={1.8}
@@ -419,6 +424,7 @@ export function SubagentHub({
           }}
         />
       </button>
+      </Tooltip>
       {!collapsed && (
         <div
           style={{

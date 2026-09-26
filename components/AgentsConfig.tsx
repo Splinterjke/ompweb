@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bot, Check, Copy, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -271,15 +272,21 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
           </span>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <button type="button" onClick={() => void load()} disabled={loading} title={t("agentsConfig.reload")} style={{ padding: "5px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-            <RefreshCw size={13} aria-hidden="true" /> {t("agentsConfig.reload")}
-          </button>
-          <button type="button" onClick={() => void unpack()} disabled={saving || workspaceCheckPending} title={workspaceUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.unpackBundled")} style={{ padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: saving || workspaceCheckPending ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-            {t("agentsConfig.unpackBundled")}
-          </button>
-          <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ padding: "5px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "wait" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-            <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
-          </button>
+                    <Tooltip content={t("agentsConfig.reload")}>
+            <button type="button" onClick={() => void load()} disabled={loading} aria-label={t("agentsConfig.reload")} style={{ padding: "5px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: loading ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
+              <RefreshCw size={13} aria-hidden="true" /> {t("agentsConfig.reload")}
+            </button>
+          </Tooltip>
+                    <Tooltip content={workspaceUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.unpackBundled")}>
+            <button type="button" onClick={() => void unpack()} disabled={saving || workspaceCheckPending} aria-label={workspaceUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.unpackBundled")} style={{ padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: saving || workspaceCheckPending ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
+              {t("agentsConfig.unpackBundled")}
+            </button>
+          </Tooltip>
+                    <Tooltip content={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")}>
+            <button type="button" onClick={startCreate} disabled={workspaceCheckPending} aria-label={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ padding: "5px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "wait" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
+              <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
+            </button>
+          </Tooltip>
         </div>
       </div>
       {workspaceUnavailable ? (
@@ -359,9 +366,11 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
                     {!creating && active ? (
                       <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, font: "11px var(--font-mono)", color: "var(--text-muted)" }}>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shorten(active.filePath)}</span>
-                        <button type="button" onClick={() => void copyPath(active.filePath)} title={t("agentsConfig.copyFilePath")} style={{ padding: "2px 6px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-                          <Copy size={11} aria-hidden="true" /> {t("agentsConfig.copy")}
-                        </button>
+                                                <Tooltip content={t("agentsConfig.copyFilePath")}>
+                          <button type="button" onClick={() => void copyPath(active.filePath)} aria-label={t("agentsConfig.copyFilePath")} style={{ padding: "2px 6px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                            <Copy size={11} aria-hidden="true" /> {t("agentsConfig.copy")}
+                          </button>
+                        </Tooltip>
                       </div>
                     ) : (
                       <div style={{ marginTop: 4, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("agentsConfig.createAgentDesc")}</div>
@@ -412,15 +421,19 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
                   <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={t("agentsConfig.systemPromptPlaceholder")} rows={6} style={{ ...textareaStyle, minHeight: 140 }} />
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => void save()} disabled={saving || workspaceCheckPending || activeProjectUnavailable} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : creating ? t("agentsConfig.create") : t("agentsConfig.save")} style={{ padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: saving || workspaceCheckPending || activeProjectUnavailable ? "not-allowed" : "pointer", opacity: workspaceCheckPending || activeProjectUnavailable ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>
-                    <Check size={13} aria-hidden="true" /> {creating ? t("agentsConfig.create") : t("agentsConfig.save")}
-                  </button>
+                                    <Tooltip content={workspaceCheckPending ? t("agentsConfig.loadingAgents") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : creating ? t("agentsConfig.create") : t("agentsConfig.save")}>
+                    <button type="button" onClick={() => void save()} disabled={saving || workspaceCheckPending || activeProjectUnavailable} aria-label={workspaceCheckPending ? t("agentsConfig.loadingAgents") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : creating ? t("agentsConfig.create") : t("agentsConfig.save")} style={{ padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: saving || workspaceCheckPending || activeProjectUnavailable ? "not-allowed" : "pointer", opacity: workspaceCheckPending || activeProjectUnavailable ? 0.65 : 1, display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>
+                      <Check size={13} aria-hidden="true" /> {creating ? t("agentsConfig.create") : t("agentsConfig.save")}
+                    </button>
+                  </Tooltip>
                   {creating ? (
                     <button type="button" onClick={cancelCreate} disabled={saving} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("agentsConfig.cancel")}</button>
                   ) : (
-                    <button type="button" onClick={() => void remove()} disabled={saving || isBundledActive || activeProjectUnavailable} title={isBundledActive ? t("agentsConfig.templatesNotice") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : t("agentsConfig.remove")} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: isBundledActive || activeProjectUnavailable ? "var(--text-dim)" : "var(--status-error, #e5484d)", cursor: isBundledActive || saving || activeProjectUnavailable ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-                      <Trash2 size={13} aria-hidden="true" /> {t("agentsConfig.remove")}
-                    </button>
+                                        <Tooltip content={isBundledActive ? t("agentsConfig.templatesNotice") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : t("agentsConfig.remove")}>
+                      <button type="button" onClick={() => void remove()} disabled={saving || isBundledActive || activeProjectUnavailable} aria-label={isBundledActive ? t("agentsConfig.templatesNotice") : activeProjectUnavailable ? t("agentsConfig.workspaceUnavailableWarning") : t("agentsConfig.remove")} style={{ padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: isBundledActive || activeProjectUnavailable ? "var(--text-dim)" : "var(--status-error, #e5484d)", cursor: isBundledActive || saving || activeProjectUnavailable ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
+                        <Trash2 size={13} aria-hidden="true" /> {t("agentsConfig.remove")}
+                      </button>
+                    </Tooltip>
                   )}
                   {message ? <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: message.toLowerCase().includes("fail") || message.toLowerCase().includes("error") ? "var(--status-error, #e5484d)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{message}</span> : null}
                 </div>
@@ -432,9 +445,11 @@ export function AgentsConfig({ cwd }: { cwd: string | null }) {
               <Bot size={22} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
               <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{loading ? t("agentsConfig.loadingAgents") : filtered.length ? t("agentsConfig.selectAgentToEdit") : t("agentsConfig.noAgentsYet")}</div>
               <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("agentsConfig.templatesNotice")}</div>
-              <button type="button" onClick={startCreate} disabled={workspaceCheckPending} title={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ marginTop: 6, padding: "6px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "not-allowed" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
-              </button>
+                            <Tooltip content={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")}>
+                <button type="button" onClick={startCreate} disabled={workspaceCheckPending} aria-label={workspaceCheckPending ? t("agentsConfig.loadingAgents") : t("agentsConfig.newAgent")} style={{ marginTop: 6, padding: "6px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "white", cursor: workspaceCheckPending ? "not-allowed" : "pointer", opacity: workspaceCheckPending ? 0.65 : 1, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <Plus size={13} aria-hidden="true" /> {t("agentsConfig.newAgent")}
+                </button>
+              </Tooltip>
             </div>
           )}
         </div>

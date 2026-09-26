@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, ArrowUp, Loader2, Mic, Pause, Play, RotateCw, Square, Trash2 } from "lucide-react";
@@ -45,10 +46,10 @@ function DeckIconButton({
   tone?: "danger" | "accent";
 }) {
   return (
-    <button
+    <Tooltip content={title}>
+      <button
       type="button"
       onClick={onClick}
-      title={title}
       aria-label={title}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -68,6 +69,7 @@ function DeckIconButton({
     >
       {children}
     </button>
+    </Tooltip>
   );
 }
 
@@ -232,9 +234,11 @@ export function RecordingDeck({
       ) : transcribeError ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text)", minWidth: 0 }}>
           <AlertCircle size={14} strokeWidth={1.8} aria-hidden="true" style={{ color: "var(--status-error)", flexShrink: 0 }} />
-          <span title={transcribeError} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+          <Tooltip content={transcribeError}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
             {transcribeError}
           </span>
+          </Tooltip>
           <DeckIconButton onClick={onRetry} title={t("chatInput.retryDictation")} tone="accent">
             <RotateCw size={14} strokeWidth={1.8} aria-hidden="true" />
           </DeckIconButton>

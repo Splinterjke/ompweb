@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, GitBranch, GitCommitHorizontal, LoaderCircle, RefreshCw, X } from "lucide-react";
@@ -363,27 +364,29 @@ const describeError = (err: unknown): string => {
               {commitCount} {t("gitGraph.commits")}
             </span>
           )}
-          <button
+          <Tooltip content={t("gitGraph.refresh")}>
+            <button
             type="button"
             onClick={() => void load()}
             disabled={loading || !cwd}
-            title={t("gitGraph.refresh")}
             aria-label={t("gitGraph.refresh")}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6 }}
           >
             <RefreshCw size={14} strokeWidth={1.8} style={{ opacity: loading ? 0.6 : 1 }} aria-hidden="true" />
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={t("gitGraph.close")}>
+            <button
             type="button"
             onClick={() => onOpenChange(false)}
-            title={t("gitGraph.close")}
             aria-label={t("gitGraph.close")}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6 }}
           >
             <X size={15} strokeWidth={1.8} aria-hidden="true" />
           </button>
+          </Tooltip>
         </div>
 
         {!cwd ? (
@@ -499,13 +502,17 @@ const describeError = (err: unknown): string => {
                         </span>
                       ))}
                       {commit.isMerge && (
-                        <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }} title={t("gitGraph.merge")}>
+                        <Tooltip content={t("gitGraph.merge")}>
+                          <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
                           ⑂
                         </span>
+                        </Tooltip>
                       )}
-                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)" }} title={commit.hash}>
+                      <Tooltip content={commit.hash}>
+                        <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
                         {commit.shortHash}
                       </span>
+                      </Tooltip>
                       <span style={{ flex: 1, minWidth: 0, fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)" }}>
                         {commit.subject}
                       </span>
@@ -519,7 +526,8 @@ const describeError = (err: unknown): string => {
             </div>
 
             {selected && (
-              <div
+              <Tooltip content={t("gitGraph.resizeFiles")}>
+                <div
                 role="separator"
                 aria-orientation="vertical"
                 aria-label={t("gitGraph.resizeFiles")}
@@ -527,7 +535,6 @@ const describeError = (err: unknown): string => {
                 onMouseDown={startResizerDrag("files")}
                 onDoubleClick={resetPaneWidths}
                 onKeyDown={handleDividerKey("files")}
-                title={t("gitGraph.resizeFiles")}
                 style={{
                   width: 5,
                   flexShrink: 0,
@@ -542,6 +549,7 @@ const describeError = (err: unknown): string => {
                 onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
                 onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
               />
+              </Tooltip>
             )}
             {selected && (
               <aside
@@ -554,10 +562,10 @@ const describeError = (err: unknown): string => {
                     <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, overflowWrap: "anywhere", lineHeight: 1.4 }}>{t("gitGraph.commit")}: {selected.subject}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5 }}>
                       <code style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", whiteSpace: "nowrap", overflowX: "auto", flex: 1, minWidth: 0, scrollbarWidth: "thin" }}>{selected.hash}</code>
-                      <button
+                      <Tooltip content={t("gitGraph.copyHash")}>
+                        <button
                         type="button"
                         onClick={() => void copyHash(selected)}
-                        title={t("gitGraph.copyHash")}
                         aria-label={t("gitGraph.copyHash")}
                         className="ui-focus-ring"
                         style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", border: "1px solid var(--border)", borderRadius: 4, background: "none", color: copied ? "var(--accent)" : "var(--text-dim)", cursor: "pointer", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}
@@ -565,21 +573,23 @@ const describeError = (err: unknown): string => {
                         {copied ? <Check size={10} strokeWidth={2} aria-hidden="true" /> : <Copy size={10} strokeWidth={1.8} aria-hidden="true" />}
                         {copied ? t("gitGraph.copied") : t("gitGraph.copyHash")}
                       </button>
+                      </Tooltip>
                     </div>
                   </div>
-                  <button
+                  <Tooltip content={t("gitGraph.close")}>
+                    <button
                     type="button"
                     onClick={() => {
                       setSelected(null);
                       setDiff(null);
                     }}
-                    title={t("gitGraph.close")}
                     aria-label={t("gitGraph.close")}
                     className="ui-focus-ring"
                     style={{ display: "inline-flex", padding: 4, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", flexShrink: 0 }}
                   >
                     <X size={13} strokeWidth={1.8} aria-hidden="true" />
                   </button>
+                  </Tooltip>
                 </div>
                 <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>
                   <span style={{ color: "var(--text-dim)" }}>{t("gitGraph.parents")}</span>
@@ -635,7 +645,8 @@ const describeError = (err: unknown): string => {
             )}
 
             {selected && (
-              <div
+              <Tooltip content={t("gitGraph.resizeDiff")}>
+                <div
                 role="separator"
                 aria-orientation="vertical"
                 aria-label={t("gitGraph.resizeDiff")}
@@ -643,7 +654,6 @@ const describeError = (err: unknown): string => {
                 onMouseDown={startResizerDrag("diff")}
                 onDoubleClick={resetPaneWidths}
                 onKeyDown={handleDividerKey("diff")}
-                title={t("gitGraph.resizeDiff")}
                 style={{
                   width: 5,
                   flexShrink: 0,
@@ -658,6 +668,7 @@ const describeError = (err: unknown): string => {
                 onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
                 onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
               />
+              </Tooltip>
             )}
 
             {selected && (

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useMemo } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -159,9 +160,11 @@ export function UsageTabProjects({ byFolder, byAgentType, onSelectProject }: Pro
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: idx === 0 ? "var(--accent)" : "var(--text-dim)", width: 16 }}>
                       {idx + 1}
                     </span>
-                    <span style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.folder}>
+                    <Tooltip content={f.folder}>
+                      <span style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {folderDisplayName}
                     </span>
+                    </Tooltip>
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>

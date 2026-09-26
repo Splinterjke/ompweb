@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * Market tab: curated repositories and custom market sources,
  * version picker, repo scan with async import job tracking and progress.
@@ -83,13 +84,14 @@ export function MarketView(props: { hub: SkillHubState }) {
         <div className={css.rowMain}>
           <div className={css.rowName}>
             <a className={css.sourceLink} href={'https://github.com/' + record.repo} target="_blank" rel="noreferrer">{record.repo}</a>
-            <button
+            <Tooltip content={tt('market.versionHint')}>
+              <button
               type="button"
               className={css.badge + ' ' + css.badgeSource}
               style={{ cursor: 'pointer', fontFamily: 'inherit' }}
-              title={tt('market.versionHint')}
               onClick={() => { void hub.openVersionDialog(record.repo) }}
             >{record.ref ?? tt('market.unpinned')}</button>
+            </Tooltip>
             {installedCount > 0 ? <span className={css.badge + ' ' + css.badgeCount}>{tt('market.installed', { count: installedCount })}</span> : null}
             {hasSkillUpdate
               ? <span className={css.badge + ' ' + css.statusUpdated}>{tt('market.updatable', { count: skillCheck!.updated.length })}</span>
@@ -106,24 +108,26 @@ export function MarketView(props: { hub: SkillHubState }) {
           <button type="button" className={css.button + ' ' + css.primary} style={{ padding: '4px 10px', fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }} disabled={scanning} onClick={() => { void scanRepo(record.repo) }}>
             {scanning ? tt('market.scanning') : tt('market.scan')}
           </button>
-          <button
+          <Tooltip content={hasUpdate ? '将同步到上游最新版并提示可更新的本地技能' : undefined}>
+            <button
             type="button"
             className={css.opBtn + (updateDanger ? ' ' + css.opDanger : '')}
             disabled={updateDisabled}
-            title={hasUpdate ? '将同步到上游最新版并提示可更新的本地技能' : undefined}
             onClick={updateAction}
           >
             {updateLabel}
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={tt('market.removeHint')}>
+            <button
             type="button"
             className={css.opBtn}
             disabled={tagBusy}
-            title={tt('market.removeHint')}
             aria-label={tt('market.deleteSource')}
             onClick={() => { void removeMarketSource(record.repo) }}
             style={{ padding: '4px 8px', minWidth: 28 }}
           >×</button>
+          </Tooltip>
         </div>
       </div>
     )

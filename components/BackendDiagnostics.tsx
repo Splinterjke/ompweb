@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useState, useCallback, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -222,7 +223,8 @@ function Row({ label, ok, detail, action }: { label: string; ok: boolean; detail
 function CopyButton({ text, title }: { text: string; title: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
+    <Tooltip content={title}>
+      <button
       type="button"
       onClick={() => {
         void navigator.clipboard.writeText(text).then(() => {
@@ -231,11 +233,11 @@ function CopyButton({ text, title }: { text: string; title: string }) {
         });
       }}
       aria-label={title}
-      title={title}
       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, padding: 0, border: "none", borderRadius: 4, background: "transparent", color: copied ? "var(--status-success)" : "var(--text-dim)", cursor: "pointer", flexShrink: 0 }}
     >
       {copied ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
     </button>
+    </Tooltip>
   );
 }
 
@@ -319,11 +321,11 @@ function RevealButton({ path, label = "Reveal" }: { path?: string | null; label?
   };
 
   return (
-    <button
+    <Tooltip content={label}>
+      <button
       type="button"
       onClick={handleReveal}
       disabled={busy}
-      title={label}
       aria-label={label}
       style={{
         display: "inline-flex",
@@ -345,6 +347,7 @@ function RevealButton({ path, label = "Reveal" }: { path?: string | null; label?
       <FolderOpen size={11} aria-hidden="true" />
       <span>{busy ? "Locating…" : label}</span>
     </button>
+    </Tooltip>
   );
 }
 
@@ -472,16 +475,17 @@ function BackendDiagnosticsPopoverView() {
         <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>
           {health === null ? t("diagnostics.refreshing") : health === "ok" ? t("diagnostics.healthy") : health === "warn" ? t("diagnostics.warning") : t("diagnostics.error")}
         </span>
-        <button
+        <Tooltip content={t("diagnostics.refresh")}>
+          <button
           type="button"
           onClick={() => refreshDetails()}
           disabled={refreshing || restarting}
           aria-label={t("diagnostics.refresh")}
-          title={t("diagnostics.refresh")}
           style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, marginLeft: "auto", padding: 0, border: "none", borderRadius: 5, background: "transparent", color: "var(--text-dim)", cursor: "pointer" }}
         >
           <RefreshCw size={11} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
         </button>
+        </Tooltip>
       </div>
       {error && <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", padding: "0 4px" }}>{t("diagnostics.error")}: {error}</div>}
       {success && <div role="status" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-success)", padding: "0 4px" }}><Check size={11} aria-hidden="true" />{success}</div>}
@@ -527,7 +531,8 @@ function BackendDiagnosticsPopoverView() {
               ok
               detail={`127.0.0.1:${port}`}
               action={
-                <button
+                <Tooltip content={`${t("diagnostics.stopInstance")} :${port}`}>
+                  <button
                   type="button"
                   onClick={() => {
                     setActionBusy(true);
@@ -545,11 +550,11 @@ function BackendDiagnosticsPopoverView() {
                       .finally(() => setActionBusy(false));
                   }}
                   aria-label={`${t("diagnostics.stopInstance")} :${port}`}
-                  title={`${t("diagnostics.stopInstance")} :${port}`}
                   style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, padding: 0, border: "none", borderRadius: 4, background: "transparent", color: "var(--status-error)", cursor: "pointer", flexShrink: 0 }}
                 >
                   <RotateCcw size={11} aria-hidden="true" />
                 </button>
+                </Tooltip>
               }
             />
           ))}
@@ -561,15 +566,16 @@ function BackendDiagnosticsPopoverView() {
               action={
                 <>
                   <CopyButton text={diag.web.url} title={t("diagnostics.copy")} />
-                  <button
+                  <Tooltip content={t("diagnostics.openBrowser")}>
+                    <button
                     type="button"
                     onClick={() => window.open(diag.web.url, "_blank", "noopener")}
                     aria-label={t("diagnostics.openBrowser")}
-                    title={t("diagnostics.openBrowser")}
                     style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, padding: 0, border: "none", borderRadius: 4, background: "transparent", color: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
                   >
                     <ExternalLink size={11} aria-hidden="true" />
                   </button>
+                  </Tooltip>
                 </>
               }
             />
@@ -582,9 +588,9 @@ function BackendDiagnosticsPopoverView() {
                   const authority = diag.backendOwnership![domain];
                   const isRust = authority === "rust";
                   return (
-                    <span
-                      key={domain}
-                      title={`${domain}: ${authority}`}
+                    <Tooltip key={domain} content={`${domain}: ${authority}`}>
+                      <span
+                     
                       style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
                         padding: "2px 7px", borderRadius: 999,
@@ -596,6 +602,7 @@ function BackendDiagnosticsPopoverView() {
                     >
                       {domain} · {authority}
                     </span>
+                    </Tooltip>
                   );
                 })}
               </div>
@@ -957,11 +964,11 @@ function BackendDiagnosticsFullView() {
             {t("diagnostics.copyReport")}
           </button>
 
-          <button
+          <Tooltip content={t("diagnostics.refresh")}>
+            <button
             type="button"
             onClick={() => refreshDetails()}
             disabled={refreshing || restarting}
-            title={t("diagnostics.refresh")}
             aria-label={t("diagnostics.refresh")}
             style={{
               display: "inline-flex",
@@ -979,6 +986,7 @@ function BackendDiagnosticsFullView() {
           >
             <RefreshCw size={13} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
           </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -1518,8 +1526,8 @@ function BackendDiagnosticsFullView() {
                   <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{item.desc}</div>
                 </div>
 
-                <code
-                  title={item.path!}
+                <Tooltip content={item.path!}>
+                  <code
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
@@ -1537,6 +1545,7 @@ function BackendDiagnosticsFullView() {
                 >
                   {item.path}
                 </code>
+                </Tooltip>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                   <CopyButton text={item.path!} title={t("diagnostics.copy")} />
@@ -1822,14 +1831,14 @@ export function BackendStatusButton() {
 
   return (
     <>
-      <button
+      <Tooltip content={t("diagnostics.status")}>
+        <button
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={t("diagnostics.status")}
         aria-expanded={open}
         aria-haspopup="menu"
-        title={t("diagnostics.status")}
         style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 24, padding: "0 6px", border: "none", borderRadius: "var(--radius-control)", background: open ? "var(--bg-selected)" : "transparent", color: "var(--text-dim)", cursor: "pointer", position: "relative" }}
       >
         <Activity size={13} strokeWidth={2} aria-hidden="true" />
@@ -1838,6 +1847,7 @@ export function BackendStatusButton() {
           <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--status-error)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "7em" }}>{t("diagnostics.error")}</span>
         )}
       </button>
+      </Tooltip>
       {open && (
         <div
           ref={panelRef}

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -235,10 +236,10 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
               }}
             >
               <span>Model: {modelFilter}</span>
-              <button
+              <Tooltip content="Clear model filter">
+                <button
                 type="button"
                 onClick={() => { setModelFilter(""); setPage(0); }}
-                title="Clear model filter"
                 style={{
                   border: "none",
                   background: "none",
@@ -251,6 +252,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
               >
                 ✕
               </button>
+              </Tooltip>
             </div>
           )}
         </div>
@@ -397,10 +399,10 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
 
                       {/* 模型 */}
                       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-                        <button
+                        <Tooltip content={`Filter model: ${log.model}`}>
+                          <button
                           type="button"
                           onClick={() => { setModelFilter(log.model); setPage(0); }}
-                          title={`Filter model: ${log.model}`}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -417,6 +419,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                             {log.model}
                           </span>
                         </button>
+                        </Tooltip>
                       </td>
 
                       {/* 推理强度 / 角色 */}
@@ -477,7 +480,8 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       {/* 请求 */}
                       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span
+                          <Tooltip content={log.entryId}>
+                            <span
                             style={{
                               fontFamily: "var(--font-mono)",
                               fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
@@ -486,14 +490,14 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                             }}
-                            title={log.entryId}
                           >
                             {log.entryId}
                           </span>
-                          <button
+                          </Tooltip>
+                          <Tooltip content="Copy request ID">
+                            <button
                             type="button"
                             onClick={() => copyToClipboard(log.entryId, "Request ID copied")}
-                            title="Copy request ID"
                             style={{
                               background: "none",
                               border: "none",
@@ -506,6 +510,7 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                           >
                             <Copy size={11} />
                           </button>
+                          </Tooltip>
                         </div>
                       </td>
 
@@ -729,7 +734,8 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                   <span style={{ color: "var(--text-dim)", flexShrink: 0 }}>Session file:</span>
-                  <span
+                  <Tooltip content={detailEntry.sessionFile}>
+                    <span
                     style={{
                       fontFamily: "var(--font-mono)",
                       color: "var(--text-muted)",
@@ -737,10 +743,10 @@ export function UsageTabLogs({ onOpenSessionFile }: Props) {
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                     }}
-                    title={detailEntry.sessionFile}
                   >
                     {detailEntry.sessionFile}
                   </span>
+                  </Tooltip>
                 </div>
               </div>
 

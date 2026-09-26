@@ -706,7 +706,8 @@ function AssistantMessageView({
             <>
 
               {est > 0 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }} title={t("messageView.estimatedTokens")}>
+                <Tooltip content={t("messageView.estimatedTokens")}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400 }}>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
@@ -726,6 +727,7 @@ function AssistantMessageView({
                     );
                   })()}
                 </span>
+                </Tooltip>
               )}
             </>
           );
@@ -856,7 +858,7 @@ const ThinkingBlock = memo(function ThinkingBlock({ block, duration, sessionId, 
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [expanded]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!thinkingAutoFollow || !expanded || block.deferred) return;
     const el = bodyRef.current;
     const len = (block.thinking ?? "").length;
@@ -1268,8 +1270,8 @@ function SplitPatchView({ text }: { text: string }) {
 
 function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right" }) {
   return (
-    <div
-      title={title}
+    <Tooltip content={title}>
+      <div
       style={{
         padding: "5px 10px",
         color: "var(--text-dim)",
@@ -1281,6 +1283,7 @@ function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right
     >
       {title}
     </div>
+    </Tooltip>
   );
 }
 

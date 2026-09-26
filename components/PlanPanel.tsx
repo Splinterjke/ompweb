@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState, memo } from "react";
 import {
@@ -219,15 +220,17 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? t("plan.collapse") : t("plan.expand")}
-            className="shell-toolbar-btn ui-focus-ring"
-            style={{ width: 26, height: 26, borderRadius: 6 }}
-          >
-            {expanded ? <ChevronUp size={14} strokeWidth={2} /> : <ChevronDown size={14} strokeWidth={2} />}
-          </button>
+                    <Tooltip content={expanded ? t("plan.collapse") : t("plan.expand")}>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? t("plan.collapse") : t("plan.expand")}
+              className="shell-toolbar-btn ui-focus-ring"
+              style={{ width: 26, height: 26, borderRadius: 6 }}
+            >
+              {expanded ? <ChevronUp size={14} strokeWidth={2} /> : <ChevronDown size={14} strokeWidth={2} />}
+            </button>
+          </Tooltip>
         </div>
       </div>
 

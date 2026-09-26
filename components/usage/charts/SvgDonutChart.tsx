@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../../ui/primitives";
 
 import { useState } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -201,7 +202,8 @@ export function SvgDonutChart({
                       flexShrink: 0,
                     }}
                   />
-                  <span
+                  <Tooltip content={slice.label}>
+                    <span
                     style={{
                       fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                       color: "var(--text)",
@@ -209,10 +211,10 @@ export function SvgDonutChart({
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                     }}
-                    title={slice.label}
                   >
                     {slice.label}
                   </span>
+                  </Tooltip>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--text)" }}>

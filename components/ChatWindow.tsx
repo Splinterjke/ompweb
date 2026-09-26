@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown } from "lucide-react";
@@ -164,12 +165,12 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, autoExpand = false, 
 
   return (
     <div style={{ marginBottom: 4 }}>
-      <button
+      <Tooltip content={expanded ? t("chatWindow.collapseProcessDetails") : t("chatWindow.expandProcessDetails")}>
+        <button
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
         className="process-details-toggle"
-        title={expanded ? t("chatWindow.collapseProcessDetails") : t("chatWindow.expandProcessDetails")}
       >
         <ChevronDown
           size={12}
@@ -185,6 +186,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, autoExpand = false, 
           {parts.join(" · ")}
         </span>
       </button>
+      </Tooltip>
       {expanded && (
         <div style={{ marginTop: 3 }}>
           {children}
@@ -1453,15 +1455,16 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
       <div className="relative" style={{ flexShrink: 0 }}>
         {showJumpToBottomButton && !atBottom && (
-          <button
+          <Tooltip content={t("chatWindow.scrollToBottom")}>
+            <button
             type="button"
             className="chat-jump-to-bottom"
             aria-label={t("chatWindow.scrollToBottom")}
-            title={t("chatWindow.scrollToBottom")}
             onClick={() => scrollToBottom("smooth")}
           >
             <ArrowDown size={16} aria-hidden />
           </button>
+          </Tooltip>
         )}
         <div
           style={{
@@ -1482,7 +1485,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               cwd={messageCwd}
               onOpenGitTab={onOpenGitTab}
               onCommitWithAgent={(message) =>
-                handleSend(t("gitChangesBar.commitWithAgentPrompt", { message }))
+                handleSend(
+                  message
+                    ? t("gitChangesBar.commitWithAgentPrompt", { message })
+                    : t("gitChangesBar.commitWithAgentEmptyPrompt"),
+                )
               }
               todoPhases={todoPhases}
               subagents={subagents ?? []}
@@ -1554,12 +1561,11 @@ function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: st
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
       {widgets.map((widget) => (
+        <Tooltip key={widget.key} content={widget.key}>
         <pre
-          key={widget.key}
           className="ui-compact-surface"
           role="group"
           aria-label={widget.key}
-          title={widget.key}
           style={{ margin: 0, padding: "8px 9px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)" }}
         >
           {widget.lines.map((line, index, allLines) => (
@@ -1569,6 +1575,7 @@ function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: st
             </Fragment>
           ))}
         </pre>
+        </Tooltip>
       ))}
     </div>
   );

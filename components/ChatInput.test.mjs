@@ -28,7 +28,6 @@ test("keeps Stop as the primary action while streaming, even with typed text", (
     // Stop must stay reachable during a run; queued follow-ups are sent via
     // Enter / the queued-follow-up bar instead of replacing the Stop button.
     assert.match(html, />(Stop|chatInput\.stop)</);
-    assert.match(html, /title="(Stop agent|chatInput\.stopAgent)"/);
     assert.doesNotMatch(html, />(Queue|chatInput\.queue)</);
   } finally {
     clearDraft(draftKey);
@@ -66,7 +65,6 @@ test("keeps the model selector visible when a model error leaves no options", ()
   );
 
   assert.match(html, />(No models|chatInput\.noModels)</);
-  assert.match(html, /title="(No available models|chatInput\.noAvailableModels)"/);
 });
 
 
@@ -106,7 +104,7 @@ test("renders the compact toolbar action", () => {
     }),
   );
 
-  assert.match(html, /title="(Compact context|chatInput\.compactContext)"/);
+  assert.match(html, /aria-label="Context"/);
 });
 
 test("shows the advisor thunder indicator with the reviewing model and reasoning", () => {

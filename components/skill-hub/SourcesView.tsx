@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * Sources tab: flat skill list or grouped view (project trees, collections with tri-state, personal).
  */
@@ -223,21 +224,23 @@ export function SourcesView(props: { hub: SkillHubState }) {
                   {check !== undefined && check.deleted.length > 0
                     ? <button type="button" className={css.opBtn + ' ' + css.opDanger} onClick={(event) => { event.stopPropagation(); requestDelete(collection.name, check.deleted) }}>{tt('source.followDelete')}</button>
                     : null}
-                  <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={collection.name}
+                  <Tooltip content={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}>
+                    <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={collection.name}
                     className={css.switch + (view.state === 'on' ? ' ' + css.switchOn : view.state === 'mixed' ? ' ' + css.switchMixed : '')}
                     disabled={batchBusy || collection.skillNames.length === 0 || (view.state !== 'off' && !hasWritable)}
-                    title={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}
                     onClick={(event) => { event.stopPropagation(); toggleGroup('col:' + collection.name, collection.name, view.state) }}>
                     <span className={css.switchThumb} />
                   </button>
-                  {hub.editMode ? <button
+                  </Tooltip>
+                  {hub.editMode ? <Tooltip content={tt('source.deleteGroupHint', { count: collection.skillNames.length })}>
+                    <button
                     type="button"
                     className={css.opBtn + ' ' + css.opDanger}
-                    title={tt('source.deleteGroupHint', { count: collection.skillNames.length })}
                     onClick={(event) => { event.stopPropagation(); requestDeleteGroup(collection.name, collection.skillNames) }}
                   >
                     {tt('source.deleteGroup')}
-                  </button> : null}
+                  </button>
+                  </Tooltip> : null}
                 </span>
               </div>
               {!collapsed ? (
@@ -282,14 +285,17 @@ export function SourcesView(props: { hub: SkillHubState }) {
                   <span className={css.groupTitle}>{groupTitleText} · {allRootNames.length}<GroupSummary members={allRootNames} hub={hub} /></span>
                 </button>
                 <span className={css.groupOps}>
-                  <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={groupTitleText}
+                  <Tooltip content={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}>
+                    <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={groupTitleText}
                     className={css.switch + (view.state === 'on' ? ' ' + css.switchOn : view.state === 'mixed' ? ' ' + css.switchMixed : '')}
                     disabled={batchBusy || allRootNames.length === 0 || (view.state !== 'off' && !hasWritable)}
-                    title={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}
                     onClick={(event) => { event.stopPropagation(); toggleGroup(topKey, groupTitleText, view.state) }}>
                     <span className={css.switchThumb} />
                   </button>
-                  {hub.editMode ? <button type="button" className={css.opBtn + ' ' + css.opDanger} title={tt('source.deleteGroupHint', { count: allRootNames.length })} onClick={(event) => { event.stopPropagation(); requestDeleteGroup(groupTitleText, allRootNames) }}>{tt('source.deleteGroup')}</button> : null}
+                  </Tooltip>
+                  {hub.editMode ? <Tooltip content={tt('source.deleteGroupHint', { count: allRootNames.length })}>
+                    <button type="button" className={css.opBtn + ' ' + css.opDanger} onClick={(event) => { event.stopPropagation(); requestDeleteGroup(groupTitleText, allRootNames) }}>{tt('source.deleteGroup')}</button>
+                  </Tooltip> : null}
                 </span>
               </div>
               {!collapsed ? (

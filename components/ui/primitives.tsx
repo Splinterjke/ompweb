@@ -99,6 +99,9 @@ export function Tooltip({ content, children, side = "top" }: {
   children: React.ReactElement;
   side?: "top" | "bottom" | "left" | "right";
 }) {
+  // Falsy content (conditional titles) renders the bare trigger: no empty
+  // bubble, no trigger interception.
+  if (!content) return children;
   return (
     <BaseTooltip.Root>
       <BaseTooltip.Trigger render={children} />

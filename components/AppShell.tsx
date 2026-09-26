@@ -1700,7 +1700,8 @@ export function AppShell() {
 
       {/* Resize handle — desktop only, hidden while the sidebar is closed */}
       {!isMobile && sidebarOpen && (
-        <div
+        <Tooltip content={t("appShell.resizeSidebarTitle")}>
+          <div
           role="separator"
           aria-orientation="vertical"
           aria-label={t("appShell.resizeSidebar")}
@@ -1708,7 +1709,6 @@ export function AppShell() {
           onMouseDown={handleSidebarResizeStart}
           onDoubleClick={resetSidebarWidth}
           onKeyDown={handleSidebarResizeKey}
-          title={t("appShell.resizeSidebarTitle")}
           style={{
             width: 5,
             flexShrink: 0,
@@ -1725,6 +1725,7 @@ export function AppShell() {
           onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
           onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
         />
+        </Tooltip>
       )}
 
       {/* Center: chat */}
@@ -1734,12 +1735,16 @@ export function AppShell() {
             <span style={{ flex: 1, minWidth: 0 }}>
               {t("appShell.ompMissing")}
             </span>
-            <button type="button" className="shell-toolbar-btn ui-focus-ring" title={t("appShell.ompSetup")} aria-label={t("appShell.ompSetup")} onClick={() => setOmpSetupOpen(true)} style={{ height: 26, padding: "0 9px", borderRadius: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
+            <Tooltip content={t("appShell.ompSetup")}>
+              <button type="button" className="shell-toolbar-btn ui-focus-ring" aria-label={t("appShell.ompSetup")} onClick={() => setOmpSetupOpen(true)} style={{ height: 26, padding: "0 9px", borderRadius: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
               {t("appShell.ompSetup")}
             </button>
-            <button type="button" className="shell-toolbar-btn ui-focus-ring" title={t("appShell.dismiss")} aria-label={t("appShell.dismiss")} onClick={() => setOmpMissingDismissed(true)} style={{ width: 24, height: 24, borderRadius: 6 }}>
+            </Tooltip>
+            <Tooltip content={t("appShell.dismiss")}>
+              <button type="button" className="shell-toolbar-btn ui-focus-ring" aria-label={t("appShell.dismiss")} onClick={() => setOmpMissingDismissed(true)} style={{ width: 24, height: 24, borderRadius: 6 }}>
               <X size={13} strokeWidth={2} />
             </button>
+            </Tooltip>
           </div>
         )}
         <OmpSetupWizard
@@ -1755,41 +1760,44 @@ export function AppShell() {
         {/* Utility group: sidebar, theme, language */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%", paddingLeft: isMobile ? 4 : 8 }}>
           {panelsSwappedActive && (
-            <button
+            <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
+              <button
               type="button"
               onClick={toggleFilePanel}
-              title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
               aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
               className="shell-toolbar-btn ui-focus-ring"
             >
               {fileToggleIcon}
             </button>
+            </Tooltip>
           )}
           {!panelsSwappedActive && (
-            <button
+            <Tooltip content={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}>
+              <button
               onClick={handleSidebarToggle}
-              title={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
               aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
               className="shell-toolbar-btn ui-focus-ring"
             >
               {sidebarToggleIcon}
             </button>
+            </Tooltip>
           )}
           {/* Touch entry for the command palette (mobile has no ⌘K/Ctrl+K) */}
-          <button
+          <Tooltip content={t("appShell.commandPalette")}>
+            <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent("omp-open-palette"))}
-            title={t("appShell.commandPalette")}
             aria-label={t("appShell.commandPalette")}
             className="shell-toolbar-btn ui-focus-ring"
           >
             <Search size={16} strokeWidth={1.8} aria-hidden="true" />
           </button>
+          </Tooltip>
           <ThemePicker />
-          <button
+          <Tooltip content={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}>
+            <button
             type="button"
             onClick={toggleTerminalPanel}
-            title={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}
             aria-label={t("appShell.toggleTerminal") || "Toggle Terminal"}
             aria-pressed={terminalOpen}
             className="shell-toolbar-btn ui-focus-ring"
@@ -1800,6 +1808,7 @@ export function AppShell() {
           >
             <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" />
           </button>
+          </Tooltip>
           <LanguageSwitcher />
         </div>
         {showChat && (
@@ -1807,15 +1816,16 @@ export function AppShell() {
             <div className="shell-toolbar-divider" aria-hidden="true" />
             {/* Session controls: history, generate title, branches, system */}
             <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%" }}>
-              <button
+              <Tooltip content={selectedSession ? t("appShell.fullHistory") : t("appShell.fullHistoryUnavailable")}>
+                <button
                 onClick={handleViewFullHistory}
                 disabled={!selectedSession}
-                title={selectedSession ? t("appShell.fullHistory") : t("appShell.fullHistoryUnavailable")}
                 aria-label={t("appShell.fullHistory")}
                 className="shell-toolbar-btn ui-focus-ring"
               >
                 <History size={16} strokeWidth={1.8} aria-hidden="true" />
               </button>
+              </Tooltip>
               <Tooltip content={gitWorkspace === false ? t("appShell.githubStatusNotGit") : t("appShell.githubStatus")} side="bottom">
                 <button
                   type="button"
@@ -1843,29 +1853,31 @@ export function AppShell() {
                 onToggle={() => toggleTopPanel("branches")}
                 hasSession
               />
-              <button
+              <Tooltip content={t("appShell.system")}>
+                <button
                 ref={systemBtnRef}
                 onClick={handleSystemPromptToggle}
-                title={t("appShell.system")}
                 aria-label={t("appShell.system")}
                 aria-pressed={activeTopPanel === "system"}
                 className="shell-toolbar-btn ui-focus-ring"
               >
                 <Terminal size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: systemPrompt ? "var(--accent)" : undefined }} />
               </button>
+              </Tooltip>
             </div>
           </>
         )}
         {panelsSwappedActive && (
-          <button
+          <Tooltip content={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}>
+            <button
             onClick={handleSidebarToggle}
-            title={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
             aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ marginLeft: "auto" }}
           >
             {sidebarToggleIcon}
           </button>
+          </Tooltip>
         )}
 
           {/* Center Zone: Workspace & Session Breadcrumb + Auto-name action */}
@@ -1928,7 +1940,8 @@ export function AppShell() {
                   {effectiveProject ? (
                     <>
                       <Folder size={12} strokeWidth={1.8} style={{ opacity: 0.6, flexShrink: 0 }} aria-hidden="true" />
-                      <span
+                      <Tooltip content={effectiveProject}>
+                        <span
                         style={{
                           fontWeight: 600,
                           color: "var(--text)",
@@ -1938,14 +1951,15 @@ export function AppShell() {
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}
-                        title={effectiveProject}
                       >
                         {getFileName(effectiveProject)}
                       </span>
+                      </Tooltip>
                       <span style={{ color: "var(--text-dim)", flexShrink: 0, opacity: 0.5 }}>/</span>
                     </>
                   ) : null}
-                  <span
+                  <Tooltip content={sessionTitle}>
+                    <span
                     style={{
                       color: "var(--text)",
                       fontWeight: 500,
@@ -1954,16 +1968,16 @@ export function AppShell() {
                       whiteSpace: "nowrap",
                       minWidth: 0,
                     }}
-                    title={sessionTitle}
                   >
                     {sessionTitle}
                   </span>
+                  </Tooltip>
                   {selectedSession && (
-                    <button
+                    <Tooltip content={wandTooltip}>
+                      <button
                       type="button"
                       onClick={() => void handleAutoName()}
                       disabled={wandDisabled}
-                      title={wandTooltip}
                       aria-label={wandLabel}
                       className="ui-focus-ring"
                       style={{
@@ -2004,6 +2018,7 @@ export function AppShell() {
                         <Wand2 size={12} strokeWidth={1.8} aria-hidden="true" />
                       )}
                     </button>
+                    </Tooltip>
                   )}
                 </div>
               </div>
@@ -2204,11 +2219,11 @@ export function AppShell() {
           }}
         >
           {rightPanelOpen && !isMobile && (
-            <div
+            <Tooltip content={t("appShell.resizeSidebarTitle")}>
+              <div
               role="separator"
               aria-orientation="vertical"
               aria-label={t("rightPanel.resizeHandle") ?? "Resize workbench"}
-              title={t("appShell.resizeSidebarTitle")}
               tabIndex={0}
               onMouseDown={handleRightPanelResizeStart}
               onDoubleClick={resetRightPanelWidth}
@@ -2231,6 +2246,7 @@ export function AppShell() {
               onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
               onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
             />
+            </Tooltip>
           )}
           <RightWorkbench
             requestedView={workbenchRequestedView}
@@ -2278,9 +2294,9 @@ export function AppShell() {
       {/* File panel toggle — fixed at top-right; when the panels are swapped
           it moves inline to the top-left of the top bar instead. */}
       {!panelsSwappedActive && (
-        <button
+        <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
+          <button
           onClick={toggleFilePanel}
-          title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
           aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
           style={{
             position: "fixed", top: 0, right: 0, zIndex: 300,
@@ -2295,6 +2311,7 @@ export function AppShell() {
         >
           {fileToggleIcon}
         </button>
+        </Tooltip>
       )}
     <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} />
     {startedNoticeVisible && (

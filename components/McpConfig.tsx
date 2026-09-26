@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -561,7 +562,8 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
           <strong style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", color: "var(--text)", flexShrink: 0 }}>
             {t("mcpConfig.serverManagement")}
           </strong>
-          <select
+          <Tooltip content={t("mcpConfig.workspaceScopeHint")}>
+            <select
             style={{
               marginLeft: "auto",
               flexShrink: 0,
@@ -576,7 +578,6 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               outline: "none",
             }}
             value={activeCwd ?? ""}
-            title={t("mcpConfig.workspaceScopeHint")}
             onChange={(e) => {
               const value = e.target.value;
               const next = value === "" ? null : value;
@@ -593,6 +594,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               </option>
             ))}
           </select>
+          </Tooltip>
           {path && (
             <code style={{ flex: 1, minWidth: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {path}
@@ -622,11 +624,11 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
               const summary = serverSummary(server.config);
               const isCurrent = selected === server.name;
               return (
-                <button
-                  key={server.name}
+                <Tooltip key={server.name} content={`${server.name} — ${summary.type} · ${summary.target || "invalid"}`}>
+                  <button
+                 
                   type="button"
                   onClick={() => choose(server)}
-                  title={`${server.name} — ${summary.type} · ${summary.target || "invalid"}`}
                   style={{
                     display: "block",
                     width: "100%",
@@ -664,6 +666,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                     {summary.target ? ` · ${summary.target}` : ""}
                   </div>
                 </button>
+                </Tooltip>
               );
             })}
             {!loading && servers.length === 0 && (
@@ -971,9 +974,9 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 }}
               />
             </div>
-            <button
+            <Tooltip content={t("mcpConfig.refreshLiveStatus")}>
+              <button
               type="button"
-              title={t("mcpConfig.refreshLiveStatus")}
               aria-label={t("mcpConfig.refreshLiveStatus")}
               onClick={() => void load()}
               disabled={loading}
@@ -994,6 +997,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
             >
               <RefreshCw size={14} />
             </button>
+            </Tooltip>
           </div>
         </div>
 

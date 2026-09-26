@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 /**
  * Warm-paper toast system on @base-ui/react Toast.
@@ -128,14 +129,16 @@ export function clampDescriptionStyle(expanded: boolean): React.CSSProperties {
 export function ClampedDescription({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <span
-      onClick={() => setExpanded((v) => !v)}
-      aria-expanded={expanded}
-      title={expanded ? undefined : "Click to expand"}
-      style={clampDescriptionStyle(expanded)}
-    >
-      {children}
-    </span>
+        <Tooltip content={expanded ? undefined : "Click to expand"}>
+      <span
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={expanded ? undefined : "Click to expand"}
+        style={clampDescriptionStyle(expanded)}
+      >
+        {children}
+      </span>
+    </Tooltip>
   );
 }
 

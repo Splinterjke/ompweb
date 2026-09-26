@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, useReducer } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, useReducer } from "react";
 import type {
   AgentMessage,
   AssistantMessage,
@@ -3380,7 +3380,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // so a per-frame live follow would restart an eased scroll animation
     // every frame — an endless chase that lags the growing content. Callers
     // pass "instant" for live follow; "smooth" stays for idle scrolls.
-    end.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : behavior });
+    // `block: "end"` (not "nearest") always pins the end marker to the
+    // container's bottom edge: with "nearest" a marker that is visible but
+    // slightly above the bottom (e.g. after a thinking block collapsed or a
+    // frame of lag) needs no scroll, so the follow — and the jump-to-bottom
+    // button — silently stop working until content grows past the viewport.
+    end.scrollIntoView({ block: "end", behavior: reducedMotion ? "instant" : behavior });
   }, [reducedMotion]);
 
 
@@ -3587,11 +3592,16 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
   // Follow the conversation: scroll to the user's latest message when they
   // send one, then keep the newest content in view while the agent streams.
-  // `messages` identity changes on every message boundary and `streamState`
-  // on every streaming token batch, so the scroll is throttled to one frame
-  // during a run to avoid layout thrash. A manual scroll-up
-  // (completionScrollAllowedRef === false) disables following.
-  const followScrollFrameRef = useRef<number | null>(null);
+  // useLayoutEffect (not useEffect + rAF): the scroll must land in the same
+  // frame the content is painted. A post-paint rAF let the viewport lag one
+  // or more frames behind the growing transcript, so on fast streams — and
+  // on the height jump when a thinking block collapses — the user watched
+  // content grow below the fold until a stray scroll event re-pinned them.
+  // Position-based follow: every scroll event (wheel, keys, touch, thumb
+  // drag, or a programmatic scroll) re-checks the live viewport position via
+  // the container's "scroll" listener (handleScrollPositionChange). A manual
+  // scroll-up sets completionScrollAllowedRef = false so we never yank them
+  // down mid-stream; back at the bottom -> keep following.
   // Reset scroll anchors when the active session changes. Not every navigation
   // bumps ChatWindow's sessionKey (promoted new sessions, hydration), so a
   // revisited compacted session would otherwise stay pinned at the top
@@ -3605,13 +3615,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       completionScrollAllowedRef.current = true;
       pendingScrollToUserRef.current = false;
       followEndDocBottomRef.current = 0;
-      if (followScrollFrameRef.current !== null) {
-        cancelAnimationFrame(followScrollFrameRef.current);
-        followScrollFrameRef.current = null;
-      }
     }
   }, [session?.id]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const hasContent = messages.length > 0 || streamState.isStreaming;
     if (!hasContent) return;
     if (pendingScrollToUserRef.current) {
@@ -3627,27 +3633,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (loading) return;
       initialScrollDoneRef.current = true;
       scrollToBottom("instant");
-    } else if (completionScrollAllowedRef.current) {
-      if (followScrollFrameRef.current === null) {
-        followScrollFrameRef.current = requestAnimationFrame(() => {
-          followScrollFrameRef.current = null;
-          // Position-based follow: re-check the live position at scroll time.
-          // A user scroll (wheel, key, touch, or a scrollbar-thumb drag) that
-          // coalesced with a programmatic scroll can leave the flag stale-true;
-          // if the user has since moved up, back off so we never yank them down
-          // mid-stream. Back at the bottom -> keep following.
-          if (!computeFollowAllowed()) return;
-          scrollToBottom(agentRunningRef.current || streamState.isStreaming ? "instant" : "smooth");
-        });
-      }
+    } else if (completionScrollAllowedRef.current && computeFollowAllowed()) {
+      scrollToBottom(agentRunningRef.current || streamState.isStreaming ? "instant" : "smooth");
     }
   }, [messages, streamState, liveToolResults, pendingBash, agentRunning, agentPhase, extensionWidgets, isCompacting, retryInfo, activeSubagentCount, todoPhases, scrollToBottom, loading, computeFollowAllowed]);
-
   useEffect(() => () => {
     hookAliveRef.current = false;
-    if (followScrollFrameRef.current !== null) cancelAnimationFrame(followScrollFrameRef.current);
   }, []);
-
   // Load model list
   useEffect(() => {
     const controller = new AbortController();

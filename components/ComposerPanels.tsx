@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check, Copy } from "lucide-react";
@@ -196,17 +197,18 @@ export function ContextDetailPanel({ sessionStats, contextUsage, modelCapacity, 
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, fontVariantNumeric: "tabular-nums", color: "var(--text)" }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{value}</span>
         {copy && copyValue && (
-          <button
-            type="button"
-            onClick={() => copyField(copy, copyValue)}
-            aria-label={copiedField === copy ? t("appShell.copied") : t("appShell.copyFilePath")}
-            title={copiedField === copy ? t("appShell.copied") : t("appShell.copyFilePath")}
-            style={{ display: "inline-flex", padding: 2, background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)" }}
-          >
-            {copiedField === copy
-              ? <Check size={11} strokeWidth={2.4} aria-hidden="true" />
-              : <Copy size={11} strokeWidth={2} aria-hidden="true" />}
-          </button>
+                    <Tooltip content={copiedField === copy ? t("appShell.copied") : t("appShell.copyFilePath")}>
+            <button
+              type="button"
+              onClick={() => copyField(copy, copyValue)}
+              aria-label={copiedField === copy ? t("appShell.copied") : t("appShell.copyFilePath")}
+              style={{ display: "inline-flex", padding: 2, background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)" }}
+            >
+              {copiedField === copy
+                ? <Check size={11} strokeWidth={2.4} aria-hidden="true" />
+                : <Copy size={11} strokeWidth={2} aria-hidden="true" />}
+            </button>
+          </Tooltip>
         )}
       </span>
     </div>

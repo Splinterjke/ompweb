@@ -179,7 +179,8 @@ export function MetadataRow({
       </div>
       <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
         <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginBottom: 2 }}>{label}</div>
-        <div
+        <Tooltip content={typeof value === "string" ? value : undefined}>
+          <div
           style={{
             fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
             color: "var(--text)",
@@ -189,10 +190,10 @@ export function MetadataRow({
             whiteSpace: "nowrap",
             wordBreak: "break-all",
           }}
-          title={typeof value === "string" ? value : undefined}
         >
           {value}
         </div>
+        </Tooltip>
       </div>
       {action && <div style={{ flexShrink: 0, marginLeft: 4 }}>{action}</div>}
     </div>
@@ -746,17 +747,18 @@ export function ArchiveBrowser({ open, onClose, onRestored }: ArchiveBrowserProp
                               overflow: "hidden",
                             }}
                           >
-                            <span
+                            <Tooltip content={archive.cwd}>
+                              <span
                               style={{
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
                                 flex: 1,
                               }}
-                              title={archive.cwd}
                             >
                               {archive.cwd}
                             </span>
+                            </Tooltip>
                           </div>
 
                           <div

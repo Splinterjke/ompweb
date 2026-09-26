@@ -11,7 +11,7 @@ import {
   translateEnumOption,
   formatSettingType,
 } from "@/lib/omp/settings-descriptions-zh";
-import { Dialog, DialogContent, DialogTitle } from "./ui/primitives";
+import { Dialog, DialogContent, DialogTitle, Tooltip } from "./ui/primitives";
 import { toast } from "./ui/toast";
 
 const client = createOmpwebClient("legacy-http");
@@ -216,26 +216,27 @@ function NativeSettingsRow({ row, saving, onSave, onReset }: { row: NativeSettin
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3 }}>
         {dirty && (
+                    <Tooltip content={t("settingsConfig.save") ?? (isZh ? "保存修改" : "Save")}>
+            <button
+              type="button"
+              aria-label={isZh ? `保存 ${row.key}` : `Save ${row.key}`}
+              onClick={saveText}
+              style={{ padding: 5, border: 0, background: "none", color: "var(--accent)", cursor: "pointer" }}
+            >
+              <Save size={13} />
+            </button>
+          </Tooltip>
+        )}
+                <Tooltip content={t("ompSettings.resetToDefault") ?? (isZh ? "重置为 OMP 默认值" : "Reset to OMP default")}>
           <button
             type="button"
-            title={t("settingsConfig.save") ?? (isZh ? "保存修改" : "Save")}
-            aria-label={isZh ? `保存 ${row.key}` : `Save ${row.key}`}
-            onClick={saveText}
-            style={{ padding: 5, border: 0, background: "none", color: "var(--accent)", cursor: "pointer" }}
+            onClick={() => onReset(row.key)}
+            disabled={saving}
+            style={{ padding: 5, border: 0, background: "none", color: "var(--text-dim)", cursor: saving ? "default" : "pointer" }}
           >
-            <Save size={13} />
+            <RotateCcw size={12} />
           </button>
-        )}
-        <button
-          type="button"
-          title={t("ompSettings.resetToDefault") ?? (isZh ? "重置为 OMP 默认值" : "Reset to OMP default")}
-          aria-label={isZh ? `重置 ${row.key}` : `Reset ${row.key}`}
-          onClick={() => onReset(row.key)}
-          disabled={saving}
-          style={{ padding: 5, border: 0, background: "none", color: "var(--text-dim)", cursor: saving ? "default" : "pointer" }}
-        >
-          <RotateCcw size={12} />
-        </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -380,15 +381,16 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
             </button>
           )}
           {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t("common.close") ?? "关闭"}
-              title={t("common.close") ?? "关闭"}
-              style={{ padding: 5, border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}
-            >
-              ×
-            </button>
+                        <Tooltip content={t("common.close") ?? "关闭"}>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t("common.close") ?? "关闭"}
+                style={{ padding: 5, border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}
+              >
+                ×
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -399,33 +401,34 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
           const Icon = iconOf(group);
           const label = labelOf(group, locale);
           return (
-            <button
-              type="button"
-              key={group}
-              onClick={() => {
-                setActiveGroup(group);
-                setActiveSub(null);
-              }}
-              title={label}
-              aria-pressed={activeGroup === group}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                whiteSpace: "nowrap",
-                padding: "6px 10px",
-                border: 0,
-                borderRadius: "var(--radius-control)",
-                background: activeGroup === group ? "var(--bg-selected)" : "transparent",
-                color: activeGroup === group ? "var(--text)" : "var(--text-muted)",
-                cursor: "pointer",
-                fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
-                fontWeight: activeGroup === group ? 600 : 400,
-              }}
-            >
-              <Icon size={14} color={activeGroup === group ? "var(--accent)" : "currentColor"} />
-              {label}
-            </button>
+                        <Tooltip key={group} content={label}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveGroup(group);
+                  setActiveSub(null);
+                }}
+                aria-label={label}
+                aria-pressed={activeGroup === group}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  whiteSpace: "nowrap",
+                  padding: "6px 10px",
+                  border: 0,
+                  borderRadius: "var(--radius-control)",
+                  background: activeGroup === group ? "var(--bg-selected)" : "transparent",
+                  color: activeGroup === group ? "var(--text)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
+                  fontWeight: activeGroup === group ? 600 : 400,
+                }}
+              >
+                <Icon size={14} color={activeGroup === group ? "var(--accent)" : "currentColor"} />
+                {label}
+              </button>
+            </Tooltip>
           );
         })}
       </div>
@@ -461,29 +464,30 @@ export function NativeSettingsPanel({ onClose, onOpenStandalone, standalone = fa
             const count = visible.filter((r) => (r.key.split(".")[1] ?? "general") === sub).length;
             const label = translateSubgroup(locale, sub);
             return (
-              <button
-                type="button"
-                key={sub}
-                onClick={() => setActiveSub(sub)}
-                title={sub !== label ? `${label} (${sub})` : label}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "7px 8px",
-                  border: 0,
-                  borderRadius: 6,
-                  background: activeSub === sub ? "var(--bg-selected)" : "transparent",
-                  color: activeSub === sub ? "var(--text)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
-                  fontWeight: activeSub === sub ? 600 : 400,
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                <span style={{ font: "10px var(--font-mono)", color: "var(--text-dim)", marginLeft: 4 }}>{count}</span>
-              </button>
+                            <Tooltip key={sub} content={sub !== label ? `${label} (${sub})` : label}>
+                <button
+                  type="button"
+                  onClick={() => setActiveSub(sub)}
+                  aria-label={sub !== label ? `${label} (${sub})` : label}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "7px 8px",
+                    border: 0,
+                    borderRadius: 6,
+                    background: activeSub === sub ? "var(--bg-selected)" : "transparent",
+                    color: activeSub === sub ? "var(--text)" : "var(--text-muted)",
+                    cursor: "pointer",
+                    fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
+                    fontWeight: activeSub === sub ? 600 : 400,
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                  <span style={{ font: "10px var(--font-mono)", color: "var(--text-dim)", marginLeft: 4 }}>{count}</span>
+                </button>
+              </Tooltip>
             );
           })}
         </nav>

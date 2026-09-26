@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -233,9 +234,15 @@ function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
             <div key={selector} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
               <span style={{ width: 18, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>{index + 1}</span>
               <code style={{ flex: 1 }}>{selector}</code>
-              <button type="button" aria-label={`Move ${selector} up`} title={`Move ${selector} up`} disabled={index === 0} onClick={() => { const next = [...chain]; const previous = next[index - 1]; next[index - 1] = next[index]; next[index] = previous; updateChain(next); }} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: index === 0 ? "default" : "pointer" }}><ArrowUp size={14} /></button>
-              <button type="button" aria-label={`Move ${selector} down`} title={`Move ${selector} down`} disabled={index === chain.length - 1} onClick={() => { const next = [...chain]; const following = next[index + 1]; next[index + 1] = next[index]; next[index] = following; updateChain(next); }} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: index === chain.length - 1 ? "default" : "pointer" }}><ArrowDown size={14} /></button>
-              <button type="button" aria-label={`Remove ${selector} from chain`} title={`Remove ${selector}`} onClick={() => updateChain(chain.filter((value) => value !== selector))} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><Trash2 size={14} /></button>
+              <Tooltip content={`Move ${selector} up`}>
+                <button type="button" aria-label={`Move ${selector} up`} disabled={index === 0} onClick={() => { const next = [...chain]; const previous = next[index - 1]; next[index - 1] = next[index]; next[index] = previous; updateChain(next); }} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: index === 0 ? "default" : "pointer" }}><ArrowUp size={14} /></button>
+              </Tooltip>
+              <Tooltip content={`Move ${selector} down`}>
+                <button type="button" aria-label={`Move ${selector} down`} disabled={index === chain.length - 1} onClick={() => { const next = [...chain]; const following = next[index + 1]; next[index + 1] = next[index]; next[index] = following; updateChain(next); }} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: index === chain.length - 1 ? "default" : "pointer" }}><ArrowDown size={14} /></button>
+              </Tooltip>
+              <Tooltip content={`Remove ${selector}`}>
+                <button type="button" aria-label={`Remove ${selector} from chain`} onClick={() => updateChain(chain.filter((value) => value !== selector))} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><Trash2 size={14} /></button>
+              </Tooltip>
             </div>
           ))}
         </div>
@@ -325,7 +332,11 @@ function NativeRegistryDetail({ models, connectedProviders, onChanged }: { model
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
       <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("modelsConfig.providerPreference")}</div>
       <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>{t("modelsConfig.providerPreferenceDesc")}</p>
-      <div style={{ borderTop: "1px solid var(--border)" }}>{orderedProviders.map((provider, index) => <div key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}><ProviderIcon id={provider} size={14} /><code style={{ flex: 1 }}>{provider}</code><button type="button" disabled={saving || isReadOnly || index === 0} onClick={() => { const next = [...orderedProviders]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderUp")} aria-label={t("modelsConfig.moveProviderUp")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowUp size={14} /></button><button type="button" disabled={saving || isReadOnly || index === orderedProviders.length - 1} onClick={() => { const next = [...orderedProviders]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; void save({ ...settings, modelProviderOrder: next }); }} title={t("modelsConfig.moveProviderDown")} aria-label={t("modelsConfig.moveProviderDown")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowDown size={14} /></button></div>)}</div>
+      <div style={{ borderTop: "1px solid var(--border)" }}>{orderedProviders.map((provider, index) => <div key={provider} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}><ProviderIcon id={provider} size={14} /><code style={{ flex: 1 }}>{provider}</code><Tooltip content={t("modelsConfig.moveProviderUp")}>
+        <button type="button" disabled={saving || isReadOnly || index === 0} onClick={() => { const next = [...orderedProviders]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void save({ ...settings, modelProviderOrder: next }); }} aria-label={t("modelsConfig.moveProviderUp")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowUp size={14} /></button>
+      </Tooltip><Tooltip content={t("modelsConfig.moveProviderDown")}>
+        <button type="button" disabled={saving || isReadOnly || index === orderedProviders.length - 1} onClick={() => { const next = [...orderedProviders]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; void save({ ...settings, modelProviderOrder: next }); }} aria-label={t("modelsConfig.moveProviderDown")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowDown size={14} /></button>
+      </Tooltip></div>)}</div>
     </section>
     {isReadOnly && <div role="status" style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.45 }}>{t("modelsConfig.pathScopedNotice")}</div>}
     {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>}
@@ -438,16 +449,17 @@ function ModelRolesDetail({ models }: { models: RuntimeModelEntry[] }) {
               {(model?.thinkingLevels ?? []).filter((level) => level !== "off").map((level) => <option key={level} value={level}>{level}</option>)}
             </select>
             {raw !== "" && (
-              <button
+              <Tooltip content={t("modelsConfig.clearRoleOverride") ?? "Clear override"}>
+                <button
                 type="button"
                 onClick={() => clearRole(role)}
-                title={t("modelsConfig.clearRoleOverride") ?? "Clear override"}
                 aria-label={`${t("modelsConfig.clearRoleOverride") ?? "Clear override"} for ${role}`}
                 className="ui-focus-ring"
                 style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-dim)", cursor: "pointer" }}
               >
                 <Trash2 size={13} strokeWidth={1.8} aria-hidden="true" />
               </button>
+              </Tooltip>
             )}
           </>;
         })()}
@@ -1243,8 +1255,8 @@ function ModelDetail({
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         {testSummary && (
-          <span
-            title={testSummary}
+          <Tooltip content={testSummary}>
+            <span
             style={{
               maxWidth: 360,
               padding: "4px 10px",
@@ -1279,13 +1291,14 @@ function ModelDetail({
             {testState.phase === "error" ? <AlertCircle size={11} aria-hidden="true" /> : null}
             {testSummary}
           </span>
+          </Tooltip>
         )}
         <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-          <button
+          <Tooltip content={t("modelsConfig.testTitle")}>
+            <button
             type="button"
             onClick={handleTest}
             disabled={!model.id.trim() || testState.phase === "testing"}
-            title={t("modelsConfig.testTitle")}
             style={{
               padding: "5px 12px",
               background: testState.phase === "success" ? "color-mix(in srgb, var(--accent) 18%, var(--bg-panel))" : "none",
@@ -1316,6 +1329,7 @@ function ModelDetail({
                 ? t("modelsConfig.ok")
                 : t("modelsConfig.test")}
           </button>
+          </Tooltip>
           <button
             type="button"
             onClick={() => setRemoveOpen(true)}
@@ -1752,16 +1766,17 @@ function AddProviderPicker({
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "14px 18px 8px", gap: 8 }}>
           <DialogTitle style={{ margin: 0, fontSize: "calc(18px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.addProvider")}</DialogTitle>
-          <button
+          <Tooltip content={t("modelsConfig.close")}>
+            <button
             type="button"
             onClick={onClose}
             aria-label={t("modelsConfig.close")}
-            title={t("modelsConfig.close")}
             className="ui-focus-ring"
             style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", padding: 4, borderRadius: "var(--radius-control)" }}
           >
             <X size={16} />
           </button>
+          </Tooltip>
         </div>
 
         {/* Search */}
@@ -2268,7 +2283,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                 <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>{t("modelsConfig.composerPickerDesc")}</p>
               </div>
               {/* Refresh OMP runtime models */}
-              <button type="button" onClick={() => void loadRuntimeModels()} disabled={runtimeModelsLoading} title={t("modelsConfig.refreshRuntimeModels")} style={{ padding: 7, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: runtimeModelsLoading ? "wait" : "pointer", flexShrink: 0 }}><RefreshCw size={14} aria-hidden="true" /></button>
+              <Tooltip content={t("modelsConfig.refreshRuntimeModels")}>
+                <button type="button" onClick={() => void loadRuntimeModels()} disabled={runtimeModelsLoading} style={{ padding: 7, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", cursor: runtimeModelsLoading ? "wait" : "pointer", flexShrink: 0 }}><RefreshCw size={14} aria-hidden="true" /></button>
+              </Tooltip>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", padding: "3px 8px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text-muted)", fontWeight: 600 }}>{t("modelsConfig.modelsVisible", { visible: totalVisible, total: runtimeModels.length })}</span>
@@ -2302,12 +2319,14 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             return <section key={provider} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg-panel)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 10px", background: "var(--bg)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700 }}>
                 <input type="checkbox" checked={providerVisible} ref={(input) => { if (input) input.indeterminate = providerSomeVisible && !providerVisible; }} onChange={(event) => setComposerProviderVisible(provider, event.target.checked)} aria-label={`Show all ${provider} models in composer`} />
-                <button type="button" onClick={() => toggleProviderCollapse("picker", provider)} aria-expanded={!isCollapsed} aria-controls={regionId} title={`${isCollapsed ? "Expand" : "Collapse"} ${provider}`} style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 7, padding: "3px 0", border: "none", background: "transparent", color: "inherit", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                <Tooltip content={`${isCollapsed ? "Expand" : "Collapse"} ${provider}`}>
+                  <button type="button" onClick={() => toggleProviderCollapse("picker", provider)} aria-expanded={!isCollapsed} aria-controls={regionId} style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 7, padding: "3px 0", border: "none", background: "transparent", color: "inherit", cursor: "pointer", font: "inherit", textAlign: "left" }}>
                   <ChevronRight size={13} aria-hidden="true" style={{ color: "var(--text-dim)", flexShrink: 0, transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
                   <ProviderIcon id={provider} size={15} />
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider}</span>
                   <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 500, padding: "2px 7px", borderRadius: 10, background: "var(--bg-subtle)", border: "1px solid var(--border)" }}>{models.length}</span>
                 </button>
+                </Tooltip>
               </div>
               {!isCollapsed && <div id={regionId} style={{ display: "flex", flexDirection: "column" }}>
                 {models.map((model) => (
@@ -2370,7 +2389,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             <DialogTitle style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", margin: 0 }}>{t("modelsConfig.title")}</DialogTitle>
             <code style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>~/.omp/agent/models.yml</code>
           </div>
-          <button onClick={onClose} aria-label={t("modelsConfig.close")} title={t("modelsConfig.close")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+          <Tooltip content={t("modelsConfig.close")}>
+            <button onClick={onClose} aria-label={t("modelsConfig.close")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+          </Tooltip>
         </div>)}
         {!embedded && onSelectTab && <SettingsTabs active="models" onSelect={onSelectTab} />}
 
@@ -2450,7 +2471,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                         >
                           <ProviderIcon id={p.id} size={16} />
                           <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                          <span title={t("modelsConfig.oauthProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale-sm, 1))", fontWeight: 600, flexShrink: 0 }}>OAuth</span>
+                          <Tooltip content={t("modelsConfig.oauthProviderTitle", { id: p.id })}>
+                            <span style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale-sm, 1))", fontWeight: 600, flexShrink: 0 }}>OAuth</span>
+                          </Tooltip>
                         </button>
                       );
                     })}
@@ -2466,7 +2489,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                         >
                           <ProviderIcon id={p.id} size={16} />
                           <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.displayName}</span>
-                          <span title={t("modelsConfig.apiKeyProviderTitle", { id: p.id })} style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale-sm, 1))", fontWeight: 600, flexShrink: 0 }}>API key</span>
+                          <Tooltip content={t("modelsConfig.apiKeyProviderTitle", { id: p.id })}>
+                            <span style={{ padding: "2px 6px", borderRadius: 4, background: isSelected ? "var(--accent)" : "var(--bg-subtle)", color: isSelected ? "var(--on-accent)" : "var(--text-muted)", fontSize: "calc(9px * var(--ui-font-scale-sm, 1))", fontWeight: 600, flexShrink: 0 }}>API key</span>
+                          </Tooltip>
                         </button>
                       );
                     })}
@@ -2501,12 +2526,12 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                         <div key={pName} style={{ borderRadius: "var(--radius-card)", background: "var(--bg)", border: isProviderSelected ? "1px solid var(--accent)" : "1px solid var(--border)", overflow: "hidden", boxShadow: isProviderSelected ? "0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent)" : "none" }}>
                           {/* Provider summary.  The large model list stays out
                               of the way until this one provider is expanded. */}
-                          <button
+                          <Tooltip content={`${isCollapsed ? "Expand" : "Collapse"} ${pName}`}>
+                            <button
                             type="button"
                             onClick={() => { setSelection({ type: "provider", name: pName }); toggleProviderCollapse("custom", pName); }}
                             aria-expanded={!isCollapsed}
                             aria-controls={regionId}
-                            title={`${isCollapsed ? "Expand" : "Collapse"} ${pName}`}
                             style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 10px", cursor: "pointer", width: "100%", border: "none", textAlign: "left", fontFamily: "inherit", background: isProviderSelected ? "var(--bg-selected)" : "var(--bg)", borderBottom: !isCollapsed && models.length ? "1px solid var(--border)" : "none" }}
                             {...hoverRow(isProviderSelected)}
                           >
@@ -2519,6 +2544,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                               {models.length} model{models.length === 1 ? "" : "s"}
                             </span>
                           </button>
+                          </Tooltip>
 
                           {!isCollapsed && <div id={regionId}>
                           {/* Model rows */}

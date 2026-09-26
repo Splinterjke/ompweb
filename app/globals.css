@@ -2249,6 +2249,20 @@ svg.lucide:not([class*="-spin"]) {
   color: var(--text);
 }
 
+/* Icon buttons inside sidebar rows (project header: Open GitGraph, New
+   session; session row: Actions, Expand/Collapse forks; project header:
+   Expand/Collapse; Explorer: Refresh; worktree switcher): themed hover
+   highlight matching the section-header "Add" buttons.
+   !important beats the buttons' inline background/color so one rule covers
+   every state (open/refreshing included). */
+.sidebar-project-action:hover:not(:disabled),
+.sidebar-project-toggle:hover:not(:disabled),
+.sidebar-icon-btn:hover:not(:disabled),
+.session-item-icon-button:hover:not(:disabled) {
+  background: var(--bg-hover) !important;
+  color: var(--accent) !important;
+}
+
 /* Project navigation: give each workspace a quiet, tactile surface. The
    indicator uses transform/opacity so active-session updates stay cheap. */
 .sidebar-project {
@@ -3828,8 +3842,11 @@ html[data-hidden="true"] :is(.chat-input-beam-rect, .icon-spin, .animate-spin, [
 }
 
 /* Shared hover highlight for the composer-attached panel headers
-   (Git changes, Tasks, Subagents) so all bars feel identical. */
+   (Git changes, Tasks, Subagents) so all bars feel identical. The base
+   background lives here — the header buttons set no inline background —
+   so the :hover rule can override it. */
 .composer-panel-header {
+  background: transparent;
   transition: background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm);
 }
 .composer-panel-header:hover {

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { CircleCheck } from "lucide-react";
 import { formatCompactNumber, formatPercent, getCacheHitRate } from "@/lib/format";
@@ -64,90 +65,90 @@ export function SessionInfoButton({ sessionStats, contextUsage, modelCapacity, g
   const tooltip = tooltipParts.join("  |  ");
 
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={tooltip || t("appShell.sessionInfo")}
-      aria-label={t("appShell.sessionInfo")}
-      aria-pressed={open}
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-        height: 24, padding: "0 8px",
-        borderRadius: "var(--radius-control)",
-        minWidth: 0,
-        overflow: "hidden",
-        background: open ? "var(--bg-selected)" : "none",
-        border: "none",
-        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)",
-        whiteSpace: "nowrap", cursor: "pointer",
-        fontVariantNumeric: "tabular-nums",
-        transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
-      }}
-      onMouseEnter={(e) => {
-        if (!open) e.currentTarget.style.background = "var(--bg-hover)";
-        e.currentTarget.style.color = "var(--text)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = open ? "var(--bg-selected)" : "none";
-        e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
-      }}
-    >
-      {tok && tok.input > 0 && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="8.5" x2="5" y2="1.5" /><polyline points="2 4 5 1.5 8 4" />
-          </svg>
-          {formatCompactNumber(tok.input)}
-        </span>
-      )}
-      {tok && tok.output > 0 && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
-          </svg>
-          {formatCompactNumber(tok.output)}
-        </span>
-      )}
-      {tok && tok.cacheRead > 0 && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8.5 5a3.5 3.5 0 1 1-1-2.45" /><polyline points="6.5 1.5 8.5 2.5 7.5 4.5" />
-          </svg>
-          {formatCompactNumber(tok.cacheRead)}
-        </span>
-      )}
-      {modelCapacity?.maxTokens && (
-        <span style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>↗ {formatCompactNumber(modelCapacity.maxTokens)}</span>
-      )}
-      {cacheRateStr && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
-          <CircleCheck size={12} strokeWidth={1.8} aria-hidden="true" />
-          {cacheRateStr}
-        </span>
-      )}
-      {ctxStr && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: ctxColor, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 9 L1 5 Q1 1 5 1 Q9 1 9 5 L9 9" /><line x1="1" y1="9" x2="9" y2="9" />
-          </svg>
-          {ctxStr}
-        </span>
-      )}
-      {costStr && (
-        <span style={{ display: "flex", alignItems: "center", color: "var(--text)", fontWeight: 500 }}>
-          {costStr}
-        </span>
-      )}
-      {speedStr && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)", fontWeight: 600 }}>
-          {speedStr}
-        </span>
-      )}
-      {averageSpeedStr && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
-          {averageSpeedStr}
-        </span>
-      )}
-    </button>
+        <Tooltip content={tooltip || t("appShell.sessionInfo")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={open}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          height: 24, padding: "0 8px",
+          borderRadius: "var(--radius-control)",
+          minWidth: 0,
+          overflow: "hidden",
+          background: open ? "var(--bg-selected)" : "none",
+          border: "none",
+          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)",
+          whiteSpace: "nowrap", cursor: "pointer",
+          fontVariantNumeric: "tabular-nums",
+          transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
+        }}
+        onMouseEnter={(e) => {
+          if (!open) e.currentTarget.style.background = "var(--bg-hover)";
+          e.currentTarget.style.color = "var(--text)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = open ? "var(--bg-selected)" : "none";
+          e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
+        }}
+      >
+        {tok && tok.input > 0 && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="8.5" x2="5" y2="1.5" /><polyline points="2 4 5 1.5 8 4" />
+            </svg>
+            {formatCompactNumber(tok.input)}
+          </span>
+        )}
+        {tok && tok.output > 0 && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="1.5" x2="5" y2="8.5" /><polyline points="2 6 5 8.5 8 6" />
+            </svg>
+            {formatCompactNumber(tok.output)}
+          </span>
+        )}
+        {tok && tok.cacheRead > 0 && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8.5 5a3.5 3.5 0 1 1-1-2.45" /><polyline points="6.5 1.5 8.5 2.5 7.5 4.5" />
+            </svg>
+            {formatCompactNumber(tok.cacheRead)}
+          </span>
+        )}
+        {modelCapacity?.maxTokens && (
+          <span style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>↗ {formatCompactNumber(modelCapacity.maxTokens)}</span>
+        )}
+        {cacheRateStr && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
+            <CircleCheck size={12} strokeWidth={1.8} aria-hidden="true" />
+            {cacheRateStr}
+          </span>
+        )}
+        {ctxStr && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4, color: ctxColor, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 9 L1 5 Q1 1 5 1 Q9 1 9 5 L9 9" /><line x1="1" y1="9" x2="9" y2="9" />
+            </svg>
+            {ctxStr}
+          </span>
+        )}
+        {costStr && (
+          <span style={{ display: "flex", alignItems: "center", color: "var(--text)", fontWeight: 500 }}>
+            {costStr}
+          </span>
+        )}
+        {speedStr && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)", fontWeight: 600 }}>
+            {speedStr}
+          </span>
+        )}
+        {averageSpeedStr && (
+          <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-muted)" }}>
+            {averageSpeedStr}
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 }

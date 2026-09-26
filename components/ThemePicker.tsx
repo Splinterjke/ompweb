@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState } from "react";
 import { Palette, Check, Sparkles, Sliders, Moon, Sun, Waves, Type, Minus, Plus } from "lucide-react";
@@ -67,37 +68,38 @@ export function ThemePicker() {
 
   return (
     <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
-        title={t("appShell.switchTheme") || "Theme & Typography"}
-        aria-label={t("appShell.switchTheme") || "Theme & Typography"}
-        aria-expanded={open}
-        className="shell-toolbar-btn ui-focus-ring"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "0 6px",
-          height: 28,
-          borderRadius: 6,
-        }}
-      >
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            backgroundColor: preference === "custom" ? customConfig.accent : currentOption.accent,
-            boxShadow: `0 0 0 1.5px ${currentOption.border}`,
-            flexShrink: 0,
+            <Tooltip content={t("appShell.switchTheme") || "Theme & Typography"}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((prev) => !prev);
           }}
-        />
-        <Palette size={15} strokeWidth={1.8} aria-hidden="true" className="theme-picker-icon" style={{ color: preference === "custom" ? customConfig.accent : currentOption.accent }} />
-      </button>
+          aria-label={t("appShell.switchTheme") || "Theme & Typography"}
+          aria-expanded={open}
+          className="shell-toolbar-btn ui-focus-ring"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "0 6px",
+            height: 28,
+            borderRadius: 6,
+          }}
+        >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              backgroundColor: preference === "custom" ? customConfig.accent : currentOption.accent,
+              boxShadow: `0 0 0 1.5px ${currentOption.border}`,
+              flexShrink: 0,
+            }}
+          />
+          <Palette size={15} strokeWidth={1.8} aria-hidden="true" className="theme-picker-icon" style={{ color: preference === "custom" ? customConfig.accent : currentOption.accent }} />
+        </button>
+      </Tooltip>
 
       {open && (
         <div

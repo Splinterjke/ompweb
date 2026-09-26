@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -100,39 +101,41 @@ export function LanguageSwitcher() {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={onTriggerKeyDown}
-        title={t("languageSwitcher.switchTo", { language: current.label })}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        className="shell-toolbar-btn ui-focus-ring"
-        style={{
-          width: "auto",
-          minWidth: isMobile ? 44 : 36,
-          padding: "0 8px",
-          gap: 4,
-          background: open ? "var(--bg-selected)" : undefined,
-          color: open ? "var(--text)" : undefined,
-          fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {current.label}
-        <ChevronDown
-          size={10}
-          strokeWidth={2}
-          aria-hidden="true"
+            <Tooltip content={t("languageSwitcher.switchTo", { language: current.label })}>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          onKeyDown={onTriggerKeyDown}
+          aria-label={t("languageSwitcher.switchTo", { language: current.label })}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          className="shell-toolbar-btn ui-focus-ring"
           style={{
-            flexShrink: 0,
-            transform: open ? "rotate(180deg)" : "none",
-            transition: "transform var(--dur-fast) var(--ease-out-warm)",
+            width: "auto",
+            minWidth: isMobile ? 44 : 36,
+            padding: "0 8px",
+            gap: 4,
+            background: open ? "var(--bg-selected)" : undefined,
+            color: open ? "var(--text)" : undefined,
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+            whiteSpace: "nowrap",
           }}
-        />
-      </button>
+        >
+          {current.label}
+          <ChevronDown
+            size={10}
+            strokeWidth={2}
+            aria-hidden="true"
+            style={{
+              flexShrink: 0,
+              transform: open ? "rotate(180deg)" : "none",
+              transition: "transform var(--dur-fast) var(--ease-out-warm)",
+            }}
+          />
+        </button>
+      </Tooltip>
 
       {open && (
         <ul

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, LoaderCircle, Pencil, Power, Plus, Trash2, Zap } from "lucide-react";
@@ -37,9 +38,9 @@ function StatusDot({ action }: { action: ChatEventAction }) {
   const hollow = !action.enabled || !run;
   const color = !action.enabled ? "var(--border)" : !run ? "var(--text-dim)" : run.ok ? "var(--status-success)" : "var(--status-error)";
   return (
-    <span
+    <Tooltip content={!action.enabled ? "Disabled" : !run ? "Never run" : undefined}>
+      <span
       aria-hidden="true"
-      title={!action.enabled ? "Disabled" : !run ? "Never run" : undefined}
       style={{
         width: 7,
         height: 7,
@@ -49,6 +50,7 @@ function StatusDot({ action }: { action: ChatEventAction }) {
         border: hollow ? `1px solid ${color}` : "none",
       }}
     />
+    </Tooltip>
   );
 }
 
@@ -198,12 +200,12 @@ export function EventActionsPanel({
       )}
       <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, height: open ? height : undefined, overflow: "hidden", transition: anyDragging ? "none" : "height var(--dur-med) var(--ease-out-warm)" }}>
         <div ref={headerRef} className="sidebar-section-header" style={{ display: "flex", alignItems: "center", flexShrink: 0, borderTop: "1px solid var(--border)", paddingRight: 6, transition: "background var(--dur-fast) var(--ease-out-warm)" }}>
-          <button
+          <Tooltip content={t("sessionSidebar.chatActions")}>
+            <button
             type="button"
             className="sidebar-section-title"
             onClick={() => onOpenChange(!open)}
             aria-expanded={open}
-            title={t("sessionSidebar.chatActions")}
             style={{
               flex: 1,
               minWidth: 0,
@@ -228,11 +230,12 @@ export function EventActionsPanel({
               {list.length > 0 && <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}> {list.length}</span>}
             </span>
           </button>
-          <button
+          </Tooltip>
+          <Tooltip content={t("chatActions.add")}>
+            <button
             type="button"
             onClick={openAdd}
             aria-label={t("chatActions.add")}
-            title={t("chatActions.add")}
             style={{
               display: "flex",
               alignItems: "center",
@@ -255,6 +258,7 @@ export function EventActionsPanel({
           >
             <Plus size={12} aria-hidden="true" />
           </button>
+          </Tooltip>
           <SectionChevron open={open} />
         </div>
 
@@ -310,7 +314,8 @@ export function EventActionsPanel({
                     }}
                   >
                     <StatusDot action={a} />
-                    <span
+                    <Tooltip content={a.name}>
+                      <span
                       style={{
                         flex: 1,
                         minWidth: 0,
@@ -321,10 +326,10 @@ export function EventActionsPanel({
                         fontWeight: 500,
                         color: a.enabled ? "var(--text)" : "var(--text-dim)",
                       }}
-                      title={a.name}
                     >
                       {a.name}
                     </span>
+                    </Tooltip>
                     <ChevronDown
                       size={12}
                       aria-hidden="true"
@@ -332,9 +337,11 @@ export function EventActionsPanel({
                     />
                   </button>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", minWidth: 0 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={a.events.map(eventLabel).join(", ")}>
+                    <Tooltip content={a.events.map(eventLabel).join(", ")}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                       {t(`chatActions.action.${a.action.type}`)} · {a.events.length} {a.events.length === 1 ? "event" : "events"}
                     </span>
+                    </Tooltip>
                     {!a.enabled ? (
                       <span style={{ color: "var(--text-dim)", flexShrink: 0 }}>{t("chatActions.disabled")}</span>
                     ) : run ? (
@@ -454,12 +461,12 @@ function IconButton({
   active?: boolean;
 }) {
   return (
-    <button
+    <Tooltip content={label}>
+      <button
       type="button"
       onClick={onClick}
       disabled={busy}
       aria-label={label}
-      title={label}
       style={{
         display: "grid",
         placeItems: "center",
@@ -476,5 +483,6 @@ function IconButton({
     >
       {busy ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : icon}
     </button>
+    </Tooltip>
   );
 }

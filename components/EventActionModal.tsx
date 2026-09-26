@@ -422,14 +422,15 @@ export function EventActionModal({
                           }
                           side="top"
                         >
-                          <button
-                            type="button"
-                            aria-label={t("chatActions.httpBodyVarsHint")}
-                            title={t("chatActions.httpBodyVarsHint")}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 14, height: 14, padding: 0, border: "none", borderRadius: "50%", background: "none", color: "var(--text-dim)", cursor: "help" }}
-                          >
-                            <Info size={12} aria-hidden="true" />
-                          </button>
+                                                    <Tooltip content={t("chatActions.httpBodyVarsHint")}>
+                            <button
+                              type="button"
+                              aria-label={t("chatActions.httpBodyVarsHint")}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 14, height: 14, padding: 0, border: "none", borderRadius: "50%", background: "none", color: "var(--text-dim)", cursor: "help" }}
+                            >
+                              <Info size={12} aria-hidden="true" />
+                            </button>
+                          </Tooltip>
                         </Tooltip>
                       </>
                     }

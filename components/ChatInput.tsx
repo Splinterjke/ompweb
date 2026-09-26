@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
 import { ChevronDown, ListChecks, Loader2, Mic, Paperclip, Plus, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
@@ -269,10 +270,10 @@ function QueuedActionButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Tooltip content={title}>
+      <button
       type="button"
       onClick={onClick}
-      title={title}
       style={{
         flexShrink: 0,
         padding: "4px 8px", minHeight: 24,
@@ -296,6 +297,7 @@ function QueuedActionButton({
     >
       {children}
     </button>
+    </Tooltip>
   );
 }
 
@@ -362,11 +364,11 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
       {goal && (
-        <button
+        <Tooltip content={expanded ? t("chatInput.collapseGoal") : t("chatInput.expandGoal")}>
+          <button
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
-          title={expanded ? t("chatInput.collapseGoal") : t("chatInput.expandGoal")}
           style={{
             display: "flex", alignItems: expanded ? "flex-start" : "center", gap: 8,
             width: "100%", padding: "6px 9px",
@@ -385,14 +387,15 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
             {goal.objective}
           </span>
         </button>
+        </Tooltip>
       )}
       {plan && (
-        <button
+        <Tooltip content={t("chatInput.openPlanSidebar")}>
+          <button
           type="button"
           role="status"
           aria-live="polite"
           onClick={onOpenPlan}
-          title={t("chatInput.openPlanSidebar")}
           style={{
             display: "flex", alignItems: "center", gap: 7, padding: "5px 9px",
             border: "1px solid color-mix(in srgb, var(--accent) 32%, var(--border))",
@@ -406,6 +409,7 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
           <span style={{ fontWeight: 600 }}>{t("chatInput.planningInProgress")}</span>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-dim)", flex: 1 }}>{plan.objective}</span>
         </button>
+        </Tooltip>
       )}
     </div>
   );
@@ -1788,10 +1792,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             </svg>
             {t("chatInput.retrying", { attempt: retryInfo.attempt, maxAttempts: retryInfo.maxAttempts })}{retryInfo.errorMessage && <span style={{ opacity: 0.7, marginLeft: 4 }}>— {retryInfo.errorMessage}</span>}
             {onAbortRetry && (
-              <button
+              <Tooltip content="Stop the automatic retry and leave the failed turn as-is">
+                <button
                 type="button"
                 onClick={onAbortRetry}
-                title="Stop the automatic retry and leave the failed turn as-is"
                 style={{
                   marginLeft: "auto",
                   padding: "3px 9px",
@@ -1809,6 +1813,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               >
                 Abort retry
               </button>
+              </Tooltip>
             )}
           </div>
         )}
@@ -1845,9 +1850,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   alt=""
                   style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border)", display: "block" }}
                 />
-                <button
+                <Tooltip content="Remove image">
+                  <button
                   onClick={() => removeImage(i)}
-                  title="Remove image"
                   aria-label="Remove image"
                   style={{
                     position: "absolute", top: -5, right: -5,
@@ -1864,6 +1869,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <line x1="1" y1="1" x2="7" y2="7" /><line x1="7" y1="1" x2="1" y2="7" />
                   </svg>
                 </button>
+                </Tooltip>
               </div>
             ))}
           </div>
@@ -1884,8 +1890,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 maxHeight: "min(44vh, 360px)",
               }}
             >
-              <div
-                title={t("chatInput.inputHistory")}
+              <Tooltip content={t("chatInput.inputHistory")}>
+                <div
                 style={{
                   height: 30,
                   padding: "0 10px",
@@ -1911,6 +1917,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <path d="M12 7v5l3 2" />
                 </svg>
               </div>
+              </Tooltip>
               <div
                 id={historyListboxId}
                 role="listbox"
@@ -2041,8 +2048,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                           const active = index === slashActiveIndex;
                           const dormant = isDormantSkillCommand(command, dormantSkillNames);
                           return (
-                            <button
-                              key={`${command.source}:${command.name}`}
+                            <Tooltip key={`${command.source}:${command.name}`} content={[`/${command.name}`, command.argumentHint, command.description].filter(Boolean).join(" — ")}>
+                              <button
                               ref={(node) => {
                                 slashItemRefs.current[index] = node;
                               }}
@@ -2055,7 +2062,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                                 applySlashCommand(command);
                               }}
                               onMouseEnter={() => setSlashActiveIndex(index)}
-                              title={[`/${command.name}`, command.argumentHint, command.description].filter(Boolean).join(" — ")}
                               style={{
                                 width: "100%",
                                 minWidth: 0,
@@ -2100,6 +2106,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                                 </span>
                               )}
                             </button>
+                            </Tooltip>
                           );
                         })}
                       </div>
@@ -2245,8 +2252,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 }}>
                   {firstQueued?.kind === "steer" ? t("chatInput.queuedSteer") : t("chatInput.queuedFollowUp")}
                 </span>
-                <span
-                  title={firstQueued?.text}
+                <Tooltip content={firstQueued?.text}>
+                  <span
                   style={{
                     flex: 1,
                     minWidth: 0,
@@ -2259,6 +2266,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 >
                   {firstQueued?.text}
                 </span>
+                </Tooltip>
                 <QueuedActionButton onClick={handleQueuedEdit} title={t("chatInput.queuedEditTitle")}>
                   {t("chatInput.queuedEdit")}
                 </QueuedActionButton>
@@ -2281,11 +2289,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   gap: 8,
                   borderBottom: queueExpanded ? "1px solid var(--border)" : "none",
                 }}>
-                  <button
+                  <Tooltip content={queueExpanded ? t("chatInput.collapseQueued") : t("chatInput.expandQueued")}>
+                    <button
                     type="button"
                     onClick={() => setQueueExpanded((prev) => !prev)}
                     aria-expanded={queueExpanded}
-                    title={queueExpanded ? t("chatInput.collapseQueued") : t("chatInput.expandQueued")}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -2333,6 +2341,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       </span>
                     )}
                   </button>
+                  </Tooltip>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                     <button
                       type="button"
@@ -2386,8 +2395,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         }}>
                           {entry.kind === "steer" ? t("chatInput.queuedSteer") : t("chatInput.queuedFollowUp")}
                         </span>
-                        <span
-                          title={entry.text}
+                        <Tooltip content={entry.text}>
+                          <span
                           style={{
                             flex: 1,
                             minWidth: 0,
@@ -2401,6 +2410,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         >
                           {entry.text}
                         </span>
+                        </Tooltip>
                         <QueuedActionButton onClick={() => handleItemEdit(entry.text)} title={t("chatInput.queuedEditTitle")}>
                           {t("chatInput.queuedEdit")}
                         </QueuedActionButton>
@@ -2542,9 +2552,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           }}>
             {/* Plus menu — attachment · tools submenu · advisor submenu */}
             <div ref={plusMenuRef} style={{ position: "relative", flexShrink: 0 }}>
-              <button
+              <Tooltip content={t("chatInput.plusMenu")}>
+                <button
                 onClick={() => { setPlusMenuOpen((v) => !v); setPlusExpanded(null); }}
-                title={t("chatInput.plusMenu")}
                 aria-label={t("chatInput.plusMenu")}
                 aria-expanded={plusMenuOpen}
                 aria-haspopup="menu"
@@ -2563,6 +2573,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               >
                 <Plus size={14} strokeWidth={2} aria-hidden="true" />
               </button>
+              </Tooltip>
               {plusMenuOpen && (
                 <div
                   className="picker-panel"
@@ -2579,11 +2590,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <Plus size={12} strokeWidth={2} style={{ color: "var(--text-muted)", flexShrink: 0 }} aria-hidden="true" />
                     <span className="picker-panel-title">{t("chatInput.plusMenu")}</span>
                   </div>
-                  <button
+                  <Tooltip content={t("chatInput.attachFile")}>
+                    <button
                     role="menuitem"
                     onClick={() => { setPlusMenuOpen(false); fileInputRef.current?.click(); }}
                     disabled={isStreaming}
-                    title={t("chatInput.attachFile")}
                     style={{
                       display: "flex", alignItems: "center", gap: 8, width: "100%",
                       padding: "7px 10px", border: 0, borderRadius: 5,
@@ -2595,13 +2606,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
                     <span style={{ flex: 1 }}>{t("chatInput.attachFile")}</span>
                   </button>
+                  </Tooltip>
                   {onToolPresetChange && (
                     <>
-                      <button
+                      <Tooltip content={t("chatInput.changeToolPresetTitle", { preset: toolPreset ?? "full" })}>
+                        <button
                         role="menuitem"
                         aria-expanded={plusExpanded === "tools"}
                         onClick={() => setPlusExpanded((v) => (v === "tools" ? null : "tools"))}
-                        title={t("chatInput.changeToolPresetTitle", { preset: toolPreset ?? "full" })}
                         style={{
                           display: "flex", alignItems: "center", gap: 8, width: "100%",
                           padding: "7px 10px", border: 0, borderRadius: 5,
@@ -2614,16 +2626,17 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         <span style={{ color: "var(--text-dim)", textTransform: "capitalize" }}>{toolPreset ?? "full"}</span>
                         <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: plusExpanded === "tools" ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} aria-hidden="true" />
                       </button>
+                      </Tooltip>
                       {plusExpanded === "tools" && TOOL_PRESET_OPTIONS.map((opt) => {
                         const isActive = (toolPreset ?? "full") === opt.value;
                         return (
-                          <button
+                          <Tooltip key={opt.value} content={t(opt.descriptionKey)}>
+                            <button
                             className="picker-row"
                             role="menuitemradio"
                             aria-checked={isActive}
                             data-active={isActive}
-                            key={opt.value}
-                            title={t(opt.descriptionKey)}
+                           
                             onClick={() => { setPlusMenuOpen(false); if (!isActive) onToolPresetChange(opt.value); }}
                             style={{ paddingLeft: 30 }}
                           >
@@ -2632,17 +2645,18 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             </span>
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{opt.value}</span>
                           </button>
+                          </Tooltip>
                         );
                       })}
                     </>
                   )}
                   {onAdvisorChange && (
                     <>
-                      <button
+                      <Tooltip content={advisorEnabled ? t("chatInput.advisorDisableTitle", { model: advisorModel?.name ?? t("messageView.advisorLabel"), reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault") }) : t("chatInput.advisorEnableTitle")}>
+                        <button
                         role="menuitem"
                         aria-expanded={plusExpanded === "advisor"}
                         onClick={() => setPlusExpanded((v) => (v === "advisor" ? null : "advisor"))}
-                        title={advisorEnabled ? t("chatInput.advisorDisableTitle", { model: advisorModel?.name ?? t("messageView.advisorLabel"), reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault") }) : t("chatInput.advisorEnableTitle")}
                         style={{
                           display: "flex", alignItems: "center", gap: 8, width: "100%",
                           padding: "7px 10px", border: 0, borderRadius: 5,
@@ -2655,18 +2669,20 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         <span style={{ color: "var(--text-dim)" }}>{advisorEnabled ? t("chatInput.plusOn") : t("chatInput.plusOff")}</span>
                         <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: plusExpanded === "advisor" ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} aria-hidden="true" />
                       </button>
+                      </Tooltip>
                       {plusExpanded === "advisor" && (
-                        <button
+                        <Tooltip content={advisorEnabled ? t("chatInput.advisorDisableTitle", { model: advisorModel?.name ?? t("messageView.advisorLabel"), reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault") }) : t("chatInput.advisorEnableTitle")}>
+                          <button
                           className="picker-row"
                           role="menuitem"
                           onClick={() => { setPlusMenuOpen(false); onAdvisorChange(!advisorEnabled); }}
-                          title={advisorEnabled ? t("chatInput.advisorDisableTitle", { model: advisorModel?.name ?? t("messageView.advisorLabel"), reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault") }) : t("chatInput.advisorEnableTitle")}
                           style={{ paddingLeft: 30 }}
                         >
                           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {advisorEnabled ? t("chatInput.advisorDisableTitle", { model: advisorModel?.name ?? t("messageView.advisorLabel"), reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault") }) : t("chatInput.advisorEnableTitle")}
                           </span>
                         </button>
+                        </Tooltip>
                       )}
                     </>
                   )}
@@ -2677,7 +2693,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             {/* Model selector — compact text button with dropdown */}
             {(modelOptions.length > 0 || currentName || modelError || showModelsLoading) && onModelChange && (
               <div ref={dropdownRef} style={{ position: "relative", minWidth: 0 }}>
-                <button
+                <Tooltip content={modelSwitching ? t("chatInput.switchingModel") : modelOptions.length > 0
+                    ? t("chatInput.changeModel") : showModelsLoading ? t("chatInput.loadingModels") : t("chatInput.noAvailableModels")}>
+                  <button
                   onClick={(e) => {
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     setModelDropdownRect({ top: rect.top, left: rect.left, width: rect.width });
@@ -2708,8 +2726,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     e.currentTarget.style.background = modelDropdownOpen ? "var(--bg-hover)" : "none";
                     e.currentTarget.style.color = "var(--text-muted)";
                   }}
-                  title={modelSwitching ? t("chatInput.switchingModel") : modelOptions.length > 0
-                    ? t("chatInput.changeModel") : showModelsLoading ? t("chatInput.loadingModels") : t("chatInput.noAvailableModels")}
                   aria-expanded={modelDropdownOpen}
                   aria-haspopup="dialog"
                 >
@@ -2728,6 +2744,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   </span>
                   <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7 }} aria-hidden="true" />
                 </button>
+                </Tooltip>
                 {modelDropdownOpen && modelDropdownRect && (() => {
                   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
                   const bottom = viewportHeight - modelDropdownRect.top + 6;
@@ -2807,10 +2824,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             {/* Thinking selector — compact, expressive, and consistent with models */}
             {onThinkingLevelChange && (
               <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
-                <button
+                <Tooltip content={t("chatInput.changeReasoningTitle", { level: thinkingDisplayLabel })}>
+                  <button
                   onClick={() => setThinkingDropdownOpen((v) => !v)}
                   disabled={isStreaming}
-                  title={t("chatInput.changeReasoningTitle", { level: thinkingDisplayLabel })}
                   aria-label={`${t("chatInput.changeReasoning")}: ${thinkingDisplayLabel}`}
                   aria-expanded={thinkingDropdownOpen}
                   aria-haspopup="menu"
@@ -2831,6 +2848,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <span style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}>{thinkingDisplayLabel}</span>
                   <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: thinkingDropdownOpen ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} aria-hidden="true" />
                 </button>
+                </Tooltip>
                 {thinkingDropdownOpen && (
                   <div
                     className="picker-panel"
@@ -2884,11 +2902,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 like fast mode was reset; the toggle affects the family tier
                 for the next prompt. */}
             {fastModeSupported && onFastModeChange && (
-              <button
+              <Tooltip content={fastModeEnabled && fastModeActive === false ? "Fast mode is enabled but inactive for this model" : `Turn OMP Fast mode ${fastModeEnabled ? "off" : "on"} for this model`}>
+                <button
                 type="button"
                 onClick={() => { if (isStreaming) return; onFastModeChange(!fastModeEnabled); }}
                 disabled={isStreaming}
-                title={fastModeEnabled && fastModeActive === false ? "Fast mode is enabled but inactive for this model" : `Turn OMP Fast mode ${fastModeEnabled ? "off" : "on"} for this model`}
                 aria-pressed={fastModeEnabled}
                 style={{
                   display: "flex", alignItems: "center", gap: 5,
@@ -2910,17 +2928,18 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 </svg>
                 {t("chatInput.fastLabel")}
               </button>
+              </Tooltip>
             )}
 
             <div style={{ flex: 1 }} />
 
             {/* Advisor activity — thunder while the advisor model reviews this run */}
             {advisorActive && (
-              <span
-                title={t("chatInput.advisorReviewingTitle", {
+              <Tooltip content={t("chatInput.advisorReviewingTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
-                })}
+                })}>
+                <span
                 aria-label={t("chatInput.advisorReviewingTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
@@ -2929,15 +2948,16 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               >
                 <Zap size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" />
               </span>
+              </Tooltip>
             )}
 
             {/* Context ring: usage gauge opening the session context popover */}
             {onCompact && (
               <div ref={contextWrapRef} style={{ position: "relative", flexShrink: 0 }}>
-                <button
+                <Tooltip content={ringTitle}>
+                  <button
                   type="button"
                   onClick={() => setContextOpen((open) => !open)}
-                  title={ringTitle}
                   aria-label={t("composerContext.title")}
                   aria-expanded={contextOpen}
                   aria-haspopup="dialog"
@@ -2983,6 +3003,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     </span>
                   )}
                 </button>
+                </Tooltip>
                 {contextOpen && (
                   <div
                     role="dialog"
@@ -3022,7 +3043,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       modelCapacity={modelCapacity}
                       generationSpeed={generationSpeed}
                     />
-                    <button
+                    <Tooltip content={isCompacting ? t("chatInput.stopCompaction") : t("chatInput.compactContext")}>
+                      <button
                       type="button"
                       onClick={() => {
                         if (isCompacting) onAbortCompaction?.();
@@ -3030,7 +3052,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                         setContextOpen(false);
                       }}
                       disabled={isStreaming && !isCompacting}
-                      title={isCompacting ? t("chatInput.stopCompaction") : t("chatInput.compactContext")}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                         width: "100%", boxSizing: "border-box", height: 30, marginTop: 10, padding: "0 12px",
@@ -3051,6 +3072,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       )}
                       {isCompacting ? t("chatInput.stopCompaction") : t("chatInput.compactContext")}
                     </button>
+                    </Tooltip>
                     </div>
                   </div>
                 )}
@@ -3058,13 +3080,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             )}
 
             {/* Dictation */}
-            <button
+            <Tooltip content={isRecording || isPaused || isReviewing || isTranscribing || transcribeError
+                ? (transcribeError ? t("chatInput.discardDictation") : t("chatInput.cancelDictation"))
+                : t("chatInput.startDictation")}>
+              <button
               type="button"
               onClick={isRecording || isPaused || isReviewing || isTranscribing || transcribeError ? cancelDictationAndReset : startFreshDictation}
               disabled={isTranscribing}
-              title={isRecording || isPaused || isReviewing || isTranscribing || transcribeError
-                ? (transcribeError ? t("chatInput.discardDictation") : t("chatInput.cancelDictation"))
-                : t("chatInput.startDictation")}
               aria-label={isRecording || isPaused || isReviewing || isTranscribing || transcribeError
                 ? (transcribeError ? t("chatInput.discardDictation") : t("chatInput.cancelDictation"))
                 : t("chatInput.startDictation")}
@@ -3092,9 +3114,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <Mic size={14} strokeWidth={1.8} aria-hidden="true" />
               )}
             </button>
+            </Tooltip>
             {/* Primary action: Send (idle) / Queue (typed while running) / Stop (running) */}
             {primaryActionQueuesMessage ? (
-              <button
+              <Tooltip content={t("chatInput.queueMessage")}>
+                <button
                 type="button"
                 onClick={() => {
                   if (dictationCapturing) {
@@ -3105,7 +3129,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   }
                 }}
                 disabled={isTranscribing}
-                title={t("chatInput.queueMessage")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
@@ -3123,11 +3146,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <ListChecks size={13} strokeWidth={2} aria-hidden="true" />
                 {t("chatInput.queue")}
               </button>
+              </Tooltip>
             ) : isStreaming ? (
-              <button
+              <Tooltip content={t("chatInput.stopAgent")}>
+                <button
                 type="button"
                 onClick={isCompacting ? onAbortCompaction : onAbort}
-                title={t("chatInput.stopAgent")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
@@ -3147,12 +3171,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 </svg>
                 {t("chatInput.stop")}
               </button>
+              </Tooltip>
             ) : (
-              <button
+              <Tooltip content={isRecording || isPaused || isReviewing ? t("chatInput.sendDictation") : t("chatInput.send")}>
+                <button
                 type="button"
                 onClick={isRecording || isPaused || isReviewing ? stopAndSendDictation : () => void handleSend()}
                 disabled={isTranscribing || isSubmitting || (!value.trim() && !attachedImages.length && !isRecording && !isPaused && !isReviewing)}
-                title={isRecording || isPaused || isReviewing ? t("chatInput.sendDictation") : t("chatInput.send")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
@@ -3178,6 +3203,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 )}
                 {t("chatInput.send")}
               </button>
+              </Tooltip>
             )}
           </div>
           </div>

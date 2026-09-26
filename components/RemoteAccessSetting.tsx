@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -204,14 +205,15 @@ export function RemoteAccessSetting() {
                   ) : (
                     <span style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {lanIps.map(({ address }) => (
-                        <code
-                          key={address}
+                        <Tooltip key={address} content={t("appShell.copyLink")}>
+                          <code
+                         
                           style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--accent)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}
                           onClick={() => navigator.clipboard?.writeText(`http://${address}:${diagnostics.port}`).catch(() => undefined)}
-                          title={t("appShell.copyLink")}
                         >
                           http://{address}:{diagnostics.port}
                         </code>
+                        </Tooltip>
                       ))}
                     </span>
                   )}

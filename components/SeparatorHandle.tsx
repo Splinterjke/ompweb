@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useI18n } from "@/lib/i18n";
 
@@ -28,11 +29,11 @@ export function SeparatorHandle({
   const { t } = useI18n();
   return (
     <div style={{ position: "relative", height: 0, flexShrink: 0 }}>
-      <div
+      <Tooltip content={t("sessionSidebar.resizeSection", { name: label })}>
+        <div
         role="separator"
         aria-orientation="horizontal"
         aria-label={ariaLabel}
-        title={t("sessionSidebar.resizeSection", { name: label })}
         tabIndex={0}
         onMouseDown={onMouseDown}
         onDoubleClick={onDoubleClick}
@@ -66,6 +67,7 @@ export function SeparatorHandle({
           }}
         />
       </div>
+      </Tooltip>
     </div>
   );
 }

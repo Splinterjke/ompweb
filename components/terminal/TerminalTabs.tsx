@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, SquareTerminal, X } from "lucide-react";
@@ -200,8 +201,9 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
         {tabs.map((tab) => {
           const selected = tab.id === activeId;
           return (
-            <div
-              key={tab.id}
+            <Tooltip key={tab.id} content={tab.cwd ?? tab.label}>
+              <div
+             
               role="tab"
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
@@ -215,7 +217,6 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
                 cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: selected ? "var(--text)" : "var(--text-muted)",
                 maxWidth: 180, flexShrink: 0, outline: "none",
               }}
-              title={tab.cwd ?? tab.label}
             >
               <SquareTerminal size={11} strokeWidth={1.8} style={{ color: selected ? "var(--accent)" : "var(--text-dim)", flexShrink: 0 }} aria-hidden />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tab.label}</span>
@@ -228,17 +229,19 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
                 <X size={10} strokeWidth={2} aria-hidden />
               </button>
             </div>
+            </Tooltip>
           );
         })}
-        <button
+        <Tooltip content={t("terminal.newTab") ?? "New terminal"}>
+          <button
           type="button"
           aria-label={t("terminal.newTab") ?? "New terminal"}
-          title={t("terminal.newTab") ?? "New terminal"}
           onClick={newTab}
           style={{ display: "inline-flex", padding: 3, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", flexShrink: 0 }}
         >
           <Plus size={13} strokeWidth={2} aria-hidden />
         </button>
+        </Tooltip>
         <div style={{ flex: 1 }} />
         <button
           type="button"

@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * One enabled skill row: name + invocation dots + usage meta, delete and disable actions.
  */
@@ -61,14 +62,18 @@ export function SkillRow(props: { skill: CatalogSkill; hub: SkillHubState }): JS
           {count > 0 ? <span className={css.useCount}>{count}</span> : null}
           {dot}
           {isDuplicate ? (
-            <span className={`${css.badge} ${css.statusError}`} title={tt('row.duplicateHint')}>
+            <Tooltip content={tt('row.duplicateHint')}>
+              <span className={`${css.badge} ${css.statusError}`}>
               {tt('row.duplicate')}
             </span>
+            </Tooltip>
           ) : null}
           {skill.priority ? (
-            <span className={`${css.badge} ${css.badgePriority}`} title={tt('row.duplicateHint')} style={{ marginLeft: 6 }}>
+            <Tooltip content={tt('row.duplicateHint')}>
+              <span className={`${css.badge} ${css.badgePriority}`} style={{ marginLeft: 6 }}>
               {tt('row.priority')}
             </span>
+            </Tooltip>
           ) : null}
           {lastUsed !== undefined ? (
             <span className={css.useTime}>{relativeTimeText(lastUsed)}</span>

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useState } from "react";
 import { ChevronDown, Folder, Plus } from "lucide-react";
@@ -75,24 +76,25 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
       className="mb-4 w-full overflow-hidden border border-border bg-bg-subtle"
       style={{ borderRadius: "var(--radius-card)" }}
     >
-      <button
+      <Tooltip content={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}>
+        <button
         type="button"
         aria-expanded={!collapsed}
         onClick={() => setCollapsed((value) => !value)}
-        title={collapsed ? t("chatWindow.expandPanel") : t("chatWindow.collapsePanel")}
         className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs text-text-muted"
         style={{ background: "none", borderBottom: collapsed ? "none" : "1px solid var(--border)" }}
       >
         <Folder size={15} strokeWidth={1.8} aria-hidden />
         <strong className="shrink-0 font-medium text-text">{t("settingsConfig.chipWorkspace")}</strong>
         {selectedPath && (
-          <span
+          <Tooltip content={selectedPath}>
+            <span
             className="ml-1 min-w-0 overflow-hidden text-ellipsis text-text-dim"
             style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }}
-            title={selectedPath}
           >
             {selectedPath}
           </span>
+          </Tooltip>
         )}
         <ChevronDown
           size={14}
@@ -106,6 +108,7 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
           }}
         />
       </button>
+      </Tooltip>
 
       {!collapsed && (
         <div className="grid gap-1 overflow-y-auto px-2 py-2 animate-slide-down" style={{ maxHeight: "min(40vh, 320px)" }} role="radiogroup" aria-label={t("settingsConfig.chipWorkspace")}>
@@ -127,12 +130,16 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
                 style={{ accentColor: "var(--accent)" }}
               />
               <span className="min-w-0" style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-                <span className="block overflow-hidden text-ellipsis text-text" style={{ whiteSpace: "nowrap" }} title={option.label}>
+                <Tooltip content={option.label}>
+                  <span className="block overflow-hidden text-ellipsis text-text" style={{ whiteSpace: "nowrap" }}>
                   {option.label}
                 </span>
-                <span className="block overflow-hidden text-ellipsis text-text-dim" style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }} title={option.path}>
+                </Tooltip>
+                <Tooltip content={option.path}>
+                  <span className="block overflow-hidden text-ellipsis text-text-dim" style={{ fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }}>
                   {option.path}
                 </span>
+                </Tooltip>
               </span>
             </label>
           ))}

@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/primitives";
@@ -175,11 +176,11 @@ export function UsageDashboardModal({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
+            <Tooltip content="Refresh data">
+              <button
               type="button"
               onClick={() => void loadStats()}
               disabled={loading}
-              title="Refresh data"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -195,11 +196,12 @@ export function UsageDashboardModal({
             >
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
             </button>
+            </Tooltip>
 
-            <button
+            <Tooltip content={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+              <button
               type="button"
               onClick={() => setIsFullscreen((f) => !f)}
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -215,11 +217,12 @@ export function UsageDashboardModal({
             >
               {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
+            </Tooltip>
 
-            <button
+            <Tooltip content="Close">
+              <button
               type="button"
               onClick={() => onOpenChange(false)}
-              title="Close"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -235,6 +238,7 @@ export function UsageDashboardModal({
             >
               <X size={16} />
             </button>
+            </Tooltip>
           </div>
         </div>
 

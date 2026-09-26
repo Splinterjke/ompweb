@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import { useMemo } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -139,9 +140,11 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topTokenModel?.model}>
+            <Tooltip content={topTokenModel?.model}>
+              <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {topTokenModel?.model ?? "None"}
             </div>
+            </Tooltip>
             <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)", marginTop: 2 }}>
               {topTokenModel ? `${formatTokenCount(topTokenModel.totalInputTokens + topTokenModel.totalOutputTokens + topTokenModel.totalCacheReadTokens, locale)} Tokens` : "-"}
             </div>
@@ -170,9 +173,11 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topCostModel?.model}>
+            <Tooltip content={topCostModel?.model}>
+              <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {topCostModel?.model ?? "None"}
             </div>
+            </Tooltip>
             <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)", fontWeight: 600, marginTop: 2 }}>
               {topCostModel ? formatCostUsd(topCostModel.totalCost) : "$0.00"}
             </div>
@@ -201,9 +206,11 @@ export function UsageTabModels({ overall, byModel }: Props) {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fastestModel?.model}>
+            <Tooltip content={fastestModel?.model}>
+              <div style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {fastestModel?.model ?? "None"}
             </div>
+            </Tooltip>
             <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "#10b981", fontFamily: "var(--font-mono)", fontWeight: 600, marginTop: 2 }}>
               {fastestModel?.avgTokensPerSecond ? `${fastestModel.avgTokensPerSecond.toFixed(1)} tok/s` : "-"}
             </div>

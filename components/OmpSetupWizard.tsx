@@ -5,7 +5,7 @@ import { Check, CircleAlert, Clipboard, Download, LoaderCircle, MonitorCog, Refr
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/lib/i18n";
 import { NetworkProxyConfig } from "./NetworkProxyConfig";
-import { Dialog, DialogContent, DialogTitle } from "./ui/primitives";
+import { Tooltip, Dialog, DialogContent, DialogTitle } from "./ui/primitives";
 
 type Platform = "darwin" | "linux" | "win32";
 
@@ -189,7 +189,9 @@ export function OmpSetupWizard({ open, onOpenChange, onDetected }: {
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 650 }}><Terminal size={14} aria-hidden="true" /> {selectedPlatform === "win32" ? text("ompSetup.powershell", "Run in PowerShell") : text("ompSetup.terminal", "Run in Terminal")}</div>
               <div style={{ display: "flex", alignItems: "stretch", overflow: "hidden", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)" }}>
                 <code style={{ flex: 1, padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5, overflowX: "auto", color: "var(--text)", whiteSpace: "nowrap" }}>{command.command}</code>
-                <button type="button" onClick={() => copyCommand(command.command)} title={text("ompSetup.copy", "Copy command")} aria-label={text("ompSetup.copy", "Copy command")} style={{ width: 42, border: "none", borderLeft: "1px solid var(--border)", background: "var(--bg)", color: copied ? "var(--status-success)" : "var(--accent)", cursor: "pointer" }}>{copied ? <Check size={15} aria-hidden="true" /> : <Clipboard size={15} aria-hidden="true" />}</button>
+                <Tooltip content={text("ompSetup.copy", "Copy command")}>
+                  <button type="button" onClick={() => copyCommand(command.command)} aria-label={text("ompSetup.copy", "Copy command")} style={{ width: 42, border: "none", borderLeft: "1px solid var(--border)", background: "var(--bg)", color: copied ? "var(--status-success)" : "var(--accent)", cursor: "pointer" }}>{copied ? <Check size={15} aria-hidden="true" /> : <Clipboard size={15} aria-hidden="true" />}</button>
+                </Tooltip>
               </div>
               <div style={{ display: "flex", gap: 7, alignItems: "flex-start", color: "var(--text-muted)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5 }}><ShieldCheck size={14} aria-hidden="true" style={{ marginTop: 1, flexShrink: 0, color: "var(--accent)" }} />{text("ompSetup.noDeps", "No Node, Bun, or administrator setup is required for the recommended installer. It uses a standalone binary when Bun is unavailable.")}</div>
               {selectedPlatform !== "win32" && tools && !tools.curl && !tools.wget && (

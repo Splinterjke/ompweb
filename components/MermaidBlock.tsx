@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { memo, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { useTheme } from "@/hooks/useTheme";
@@ -68,15 +69,17 @@ export function MermaidBlock({ code, isStreaming, defaultPreview = false }: Merm
   }, [code, currentKey, isDark, previewVisible, retryKey]);
 
   const previewButton = (
-    <button
-      type="button"
-      onClick={() => setShowPreview((v) => !v)}
-      disabled={isStreaming}
-      title={isStreaming ? t("mermaidBlock.previewAfterStreaming") : (previewVisible ? t("mermaidBlock.showSourceTitle") : t("mermaidBlock.previewTitle"))}
-      className={["markdown-code-action", previewVisible ? "is-active" : ""].filter(Boolean).join(" ")}
-    >
-      {previewVisible ? t("mermaidBlock.source") : t("mermaidBlock.preview")}
-    </button>
+        <Tooltip content={isStreaming ? t("mermaidBlock.previewAfterStreaming") : (previewVisible ? t("mermaidBlock.showSourceTitle") : t("mermaidBlock.previewTitle"))}>
+      <button
+        type="button"
+        onClick={() => setShowPreview((v) => !v)}
+        disabled={isStreaming}
+        aria-label={isStreaming ? t("mermaidBlock.previewAfterStreaming") : (previewVisible ? t("mermaidBlock.showSourceTitle") : t("mermaidBlock.previewTitle"))}
+        className={["markdown-code-action", previewVisible ? "is-active" : ""].filter(Boolean).join(" ")}
+      >
+        {previewVisible ? t("mermaidBlock.source") : t("mermaidBlock.preview")}
+      </button>
+    </Tooltip>
   );
 
   if (!previewVisible) {
@@ -86,28 +89,31 @@ export function MermaidBlock({ code, isStreaming, defaultPreview = false }: Merm
   const body = renderState?.key === currentKey && renderState.status === "error" ? (
       <div className="mermaid-block mermaid-block-error">
         <span>{t("mermaidBlock.invalidDiagram")}</span>
-        <button
-          type="button"
-          className="markdown-code-action"
-          onClick={() => setRetryKey((key) => key + 1)}
-          title={t("mermaidBlock.retry")}
-        >
-          {t("mermaidBlock.retry")}
-        </button>
+                <Tooltip content={t("mermaidBlock.retry")}>
+          <button
+            type="button"
+            className="markdown-code-action"
+            onClick={() => setRetryKey((key) => key + 1)}
+            aria-label={t("mermaidBlock.retry")}
+          >
+            {t("mermaidBlock.retry")}
+          </button>
+        </Tooltip>
       </div>
     ) : renderState?.key !== currentKey || renderState.status !== "ready" ? (
       <div className="mermaid-block mermaid-block-loading" role="status">{t("mermaidBlock.rendering")}</div>
     ) : (
       <>
         {!zoomOpen && (
-          <button
-            type="button"
-            className="mermaid-block mermaid-preview-button"
-            title={t("mermaidBlock.openViewer")}
-            aria-label={t("mermaidBlock.openViewer")}
-            onClick={() => setZoomOpen(true)}
-            dangerouslySetInnerHTML={{ __html: renderState.svg }}
-          />
+                    <Tooltip content={t("mermaidBlock.openViewer")}>
+            <button
+              type="button"
+              className="mermaid-block mermaid-preview-button"
+              aria-label={t("mermaidBlock.openViewer")}
+              onClick={() => setZoomOpen(true)}
+              dangerouslySetInnerHTML={{ __html: renderState.svg }}
+            />
+          </Tooltip>
         )}
         {zoomOpen && <MermaidZoomDialog svg={renderState.svg} onClose={() => setZoomOpen(false)} />}
       </>
@@ -166,52 +172,56 @@ function MermaidZoomDialog({ svg, onClose }: { svg: string; onClose: () => void 
           <span className="mermaid-zoom-title">{t("mermaidBlock.diagramTitle")}</span>
           <div className="mermaid-zoom-actions">
             <div className="mermaid-zoom-stepper">
-              <button
-                type="button"
-                onClick={() => setZoom((value) => Math.max(ZOOM_MIN, value - ZOOM_STEP))}
-                disabled={zoom <= ZOOM_MIN}
-                title={t("mermaidBlock.zoomOut")}
-                aria-label={t("mermaidBlock.zoomOut")}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
+                            <Tooltip content={t("mermaidBlock.zoomOut")}>
+                <button
+                  type="button"
+                  onClick={() => setZoom((value) => Math.max(ZOOM_MIN, value - ZOOM_STEP))}
+                  disabled={zoom <= ZOOM_MIN}
+                  aria-label={t("mermaidBlock.zoomOut")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+              </Tooltip>
               <span className="mermaid-zoom-value">{Math.round(zoom * 100)}%</span>
+                            <Tooltip content={t("mermaidBlock.zoomIn")}>
+                <button
+                  type="button"
+                  onClick={() => setZoom((value) => Math.min(ZOOM_MAX, value + ZOOM_STEP))}
+                  disabled={zoom >= ZOOM_MAX}
+                  aria-label={t("mermaidBlock.zoomIn")}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+              </Tooltip>
+            </div>
+                        <Tooltip content={t("mermaidBlock.fitToWidth")}>
               <button
                 type="button"
-                onClick={() => setZoom((value) => Math.min(ZOOM_MAX, value + ZOOM_STEP))}
-                disabled={zoom >= ZOOM_MAX}
-                title={t("mermaidBlock.zoomIn")}
-                aria-label={t("mermaidBlock.zoomIn")}
+                className="mermaid-zoom-icon-button"
+                onClick={() => setZoom(1)}
+                aria-label={t("mermaidBlock.fitToWidth")}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <path d="M12 5v14M5 12h14" />
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
                 </svg>
               </button>
-            </div>
-            <button
-              type="button"
-              className="mermaid-zoom-icon-button"
-              onClick={() => setZoom(1)}
-              title={t("mermaidBlock.fitToWidth")}
-              aria-label={t("mermaidBlock.fitToWidth")}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="mermaid-zoom-icon-button"
-              onClick={onClose}
-              title={t("mermaidBlock.close")}
-              aria-label={t("mermaidBlock.close")}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
+            </Tooltip>
+                        <Tooltip content={t("mermaidBlock.close")}>
+              <button
+                type="button"
+                className="mermaid-zoom-icon-button"
+                onClick={onClose}
+                aria-label={t("mermaidBlock.close")}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
         <div

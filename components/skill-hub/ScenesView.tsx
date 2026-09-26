@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * Scenes tab: user tag groups (one card per scene with tri-state switch,
  * edit entry, and member management).
@@ -80,13 +81,14 @@ export function ScenesView(props: { hub: SkillHubState }) {
                 </span>
               </button>
               <span className={css.groupOps}>
-                <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={tag.name}
+                <Tooltip content={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}>
+                  <button type="button" role="switch" aria-checked={view.state !== 'off'} aria-label={tag.name}
                   className={css.switch + (view.state === 'on' ? ' ' + css.switchOn : view.state === 'mixed' ? ' ' + css.switchMixed : '')}
                   disabled={batchBusy || tag.skillNames.length === 0 || (view.state !== 'off' && !hasWritable)}
-                  title={view.state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}
                   onClick={(event) => { event.stopPropagation(); toggleGroup('tag:' + tag.id, tag.name, view.state) }}>
                   <span className={css.switchThumb} />
                 </button>
+                </Tooltip>
                 <button type="button" className={css.opBtn} onClick={() => { setEditingTag(tag); setEditName(tag.name); setMembersDraft(new Set(tag.skillNames)); setEditSearch('') }}>{tt('groups.edit')}</button>
               </span>
             </div>

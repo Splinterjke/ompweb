@@ -1,3 +1,4 @@
+import { Tooltip } from "../ui/primitives";
 /**
  * One disabled skill row (name + description + root badge + enable switch).
  */
@@ -55,9 +56,11 @@ export function DisabledRow(props: {
         <div className={css.rowName}>
           <span className={css.rowNameText}>{record.name}</span>
           {duplicate === true ? (
-            <span className={`${css.badge} ${css.statusError}`} style={{ marginLeft: 6 }} title={tt('row.duplicateHint')}>
+            <Tooltip content={tt('row.duplicateHint')}>
+              <span className={`${css.badge} ${css.statusError}`} style={{ marginLeft: 6 }}>
               {tt('row.duplicate')}
             </span>
+            </Tooltip>
           ) : null}
         </div>
         <div className={css.rowDesc}>

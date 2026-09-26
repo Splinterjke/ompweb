@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, cloneElement, isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { getSubmitDuringRunBehavior, setSubmitDuringRunBehavior, type SubmitDuringRunBehavior } from "@/lib/composer-prefs";
@@ -174,28 +175,29 @@ function MethodOrderEditor({ value, onChange }: { value?: CompactionMethod[]; on
         return (
           <div key={method} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: checked ? "var(--bg-subtle)" : "var(--bg)", opacity: checked ? 1 : 0.55 }}>
             <span style={{ width: 14, textAlign: "center", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)" }}>{checked ? index + 1 : "·"}</span>
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={checked}
-              aria-label={label[method]}
-              onClick={() => toggle(method)}
-              title={desc[method]}
-              style={{
-                flexShrink: 0,
-                width: 30,
-                height: 18,
-                borderRadius: 999,
-                border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`,
-                background: checked ? "var(--accent)" : "var(--bg)",
-                color: checked ? "#fff" : "var(--text-dim)",
-                fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
-                lineHeight: "16px",
-                cursor: "pointer",
-              }}
-            >
-              {checked ? "✓" : ""}
-            </button>
+                        <Tooltip content={desc[method]}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                aria-label={label[method]}
+                onClick={() => toggle(method)}
+                style={{
+                  flexShrink: 0,
+                  width: 30,
+                  height: 18,
+                  borderRadius: 999,
+                  border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`,
+                  background: checked ? "var(--accent)" : "var(--bg)",
+                  color: checked ? "#fff" : "var(--text-dim)",
+                  fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
+                  lineHeight: "16px",
+                  cursor: "pointer",
+                }}
+              >
+                {checked ? "✓" : ""}
+              </button>
+            </Tooltip>
             <span style={{ flex: 1, minWidth: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label[method]}</span>
             <span style={{ flexShrink: 0, display: "inline-flex", gap: 2 }}>
               <button type="button" onClick={() => move(index, -1)} disabled={!checked || index === 0} aria-label={`${t("settingsConfig.compactionMethodsUp")} ${label[method]}`} style={{ background: "none", border: "none", padding: 2, cursor: !checked || index === 0 ? "default" : "pointer", color: !checked || index === 0 ? "var(--text-dim)" : "var(--text-muted)", opacity: !checked || index === 0 ? 0.4 : 1, display: "inline-flex" }}>
@@ -269,7 +271,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
-  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hub bar layout", fallbackDesc: "Stack the composer hub bars (git changes, tasks, subagents) horizontally in one row instead of a vertical column. An expanded bar moves above the row.", scope: "UI" },
+  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Status bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
   { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
   { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
@@ -904,7 +906,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 style={{ width: "100%", height: 28, padding: "0 8px 0 28px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", outline: "none" }}
               />
             </div>
-            <button type="button" onClick={onClose} aria-label={t("settingsConfig.closeSettings")} title={t("settingsConfig.closeSettings")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+                        <Tooltip content={t("settingsConfig.closeSettings")}>
+              <button type="button" onClick={onClose} aria-label={t("settingsConfig.closeSettings")} className="ui-focus-ring" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, padding: "4px 8px", minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-control)" }}>×</button>
+            </Tooltip>
           </div>
         </header>
 
@@ -919,22 +923,23 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div style={{ display: "flex", minHeight: 0, flexShrink: 0 }}>
                   <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
                     {/* Collapse/expand toggle above the nav rail */}
-                    <button
-                      type="button"
-                      onClick={() => setNavCollapsed((v) => !v)}
-                      aria-label={navCollapsed ? "Expand settings navigation" : "Collapse settings navigation"}
-                      title={navCollapsed ? "Expand settings navigation" : "Collapse settings navigation (icons only)"}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        height: 30, margin: "6px 6px 0", padding: 0,
-                        border: "none", borderRadius: "var(--radius-control)",
-                        background: "none", color: "var(--text-muted)", cursor: "pointer",
-                        alignSelf: navCollapsed ? "center" : "flex-end",
-                        width: navCollapsed ? 36 : 30,
-                      }}
-                    >
-                      {navCollapsed ? <PanelLeftOpen size={14} strokeWidth={1.8} /> : <PanelLeftClose size={14} strokeWidth={1.8} />}
-                    </button>
+                    <Tooltip content={navCollapsed ? "Expand settings navigation" : "Collapse settings navigation (icons only)"}>
+                      <button
+                        type="button"
+                        onClick={() => setNavCollapsed((v) => !v)}
+                        aria-label={navCollapsed ? "Expand settings navigation" : "Collapse settings navigation"}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          height: 30, margin: "6px 6px 0", padding: 0,
+                          border: "none", borderRadius: "var(--radius-control)",
+                          background: "none", color: "var(--text-muted)", cursor: "pointer",
+                          alignSelf: navCollapsed ? "center" : "flex-end",
+                          width: navCollapsed ? 36 : 30,
+                        }}
+                      >
+                        {navCollapsed ? <PanelLeftOpen size={14} strokeWidth={1.8} /> : <PanelLeftClose size={14} strokeWidth={1.8} />}
+                      </button>
+                    </Tooltip>
                     <SettingsTabs
                       active={currentTab}
                       onSelect={handleSelectTab}
@@ -945,17 +950,19 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     />
                   </div>
                   {/* Drag handle: resize the nav / content split */}
-                  <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    onPointerDown={onNavResizeStart}
-                    title="Drag to resize the settings navigation"
-                    style={{
-                      width: 5, cursor: "col-resize", touchAction: "none",
-                      background: "transparent", flexShrink: 0,
-                      borderRight: "1px solid var(--border)",
-                    }}
-                  />
+                                    <Tooltip content="Drag to resize the settings navigation">
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      onPointerDown={onNavResizeStart}
+                      aria-label="Drag to resize the settings navigation"
+                      style={{
+                        width: 5, cursor: "col-resize", touchAction: "none",
+                        background: "transparent", flexShrink: 0,
+                        borderRight: "1px solid var(--border)",
+                      }}
+                    />
+                  </Tooltip>
                 </div>
               )}
 

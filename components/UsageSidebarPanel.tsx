@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, ChevronRight, Eye, EyeOff, Gauge, LoaderCircle, RefreshCw, Settings2 } from "lucide-react";
@@ -178,63 +179,66 @@ export function UsageSidebarPanel({
       )}
       <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, height: open || closing ? height : undefined, overflow: "hidden", transition: anyDragging ? "none" : "height var(--dur-med) var(--ease-out-warm)" }}>
         <div ref={headerRef} className="sidebar-section-header" style={{ display: "flex", alignItems: "center", flexShrink: 0, borderTop: "1px solid var(--border)", paddingRight: 6, transition: "background var(--dur-fast) var(--ease-out-warm)" }}>
-        <button
-          type="button"
-          className="sidebar-section-title"
-          onClick={() => onOpenChange(!open)}
-          aria-expanded={open}
-          title={t("sidebar.usage")}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 32,
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            padding: "0 4px 0 12px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            textAlign: "left",
-            fontSize: "calc(11px * var(--ui-font-scale-lg, 1))",
-            fontWeight: 600,
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
-          }}
-        >
-          <Gauge size={14} strokeWidth={2} aria-hidden="true" style={{ color: "var(--accent)", flexShrink: 0 }} />
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("sidebar.usage")}</span>
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
-          }}
-          aria-label={t("sidebar.usageAnalytics")}
-          title={t("sidebar.usageAnalytics")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 26,
-            height: 26,
-            marginRight: 6,
-            padding: 0,
-            flexShrink: 0,
-            lineHeight: 0,
-            background: "none",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--text-dim)",
-            cursor: "pointer",
-            transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
-          }}
-          onMouseEnter={(e) => { prewarmStatsData(); e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.background = "none"; }}
-        >
-          <BarChart3 size={12} aria-hidden="true" />
-        </button>
+        <Tooltip content={t("sidebar.usage")}>
+          <button
+            type="button"
+            className="sidebar-section-title"
+            onClick={() => onOpenChange(!open)}
+            aria-expanded={open}
+            aria-label={t("sidebar.usage")}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "0 4px 0 12px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              fontSize: "calc(11px * var(--ui-font-scale-lg, 1))",
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+            }}
+          >
+            <Gauge size={14} strokeWidth={2} aria-hidden="true" style={{ color: "var(--accent)", flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("sidebar.usage")}</span>
+          </button>
+        </Tooltip>
+        <Tooltip content={t("sidebar.usageAnalytics")}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+            }}
+            aria-label={t("sidebar.usageAnalytics")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 26,
+              height: 26,
+              marginRight: 6,
+              padding: 0,
+              flexShrink: 0,
+              lineHeight: 0,
+              background: "none",
+              border: "none",
+              borderRadius: "var(--radius-control)",
+              color: "var(--text-dim)",
+              cursor: "pointer",
+              transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
+            }}
+            onMouseEnter={(e) => { prewarmStatsData(); e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--bg-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.background = "none"; }}
+          >
+            <BarChart3 size={12} aria-hidden="true" />
+          </button>
+        </Tooltip>
         <SectionChevron open={open} />
       </div>
 
@@ -267,30 +271,33 @@ export function UsageSidebarPanel({
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ flex: 1, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--text-muted)" }}>{t("sidebar.usageLimits")}</div>
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
-              }}
-              onMouseEnter={() => prewarmStatsData()}
-              aria-label={t("sidebar.usageAnalytics")}
-              title={t("sidebar.usageAnalytics")}
-              style={{
-                display: "grid",
-                placeItems: "center",
-                width: 22,
-                height: 22,
-                padding: 0,
-                border: "1px solid var(--border)",
-                borderRadius: 5,
-                background: "var(--bg-panel)",
-                color: "var(--text-dim)",
-                cursor: "pointer",
-              }}
-            >
-              <BarChart3 size={12} aria-hidden="true" />
-            </button>
-            <button type="button" onClick={() => setManageAccounts((value) => !value)} aria-expanded={manageAccounts} aria-label={t("sidebar.usageManageAccounts")} title={t("sidebar.usageManageAccounts")} style={{ display: "grid", placeItems: "center", width: 22, height: 22, padding: 0, border: "1px solid var(--border)", borderRadius: 5, background: manageAccounts ? "var(--bg-selected)" : "var(--bg-panel)", color: manageAccounts ? "var(--accent)" : "var(--text-dim)", cursor: "pointer" }}><Settings2 size={12} aria-hidden="true" /></button>
+            <Tooltip content={t("sidebar.usageAnalytics")}>
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+                }}
+                onMouseEnter={() => prewarmStatsData()}
+                aria-label={t("sidebar.usageAnalytics")}
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  width: 22,
+                  height: 22,
+                  padding: 0,
+                  border: "1px solid var(--border)",
+                  borderRadius: 5,
+                  background: "var(--bg-panel)",
+                  color: "var(--text-dim)",
+                  cursor: "pointer",
+                }}
+              >
+                <BarChart3 size={12} aria-hidden="true" />
+              </button>
+            </Tooltip>
+            <Tooltip content={t("sidebar.usageManageAccounts")}>
+              <button type="button" onClick={() => setManageAccounts((value) => !value)} aria-expanded={manageAccounts} aria-label={t("sidebar.usageManageAccounts")} style={{ display: "grid", placeItems: "center", width: 22, height: 22, padding: 0, border: "1px solid var(--border)", borderRadius: 5, background: manageAccounts ? "var(--bg-selected)" : "var(--bg-panel)", color: manageAccounts ? "var(--accent)" : "var(--text-dim)", cursor: "pointer" }}><Settings2 size={12} aria-hidden="true" /></button>
+            </Tooltip>
           </div>
           {manageAccounts && (reports ?? []).length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "6px 7px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-subtle)" }}>
@@ -353,29 +360,30 @@ export function UsageSidebarPanel({
                 {updatedAt && (<span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageUpdated", { time: new Date(updatedAt).toLocaleTimeString(locale) })}</span>)}
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
-                }}
-                onMouseEnter={() => prewarmStatsData()}
-                aria-label={t("sidebar.usageAnalytics")}
-                title={t("sidebar.usageAnalytics")}
-                style={{
-                  display: "grid",
-                  placeItems: "center",
-                  width: 22,
-                  height: 22,
-                  padding: 0,
-                  borderRadius: 5,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg-panel)",
-                  color: "var(--text-dim)",
-                  cursor: "pointer",
-                }}
-              >
-                <BarChart3 size={12} aria-hidden="true" />
-              </button>
+              <Tooltip content={t("sidebar.usageAnalytics")}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("omp-open-usage-dashboard", { detail: { tab: "limits" } }));
+                  }}
+                  onMouseEnter={() => prewarmStatsData()}
+                  aria-label={t("sidebar.usageAnalytics")}
+                  style={{
+                    display: "grid",
+                    placeItems: "center",
+                    width: 22,
+                    height: 22,
+                    padding: 0,
+                    borderRadius: 5,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-panel)",
+                    color: "var(--text-dim)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <BarChart3 size={12} aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
           )}
         </div>

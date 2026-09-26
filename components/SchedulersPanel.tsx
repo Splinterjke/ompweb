@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Clock, Eraser, LoaderCircle, Pencil, Play, Power, Plus, Trash2 } from "lucide-react";
@@ -85,9 +86,9 @@ function StatusDot({ status }: { status: SchedulerStatus | "running" | "disabled
           ? "var(--text-dim)"
           : statusColor(status);
   return (
-    <span
+    <Tooltip content={status === "disabled" ? "Disabled (not scheduled)" : status === "never" ? "Never run" : undefined}>
+      <span
       aria-hidden="true"
-      title={status === "disabled" ? "Disabled (not scheduled)" : status === "never" ? "Never run" : undefined}
       style={{
         width: 7,
         height: 7,
@@ -98,6 +99,7 @@ function StatusDot({ status }: { status: SchedulerStatus | "running" | "disabled
         ...(status === "running" ? { animation: "pulse 1.4s ease-in-out infinite" } : {}),
       }}
     />
+    </Tooltip>
   );
 }
 
@@ -311,12 +313,12 @@ export function SchedulersPanel({
       )}
     <div style={{ display: "flex", flexDirection: "column", flexShrink: 0, height: open ? height : undefined, overflow: "hidden", transition: anyDragging ? "none" : "height var(--dur-med) var(--ease-out-warm)" }}>
       <div ref={headerRef} className="sidebar-section-header" style={{ display: "flex", alignItems: "center", flexShrink: 0, borderTop: "1px solid var(--border)", paddingRight: 6, transition: "background var(--dur-fast) var(--ease-out-warm)" }}>
-        <button
+        <Tooltip content={t("sessionSidebar.schedulers")}>
+          <button
           type="button"
           className="sidebar-section-title"
           onClick={() => onOpenChange(!open)}
           aria-expanded={open}
-          title={t("sessionSidebar.schedulers")}
           style={{
             flex: 1,
             minWidth: 0,
@@ -341,25 +343,28 @@ export function SchedulersPanel({
             {list.length > 0 && <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}> {list.length}</span>}
           </span>
           {anyRunning && (
-            <span
+            <Tooltip content={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}>
+              <span
               aria-label={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}
-              title={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}
               style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, animation: "pulse 1.4s ease-in-out infinite", display: "inline-block" }}
             />
+            </Tooltip>
           )}
           {!anyRunning && anyFailed && (
-            <span
+            <Tooltip content={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}>
+              <span
               aria-label={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}
-              title={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}
               style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--status-error)", flexShrink: 0, display: "inline-block" }}
             />
+            </Tooltip>
           )}
         </button>
-        <button
+        </Tooltip>
+        <Tooltip content={t("schedulers.add")}>
+          <button
           type="button"
           onClick={openAdd}
           aria-label={t("schedulers.add")}
-          title={t("schedulers.add")}
           style={{
             display: "flex",
             alignItems: "center",
@@ -382,6 +387,7 @@ export function SchedulersPanel({
         >
           <Plus size={12} aria-hidden="true" />
         </button>
+        </Tooltip>
         <SectionChevron open={open} />
       </div>
 
@@ -439,7 +445,8 @@ export function SchedulersPanel({
                   }}
                 >
                   <StatusDot status={status} />
-                  <span
+                  <Tooltip content={s.name}>
+                    <span
                     style={{
                       flex: 1,
                       minWidth: 0,
@@ -450,10 +457,10 @@ export function SchedulersPanel({
                       fontWeight: 500,
                       color: s.enabled || s.running ? "var(--text)" : "var(--text-dim)",
                     }}
-                    title={s.name}
                   >
                     {s.name}
                   </span>
+                  </Tooltip>
                   <ChevronDown
                     size={12}
                     aria-hidden="true"
@@ -461,9 +468,11 @@ export function SchedulersPanel({
                   />
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 9px 7px 24px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", minWidth: 0 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={s.human}>
+                  <Tooltip content={s.human}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                     {s.human}
                   </span>
+                  </Tooltip>
                   {status === "running" ? (
                     <span style={{ color: "var(--accent)", flexShrink: 0 }}>{t("schedulers.status.running")}</span>
                   ) : !s.enabled ? (
@@ -475,10 +484,12 @@ export function SchedulersPanel({
 
                 {expanded && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 9px 9px", borderTop: "1px solid var(--border)", maxHeight: detailMaxHeight, overflow: "hidden" }}>
-                    <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.script}>
+                    <Tooltip content={s.script}>
+                      <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {s.script}
                       {s.args.length > 0 && ` ${s.args.join(" ")}`}
                     </span>
+                    </Tooltip>
                     <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6 }}>
                     {s.id === manualRunningId ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--accent)" }}>
@@ -633,12 +644,12 @@ function IconButton({
   active?: boolean;
 }) {
   return (
-    <button
+    <Tooltip content={label}>
+      <button
       type="button"
       onClick={onClick}
       disabled={busy}
       aria-label={label}
-      title={label}
       style={{
         display: "grid",
         placeItems: "center",
@@ -655,5 +666,6 @@ function IconButton({
     >
       {busy ? <LoaderCircle size={12} className="animate-spin" aria-hidden="true" /> : icon}
     </button>
+    </Tooltip>
   );
 }

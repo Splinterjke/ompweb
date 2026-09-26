@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useState } from "react";
 import { ChevronDown, GitBranch } from "lucide-react";
@@ -95,13 +96,14 @@ export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgen
           {counts.untracked > 0 && <span className="chat-git-bar__stat chat-git-bar__stat--untracked">U {counts.untracked}</span>}
           {counts.conflict > 0 && <span className="chat-git-bar__stat chat-git-bar__stat--conflict">C {counts.conflict}</span>}
           {(diffAdded > 0 || diffDeleted > 0) && (
-            <span
+            <Tooltip content={t("gitChangesBar.diffLines")}>
+              <span
               className="chat-git-bar__stat chat-git-bar__stat-lines"
-              title={t("gitChangesBar.diffLines")}
             >
               <span className="chat-git-bar__stat--added">+{diffAdded}</span>
               <span className="chat-git-bar__stat--deleted">−{diffDeleted}</span>
             </span>
+            </Tooltip>
           )}
         </span>
         <ChevronDown
@@ -125,9 +127,11 @@ export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgen
                 <span className={`chat-git-bar__file-status chat-git-bar__file-status--${f.status}`}>
                   {STATUS_BADGE[f.status]}
                 </span>
-                <span className="chat-git-bar__file-path" title={f.filePath}>
+                <Tooltip content={f.filePath}>
+                  <span className="chat-git-bar__file-path">
                   {f.filePath}
                 </span>
+                </Tooltip>
               </div>
             ))}
           </div>

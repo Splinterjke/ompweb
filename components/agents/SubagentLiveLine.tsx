@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 import type { ReactNode } from "react";
 import { Activity, RefreshCw, Wrench } from "lucide-react";
@@ -12,10 +13,12 @@ export function AgentMetric({ icon: Icon, label, children }: {
   children: ReactNode;
 }) {
   return (
-    <span aria-label={label} title={label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <Tooltip content={label}>
+      <span aria-label={label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       <Icon size={10.5} strokeWidth={1.8} aria-hidden />
       <span>{children}</span>
     </span>
+    </Tooltip>
   );
 }
 

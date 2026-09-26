@@ -108,53 +108,74 @@ export function useGitStats(cwds: string[], enabled: boolean = true): Record<str
   useEffect(() => {
     const list = listKey ? listKey.split("\u0000") : [];
     if (list.length === 0) {
-      setStats({});
+      // Placement hidden (or no visible workspaces): stop polling but keep
+      // the last-known stats, so re-enabling the placement shows them
+      // immediately instead of waiting for a fresh (potentially slow) scan.
       return;
     }
     let disposed = false;
     // A slow repository can outlive the 5s interval; never stack rounds —
     // at most one in-flight batch, the next tick catches up.
     let inFlight = false;
+    let pending = 0;
 
-    const poll = async () => {
+    const poll = () => {
       if (inFlight) return;
       inFlight = true;
-      const results = await Promise.allSettled(list.map((cwd) => client.git.changes(cwd)));
-      const next: Record<string, CwdGitStats> = {};
-      results.forEach((result, index) => {
-        if (result.status !== "fulfilled") return;
-        const response = result.value;
-        if (!response.isGitRepository || response.files.length === 0) return;
-        let added = 0;
-        let modified = 0;
-        let deleted = 0;
-        let untracked = 0;
-        for (const file of response.files) {
-          if (file.status === "added") added += 1;
-          else if (file.status === "deleted") deleted += 1;
-          else if (file.status === "untracked") untracked += 1;
-          else modified += 1; // modified | renamed | conflict
-        }
-        next[list[index]] = {
-          files: response.files.length,
-          added,
-          modified,
-          deleted,
-          untracked,
-          diffAdded: response.diffAdded ?? 0,
-          diffDeleted: response.diffDeleted ?? 0,
-        };
-      });
-      inFlight = false;
-      if (disposed) return;
-      // Stable reference while the data is unchanged.
-      setStats((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+      pending = list.length;
+      const settleOne = () => {
+        pending -= 1;
+        if (pending === 0) inFlight = false;
+      };
+      // Stream each repo's result as it arrives so fast repos show their stats
+      // immediately instead of waiting for the slowest repo in the batch.
+      for (const cwd of list) {
+        client
+          .git.changes(cwd)
+          .then((response) => {
+            if (disposed) return;
+            if (!response.isGitRepository || response.files.length === 0) {
+              // Repo clean or not a git repo: drop its entry so the chip
+              // disappears, keeping a stable reference when it was absent.
+              setStats((prev) => {
+                if (!(cwd in prev)) return prev;
+                const next = { ...prev };
+                delete next[cwd];
+                return next;
+              });
+              return;
+            }
+            let added = 0;
+            let modified = 0;
+            let deleted = 0;
+            let untracked = 0;
+            for (const file of response.files) {
+              if (file.status === "added") added += 1;
+              else if (file.status === "deleted") deleted += 1;
+              else if (file.status === "untracked") untracked += 1;
+              else modified += 1; // modified | renamed | conflict
+            }
+            const entry: CwdGitStats = {
+              files: response.files.length,
+              added,
+              modified,
+              deleted,
+              untracked,
+              diffAdded: response.diffAdded ?? 0,
+              diffDeleted: response.diffDeleted ?? 0,
+            };
+            // Stable reference while this repo's data is unchanged.
+            setStats((prev) => (JSON.stringify(prev[cwd]) === JSON.stringify(entry) ? prev : { ...prev, [cwd]: entry }));
+          })
+          .catch(() => {})
+          .finally(settleOne);
+      }
     };
 
     void poll();
-    const interval = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
+    const interval = window.setInterval(() => poll(), POLL_INTERVAL_MS);
     const onVisibility = () => {
-      if (document.visibilityState === "visible") void poll();
+      if (document.visibilityState === "visible") poll();
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {

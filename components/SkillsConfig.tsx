@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -69,16 +70,16 @@ function Toggle({
 }) {
   const { t } = useI18n();
   return (
-    <button
+    <Tooltip content={
+        enabled
+          ? t("skillsConfig.visibleInPrompt")
+          : t("skillsConfig.hiddenFromPrompt")
+      }>
+      <button
       type="button"
       onClick={onToggle}
       disabled={loading}
       aria-pressed={enabled}
-      title={
-        enabled
-          ? t("skillsConfig.visibleInPrompt")
-          : t("skillsConfig.hiddenFromPrompt")
-      }
       style={{
         flexShrink: 0,
         width: 40,
@@ -107,6 +108,7 @@ function Toggle({
         }}
       />
     </button>
+    </Tooltip>
   );
 }
 
@@ -199,11 +201,11 @@ function SkillDetail({
           >
             {t("skillsConfig.source")}
           </span>
-          <a
+          <Tooltip content={skill.install.skillsShUrl}>
+            <a
             href={skill.install.skillsShUrl}
             target="_blank"
             rel="noreferrer"
-            title={skill.install.skillsShUrl}
             style={{
               display: "flex",
               alignItems: "center",
@@ -226,6 +228,7 @@ function SkillDetail({
               {skill.install.skillsShUrl.replace(/^https?:\/\//, "")} ↗
             </span>
           </a>
+          </Tooltip>
         </div>
       )}
 
@@ -1126,8 +1129,8 @@ export function SkillsConfig({
                                 const status = key ? updateStatuses[key] : undefined;
                                 if (status?.state !== "update-available") return null;
                                 return (
-                                  <span
-                                    title={t("skillsConfig.updateAvailable")}
+                                  <Tooltip content={t("skillsConfig.updateAvailable")}>
+                                    <span
                                     style={{
                                       color: "var(--status-warning)",
                                       fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
@@ -1137,6 +1140,7 @@ export function SkillsConfig({
                                   >
                                     ↑
                                   </span>
+                                  </Tooltip>
                                 );
                               })()}
                             </button>

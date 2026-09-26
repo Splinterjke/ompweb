@@ -480,14 +480,16 @@ function ImageViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
+        <Tooltip content={filePath}>
+          <span style={{ fontFamily: "var(--font-mono)" }}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        </Tooltip>
         <span style={{ marginLeft: "auto" }}>{ext || t("fileViewer.imageType")}</span>
         {naturalSize && <span>{naturalSize.w} × {naturalSize.h}</span>}
         {formatSizeStr && <span>{formatSizeStr}</span>}
-        <span
-          title={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}
+        <Tooltip content={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}>
+          <span
           style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--status-success)" : "var(--text-dim)" }}
         >
           <span
@@ -502,6 +504,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
           />
           {watching ? t("fileViewer.live") : t("fileViewer.static")}
         </span>
+        </Tooltip>
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
@@ -625,14 +628,16 @@ function AudioViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
+        <Tooltip content={filePath}>
+          <span style={{ fontFamily: "var(--font-mono)" }}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        </Tooltip>
         <span style={{ marginLeft: "auto" }}>{ext || t("fileViewer.audioType")}</span>
         {duration != null && <span>{formatDuration(duration)}</span>}
         {size != null && <span>{formatSize(size)}</span>}
-        <span
-          title={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}
+        <Tooltip content={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}>
+          <span
           style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--status-success)" : "var(--text-dim)" }}
         >
           <span
@@ -647,6 +652,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
           />
           {watching ? t("fileViewer.live") : t("fileViewer.static")}
         </span>
+        </Tooltip>
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
@@ -706,9 +712,11 @@ function VideoViewer({ filePath, cwd, sourceSessionId }: Props) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
+        <Tooltip content={filePath}>
+          <span style={{ fontFamily: "var(--font-mono)" }}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        </Tooltip>
         <span style={{ marginLeft: "auto" }}>{ext || t("fileViewer.videoType")}</span>
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
@@ -837,14 +845,16 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, active = true }: Props
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={filePath}>
+        <Tooltip content={filePath}>
+          <span style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        </Tooltip>
         <span style={{ marginLeft: "auto" }}>{ext === "docx" ? t("fileViewer.docxPreview") : t("fileViewer.pdfType")}</span>
         {size != null && <span>{formatSize(size)}</span>}
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
-        <span
-          title={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}
+        <Tooltip content={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}>
+          <span
           style={{ display: "flex", alignItems: "center", gap: 4, color: watching ? "var(--status-success)" : "var(--text-dim)", flexShrink: 0 }}
         >
           <span
@@ -859,6 +869,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, active = true }: Props
           />
           {watching ? t("fileViewer.live") : t("fileViewer.static")}
         </span>
+        </Tooltip>
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
         {error ? (
@@ -867,13 +878,14 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, active = true }: Props
             <button type="button" className="load-retry-button" onClick={retry} style={{ minHeight: 32, padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{t("chatWindow.retry")}</button>
           </div>
         ) : (
-          <iframe
-            key={previewUrl}
-            src={previewUrl}
-            sandbox={isPdf ? undefined : "allow-same-origin"}
-            title={t("fileViewer.previewTitle", { name: getFileName(filePath) })}
-            style={{ width: "100%", height: "100%", border: "none", background: isPdf ? "var(--bg)" : "var(--bg-subtle)" }}
-          />
+                    <Tooltip key={previewUrl} content={t("fileViewer.previewTitle", { name: getFileName(filePath) })}>
+            <iframe
+              src={previewUrl}
+              sandbox={isPdf ? undefined : "allow-same-origin"}
+              aria-label={t("fileViewer.previewTitle", { name: getFileName(filePath) })}
+              style={{ width: "100%", height: "100%", border: "none", background: isPdf ? "var(--bg)" : "var(--bg-subtle)" }}
+            />
+          </Tooltip>
         )}
       </div>
     </div>
@@ -1178,16 +1190,20 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
           flexShrink: 0,
         }}
       >
-        <span className="file-viewer-path" style={{ fontFamily: "var(--font-mono)" }} title={fullRelativePath}>
+        <Tooltip content={fullRelativePath}>
+          <span className="file-viewer-path" style={{ fontFamily: "var(--font-mono)" }}>
           {breadcrumbDir && (
             <span style={{ color: "var(--text-muted)" }}>{breadcrumbDir}</span>
           )}
           <span className="display-serif" style={{ color: "var(--text)", fontWeight: 600, letterSpacing: "0.005em" }}>{breadcrumbFile}</span>
         </span>
+        </Tooltip>
 
-        <span className="file-viewer-meta" title={metadata}>{metadata}</span>
-        <span
-          title={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}
+        <Tooltip content={metadata}>
+          <span className="file-viewer-meta">{metadata}</span>
+        </Tooltip>
+        <Tooltip content={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}>
+          <span
           aria-label={watching ? t("fileViewer.liveSyncActive") : t("fileViewer.notWatching")}
           className="file-viewer-live-indicator"
           style={{
@@ -1195,6 +1211,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
             boxShadow: watching ? "0 0 4px var(--status-success)" : "none",
           }}
         />
+        </Tooltip>
 
         <div className="file-viewer-controls">
           {displayModes.length > 1 && (
@@ -1210,12 +1227,12 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                 const active = displayMode === mode;
                 const label = mode === "diff" ? t("fileViewer.compareWithHead") : t(DISPLAY_MODE_LABEL_KEYS[mode]);
                 return (
-                  <button
-                    key={mode}
+                  <Tooltip key={mode} content={label}>
+                    <button
+                   
                     type="button"
                     onClick={() => setDisplayMode(mode)}
                     aria-label={label}
-                    title={label}
                     aria-pressed={active}
                     className="file-viewer-mode-button"
                     style={{
@@ -1226,6 +1243,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                   >
                     {t(DISPLAY_MODE_LABEL_KEYS[mode])}
                   </button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -1280,12 +1298,14 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
         {displayMode === "diff" && hasGitDiff ? (
           <DiffView patch={gitDiff.patch!} />
         ) : isHtml && displayMode === "preview" ? (
-          <iframe
-            srcDoc={data.content}
-            sandbox="allow-scripts"
-            style={{ width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
-            title={t("fileViewer.htmlPreview")}
-          />
+                    <Tooltip content={t("fileViewer.htmlPreview")}>
+            <iframe
+              srcDoc={data.content}
+              sandbox="allow-scripts"
+              style={{ width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
+              aria-label={t("fileViewer.htmlPreview")}
+            />
+          </Tooltip>
         ) : isMarkdown && displayMode === "preview" ? (
           <div
             className="markdown-body markdown-file-preview"

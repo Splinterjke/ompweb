@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "./ui/primitives";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -144,26 +145,29 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
               {t("directoryPicker.useNative")}
             </label>
           )}
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            title={t("directoryPicker.close")}
-            aria-label={t("directoryPicker.close")}
-            style={{ padding: "2px 6px", border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1, transition: "color var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)" }}
-            onMouseEnter={(e) => { if (!busy) e.currentTarget.style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
-          >
-            ×
-          </button>
+                    <Tooltip content={t("directoryPicker.close")}>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              aria-label={t("directoryPicker.close")}
+              style={{ padding: "2px 6px", border: 0, background: "none", color: "var(--text-muted)", fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", lineHeight: 1, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1, transition: "color var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)" }}
+              onMouseEnter={(e) => { if (!busy) e.currentTarget.style.color = "var(--text)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+            >
+              ×
+            </button>
+          </Tooltip>
         </div>
 
         <form onSubmit={handlePathSubmit} style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, padding: "10px 14px", borderBottom: "1px solid var(--border)" }}>
-          <button className="directory-picker-back" type="button" onClick={() => void navigateTo(parentDirectory ?? undefined)} disabled={loading || !canNavigateUp} title={t("directoryPicker.goToParent")} aria-label={t("directoryPicker.goToParent")} style={{ width: 36, height: 36, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: canNavigateUp ? "pointer" : "default", opacity: canNavigateUp ? 1 : 0.45, transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)" }} onMouseEnter={(e) => { if (canNavigateUp && !loading) { e.currentTarget.style.background = "var(--bg-selected)"; e.currentTarget.style.color = "var(--text)"; } }} onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-muted)"; }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m18 15-6-6-6 6" />
-            </svg>
-          </button>
+                    <Tooltip content={t("directoryPicker.goToParent")}>
+            <button className="directory-picker-back" type="button" onClick={() => void navigateTo(parentDirectory ?? undefined)} disabled={loading || !canNavigateUp} aria-label={t("directoryPicker.goToParent")} style={{ width: 36, height: 36, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: canNavigateUp ? "pointer" : "default", opacity: canNavigateUp ? 1 : 0.45, transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)" }} onMouseEnter={(e) => { if (canNavigateUp && !loading) { e.currentTarget.style.background = "var(--bg-selected)"; e.currentTarget.style.color = "var(--text)"; } }} onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-muted)"; }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m18 15-6-6-6 6" />
+              </svg>
+            </button>
+          </Tooltip>
           <label htmlFor="directory-path" style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
             {t("directoryPicker.directoryPath")}
           </label>
@@ -183,17 +187,19 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
             }}
             style={{ minWidth: 0, flex: 1, height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: 6, outline: "none", background: "var(--bg-panel)", color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", transition: "border-color var(--dur-fast) var(--ease-out-warm)" }}
           />
-          <button
-            className="directory-picker-action"
-            type="submit"
-            disabled={loading || !pathInput.trim()}
-            title={t("directoryPicker.goToDirectory")}
-            style={{ minWidth: 58, height: 36, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: loading || !pathInput.trim() ? "default" : "pointer", opacity: loading || !pathInput.trim() ? 0.6 : 1, transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)" }}
-            onMouseEnter={(e) => { if (!loading && pathInput.trim()) { e.currentTarget.style.background = "var(--bg-selected)"; e.currentTarget.style.color = "var(--text)"; } }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-muted)"; }}
-          >
-            {t("directoryPicker.go")}
-          </button>
+                    <Tooltip content={t("directoryPicker.goToDirectory")}>
+            <button
+              className="directory-picker-action"
+              type="submit"
+              disabled={loading || !pathInput.trim()}
+              aria-label={t("directoryPicker.goToDirectory")}
+              style={{ minWidth: 58, height: 36, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-hover)", color: "var(--text-muted)", cursor: loading || !pathInput.trim() ? "default" : "pointer", opacity: loading || !pathInput.trim() ? 0.6 : 1, transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)" }}
+              onMouseEnter={(e) => { if (!loading && pathInput.trim()) { e.currentTarget.style.background = "var(--bg-selected)"; e.currentTarget.style.color = "var(--text)"; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+            >
+              {t("directoryPicker.go")}
+            </button>
+          </Tooltip>
         </form>
 
         <div className="directory-picker-list" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "8px 10px" }}>
@@ -209,26 +215,29 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
             </div>
           ) : drives !== null ? (
             drives.length > 0 ? drives.map((entry) => (
-              <button key={entry.path} className="directory-picker-entry" type="button" onClick={() => void navigateTo(entry.path)} title={entry.path} style={{ width: "100%", minHeight: 30, display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", border: 0, borderRadius: 5, background: "none", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-                <DriveIcon />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
-              </button>
+                            <Tooltip key={entry.path} content={entry.path}>
+                <button className="directory-picker-entry" type="button" onClick={() => void navigateTo(entry.path)} aria-label={entry.path} style={{ width: "100%", minHeight: 30, display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", border: 0, borderRadius: 5, background: "none", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  <DriveIcon />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
+                </button>
+              </Tooltip>
             )) : <div style={{ padding: 8, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("directoryPicker.noDrives")}</div>
           ) : directories.length > 0 ? (
             directories.map((entry) => (
-              <button
-                key={entry.path}
-                className="directory-picker-entry"
-                type="button"
-                onClick={() => void navigateTo(entry.path)}
-                title={entry.path}
-                style={{ width: "100%", minHeight: 30, display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", border: 0, borderRadius: 5, background: "none", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
-              >
-                <FolderIcon />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
-              </button>
+                            <Tooltip key={entry.path} content={entry.path}>
+                <button
+                  className="directory-picker-entry"
+                  type="button"
+                  onClick={() => void navigateTo(entry.path)}
+                  aria-label={entry.path}
+                  style={{ width: "100%", minHeight: 30, display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", border: 0, borderRadius: 5, background: "none", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", transition: "background-color var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
+                >
+                  <FolderIcon />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
+                </button>
+              </Tooltip>
             ))
           ) : (
             <div style={{ padding: 8, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("directoryPicker.noSubdirectories")}</div>
@@ -250,16 +259,18 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error }: Pro
 
         <div className="directory-picker-footer" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexShrink: 0, padding: "10px 18px", borderTop: "1px solid var(--border)" }}>
           <button className="directory-picker-action" type="button" onClick={onCancel} disabled={busy} style={{ padding: "6px 14px", border: "1px solid var(--border)", borderRadius: 6, background: "none", color: "var(--text-muted)", cursor: busy ? "default" : "pointer", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>{t("directoryPicker.cancel")}</button>
-          <button
-            className="directory-picker-action"
-            type="button"
-            onClick={() => onSelect(currentPath)}
-            disabled={!canSelect}
-            title={hasUncommittedPath ? t("directoryPicker.openPathBeforeSelecting") : t("directoryPicker.selectCurrentDirectory")}
-            style={{ padding: "6px 16px", border: 0, borderRadius: 6, background: "var(--accent)", color: "var(--on-accent)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, opacity: canSelect ? 1 : 0.6, cursor: canSelect ? "pointer" : "default" }}
-          >
-            {busy ? t("directoryPicker.checking") : t("directoryPicker.selectThisFolder")}
-          </button>
+                    <Tooltip content={hasUncommittedPath ? t("directoryPicker.openPathBeforeSelecting") : t("directoryPicker.selectCurrentDirectory")}>
+            <button
+              className="directory-picker-action"
+              type="button"
+              onClick={() => onSelect(currentPath)}
+              disabled={!canSelect}
+              aria-label={hasUncommittedPath ? t("directoryPicker.openPathBeforeSelecting") : t("directoryPicker.selectCurrentDirectory")}
+              style={{ padding: "6px 16px", border: 0, borderRadius: 6, background: "var(--accent)", color: "var(--on-accent)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, opacity: canSelect ? 1 : 0.6, cursor: canSelect ? "pointer" : "default" }}
+            >
+              {busy ? t("directoryPicker.checking") : t("directoryPicker.selectThisFolder")}
+            </button>
+          </Tooltip>
         </div>
       </div>
     </div>,

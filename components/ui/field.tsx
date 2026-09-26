@@ -1,4 +1,5 @@
 "use client";
+import { Tooltip } from "../ui/primitives";
 
 /**
  * Warm-paper form field primitives + confirmation dialog.
@@ -348,31 +349,32 @@ export function SecretInput({
           opacity: disabled ? 0.6 : 1,
         }}
       />
-      <button
-        type="button"
-        onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? hideLabel : showLabel}
-        title={visible ? hideLabel : showLabel}
-        style={{
-          position: "absolute",
-          right: 5,
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: 24,
-          height: 24,
-          padding: 0,
-          border: "none",
-          background: "transparent",
-          color: "var(--text-dim)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 4,
-        }}
-      >
-        {visible ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
-      </button>
+      <Tooltip content={visible ? hideLabel : showLabel}>
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          aria-label={visible ? hideLabel : showLabel}
+          style={{
+            position: "absolute",
+            right: 5,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 24,
+            height: 24,
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            color: "var(--text-dim)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 4,
+          }}
+        >
+          {visible ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
+        </button>
+      </Tooltip>
     </div>
   );
 }
