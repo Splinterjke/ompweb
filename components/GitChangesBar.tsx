@@ -142,7 +142,16 @@ export function GitChangesBar({ cwd, onCommitted, onOpenGitTab, onCommitWithAgen
               onCommitted?.(hash);
               void refresh();
             }}
-            onCommitWithAgent={onCommitWithAgent}
+            onCommitWithAgent={async (message) => {
+              const sent = (await onCommitWithAgent?.(message)) ?? false;
+              if (sent) {
+                // The commit prompt is on its way — collapse the bar so the
+                // composer gives room to the run it just started.
+                if (!isControlled) setInternalExpanded(false);
+                onExpandedChange?.(false);
+              }
+              return sent;
+            }}
             onOpenGitTab={onOpenGitTab}
           />
         </div>

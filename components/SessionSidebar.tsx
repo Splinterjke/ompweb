@@ -2476,6 +2476,7 @@ function ProjectRow({
   const gitStatsLabel = useMemo(() => {
     const s = gitStats?.[project.path];
     if (!s || s.files === 0) return null;
+    if (!s.diffAdded && !s.diffDeleted) return t("sessionSidebar.gitStatsFilesOnly", { files: s.files });
     return t("sessionSidebar.gitStats", { files: s.files, added: s.diffAdded, deleted: s.diffDeleted });
   }, [gitStats, project.path, t]);
   const [focusWithin, setFocusWithin] = useState(false);

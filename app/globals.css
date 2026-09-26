@@ -3816,6 +3816,22 @@ html[data-hidden="true"] :is(.chat-input-beam-rect, .icon-spin, .animate-spin, [
   background: var(--bg-hover);
   color: var(--text);
 }
+
+/* Spinning themed ring around the jump-to-bottom button while a session is
+   actively running (agent or bash). Conic gradient masked to a thin band,
+   reusing the shared `spin` keyframes; the global reduced-motion rule
+   collapses it to a static ring. */
+.chat-jump-to-bottom--streaming::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0%, var(--accent) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  animation: spin 1.2s linear infinite;
+  pointer-events: none;
+}
 /* Composer-attached git changes bar: compact status summary above the
    input with expandable file list + one-click commit. */
 .chat-git-bar {

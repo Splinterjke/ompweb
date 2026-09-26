@@ -370,6 +370,10 @@ export function SubagentHub({
     onCollapsedChange?.(next);
   };
   const runningCount = subagents.filter((subagent) => subagent.source !== "history" && subagent.status === "started").length;
+  // When nothing is running the header reports finished agents instead,
+  // so a finished run reads "4 / 4 complete" rather than "0 / 4 busy".
+  const finishedCount = subagents.filter((subagent) => subagent.status !== "started").length;
+  const allFinished = runningCount === 0;
   const treeItems = useMemo(() => buildSubagentHubTree(subagents), [subagents]);
 
   return (
@@ -406,10 +410,10 @@ export function SubagentHub({
           aria-label={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}
           style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}
         >
-          <span>{runningCount}</span>
+          <span>{allFinished ? finishedCount : runningCount}</span>
           <span aria-hidden>/</span>
           <span>{subagents.length}</span>
-          <span>&nbsp;{t("chatWindow.subagentBusy")}</span>
+          <span>&nbsp;{t(allFinished ? "chatWindow.subagentComplete" : "chatWindow.subagentBusy")}</span>
         </span>
         </Tooltip>
         <ChevronDown

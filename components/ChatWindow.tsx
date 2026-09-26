@@ -1458,7 +1458,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
           <Tooltip content={t("chatWindow.scrollToBottom")}>
             <button
             type="button"
-            className="chat-jump-to-bottom"
+            className={"chat-jump-to-bottom" + (sessionBusy ? " chat-jump-to-bottom--streaming" : "")}
             aria-label={t("chatWindow.scrollToBottom")}
             onClick={() => scrollToBottom("smooth")}
           >
