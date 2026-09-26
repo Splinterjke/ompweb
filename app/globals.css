@@ -871,6 +871,44 @@ html[data-theme="harbor"], html.theme-harbor {
   --shadow-modal: 0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
 }
 
+/* Deep Seek palette (ported from the DeepSeek Harness design system). */
+html[data-theme="deepseek"], html.theme-deepseek {
+  color-scheme: dark;
+  --bg: #151517;
+  --bg-panel: #232324;
+  --bg-hover: #2C2C2E;
+  --bg-selected: #353638;
+  --border: #2C2C2E;
+  /* 17.45:1 on --bg, 15.03:1 on --bg-panel, 13.34:1 on --bg-hover */
+  --text: #F9FAFB;
+  /* 6.68:1 on --bg, 5.75:1 on --bg-panel, 5.10:1 on --bg-hover */
+  --text-muted: #979DA6;
+  /* 12.11:1 on --bg, 10.42:1 on --bg-panel, 9.25:1 on --bg-hover */
+  --text-dim: #CFD3D6;
+  /* DeepSeek blue. 6.86:1 on --bg, 5.91:1 on --bg-panel, 5.24:1 on --bg-hover */
+  --accent: #679EFE;
+  /* White on fill: 5.11:1 (passes AA for small text); deepseek-500 #4176E6
+     darkened for contrast */
+  --accent-strong: #3D67D6;
+  --accent-hover: #8AB6FF;
+  --user-bg: #2C2C2E;
+  --tool-bg: #1B1B1C;
+  --bg-subtle: rgba(249,250,251,0.04);
+  --status-error: #F25A5A;
+  --status-success: #4ED17E;
+  --status-warning: #F7AD31;
+  --status-modified: #E8A15C;
+  --status-renamed: #9A8FD6;
+  --on-accent: #FFFFFF;
+  --overlay-backdrop: color-mix(in srgb, var(--text) 24%, transparent);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(249,250,251,0.04);
+  --shadow-pop: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(249,250,251,0.06);
+  --shadow-modal: 0 12px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(249,250,251,0.08);
+  --omp-o: #5686FE;
+  --omp-m: #679EFE;
+  --omp-p: #8FACF8;
+}
+
 /* Tokyo Night palette. */
 html[data-theme="tokyo-night"], html.theme-tokyo-night {
   color-scheme: dark;

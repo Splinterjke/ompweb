@@ -40,6 +40,7 @@ export type ThemePreference =
   | "rose-pine"
   | "rose-pine-dawn"
   | "harbor"
+  | "deepseek"
   | "custom";
 
 export type Theme = "light" | "dark";
@@ -102,6 +103,7 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { id: "rose-pine", name: "Rosé Pine", nameKey: "theme.rosePine", isDark: true, color: "#191724", accent: "#9CC5D6", border: "#26233A", category: "static" },
   { id: "rose-pine-dawn", name: "Rosé Pine Dawn", nameKey: "theme.rosePineDawn", isDark: false, color: "#FAF4ED", accent: "#286983", border: "#CECACD", category: "static" },
   { id: "harbor", name: "Harbor", nameKey: "theme.harbor", isDark: true, color: "#1B1B1B", accent: "#E75A50", border: "#3D3D3D", category: "static" },
+  { id: "deepseek", name: "Deep Seek", nameKey: "theme.deepSeek", isDark: true, color: "#151517", accent: "#5686FE", border: "#2C2C2E", category: "static" },
 
   // ── 2. 多色柔光流动预设 (6 款柔和弥散极光) ──────────────────────
   { id: "aurora-flow", name: "Aurora Borealis", nameKey: "theme.auroraFlow", isDark: true, color: "#0c1417", accent: "#34d399", border: "#50b4a0", category: "flowing" },
@@ -119,7 +121,7 @@ const VALID_THEMES = new Set<string>([
   "system", "light", "nord", "oatmeal", "matcha", "oled", "codex", "dark", "sepia", "dracula", "pine", "navy", "omarchy-monokai",
   "monokai", "monokai-pro", "monokai-pro-octagon", "monokai-pro-machine", "monokai-pro-ristretto", "monokai-pro-spectrum", "monokai-pro-light", "monokai-pro-light-sun",
   "aurora-flow", "dawn-flow", "cosmic-flow", "ocean-flow", "sakura-flow", "bamboo-flow", "custom",
-  "omp", "one-light", "one-dark-pro", "catppuccin-latte", "catppuccin-mocha", "gruvbox-dark", "tokyo-night", "rose-pine", "rose-pine-dawn", "harbor"
+  "omp", "one-light", "one-dark-pro", "catppuccin-latte", "catppuccin-mocha", "gruvbox-dark", "tokyo-night", "rose-pine", "rose-pine-dawn", "harbor", "deepseek"
 ]);
 
 const CUSTOM_STORAGE_KEY = "omp-custom-theme";
@@ -232,7 +234,8 @@ export function isDarkTheme(preference: ThemePreference, prefersDark = false): b
     || preference === "gruvbox-dark"
     || preference === "tokyo-night"
     || preference === "rose-pine"
-    || preference === "harbor";
+    || preference === "harbor"
+    || preference === "deepseek";
 }
 
 export function resolveTheme(preference: ThemePreference, prefersDark = false): Theme {
