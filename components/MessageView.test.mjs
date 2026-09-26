@@ -461,3 +461,16 @@ test("an in-flight tool call with no committed result keeps the spinner", () => 
   assert.match(html, /activity-row-spinner/);
   assert.doesNotMatch(html, /lucide-check/);
 });
+
+test("async-result notices keep their line breaks and drop the wrapper tag", () => {
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    message: {
+      role: "custom",
+      customType: "async-result",
+      content: "<system-notice>\nBackground job bg_1 has completed. Resume your work using the result below.\n/root/repo\n---\nWall time: 0.16 seconds\n</system-notice>",
+      display: true,
+    },
+  }));
+  assert.match(html, /<pre[^>]*>Background job bg_1 has completed\. Resume your work using the result below\.\n\/root\/repo\n---\nWall time: 0\.16 seconds<\/pre>/);
+  assert.doesNotMatch(html, /system-notice|<h2/);
+});

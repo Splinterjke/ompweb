@@ -1867,7 +1867,11 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
   const detailsText = hasDetails ? safeJson(message.details) : "";
   const isIrc = IRC_CUSTOM_TYPES.has(message.customType);
   const ircEnvelope = isIrc ? parseIrcEnvelope(text) : null;
-  const displayText = ircEnvelope ? ircEnvelope.body : text;
+  // Async results are raw job output (bash, task, ...) wrapped in <system-notice>.
+  // As markdown the wrapper turns the body into one raw HTML block (newlines
+  // collapse) and `---` becomes a heading, so strip it and show them verbatim.
+  const isPlainText = message.customType === "async-result";
+  const displayText = ircEnvelope ? ircEnvelope.body : isPlainText ? stripHiddenWrappers(text) : text;
   const title = isIrc
     ? (ircEnvelope?.sender ?? formatCustomType(message.customType))
     : message.customType === "advisor"
@@ -1922,7 +1926,13 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
                 })}
               </div>
             )}
-            {displayText ? <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{displayText}</MarkdownBody> : <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("messageView.noMessage")}</span>}
+            {!displayText ? (
+              <span style={{ color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("messageView.noMessage")}</span>
+            ) : isPlainText ? (
+              <pre style={{ margin: 0, maxHeight: 420, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{displayText}</pre>
+            ) : (
+              <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{displayText}</MarkdownBody>
+            )}
           </div>
         ) : (
           <button
