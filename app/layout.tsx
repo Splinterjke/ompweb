@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Noto_Sans_Mono, Noto_Serif_SC, Source_Serif_4 } from "next/font/google";
 import { BootSkeleton } from "@/components/BootSkeleton";
 import { SIDEBAR_HISTORY_BRIDGE_SCRIPT } from "@/lib/sidebar-history-bridge";
+import { IosFocusZoomGuard } from "@/components/IosFocusZoomGuard";
 import "./globals.css";
 
 const notoSansMono = Noto_Sans_Mono({
@@ -98,6 +99,9 @@ export default function RootLayout({
         />
       </head>
       <body translate="no" className="notranslate" style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
+        {/* iOS/iPadOS: re-apply maximum-scale=1 after hydration so focusing
+            sub-16px inputs doesn't zoom the page (pinch-zoom stays). */}
+        <IosFocusZoomGuard />
         {/* Pre-hydration skeleton: page.tsx mounts AppShell via dynamic(ssr:false),
             so before hydration the body is empty and cold starts show pure
             white. BootSkeleton removes itself through React after AppShell
