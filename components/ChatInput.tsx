@@ -122,6 +122,8 @@ interface Props {
   generationSpeed?: GenerationSpeedInfo | null;
   /** Render the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
+  /** Accent tint for the composer shell background (Interface & Behavior). */
+  composerAccentBg?: boolean;
   /** Empty new-session state: drop the asymmetric minimap-rail gutters so the
    *  input box spans the full column. Only applied on desktop. */
   narrowColumn?: boolean;
@@ -434,6 +436,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   modelCapacity,
   generationSpeed,
   sessionInfoButtonVisible = true,
+  composerAccentBg = false,
   onRemoveQueuedMessage,
   onPromoteQueuedToSteer,
   draftKey = "new:unassigned",
@@ -2435,7 +2438,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
             style={{
               display: "flex",
               flexDirection: "column",
-              background: "var(--bg)",
+              background: composerAccentBg
+                ? "color-mix(in srgb, var(--accent) 8%, var(--bg))"
+                : "var(--bg)",
               border: `1px solid ${bashMode ? "var(--tool-bg)" : isStreaming ? "color-mix(in srgb, var(--accent) 25%, transparent)" : "color-mix(in srgb, var(--border) 70%, transparent)"}`,
               borderRadius: "var(--radius-card)",
               padding: "12px 12px 10px 14px",

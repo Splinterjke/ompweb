@@ -30,6 +30,14 @@ npm run dev            # http://127.0.0.1:30178
 - The `omp` binary must be installed (on `PATH` or set `OMP_WEB_OMP_BIN`). All live-agent features spawn it as `omp --mode rpc-ui`; session browsing works without it.
 - No `OMP_WEB_PASSWORD` in the environment → the auth gate is **off** → plain `curl http://127.0.0.1:30178/api/...` works.
 - Rust host (diagnostics panel KPI, worktrees, refresh): set `OMPWEB_HOST_BIN=/work/ompweb/crates/target/debug/ompweb-host` (build first with `npm run host:build` if cargo is available). The host boots **lazily** on the first `hostClient.*` call (`POST /api/ui/refresh` or a session start); without the binary the card shows "Unavailable" (binary missing, not a dead process).
+### LAN binding (`npm run dev:lan` / `--hostname 0.0.0.0`)
+
+`npm run dev` binds to `127.0.0.1` only. To reach the dev server from another interface (WSL2 → Windows host, Docker host, LAN), use `npm run dev:lan` (`next dev -H 0.0.0.0 -p 30178`) or add `--hostname 0.0.0.0` to a manual `next dev` invocation. Production equivalent: `npm run start:lan` (`next start -H 0.0.0.0 -p 30177`).
+
+Caveats when binding beyond loopback:
+
+- The password gate still applies — remote clients have **no** loopback exemption, so set `OMP_WEB_PASSWORD` and use the login flow above. The loopback test flow (reading `/proc/<pid>/environ`, the `/api/ui/refresh` exemption) only works from the server's own machine.
+- Non-loopback Host headers must be listed in `OMP_WEB_ALLOWED_HOSTS` (comma-separated) or they are rejected at the HTTP boundary.
 
 ## Auth: clearing the 401 gate
 

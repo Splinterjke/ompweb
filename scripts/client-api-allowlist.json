@@ -35,6 +35,6 @@
     "hooks/useDictation.ts": 1,
     "lib/agent-client.ts": 1,
     "lib/client/http-sse-adapter.ts": 5,
-    "lib/workbench-client.ts": 3
+    "lib/workbench-client.ts": 2
   }
 }

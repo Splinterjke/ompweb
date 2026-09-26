@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Bot, Columns2, ExternalLink, Files, GitBranch, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
-import { createTemporarySession, fetchBrowserPreview } from "@/lib/workbench-client";
+import { createTemporarySession } from "@/lib/workbench-client";
 import { GitChangesPanel } from "../GitChangesPanel";
 
 export type WorkbenchView = "files" | "agents" | "git" | "sidechat" | "browser";
@@ -112,52 +112,68 @@ function BrowserView() {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [url, setUrl] = useState("");
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [navKey, setNavKey] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = useCallback(async () => {
-    const value = draft.trim();
-    if (!/^https?:\/\//i.test(value)) return;
-    setUrl(value);
+  // A site that refuses framing (X-Frame-Options / CSP frame-ancestors)
+  // leaves the frame on about:blank after the navigation settles. Cross-origin
+  // pages reject the location read, so a readable "about:blank" is the
+  // blocked-frame signal.
+  const [blocked, setBlocked] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const openUrl = useCallback((value: string) => {
+    const target = value.trim();
+    if (!/^https?:\/\//i.test(target)) return;
+    setUrl(target);
+    setNavKey((k) => k + 1);
     setLoading(true);
-    setError(null);
-    setPreviewHtml(null);
+    setBlocked(false);
+  }, []);
+  const handleIframeLoad = useCallback(() => {
+    setLoading(false);
     try {
-      const payload = await fetchBrowserPreview(value);
-      const base = payload.finalUrl || value;
-      const escapedBase = base.replace(/"/g, "&quot;");
-      const html = /<head[\s>]/i.test(payload.html)
-        ? payload.html.replace(/<head([^>]*)>/i, "<head$1><base href=\"" + escapedBase + "\">")
-        : "<!doctype html><html><head><base href=\"" + escapedBase + "\"></head><body>" + payload.html + "</body></html>";
-      setPreviewHtml(html);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
-    } finally {
-      setLoading(false);
+      const href = iframeRef.current?.contentWindow?.location.href;
+      if (href === "about:blank") setBlocked(true);
+    } catch {
+      // Cross-origin page loaded fine — the location read throws.
     }
-  }, [draft]);
+  }, []);
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, background: "var(--bg)" }}>
-      <form onSubmit={(event) => { event.preventDefault(); submit(); }} style={{ display: "flex", gap: 6, padding: "7px 8px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+      <form onSubmit={(event) => { event.preventDefault(); openUrl(draft); }} style={{ display: "flex", gap: 6, padding: "7px 8px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
         <Search size={14} style={{ alignSelf: "center", color: "var(--text-dim)" }} aria-hidden="true" />
         <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t("rightWorkbench.browserPlaceholder") === "rightWorkbench.browserPlaceholder" ? "Enter an http(s) URL…" : t("rightWorkbench.browserPlaceholder")} aria-label={t("rightWorkbench.browserPlaceholder")} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }} />
         <button type="submit" disabled={!/^https?:\/\//i.test(draft.trim())} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", padding: "3px 8px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("rightWorkbench.browserGo") === "rightWorkbench.browserGo" ? "Open" : t("rightWorkbench.browserGo")}</button>
       </form>
-      {loading ? (
-        <div role="status" style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("appShell.loading")}</div>
-      ) : previewHtml ? (
+      {url ? (
         <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-                    <Tooltip content={url}>
-            <iframe aria-label={url} srcDoc={previewHtml} style={{ width: "100%", height: "100%", border: 0, background: "var(--bg)" }} sandbox="allow-forms allow-modals allow-popups allow-scripts" />
-          </Tooltip>
+          <iframe
+            key={navKey}
+            ref={iframeRef}
+            aria-label={url}
+            src={url}
+            referrerPolicy="no-referrer"
+            onLoad={handleIframeLoad}
+            onError={() => setLoading(false)}
+            style={{ width: "100%", height: "100%", border: 0, background: "var(--bg)" }}
+          />
+          {loading && (
+            <div role="status" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "color-mix(in srgb, var(--bg) 70%, transparent)", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("appShell.loading")}</div>
+          )}
+          {blocked && !loading && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--bg)", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}>
+              <div>{t("rightWorkbench.browserBlocked") === "rightWorkbench.browserBlocked" ? "This site blocks embedding (X-Frame-Options / CSP frame-ancestors)." : t("rightWorkbench.browserBlocked")}</div>
+              <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", opacity: 0.8 }}>{t("rightWorkbench.browserFrameNote")}</div>
+            </div>
+          )}
           <Tooltip content={t("rightWorkbench.browserExternal") === "rightWorkbench.browserExternal" ? "Open in system browser" : t("rightWorkbench.browserExternal")}>
             <button type="button" onClick={() => window.open(url, "_blank", "noopener,noreferrer")} style={{ position: "absolute", top: 8, right: 8, display: "inline-flex", gap: 4, alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--bg-panel) 90%, transparent)", color: "var(--text-muted)", padding: "4px 7px", cursor: "pointer", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))" }}><ExternalLink size={12} aria-hidden="true" />{t("rightWorkbench.browserExternal") === "rightWorkbench.browserExternal" ? "Open externally" : t("rightWorkbench.browserExternal")}</button>
           </Tooltip>
         </div>
-      ) : error ? (
-        <div role="alert" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}><span>{error}</span><button type="button" onClick={() => void submit()} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", padding: "5px 9px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>Retry</button></div>
       ) : (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}>{t("rightWorkbench.browserHint") === "rightWorkbench.browserHint" ? "Enter a URL to preview it in the workspace" : t("rightWorkbench.browserHint")}</div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}>
+          <div>{t("rightWorkbench.browserHint") === "rightWorkbench.browserHint" ? "Enter a URL to preview it in the workspace" : t("rightWorkbench.browserHint")}</div>
+          <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", opacity: 0.8 }}>{t("rightWorkbench.browserFrameNote") === "rightWorkbench.browserFrameNote" ? "Blank page means the site blocks embedding — use Open externally" : t("rightWorkbench.browserFrameNote")}</div>
+        </div>
       )}
     </div>
   );

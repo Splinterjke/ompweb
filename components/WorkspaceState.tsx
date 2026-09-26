@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { CircleAlert, MessageSquareText } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 
-type WorkspaceStateKind = "loading" | "error" | "empty";
+type WorkspaceStateKind = "loading" | "error";
 
-/** Unified loading, error, and empty state for full-panel surfaces. The
+/** Unified loading and error state for full-panel surfaces. The
  *  low-elevation surface keeps status feedback clear without turning the
  *  workspace into a collection of floating cards. */
 export function WorkspaceState({
@@ -18,7 +18,7 @@ export function WorkspaceState({
   return (
     <div
       className={`workspace-state workspace-state-${kind}`}
-      role={kind === "error" ? "alert" : kind === "loading" ? "status" : undefined}
+      role={kind === "error" ? "alert" : "status"}
       aria-busy={kind === "loading" ? true : undefined}
       aria-label={kind === "loading" ? title : undefined}
     >
@@ -29,10 +29,8 @@ export function WorkspaceState({
             <span />
             <span />
           </div>
-        ) : kind === "error" ? (
-          <CircleAlert className="workspace-state-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
         ) : (
-          <MessageSquareText className="workspace-state-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
+          <CircleAlert className="workspace-state-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
         )}
         <div className="workspace-state-copy">
           <div className="workspace-state-title">{title}</div>

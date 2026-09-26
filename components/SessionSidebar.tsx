@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { transcriptToMarkdown } from "@/lib/transcript";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, getLastOpenSession, setLastOpenSession, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
@@ -95,6 +96,8 @@ interface Props {
    *  & Behavior setting): inline (same row), second (line below the name),
    *  or hidden. */
   gitStatsPlacement?: GitStatsPlacement;
+  /** Closes the mobile sidebar drawer when the brand button is tapped. */
+  onBrandClick?: () => void;
 }
 
 interface WorktreeEntry {
@@ -509,110 +512,39 @@ function mostRecentSessionForWorkspace(sessions: SessionInfo[], workspace: strin
     .sort((a, b) => b.modified.localeCompare(a.modified))[0];
 }
 
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-
-function useScramble(target: string, running: boolean, reducedMotion: boolean): string {
-  const [display, setDisplay] = useState(target);
-  const frameRef = useRef<number | null>(null);
-  const iterRef = useRef(0);
-
-  useEffect(() => {
-    if (!running || reducedMotion) {
-      setDisplay(target);
-      return;
-    }
-    iterRef.current = 0;
-    const totalFrames = target.length * 4;
-
-    const step = () => {
-      iterRef.current += 1;
-      const progress = iterRef.current / totalFrames;
-      const resolved = Math.floor(progress * target.length);
-
-      setDisplay(
-        target
-          .split("")
-          .map((char, i) => {
-            if (char === " ") return " ";
-            if (i < resolved) return char;
-            return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
-          })
-          .join("")
-      );
-
-      if (iterRef.current < totalFrames) {
-        frameRef.current = requestAnimationFrame(step);
-      } else {
-        setDisplay(target);
-      }
-    };
-
-    frameRef.current = requestAnimationFrame(step);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [target, running, reducedMotion]);
-
-  return display;
-}
-
-function OmpWebTitle() {
-  const [showVersion, setShowVersion] = useState(false);
-  const [scrambling, setScrambling] = useState(false);
-  const revertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrambleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reducedMotion = usePrefersReducedMotion();
-
-  const target = showVersion ? `v${process.env.NEXT_PUBLIC_OMP_WEB_VERSION ?? "0.0.0"}` : "omp web";
-  const display = useScramble(target, scrambling, reducedMotion);
-
-  const triggerScramble = useCallback((toVersion: boolean) => {
-    setShowVersion(toVersion);
-    if (scrambleTimerRef.current) clearTimeout(scrambleTimerRef.current);
-    if (reducedMotion) return;
-    setScrambling(true);
-    scrambleTimerRef.current = setTimeout(() => setScrambling(false), (toVersion ? 6 : 8) * 4 * (1000 / 60) + 100);
-  }, [reducedMotion]);
-
-  const handleClick = useCallback(() => {
-    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-
-    const next = !showVersion;
-    triggerScramble(next);
-
-    if (next) {
-      revertTimerRef.current = setTimeout(() => triggerScramble(false), 3000);
-    }
-  }, [showVersion, triggerScramble]);
-
-  useEffect(() => () => {
-    if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
-    if (scrambleTimerRef.current) clearTimeout(scrambleTimerRef.current);
-  }, []);
-
-  return (
-    <Tooltip content={showVersion ? "Show ompweb name" : "Show ompweb version"}>
-      <button
-      onClick={handleClick}
-      style={{
-        background: "none", border: "none", padding: 0, cursor: "pointer",
-        fontWeight: 700, fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", letterSpacing: "-0.01em",
-        fontFamily: "var(--font-mono)",
-        minWidth: "6ch",
-        lineHeight: 1,
-      }}
-    >
-      {!scrambling && !showVersion ? (
-        <>
-          <span style={{ color: "var(--accent)" }}>omp</span>
-          <span style={{ color: "var(--text)" }}>web</span>
-        </>
-      ) : (
-        <span style={{ color: showVersion ? "var(--accent)" : "var(--text)" }}>{display}</span>
-      )}
+function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
+  const isMobile = useIsMobile();
+  const brand = (
+    <>
+      <span style={{ color: "var(--accent)" }}>omp</span>
+      <span style={{ color: "var(--text)" }}>web</span>
+    </>
+  );
+  const style = {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontWeight: 700,
+    fontSize: "calc(14px * var(--ui-font-scale-lg, 1))",
+    letterSpacing: "-0.01em",
+    fontFamily: "var(--font-mono)",
+    minWidth: "6ch",
+    lineHeight: 1,
+    textAlign: "left",
+  } as const;
+  // Mobile: the brand doubles as the drawer's close button; on desktop it is
+  // a static label (no click behavior, no animation).
+  return isMobile && onMobileClick ? (
+    <button type="button" onClick={onMobileClick} aria-label="Close sidebar" style={{ ...style, cursor: "pointer" }}>
+      {brand}
     </button>
-    </Tooltip>
+  ) : (
+    <span aria-label="omp web" style={style}>
+      {brand}
+    </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, gitStatsPlacement = "inline" }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline" }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1839,7 +1771,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-            <OmpWebTitle />
+            <OmpWebTitle onMobileClick={onBrandClick} />
             <BackendStatusButton />
           </div>
           <div style={{ display: "flex", gap: 2 }}>
@@ -2633,10 +2565,10 @@ function ProjectRow({
             />
           </div>
         ) : (
-          <Tooltip content={project.path}>
+          <Tooltip content={t("sessionSidebar.newSessionIn", { cwd: project.path })}>
             <button
             className="sidebar-project-identity"
-            onClick={() => onActivate(project.path)}
+            onClick={() => { onActivate(project.path); onNewSession?.(project.path); }}
             aria-current={isActive ? "true" : undefined}
             style={{
               flex: "0 1 auto",
@@ -2644,6 +2576,7 @@ function ProjectRow({
               alignSelf: "stretch",
               display: "flex",
               flexDirection: secondLineStats ? "column" : "row",
+              alignItems: secondLineStats ? "stretch" : "center",
               gap: secondLineStats ? 2 : 7,
               padding: secondLineStats ? "4px 4px 4px 10px" : "0 4px 0 10px",
               background: "none", border: "none",

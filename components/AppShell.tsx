@@ -75,6 +75,7 @@ const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
 const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
 const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
 const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
+const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
 export type HubBarLayout = "stack" | "row";
@@ -260,6 +261,16 @@ export function AppShell() {
       };
     } catch {
       return { git: true, tasks: true, subagents: true };
+    }
+  });
+  // Accent-tint the composer shell background (Interface & Behavior switch).
+  // Absent or corrupt stored values keep the plain page background.
+  const [composerAccentBg, setComposerAccentBg] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(COMPOSER_ACCENT_BG_STORAGE_KEY) === "true";
+    } catch {
+      return false;
     }
   });
   // Cap expanded tool-call output at a fixed height (Interface & Behavior
@@ -493,6 +504,14 @@ export function AppShell() {
     setHubBarLayout(layout);
     try {
       window.localStorage.setItem(HUB_BAR_LAYOUT_STORAGE_KEY, layout);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleComposerAccentBgChange = useCallback((enabled: boolean) => {
+    setComposerAccentBg(enabled);
+    try {
+      window.localStorage.setItem(COMPOSER_ACCENT_BG_STORAGE_KEY, String(enabled));
     } catch {
       // The preference still applies for this page load.
     }
@@ -1051,13 +1070,17 @@ export function AppShell() {
     if (sessionProject && comparableProjectPath(sessionProject) === comparableProjectPath(newProject)) {
       return;
     }
+    // No session open: a workspace move (worktree switch, adding/removing a
+    // project) re-targets the new-session composer to the new cwd instead of
+    // tearing it down to an empty state.
+    if (!selectedSession) {
+      setNewSessionCwd((prev) => (prev && prev !== cwd ? cwd : prev));
+      return;
+    }
     // Close any session that belongs to a different project — it no longer
     // matches the selected project directory.
     setSelectedSession(null);
-    setNewSessionCwd((prev) => {
-      if (prev && prev !== cwd) return null;
-      return prev;
-    });
+    setNewSessionCwd(null);
     setSessionKey((k) => k + 1);
     setBranchTree([]);
     setBranchActiveLeafId(null);
@@ -1558,6 +1581,7 @@ export function AppShell() {
         updateAvailable={appUpdateAvailable || ompUpdateAvailable}
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}
+        onBrandClick={() => setSidebarOpen(false)}
       />
     </>
   );
@@ -2129,6 +2153,7 @@ export function AppShell() {
               messageTimeFormat={messageTimeFormat}
               hubBarLayout={hubBarLayout}
               hubBarsVisible={hubBarsVisible}
+              composerAccentBg={composerAccentBg}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
             />
@@ -2151,8 +2176,6 @@ export function AppShell() {
             />
           ) : !showPlaceholder ? (
             <PanelLoadingFallback />
-          ) : activeCwd ? (
-            <WorkspaceState kind="empty" title={t("appShell.selectSessionHint")} />
           ) : (
               <div style={{ position: "absolute", top: 12, left: 12, display: "flex", alignItems: "flex-start", gap: 8, userSelect: "none", pointerEvents: "none" }}>
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
@@ -2293,7 +2316,7 @@ export function AppShell() {
         </div>
       {/* File panel toggle — fixed at top-right; when the panels are swapped
           it moves inline to the top-left of the top bar instead. */}
-      {!panelsSwappedActive && (
+      {!panelsSwappedActive && !isMobile && (
         <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
           <button
           onClick={toggleFilePanel}
@@ -2317,7 +2340,7 @@ export function AppShell() {
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
-    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} showJumpToBottomButton={showJumpToBottomButton} onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} gitStatsPlacement={gitStatsPlacement} onGitStatsPlacementChange={handleGitStatsPlacementChange} hubBarLayout={hubBarLayout} onHubBarLayoutChange={handleHubBarLayoutChange} hubBarsVisible={hubBarsVisible} onHubBarsVisibleChange={handleHubBarsVisibleChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
+    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} showJumpToBottomButton={showJumpToBottomButton} onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} gitStatsPlacement={gitStatsPlacement} onGitStatsPlacementChange={handleGitStatsPlacementChange} hubBarLayout={hubBarLayout} onHubBarLayoutChange={handleHubBarLayoutChange} hubBarsVisible={hubBarsVisible} onHubBarsVisibleChange={handleHubBarsVisibleChange} composerAccentBg={composerAccentBg} onComposerAccentBgChange={handleComposerAccentBgChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
     <UsageDashboardModal
       open={usageDashboardOpen}
       onOpenChange={setUsageDashboardOpen}

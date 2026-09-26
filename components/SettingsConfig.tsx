@@ -271,8 +271,9 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
-  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Status bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
   { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
+  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Compact hub bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
+  { id: "composer-accent-bg", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.composerAccentBg", descKey: "settingsConfig.composerAccentBgDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat input background secondary color", fallbackDesc: "Tint the chat input shell with a subtle accent-color background. When off, the shell keeps the plain page background.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
   { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
   { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
@@ -500,7 +501,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = false, onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -523,6 +524,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Per-bar visibility for the composer hub bars. */
   hubBarsVisible?: HubBarsVisibility;
   onHubBarsVisibleChange?: (visible: HubBarsVisibility) => void;
+  /** Accent tint for the composer shell background (Interface & Behavior). */
+  composerAccentBg?: boolean;
+  onComposerAccentBgChange?: (enabled: boolean) => void;
   /** Cap expanded tool-call output height (Interface & Behavior). */
   toolOutputCapEnabled?: boolean;
   onToolOutputCapChange?: (enabled: boolean) => void;
@@ -1055,9 +1059,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.gitStatsHidden")}</option>
                     </select>
                   </NativeSetting>
-                  <NativeSetting searchId="hub-bar-layout" label={t("settingsConfig.hubBarLayout")} description={t("settingsConfig.hubBarLayoutDesc")} scope="UI">
-                    <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
-                  </NativeSetting>
                   <NativeSetting searchId="hub-bar-visibility" label={t("settingsConfig.hubBarVisibility")} description={t("settingsConfig.hubBarVisibilityDesc")} scope="UI">
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
                       {([
@@ -1079,6 +1080,12 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                         </label>
                       ))}
                     </div>
+                  </NativeSetting>
+                  <NativeSetting searchId="hub-bar-layout" label={t("settingsConfig.hubBarLayout")} description={t("settingsConfig.hubBarLayoutDesc")} scope="UI">
+                    <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
+                  </NativeSetting>
+                  <NativeSetting searchId="composer-accent-bg" label={t("settingsConfig.composerAccentBg")} description={t("settingsConfig.composerAccentBgDesc")} scope="UI">
+                    <ToggleSwitch checked={composerAccentBg} onChange={(next) => onComposerAccentBgChange?.(next)} />
                   </NativeSetting>
                   <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
                     <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />

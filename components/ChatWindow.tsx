@@ -14,6 +14,7 @@ import { ExtensionDialog } from "./ExtensionDialog";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
 import { WorkspaceState } from "./WorkspaceState";
+import { SessionLoading } from "./SessionLoading";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import { EmptyChatHero } from "./EmptyChatHero";
 import { useAgentSession, type AgentPhase, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
@@ -67,6 +68,8 @@ interface Props {
   hubBarLayout?: HubBarLayout;
   /** Per-bar visibility for the composer hub bars (Interface & Behavior). */
   hubBarsVisible?: HubBarsVisibility;
+  /** Accent tint for the composer shell background (Interface & Behavior). */
+  composerAccentBg?: boolean;
   /** Opens the Git tab in the right workbench (from the composer git bar). */
   onOpenGitTab?: () => void;
   onOpenFile?: (filePath: string) => void;
@@ -562,7 +565,8 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, onOpenGitTab, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = false, onOpenGitTab, onOpenFile, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
@@ -1179,6 +1183,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       modelCapacity={modelCapacity}
       generationSpeed={generationSpeed}
       sessionInfoButtonVisible={sessionInfoButtonVisible}
+      composerAccentBg={composerAccentBg}
       onAdvisorChange={handleAdvisorChange}
       advisorModel={advisorModelMeta}
       queuedMessages={queuedMessages}
@@ -1202,7 +1207,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   const belowEditorWidgets = extensionWidgets.filter((widget) => widget.placement === "belowEditor");
 
   if (loading) {
-    return <WorkspaceState kind="loading" title={t("chatWindow.loadingSession")} />;
+    return <SessionLoading label={t("chatWindow.loadingSession")} />;
   }
 
   if (error) {

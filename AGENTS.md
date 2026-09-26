@@ -214,6 +214,7 @@ components/
   AppShell.tsx        layout + URL state + tab management
   SessionSidebar.tsx  session tree + FileExplorer
   ChatWindow.tsx      chat composition + completion sound wrapper
+  SessionLoading.tsx  animated SVG letter-build + glowing trail for the session loading state
   ChatInput.tsx       input bar + model/thinking/tools/compact controls
   ComposerPanels.tsx  composer hub bars: git changes, todo plan, subagents (stack or row layout, per-bar visibility)
   TodoList.tsx        todo phase grid with preview/show-all (used by ComposerPanels)
@@ -447,6 +448,19 @@ handled or safely ignored.
   the RPC protocol, so failures surface as toasts (`toast.error`) from the
   editor actions, not inline text.
 - The endpoint is guarded by the same allowed-root rules as `/api/files`.
+### Browser tab — direct-src iframe (`components/panels/RightWorkbench.tsx` BrowserView)
+- The Browser tab embeds arbitrary http(s) pages with a **direct** `<iframe src=…>`
+  navigation (page keeps its own origin), so scripts, storage, XHR and dynamic
+  content all execute. The old fetch-into-`srcDoc` proxy (`/api/browser-proxy`,
+  removed) ran page JS in an opaque, sandboxed context that rendered JS-heavy
+  pages blank — that is why it looked like "JavaScript is disabled".
+- Cross-origin framing requires `frame-src 'self' http: https:` in the app CSP
+  (`next.config.ts`); without it `default-src 'self'` blocks every cross-origin
+  frame. `frame-ancestors 'none'` (the app can't be framed) is independent.
+- A `loading` overlay (`role="status"`) covers the frame until `onLoad`. A site
+  that refuses framing (X-Frame-Options / CSP frame-ancestors) renders blank —
+  the empty-state note (`rightWorkbench.browserFrameNote`) and the
+  "Open externally" button cover that case.
 
 ### Plugins and skills
 - `/api/plugins` shells out to the user's `omp plugin` CLI (`list/install/uninstall/enable/disable/upgrade`, `--json` where available) — never the Bun-only SDK.

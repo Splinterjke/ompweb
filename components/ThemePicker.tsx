@@ -13,6 +13,7 @@ import {
 } from "@/hooks/useTheme";
 import { useMotionPrefs } from "@/hooks/useMotionPrefs";
 import { useTypography, FONT_PRESETS, type FontPreset } from "@/hooks/useTypography";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/lib/i18n";
 
 export function ThemePicker() {
@@ -20,6 +21,7 @@ export function ThemePicker() {
   const { motionPrefs, setMotionPrefs } = useMotionPrefs();
   const { fontPreset, chatFontSize, uiFontScaleLg, uiFontScaleSm, setFontPreset, setChatFontSize, setUiFontScaleLg, setUiFontScaleSm } = useTypography();
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"static" | "flowing" | "custom" | "motion" | "typography">("static");
   const [customConfig, setCustomConfig] = useState<CustomThemeConfig>(getCustomTheme());
@@ -105,11 +107,11 @@ export function ThemePicker() {
         <div
           className="dropdown-surface animate-scale-in"
           style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
+            position: isMobile ? "fixed" : "absolute",
+            top: isMobile ? 50 : "calc(100% + 6px)",
+            left: isMobile ? "0.5vw" : 0,
             zIndex: 650,
-            width: 320,
+            width: isMobile ? "99vw" : 320,
             padding: 8,
             borderRadius: "var(--radius-card)",
             background: "var(--bg-panel)",
