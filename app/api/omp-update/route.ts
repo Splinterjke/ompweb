@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { execFileSync } from "node:child_process";
 import { checkOmpUpdate, runOmpUpdateNow, runOmpUpdateStream } from "@/lib/omp/updates";
+import { invalidateOmpCliCache } from "@/lib/omp/omp-cli";
 import { clearRpcFailures, restartAllRpcSessions } from "@/lib/rpc-manager";
 import { hostClient } from "@/lib/omp/host-client";
 import { isUpdateDisabled } from "@/lib/update-policy";
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
                 try { controller.enqueue(JSON.stringify({ type: "out", text: line }) + "\n"); } catch { /* closed */ }
               });
               await restartAllRpcSessions();
-              done();
+              invalidateOmpCliCache();
             } catch (error) {
               fail(error);
             }
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       }
       const output = await runOmpUpdateNow();
       const sessionsRestarted = await restartAllRpcSessions();
+      invalidateOmpCliCache();
       return NextResponse.json({ success: true, output: output.slice(-2000), sessionsRestarted });
     }
     if (body.action === "restart") {

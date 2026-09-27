@@ -214,6 +214,8 @@ export type ExtensionUiRequest =
       method: "editor";
       title: string;
       prefill?: string;
+      /** omp sets this for plain-text answers (ask "Other"); render as prose, not code. */
+      promptStyle?: boolean;
       timeout?: number;
       expiresAt?: number;
     }
@@ -477,4 +479,14 @@ export interface SessionContext {
   model: { provider: string; modelId: string } | null;
   /** Latest persisted todo snapshot on the selected session branch. */
   todoPhases: TodoPhase[];
+}
+
+export interface ExitedRpcSession {
+  id: string;
+  cwd: string;
+  at: number;
+  code: number | null;
+  signal: string | null;
+  /** Last stderr line, if any. */
+  detail: string;
 }

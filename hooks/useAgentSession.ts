@@ -5,6 +5,7 @@ import type {
   AgentMessage,
   AssistantMessage,
   CustomMessage,
+  ExitedRpcSession,
   ExtensionStatusItem,
   ExtensionUiRequest,
   ExtensionWidgetItem,
@@ -16,7 +17,7 @@ import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
 import { sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
 import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "@/lib/client";
-import { translate } from "@/lib/i18n";
+import { formatExitedSessionNotice, translate } from "@/lib/i18n";
 import { toast } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
@@ -808,6 +809,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // Keep that failure until the authoritative session reload completes; some
   // omp versions persist the failed assistant turn, while older ones do not.
   const pendingPromptErrorRef = useRef<{ sid: string | null; runId: number; message: string } | null>(null);
+  const lastShownExitRef = useRef<string | null>(null);
   // True once this mount has persisted a non-empty queue: gates removal so a
   // just-mounted empty state cannot wipe a stored queue before restore runs.
   const queuePersistDirtyRef = useRef(false);
@@ -1184,7 +1186,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         const token = beginAuthoritativeModelSync();
         const stateRes = await fetch(`/api/sessions/${encodeURIComponent(sid)}/state`);
         if (!stateRes.ok) throw new Error(`HTTP ${stateRes.status}`);
-        const agentState = await stateRes.json() as { running: boolean; state?: AgentStateResponse; external?: boolean };
+        const agentState = await stateRes.json() as { running: boolean; state?: AgentStateResponse; external?: boolean; exited?: ExitedRpcSession };
         if (sessionIdRef.current !== sid) {
           if (showLoading) setLoading(false);
           return null;
@@ -3438,6 +3440,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       mountedSessionLoadRef.current = session.id;
       sessionIdRef.current = session.id;
       loadSession(session.id, true, true).then((agentState) => {
+        if (agentState?.exited) {
+          const exitKey = `${agentState.exited.id}:${agentState.exited.at}`;
+          if (lastShownExitRef.current !== exitKey) {
+            lastShownExitRef.current = exitKey;
+            addNotice({
+              id: `process-exit-${exitKey}`,
+              type: "error",
+              message: formatExitedSessionNotice(agentState.exited),
+            });
+          }
+        }
         if (agentState?.running) {
           if (agentState.state?.isStreaming || agentState.state?.isPromptRunning) {
             agentRunningRef.current = true;

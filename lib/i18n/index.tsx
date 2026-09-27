@@ -4,6 +4,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 import zhCN from "./locales/zh-CN.json";
+import type { ExitedRpcSession } from "../types";
 
 export type Locale = "en" | "zh-CN" | "ja";
 
@@ -102,6 +103,19 @@ export function translatePlural(
   vars?: Record<string, string | number>,
 ): string {
   return translate(`${key}.${count === 1 ? "one" : "other"}`, { count, ...vars });
+}
+
+/** Render the crash notice for an exited agent session (sidebar tooltip +
+ * per-session indicator). */
+export function formatExitedSessionNotice(exit: ExitedRpcSession): string {
+  const status = exit.signal
+    ? translate("sessionSidebar.exitSignal", { signal: exit.signal })
+    : translate("sessionSidebar.exitCode", {
+        code: exit.code ?? translate("sessionSidebar.exitUnknown"),
+      });
+  return translate("sessionSidebar.agentExited", {
+    reason: exit.detail ? `${status}: ${exit.detail}` : status,
+  });
 }
 
 function subscribe(cb: () => void): () => void {

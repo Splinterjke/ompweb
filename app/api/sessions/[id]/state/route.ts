@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRpcSession } from "@/lib/rpc-manager";
+import { getExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
 import { isExternallyActive } from "@/lib/session-watcher";
 
@@ -32,6 +32,10 @@ export async function GET(
         // fall through to file-based mode below.
       }
     }
+    // A crashed child is gone from the registry but still leaves a visible
+    // crash record — report it instead of falling through to file-based mode.
+    const exited = getExitedRpcSession(id);
+    if (exited) return NextResponse.json({ running: false, exited });
 
     const resolved = await resolveSessionPathOr404(id);
     if ("response" in resolved) return resolved.response;

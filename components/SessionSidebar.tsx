@@ -2,9 +2,9 @@
 
 import { memo, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
-import type { AgentMessage, ManagedProject, SessionInfo } from "@/lib/types";
+import type { AgentMessage, ExitedRpcSession, ManagedProject, SessionInfo } from "@/lib/types";
 import type { GitStatsPlacement } from "./AppShell";
-import { useI18n } from "@/lib/i18n";
+import { formatExitedSessionNotice, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { BackendStatusButton } from "./BackendDiagnostics";
@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, getLastOpenSession, setLastOpenSession, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { Archive, Check, ChevronDown, ChevronRight, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Archive, Check, ChevronDown, ChevronRight, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -647,6 +647,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
 
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
+  const [exitedSessions, setExitedSessions] = useState<Map<string, ExitedRpcSession>>(() => new Map());
   const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
   // Relative session times must age while the sidebar stays open; one shared
   // minute clock avoids a timer per session row.
@@ -885,6 +886,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
         const data = JSON.parse(e.data) as {
           type?: string;
           runningSessionIds?: string[];
+          exitedSessions?: ExitedRpcSession[];
           refreshSessionList?: boolean;
           sessionIds?: string[];
           externallyRunning?: string[];
@@ -915,6 +917,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
         } else if (data.type === "running") {
           sseAuthoritativeRef.current = true;
           setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+          if (data.exitedSessions) setExitedSessions(new Map(data.exitedSessions.map((s) => [s.id, s])));
           if (data.refreshSessionList) scheduleRefresh();
         } else if (data.type === "sessions-changed") {
           if (data.refreshSessionList) scheduleRefresh();
@@ -1238,8 +1241,8 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     [sortedProjects, visibleSessions],
   );
   const projectActivity = useMemo(
-    () => projectActivityCounts(visibleSessions, runningSessionIds, unreadSessionIds),
-    [visibleSessions, runningSessionIds, unreadSessionIds],
+    () => projectActivityCounts(visibleSessions, runningSessionIds, unreadSessionIds, exitedSessions.keys()),
+    [visibleSessions, runningSessionIds, unreadSessionIds, exitedSessions],
   );
 
   // Client-side filtering (Workspaces header: search + "running only").
@@ -2020,6 +2023,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 selectedSessionId={selectedSessionId}
                 runningSessionIds={runningSessionIds}
                 unreadSessionIds={unreadSessionIds}
+                exitedSessions={exitedSessions}
                 relativeTimeNow={relativeTimeNow}
                 onActivate={activateProject}
                 onToggleExpand={toggleProjectExpanded}
@@ -2327,13 +2331,14 @@ interface ProjectRowProps {
   project: ManagedProject;
   isActive: boolean;
   isExpanded: boolean;
-  activity: { running: number; unread: number } | undefined;
+  activity: { running: number; unread: number; exited?: number } | undefined;
   tree: SessionTreeNode[];
   /** Sessions beyond the cap (0 when a filter is active — show all matches). */
   hiddenCount: number;
   selectedSessionId: string | null;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
+  exitedSessions: Map<string, ExitedRpcSession>;
   relativeTimeNow: number;
   onActivate: (path: string) => void;
   onToggleExpand: (path: string) => void;
@@ -2378,6 +2383,7 @@ function ProjectRow({
   selectedSessionId,
   runningSessionIds,
   unreadSessionIds,
+  exitedSessions,
   relativeTimeNow,
   onActivate,
   onToggleExpand,
@@ -2467,7 +2473,7 @@ function ProjectRow({
     }
   }, [t]);
   const label = project.alias ?? projectLabel(project.path);
-  const hasActivity = Boolean(activity && (activity.running > 0 || activity.unread > 0));
+  const hasActivity = Boolean(activity && (activity.running > 0 || activity.unread > 0 || (activity.exited ?? 0) > 0));
   const visibleRoots = hiddenCount > 0 && !showAllSessions
     ? tree.slice(0, MAX_PROJECT_SESSIONS)
     : tree;
@@ -2699,25 +2705,29 @@ function ProjectRow({
           </button>
         </Tooltip>
         {hasActivity && (
-          <Tooltip content={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0 })}>
+          <Tooltip content={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0, exited: activity?.exited ?? 0 })}>
             <span
-            aria-label={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0 })}
+            aria-label={t("projects.activity", { running: activity?.running ?? 0, unread: activity?.unread ?? 0, exited: activity?.exited ?? 0 })}
             className="sidebar-project-activity"
             data-running={(activity?.running ?? 0) > 0 ? "true" : "false"}
             role="status"
             aria-live="polite"
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 11, height: 11, margin: "0 2px 0 0", flexShrink: 0, lineHeight: 0 }}
           >
-            <span
-              aria-hidden="true"
-              className="sidebar-project-activity-dot"
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "var(--accent)",
-              }}
-            />
+            {(activity?.exited ?? 0) > 0 ? (
+              <ExitedSessionIndicator title={t("projects.exited", { count: activity?.exited ?? 0 })} size={11} />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="sidebar-project-activity-dot"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                }}
+              />
+            )}
           </span>
           </Tooltip>
         )}
@@ -2821,6 +2831,7 @@ function ProjectRow({
                   selectedSessionId={selectedSessionId}
                   runningSessionIds={runningSessionIds}
                   unreadSessionIds={unreadSessionIds}
+                  exitedSessions={exitedSessions}
                   relativeTimeNow={relativeTimeNow}
                   onSelectSession={onSelectSession}
                   onRenamed={onRenamed}
@@ -3146,6 +3157,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   selectedSessionId,
   runningSessionIds,
   unreadSessionIds,
+  exitedSessions,
   relativeTimeNow,
   onSelectSession,
   onRenamed,
@@ -3156,6 +3168,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   selectedSessionId: string | null;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
+  exitedSessions: Map<string, ExitedRpcSession>;
   relativeTimeNow: number;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
@@ -3171,6 +3184,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   const isSelected = sessionId === selectedSessionId;
   const isRunning = runningSessionIds.has(sessionId);
   const isUnread = unreadSessionIds.has(sessionId);
+  const exited = exitedSessions.get(sessionId);
   // Stable callbacks: depend only on primitives / stable parent callbacks so
   // SessionItem's React.memo stays effective across re-renders.
   const handleClick = useCallback(() => {
@@ -3202,6 +3216,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
           isSelected={isSelected}
           isRunning={isRunning}
           isUnread={isUnread}
+          exited={exited}
           relativeTimeNow={relativeTimeNow}
           onClick={handleClick}
           onRenamed={onRenamed}
@@ -3221,6 +3236,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
               selectedSessionId={selectedSessionId}
               runningSessionIds={runningSessionIds}
               unreadSessionIds={unreadSessionIds}
+              exitedSessions={exitedSessions}
               relativeTimeNow={relativeTimeNow}
               onSelectSession={onSelectSession}
               onRenamed={onRenamed}
@@ -3249,11 +3265,35 @@ const SessionTreeItem = memo(function SessionTreeItem({
     if (prev.unreadSessionIds.has(id) !== next.unreadSessionIds.has(id)) return false;
   }
   if (prev.relativeTimeNow !== next.relativeTimeNow) return false;
+  if (prev.exitedSessions !== next.exitedSessions) {
+    const id = prev.node.session.id;
+    if (prev.exitedSessions.get(id)?.at !== next.exitedSessions.get(id)?.at) return false;
+  }
   if (prev.onSelectSession !== next.onSelectSession
     || prev.onRenamed !== next.onRenamed
     || prev.onSessionDeleted !== next.onSessionDeleted) return false;
   return true;
 });
+function ExitedSessionIndicator({ title, size = 14 }: { title: string; size?: number }) {
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      style={{
+        width: size,
+        height: size,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        color: "var(--status-error)",
+      }}
+    >
+      <AlertTriangle size={size} strokeWidth={2.2} aria-hidden="true" />
+    </span>
+  );
+}
+
 function RunningSessionIndicator({ size = 14 }: { size?: number }) {
   const { t } = useI18n();
   const reducedMotion = usePrefersReducedMotion();
@@ -3318,6 +3358,7 @@ const SessionItem = memo(function SessionItem({
   isSelected,
   isRunning,
   isUnread,
+  exited,
   onClick,
   onRenamed,
   onDeleted,
@@ -3331,6 +3372,7 @@ const SessionItem = memo(function SessionItem({
   isSelected: boolean;
   isRunning?: boolean;
   isUnread?: boolean;
+  exited?: ExitedRpcSession;
   onClick: () => void;
   onRenamed?: () => void;
   onDeleted?: (id: string) => void;
@@ -3538,7 +3580,9 @@ const SessionItem = memo(function SessionItem({
             <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-end", width: 64, height: 24, flexShrink: 0 }}>
               <div aria-hidden={showActions} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, width: "100%", whiteSpace: "nowrap", opacity: showActions ? 0 : 1, pointerEvents: showActions ? "none" : "auto", transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
                 {isRunning && <RunningSessionIndicator size={12} />}
-                {!isRunning && isUnread && <UnreadSessionIndicator size={11} />}
+                {!isRunning && (exited ? (
+                  <ExitedSessionIndicator title={formatExitedSessionNotice(exited)} size={12} />
+                ) : isUnread && <UnreadSessionIndicator size={11} />)}
                 {relativeTime && <Tooltip content={new Date(session.modified).toLocaleString(locale)}>
                   <span style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>
                 </Tooltip>}

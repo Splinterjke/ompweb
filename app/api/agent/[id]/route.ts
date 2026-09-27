@@ -49,12 +49,20 @@ export async function POST(
     // flag must replace an idle child to take effect; busy children keep
     // running and pick the flag up at the next natural respawn.
     const existing = getRpcSession(id);
+    // Keystroke predictions ride whatever child is alive and never spawn or
+    // replace one: without a live process there is simply no ghost text.
+    // NOTE: stock omp (18.3.x) has no predict_word RPC, so this path resolves
+    // to a null suffix; see lib/word-prediction.ts for provenance.
+    const prediction = body.type === "predict_word" || body.type === "predict_word_feedback";
     if (existing?.isAlive()) {
-      if (existing.advisorSpawned === advisor || existing.isRunning()) {
+      if (prediction || existing.advisorSpawned === advisor || existing.isRunning()) {
         const result = await existing.send(body);
         return NextResponse.json({ success: true, data: result });
       }
       await existing.destroyAndWait();
+    }
+    if (prediction) {
+      return NextResponse.json({ success: true, data: body.type === "predict_word" ? { suffix: null } : null });
     }
 
     const resolved = await resolveSessionPathOr404(id);

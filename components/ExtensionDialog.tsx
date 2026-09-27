@@ -112,7 +112,7 @@ export function ExtensionDialog({
         }}
       >
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 650 }}>{request.title}</div>
+          <div style={{ color: "var(--text)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 650, whiteSpace: "pre-wrap" }}>{request.title}</div>
           <div style={{ marginTop: 3, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)" }}>{t("chatWindow.extensionRequest")}</div>
         </div>
 
@@ -191,9 +191,9 @@ export function ExtensionDialog({
                 color: "var(--text)",
                 outline: "none",
                 resize: "vertical",
-                fontSize: "calc(13px * var(--ui-font-scale-lg, 1))",
+                fontSize: request.promptStyle ? "var(--chat-font-size)" : "calc(13px * var(--ui-font-scale-lg, 1))",
                 lineHeight: 1.55,
-                fontFamily: "var(--font-mono)",
+                fontFamily: request.promptStyle ? "inherit" : "var(--font-mono)",
               }}
             />
           )}

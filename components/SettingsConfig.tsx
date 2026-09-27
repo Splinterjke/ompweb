@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, cloneElement, isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
-import { getSubmitDuringRunBehavior, setSubmitDuringRunBehavior, type SubmitDuringRunBehavior } from "@/lib/composer-prefs";
+import { getSubmitDuringRunBehavior, getWordCompletionMode, setSubmitDuringRunBehavior, setWordCompletionMode, type SubmitDuringRunBehavior, type WordCompletionMode } from "@/lib/composer-prefs";
 import dynamic from "next/dynamic";
 import { Copy, ExternalLink, PanelLeftClose, PanelLeftOpen, RefreshCw, RotateCcw, Search, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -88,9 +88,11 @@ const nativeSelectStyle = {
   background: "var(--bg)",
   color: "var(--text)",
   fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
   cursor: "pointer",
-  appearance: "none" as const,
-  WebkitAppearance: "none" as const,
   MozAppearance: "none" as const,
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
   backgroundRepeat: "no-repeat" as const,
@@ -267,6 +269,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
   { id: "completion-sound", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.completionSound", descKey: "settingsConfig.completionSoundDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Completion sound", fallbackDesc: "Play a tone when the agent completes a run.", scope: "UI" },
   { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
+  { id: "word-completion", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
   { id: "git-graph-modal-size", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.gitGraphModalSize", descKey: "settingsConfig.gitGraphModalSizeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "GitGraph modal size", fallbackDesc: "Size of the Git graph modal as a percentage of the window. Choose a preset size between 40% and 95%.", scope: "UI" },
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
@@ -494,7 +497,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
             </span>
           )}
         </div>
-        <span style={{ flexShrink: 0, ...controlStyle }}>{enhancedChild}</span>
+        <span className="settings-card-control" style={controlStyle}>{enhancedChild}</span>
       </div>
       <span id={descId} style={{ color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45, overflowWrap: "anywhere" }}>{description}</span>
     </div>
@@ -617,6 +620,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [submitBehavior, setSubmitBehavior] = useState<SubmitDuringRunBehavior>(() => getSubmitDuringRunBehavior());
+  const [wordCompletion, setWordCompletion] = useState<WordCompletionMode>(() => getWordCompletionMode());
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     try {
@@ -1029,6 +1033,21 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     >
                       <option value="steer" style={nativeOptionStyle}>{t("settingsConfig.steerCurrentRun")}</option>
                       <option value="queue" style={nativeOptionStyle}>{t("settingsConfig.queueFollowUp")}</option>
+                    </select>
+                  </NativeSetting>
+                  <NativeSetting searchId="word-completion" label={t("settingsConfig.wordCompletion")} description={t("settingsConfig.wordCompletionDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={wordCompletion}
+                      onChange={(event) => {
+                        const next = event.target.value as WordCompletionMode;
+                        setWordCompletionMode(next);
+                        setWordCompletion(next);
+                      }}
+                    >
+                      <option value="auto" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionAuto")}</option>
+                      <option value="on" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOn")}</option>
+                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOff")}</option>
                     </select>
                   </NativeSetting>
                   <NativeSetting searchId="git-graph-modal-size" label={t("settingsConfig.gitGraphModalSize")} description={t("settingsConfig.gitGraphModalSizeDesc")} scope="UI">

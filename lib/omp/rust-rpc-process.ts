@@ -84,7 +84,7 @@ export interface RustRpcProcessOptions {
   cwd: string;
   sessionId: string;
   extraArgs?: string[];
-  onExit?: (info: { stderrTail: string }) => void;
+  onExit?: (info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) => void;
   env?: Record<string, string>;
 }
 
@@ -431,7 +431,13 @@ export class RustHostManager {
   /** Open a dedicated attach socket for one session; returns detach + a
    *  close promise that resolves when the supervisor ends the session (i.e.
    *  the omp child has actually exited). */
-  attach(sessionId: string, onFrame: (frame: RpcFrameRecord) => void): Promise<{ detach: () => void; closed: Promise<void> }> {
+  attach(
+    sessionId: string,
+    onFrame: (frame: RpcFrameRecord) => void,
+    /** Fired once the supervised omp child exits; carries the exit status
+     *  broadcast by the host ({code, signal} — signal is a POSIX number). */
+    onChildExit?: (info: { code: number | null; signal: number | null }) => void,
+  ): Promise<{ detach: () => void; closed: Promise<void> }> {
     return (async () => {
       await this.ensure();
       const socket = createConnection({ host: "127.0.0.1", port: this.port });
@@ -450,7 +456,7 @@ export class RustHostManager {
           const line = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 1);
           if (!line) continue;
-          let msg: { event?: { type: string; frame?: unknown } };
+          let msg: { event?: { type: string; frame?: unknown; code?: unknown; signal?: unknown } };
           try {
             msg = JSON.parse(line);
           } catch {
@@ -463,6 +469,10 @@ export class RustHostManager {
             // event.frame is already a parsed object (not a string).
             onFrame(event.frame as RpcFrameRecord);
           } else if (event.type === "exit") {
+            onChildExit?.({
+              code: typeof event.code === "number" ? event.code : null,
+              signal: typeof event.signal === "number" ? event.signal : null,
+            });
             socket.destroy();
           }
         }
@@ -535,6 +545,18 @@ export class RustHostManager {
 const hostManager = new RustHostManager();
 export { hostManager };
 
+/** Map a POSIX signal number (as broadcast by the host) to its name. */
+function posixSignalName(code: number): NodeJS.Signals {
+  const names: Record<number, NodeJS.Signals> = {
+    1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 4: "SIGILL", 5: "SIGTRAP", 6: "SIGABRT",
+    8: "SIGFPE", 9: "SIGKILL", 11: "SIGSEGV", 12: "SIGUSR2", 13: "SIGPIPE",
+    14: "SIGALRM", 15: "SIGTERM", 17: "SIGCHLD", 18: "SIGCONT", 19: "SIGSTOP",
+    20: "SIGTSTP", 21: "SIGTTIN", 22: "SIGTTOU", 23: "SIGURG", 24: "SIGXCPU",
+    25: "SIGXFSZ", 27: "SIGVTALRM", 28: "SIGPROF", 29: "SIGWINCH", 30: "SIGIO", 31: "SIGSYS",
+  };
+  return names[code] ?? (`SIG${code}` as NodeJS.Signals);
+}
+
 export class RustRpcProcess {
   readonly cwd: string;
   readonly sessionId: string;
@@ -546,7 +568,7 @@ export class RustRpcProcess {
   private protocolVersion: RpcProtocolVersion = 1;
   private detach: (() => void) | null = null;
   private attachClosed: Promise<void> | null = null;
-  private onExit?: (info: { stderrTail: string }) => void;
+  private onExit?: (info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) => void;
   private nextId = 1;
   // Keep the manager subscription scoped to this session. A long-lived
   // server can create/dispose hundreds of sessions; retaining every closure
@@ -579,7 +601,7 @@ export class RustRpcProcess {
           this.detach?.();
           this.detach = null;
           this.releaseHost();
-          this.onExit?.({ stderrTail: "ompweb-host disconnected" });
+          this.onExit?.({ code: null, signal: null, stderrTail: "ompweb-host disconnected" });
         }
         return;
       }
@@ -622,6 +644,24 @@ export class RustRpcProcess {
       await hostManager.spawn(this.cwd, this.sessionId, this.extraArgs);
       const stream = await hostManager.attach(this.sessionId, (frame) => {
         for (const listener of this.frameListeners) listener(frame);
+      }, (info) => {
+        // The supervised omp child exited (crash, host kill, or our own
+        // dispose). The wrapper's handleProcessExit filters intentional
+        // teardowns via _alive/expectedExitProc — it must hear about all of
+        // them, including spontaneous crashes.
+        if (!this.exited) {
+          this.exited = true;
+          this.exitInfo = { code: info.code, signal: info.signal === null ? null : posixSignalName(info.signal) };
+          if (this.readyTimer) {
+            clearTimeout(this.readyTimer);
+            this.readyTimer = null;
+          }
+          this.readyListener && this.frameListeners.delete(this.readyListener);
+          this.readyListener = null;
+          this.readyReject?.(new Error("omp process exited before ready"));
+          this.readyReject = null;
+          this.onExit?.({ code: info.code, signal: info.signal === null ? null : posixSignalName(info.signal), stderrTail: "" });
+        }
       });
       this.detach = stream.detach;
       this.attachClosed = stream.closed;
@@ -635,7 +675,7 @@ export class RustRpcProcess {
         this.readyReject?.(error instanceof Error ? error : new Error(String(error)));
         this.readyReject = null;
         this.releaseHost();
-        this.onExit?.({ stderrTail: error instanceof Error ? error.message : String(error) });
+        this.onExit?.({ code: null, signal: null, stderrTail: error instanceof Error ? error.message : String(error) });
       }
     }
   }
@@ -741,7 +781,7 @@ export class RustRpcProcess {
       if (!this.exited) {
         this.exited = true;
         this.exitInfo = { code: 0, signal: null };
-        this.onExit?.({ stderrTail: "" });
+        this.onExit?.({ code: this.exitInfo?.code ?? 0, signal: this.exitInfo?.signal ?? null, stderrTail: "" });
       }
       this.readyTimer && clearTimeout(this.readyTimer);
       this.readyTimer = null;
@@ -780,7 +820,7 @@ export async function createRpcProcess(options: {
   cwd: string;
   sessionId: string;
   extraArgs?: string[];
-  onExit?: (info: { stderrTail: string }) => void;
+  onExit?: (info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) => void;
 }): Promise<RpcProcessLike> {
   // R8.7: Rust is the primary backend; OMPWEB_BACKEND=node is the explicit
   // rollback (No Hidden Fallback: the switch is user-visible, never silent).

@@ -26,7 +26,7 @@ import { recordBackendError } from "@/lib/backend-errors";
 import { sessionPathKey } from "@/lib/paths";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getAgentDir } from "@/lib/omp/paths";
-import { getRpcSession } from "@/lib/rpc-manager";
+import { clearExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
 
 // BranchNavigator still traverses recursively, so keep the response tree shallow.
 const MAX_PROJECTED_TREE_DEPTH = 200;
@@ -469,6 +469,7 @@ export async function DELETE(
     } else {
       deleteSessionFileWithArtifacts(filePath);
     }
+    clearExitedRpcSession(id);
     invalidateSessionPathCache(id);
     invalidateSessionListCache();
     return NextResponse.json({

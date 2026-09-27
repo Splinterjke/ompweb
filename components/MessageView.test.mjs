@@ -462,7 +462,7 @@ test("an in-flight tool call with no committed result keeps the spinner", () => 
   assert.doesNotMatch(html, /lucide-check/);
 });
 
-test("async-result notices keep their line breaks and drop the wrapper tag", () => {
+test("async-result notices keep their exact line layout and drop the wrapper tag", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     message: {
       role: "custom",
@@ -471,6 +471,20 @@ test("async-result notices keep their line breaks and drop the wrapper tag", () 
       display: true,
     },
   }));
-  assert.match(html, /<pre[^>]*>Background job bg_1 has completed\. Resume your work using the result below\.\n\/root\/repo\n---\nWall time: 0\.16 seconds<\/pre>/);
+  assert.match(html, /<pre style="[^"]*white-space:pre;[^"]*">Background job bg_1 has completed\. Resume your work using the result below\.\n\/root\/repo\n---\nWall time: 0\.16 seconds<\/pre>/);
+  assert.doesNotMatch(html, /word-break/);
   assert.doesNotMatch(html, /system-notice|<h2/);
+});
+
+test("late LSP diagnostic notices keep their exact line layout and drop the wrapper tag", () => {
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    message: {
+      role: "custom",
+      customType: "lsp-late-diagnostic",
+      content: "<system-notice>\nLate LSP diagnostics arrived after the edit returned:\n/repo/a.py — 0 error(s), 1 warning(s)\n/repo/a.py:8:1 [warning] [Ruff] Import block is un-sorted or un-formatted\n\nhelp: Organize imports (I001)\n</system-notice>",
+      display: true,
+    },
+  }));
+  assert.match(html, /<pre style="[^"]*white-space:pre;[^"]*">Late LSP diagnostics arrived after the edit returned:\n\/repo\/a\.py — 0 error\(s\), 1 warning\(s\)\n\/repo\/a\.py:8:1 \[warning\] \[Ruff\] Import block is un-sorted or un-formatted\n\nhelp: Organize imports \(I001\)<\/pre>/);
+  assert.doesNotMatch(html, /system-notice/);
 });

@@ -7,6 +7,20 @@
 @source "../components";
 @source "../hooks";
 
+/* Nerd Font icons (Private Use Area) sent by omp when its symbol preset is
+   "nerd": ask options, status text, tool output. unicode-range keeps this
+   face out of every other character and defers the download until a page
+   actually shows one of these glyphs. The full Symbols Only set is kept on
+   purpose: tool output and model text can carry any Nerd Font icon, not just
+   the ones omp's own UI uses. Font: Nerd Fonts v3.5.1 Symbols Only, SIL OFL
+   1.1; see fonts/SymbolsNerdFont-LICENSE.md and fonts/SymbolsNerdFont-README.md. */
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  src: url("./fonts/SymbolsNerdFontMono-Regular.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+E000-F8FF, U+F0000-FFFFD;
+}
+
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -996,10 +1010,10 @@ html.omp :focus-visible {
    the omp theme so the warm themes keep their system/serif identity. */
 html[data-theme="omp"], html.omp,
 html[data-theme="omp"], html.omp body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Symbols Nerd Font Mono", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 html[data-theme="omp"], html.omp {
-  --font-mono: var(--font-noto-mono), "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-mono: "Symbols Nerd Font Mono", var(--font-noto-mono), "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
 /* omp.sh link sweep: underline draws itself left-to-right on hover/focus.
@@ -1302,7 +1316,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(--app-font-family, "Symbols Nerd Font Mono", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   font-size: 14px;
   overscroll-behavior: none;
 }
@@ -1362,10 +1376,10 @@ body {
 }
 
 :root {
-  --font-mono: var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
+  --font-mono: "Symbols Nerd Font Mono", var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
   /* Display serif for headings / session titles / modal titles / empty states.
      Falls back to system serifs if the webfont fails. */
-  --font-serif: var(--font-source-serif), var(--font-noto-serif), Georgia, 'Songti SC', 'SimSun', serif;
+  --font-serif: "Symbols Nerd Font Mono", var(--font-source-serif), var(--font-noto-serif), Georgia, 'Songti SC', 'SimSun', serif;
   /* Chat typography scale. --chat-font-size (set inline on <html> by
      useTypography) drives the AI response body; the derived ui/mono/small
      variants scale with it so a font-size change also reaches tool call
@@ -2976,6 +2990,17 @@ span.token.table {
 }
 html.dark .dropdown-surface :is(select, option) {
   color-scheme: dark;
+}
+
+.settings-card-control {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* Dropdowns take at most half the card and ellipsize long option labels. */
+.settings-card-control:has(> select) {
+  flex-shrink: 1;
+  max-width: 50%;
 }
 
 /* Conversational motion: new turns settle into place while an active turn

@@ -45,17 +45,20 @@ export function projectActivityCounts(
   sessions: SessionInfo[],
   runningIds: Iterable<string>,
   unreadIds: Iterable<string>,
-): Map<string, { running: number; unread: number }> {
+  exitedIds?: Iterable<string>,
+): Map<string, { running: number; unread: number; exited: number }> {
   const running = new Set(runningIds);
   const unread = new Set(unreadIds);
-  const result = new Map<string, { running: number; unread: number }>();
+  const exited = new Set(exitedIds ?? []);
+  const result = new Map<string, { running: number; unread: number; exited: number }>();
   for (const session of sessions) {
     const key = workspaceKeyOf(session);
     if (!key) continue;
     const folded = comparableProjectPath(session.projectKey ?? key);
-    const current = result.get(folded) ?? { running: 0, unread: 0 };
+    const current = result.get(folded) ?? { running: 0, unread: 0, exited: 0 };
     if (running.has(session.id)) current.running += 1;
     if (unread.has(session.id)) current.unread += 1;
+    if (exited.has(session.id)) current.exited += 1;
     result.set(folded, current);
   }
   return result;

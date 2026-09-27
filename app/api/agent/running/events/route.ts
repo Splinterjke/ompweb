@@ -1,4 +1,4 @@
-import { getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
+import { getExitedRpcSessions, getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
 import { subscribeSessionFileChanges, getExternallyActiveIds } from "@/lib/session-watcher";
 import { subscribeChatEventActions } from "@/lib/chat-event-action-bus";
 import { subscribeUiRefresh, wasUiUpdated } from "@/lib/ui-refresh-bus";
@@ -51,11 +51,12 @@ export async function GET(req: Request) {
 
       // Subscribe BEFORE taking the initial snapshot so no state change can slip
       // through the gap between snapshot and subscription.
-      const unsubscribe = subscribeRunningSessions(({ ids, refreshSessionList }) => {
+      const unsubscribe = subscribeRunningSessions(({ ids, refreshSessionList, exitedSessions }) => {
         try {
           encode({
             type: "running",
             runningSessionIds: ids,
+            exitedSessions,
             ...(refreshSessionList ? { refreshSessionList: true } : {}),
           });
         } catch {
@@ -105,7 +106,7 @@ export async function GET(req: Request) {
 
       // Initial snapshot so the client renders the correct state immediately.
       // (A duplicate frame here is harmless: the client just sets the same set.)
-      encode({ type: "running", runningSessionIds: getRunningRpcSessionIds() });
+      encode({ type: "running", runningSessionIds: getRunningRpcSessionIds(), exitedSessions: getExitedRpcSessions() });
 
       // Heartbeat to keep the connection alive through proxies/timeouts.
       const heartbeat = setInterval(() => {

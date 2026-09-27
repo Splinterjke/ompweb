@@ -1,0 +1,1682 @@
+{
+  "generatedAt": "2026-09-27T20:40:23.455Z",
+  "totals": {
+    "files": 35,
+    "calls": 162,
+    "http": 153,
+    "sse": 9,
+    "read": 80,
+    "write": 82
+  },
+  "domains": {
+    "pair": 9,
+    "agents": 5,
+    "omp-update": 13,
+    "omp-version": 1,
+    "app-update": 2,
+    "cwd": 2,
+    "sessions": 26,
+    "git": 6,
+    "diagnostics": 4,
+    "reveal": 3,
+    "skills": 7,
+    "file-index": 2,
+    "model-roles": 3,
+    "agent": 16,
+    "files": 9,
+    "web-auth": 1,
+    "mcp": 5,
+    "models-config": 4,
+    "omp-settings": 6,
+    "models": 2,
+    "auth": 6,
+    "providers": 1,
+    "proxy": 2,
+    "plugins": 3,
+    "projects": 5,
+    "home": 1,
+    "worktrees": 3,
+    "terminal": 6,
+    "usage-summary": 1,
+    "provider-usage": 1,
+    "usage": 3,
+    "stt": 1,
+    "schedulers": 2,
+    "browser-proxy": 1
+  },
+  "files": [
+    {
+      "file": "app/remote/page.tsx",
+      "calls": [
+        {
+          "line": 33,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/accept",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/AgentsConfig.tsx",
+      "calls": [
+        {
+          "line": 84,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agents",
+          "domain": "agents",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 92,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agents",
+          "domain": "agents",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 189,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/agents",
+          "domain": "agents",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 227,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/agents",
+          "domain": "agents",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 247,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/agents",
+          "domain": "agents",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/AppShell.tsx",
+      "calls": [
+        {
+          "line": 595,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 619,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/omp-version",
+          "domain": "omp-version",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 632,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/app-update",
+          "domain": "app-update",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1015,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/cwd/validate",
+          "domain": "cwd",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1098,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1144,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1229,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1254,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/sessions/{param}/auto-name",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1328,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1383,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/plan",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1463,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/status",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1504,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/app-update",
+          "domain": "app-update",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ArchiveBrowser.tsx",
+      "calls": [
+        {
+          "line": 222,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/archive",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 311,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/sessions/archive",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/BackendDiagnostics.tsx",
+      "calls": [
+        {
+          "line": 78,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/diagnostics",
+          "domain": "diagnostics",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 148,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 305,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/reveal",
+          "domain": "reveal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 377,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 403,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/diagnostics",
+          "domain": "diagnostics",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 426,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 539,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 683,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 714,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/diagnostics",
+          "domain": "diagnostics",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 741,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 792,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1885,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ChatInput.tsx",
+      "calls": [
+        {
+          "line": 477,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/pair/devices",
+          "domain": "pair",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 953,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/skills",
+          "domain": "skills",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1066,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/file-index",
+          "domain": "file-index",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1126,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/file-index",
+          "domain": "file-index",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ChatWindow.tsx",
+      "calls": [
+        {
+          "line": 1126,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/model-roles",
+          "domain": "model-roles",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/DirectoryPicker.tsx",
+      "calls": [
+        {
+          "line": 26,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/cwd/browse{param}",
+          "domain": "cwd",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/EventActionsPanel.tsx",
+      "calls": [
+        {
+          "line": 119,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "/api/agent/running/events",
+          "domain": "agent",
+          "rw": "read",
+          "stream": true
+        }
+      ]
+    },
+    {
+      "file": "components/FileExplorer.tsx",
+      "calls": [
+        {
+          "line": 105,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/files/{param}",
+          "domain": "files",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 131,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/status",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 347,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/reveal",
+          "domain": "reveal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 717,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/files/{param}",
+          "domain": "files",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/FileViewer.tsx",
+      "calls": [
+        {
+          "line": 444,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 592,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 789,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 805,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 946,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 979,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/diff",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1018,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "helper:getFileApiUrl",
+          "domain": "files",
+          "rw": "read",
+          "stream": true
+        }
+      ]
+    },
+    {
+      "file": "components/GitChangesPanel.tsx",
+      "calls": [
+        {
+          "line": 32,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/status",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 41,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/diff",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/LoginForm.tsx",
+      "calls": [
+        {
+          "line": 24,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/web-auth/session",
+          "domain": "web-auth",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/McpConfig.tsx",
+      "calls": [
+        {
+          "line": 138,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/mcp",
+          "domain": "mcp",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 265,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/mcp",
+          "domain": "mcp",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 294,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/mcp",
+          "domain": "mcp",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 319,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/mcp",
+          "domain": "mcp",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 345,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/mcp",
+          "domain": "mcp",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/MessageView.tsx",
+      "calls": [
+        {
+          "line": 89,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/entries/{param}/thinking",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2201,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}/bash-output",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ModelCatalogPicker.tsx",
+      "calls": [
+        {
+          "line": 109,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/models-config/catalog",
+          "domain": "models-config",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ModelsConfig.tsx",
+      "calls": [
+        {
+          "line": 173,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 197,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 262,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 287,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 378,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/model-roles",
+          "domain": "model-roles",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 389,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/model-roles",
+          "domain": "model-roles",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 627,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/models/fetch",
+          "domain": "models",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1104,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/models-config/test",
+          "domain": "models-config",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1403,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "/api/auth/login/{param}",
+          "domain": "auth",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 1457,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/auth/logout/{param}",
+          "domain": "auth",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1475,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/auth/login/{param}",
+          "domain": "auth",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1495,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/auth/login/{param}",
+          "domain": "auth",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1940,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/auth/providers",
+          "domain": "auth",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1949,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/auth/all-providers",
+          "domain": "auth",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1960,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/models",
+          "domain": "models",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1974,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/models-config",
+          "domain": "models-config",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2042,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/providers/enable",
+          "domain": "providers",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 2173,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/models-config",
+          "domain": "models-config",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/NetworkProxyConfig.tsx",
+      "calls": [
+        {
+          "line": 41,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/proxy",
+          "domain": "proxy",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 60,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/proxy",
+          "domain": "proxy",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/OmpSetupWizard.tsx",
+      "calls": [
+        {
+          "line": 77,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/diagnostics",
+          "domain": "diagnostics",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/PluginsConfig.tsx",
+      "calls": [
+        {
+          "line": 659,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/plugins",
+          "domain": "plugins",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 685,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/plugins",
+          "domain": "plugins",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 725,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/plugins",
+          "domain": "plugins",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/RemoteAccessSetting.tsx",
+      "calls": [
+        {
+          "line": 56,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/diagnostics",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 64,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/devices",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 80,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/token",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 93,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/pair/config",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 109,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/pair/devices/{param}",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 114,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/revoke-all",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 122,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/pair/tunnel",
+          "domain": "pair",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/SessionSidebar.tsx",
+      "calls": [
+        {
+          "line": 766,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 808,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/projects",
+          "domain": "projects",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 882,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "/api/agent/running/events",
+          "domain": "agent",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 986,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/home",
+          "domain": "home",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1100,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/worktrees",
+          "domain": "worktrees",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1423,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/projects",
+          "domain": "projects",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1447,
+          "kind": "http",
+          "method": "PATCH",
+          "endpoint": "/api/projects",
+          "domain": "projects",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1459,
+          "kind": "http",
+          "method": "PATCH",
+          "endpoint": "/api/projects",
+          "domain": "projects",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1501,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/projects",
+          "domain": "projects",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1536,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/worktrees",
+          "domain": "worktrees",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1578,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/worktrees",
+          "domain": "worktrees",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1651,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/sessions/import",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 2434,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/git/status",
+          "domain": "git",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2464,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/reveal",
+          "domain": "reveal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 3424,
+          "kind": "http",
+          "method": "PATCH",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 3440,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/sessions/{param}/archive",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 3453,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 3467,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/SettingsConfig.tsx",
+      "calls": [
+        {
+          "line": 647,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 670,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/omp-settings",
+          "domain": "omp-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 722,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 771,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 790,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/SkillsConfig.tsx",
+      "calls": [
+        {
+          "line": 402,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/skills/search",
+          "domain": "skills",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 430,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/skills/install",
+          "domain": "skills",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 747,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/skills",
+          "domain": "skills",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 781,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/skills/check",
+          "domain": "skills",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 820,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/skills/update",
+          "domain": "skills",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 861,
+          "kind": "http",
+          "method": "PATCH",
+          "endpoint": "/api/skills",
+          "domain": "skills",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/SubagentTranscriptDialog.tsx",
+      "calls": [
+        {
+          "line": 210,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/subagents/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 221,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/subagents/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/TerminalPanel.tsx",
+      "calls": [
+        {
+          "line": 72,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/terminal/resize",
+          "domain": "terminal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 84,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/terminal/input",
+          "domain": "terminal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 107,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/terminal/session",
+          "domain": "terminal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 249,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/terminal/stream",
+          "domain": "terminal",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 329,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/terminal/session",
+          "domain": "terminal",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 397,
+          "kind": "http",
+          "method": "DELETE",
+          "endpoint": "/api/terminal/session",
+          "domain": "terminal",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/UsageSidebarPanel.tsx",
+      "calls": [
+        {
+          "line": 84,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/usage-summary",
+          "domain": "usage-summary",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 85,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/provider-usage",
+          "domain": "provider-usage",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/panels/RightWorkbench.tsx",
+      "calls": [
+        {
+          "line": 86,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "/api/agent/\" + encodeURIComponent(sessionId) + \"/events",
+          "domain": "agent",
+          "rw": "read",
+          "stream": true
+        }
+      ]
+    },
+    {
+      "file": "components/usage/UsageDashboardModal.tsx",
+      "calls": [
+        {
+          "line": 44,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/usage/stats",
+          "domain": "usage",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 74,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/usage/stats",
+          "domain": "usage",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/usage/UsageTabLogs.tsx",
+      "calls": [
+        {
+          "line": 86,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/usage/logs",
+          "domain": "usage",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "hooks/useAgentSession.ts",
+      "calls": [
+        {
+          "line": 918,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}/advisor",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 934,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/agent/{param}/advisor",
+          "domain": "agent",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 976,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/plan",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 994,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/subagents",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1096,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/state",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1135,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1187,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/state",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1293,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/agent/new",
+          "domain": "agent",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 1917,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1944,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 1970,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2038,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2058,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2200,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2290,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/agent/{param}",
+          "domain": "agent",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 2723,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/omp-update",
+          "domain": "omp-update",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 3481,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/state",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "hooks/useDictation.ts",
+      "calls": [
+        {
+          "line": 140,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/stt",
+          "domain": "stt",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "lib/agent-client.ts",
+      "calls": [
+        {
+          "line": 27,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/agent/{param}{param}",
+          "domain": "agent",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "lib/client/http-sse-adapter.ts",
+      "calls": [
+        {
+          "line": 60,
+          "kind": "sse",
+          "method": "GET",
+          "endpoint": "helper:url",
+          "domain": "files",
+          "rw": "read",
+          "stream": true
+        },
+        {
+          "line": 153,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 165,
+          "kind": "http",
+          "method": "PATCH",
+          "endpoint": "/api/sessions/{param}/context{param}",
+          "domain": "sessions",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 314,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/schedulers/preview",
+          "domain": "schedulers",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 327,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/schedulers/validate",
+          "domain": "schedulers",
+          "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "lib/workbench-client.ts",
+      "calls": [
+        {
+          "line": 11,
+          "kind": "http",
+          "method": "POST",
+          "endpoint": "/api/agent/new",
+          "domain": "agent",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 18,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/browser-proxy",
+          "domain": "browser-proxy",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 23,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/sessions/{param}/subagents/{param}",
+          "domain": "sessions",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    }
+  ]
+}

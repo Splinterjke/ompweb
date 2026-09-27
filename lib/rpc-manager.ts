@@ -21,7 +21,7 @@ import type {
   TodoPhase,
   WebSessionState,
 } from "./pi-types";
-import type { ExtensionWidgetItem } from "./types";
+import type { ExitedRpcSession, ExtensionWidgetItem } from "./types";
 
 // ============================================================================
 // Types
@@ -199,8 +199,21 @@ const PASSTHROUGH_COMMANDS = new Set([
   "get_subagent_messages",
   "set_subagent_subscription",
   "get_login_providers",
-  "login",
+  // Ghost-text prediction passthrough. NOTE: no public omp release
+  // (verified through v18.3.5, 2026-09-27) registers these RPC commands —
+  // the word-completion engine is in-process in the TUI and exposed to Node
+  // hosts via the TextPredictor N-API binding instead. These entries are kept
+  // for the upstream fork's patched omp build; stock omp answers "Unknown
+  // command" and the client degrades to no ghost text. See
+  // lib/word-prediction.ts for the full provenance note.
+  "predict_word",
+  "predict_word_feedback",
 ]);
+
+// Outlasts omp's cold prediction-daemon start (up to 3 × 30 s start rounds plus a
+// 30 s first completion), so omp's answer or error decides; a wedged daemon still
+// cannot pin the request forever.
+const PREDICT_WORD_TIMEOUT_MS = 125_000;
 
 // pi-web commands with no omp RPC equivalent. The UI tolerates these failing.
 const UNSUPPORTED_COMMANDS: Record<string, string> = {
@@ -378,6 +391,9 @@ export class AgentSessionWrapper {
    *  chat event actions as the $last_reply variable. */
   private _lastAssistantReply: string | null = null;
   private proc: RpcProcessLike;
+  /** Process whose exit is expected because reload/restart is deliberately
+   *  disposing it — its exit must not be recorded as a crash. */
+  private expectedExitProc: RpcProcessLike | null = null;
   readonly cwd: string;
   /** Whether the child was spawned with --advisor. The flag is spawn-time
    * only (no runtime RPC toggles it), so applying a changed advisor setting
@@ -390,11 +406,12 @@ export class AgentSessionWrapper {
 
   // Plain field assignments (not TS parameter properties) keep this module
   // runnable under Node's strip-only TypeScript mode for probes/tests.
-  constructor(proc: RpcProcessLike, cwd: string, recordedCwd?: string | null, advisorSpawned = false) {
+  constructor(proc: RpcProcessLike, cwd: string, recordedCwd?: string | null, advisorSpawned = false, expectedSessionId = "") {
     this.proc = proc;
     this.cwd = cwd;
     this.recordedCwd = recordedCwd ?? null;
     this.advisorSpawned = advisorSpawned;
+    this._sessionId = expectedSessionId;
   }
 
   get sessionId(): string {
@@ -464,21 +481,30 @@ export class AgentSessionWrapper {
     if (this._sessionFile) cacheSessionPath(this._sessionId, this._sessionFile);
   }
 
-  handleProcessExit(stderrTail: string): void {
+  handleProcessExit(
+    { code, signal, stderrTail }: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string },
+    sourceProc: RpcProcessLike = this.proc,
+  ): void {
     // A restart disposes the old child on purpose — not a crash.
-    if (!this._alive || this.restarting) return;
-    const detail = stderrTail.trim().split("\n").pop() ?? "";
+    if (!this._alive || sourceProc === this.expectedExitProc) return;
+    const detail = (stderrTail.trim().split("\n").pop() ?? "").slice(-500);
+    const status = signal ? `signal ${signal}` : `code ${code ?? "null"}`;
     // RustRpcProcess synthesizes this tail when the ompweb-host process itself
     // died (vs the supervised omp child): record the specific kind so the
     // diagnostics panel can name "host crash" instead of a generic RPC failure.
     if (stderrTail.includes("ompweb-host disconnected")) {
       recordBackendError("host_crash", `ompweb-host exited${detail ? `: ${detail}` : ""}`);
     }
-    recordRpcFailure(`omp process exited unexpectedly${detail ? `: ${detail}` : ""}`);
+    recordRpcFailure(`omp process exited unexpectedly (${status})${detail ? `: ${detail}` : ""}`);
+    // Recorded before destroy(): its running-change broadcast must carry the
+    // record so sidebars that missed the notice below still see the exit.
+    if (this._sessionId) {
+      getExitedMap().set(this._sessionId, { id: this._sessionId, cwd: this.cwd, at: Date.now(), code, signal, detail });
+    }
     this.emit({
       type: "notice",
       level: "error",
-      message: `The omp process for this session exited unexpectedly${detail ? `: ${detail}` : "."}`,
+      message: `The omp process for this session exited unexpectedly (${status})${detail ? `: ${detail}` : "."}`,
     });
     // Terminal agent_end so a client mid-stream stops spinning immediately
     // instead of waiting for the reconcile poll.
@@ -1221,7 +1247,12 @@ export class AgentSessionWrapper {
     this.restarting = true;
     this.unsubscribeFrames?.();
     try {
-      await old.dispose();
+      this.expectedExitProc = old;
+      try {
+        await old.dispose();
+      } finally {
+        if (this.expectedExitProc === old) this.expectedExitProc = null;
+      }
       if (!this._alive) return;
 
       this.extensionStatuses.clear();
@@ -1244,8 +1275,8 @@ export class AgentSessionWrapper {
           cwd: this.cwd,
           sessionId: this.sessionId,
           extraArgs: buildSessionSpawnArgs(resumable ? sessionFile : ""),
-          onExit: ({ stderrTail }) => {
-            if (this.proc === proc) this.handleProcessExit(stderrTail);
+          onExit: (info) => {
+            if (this.proc === proc) this.handleProcessExit(info, proc);
           },
         });
       } catch (error) {
@@ -1578,7 +1609,7 @@ export class AgentSessionWrapper {
             if (type === "abort_and_prompt") this._interruptEndPending = true;
             const result: unknown = await this.proc.sendCommand(
               command as { type: string },
-              type === "abort_and_prompt" ? PROMPT_ACK_TIMEOUT_MS : undefined,
+              type === "abort_and_prompt" ? PROMPT_ACK_TIMEOUT_MS : type === "predict_word" ? PREDICT_WORD_TIMEOUT_MS : undefined,
             );
             if (type === "set_thinking_level") invalidateSessionListCache();
             // Chat event action: conversation_interrupted (the interrupt half
@@ -1651,12 +1682,14 @@ export class AgentSessionWrapper {
 export interface RunningSessionUpdate {
   ids: string[];
   refreshSessionList: boolean;
+  exitedSessions: ExitedRpcSession[];
 }
 
 declare global {
   var __ompSessions: Map<string, AgentSessionWrapper> | undefined;
   var __ompStartLocks: Map<string, Promise<{ session: AgentSessionWrapper; realSessionId: string }>> | undefined;
   var __ompRunningListeners: Set<(update: RunningSessionUpdate) => void> | undefined;
+  var __ompExitedSessions: Map<string, ExitedRpcSession> | undefined;
 }
 
 function getRegistry(): Map<string, AgentSessionWrapper> {
@@ -1684,6 +1717,26 @@ function getRegistry(): Map<string, AgentSessionWrapper> {
 function getLocks(): Map<string, Promise<{ session: AgentSessionWrapper; realSessionId: string }>> {
   if (!globalThis.__ompStartLocks) globalThis.__ompStartLocks = new Map();
   return globalThis.__ompStartLocks;
+}
+
+function getExitedMap(): Map<string, ExitedRpcSession> {
+  if (!globalThis.__ompExitedSessions) globalThis.__ompExitedSessions = new Map();
+  return globalThis.__ompExitedSessions;
+}
+
+export function getExitedRpcSessions(): ExitedRpcSession[] {
+  return [...getExitedMap().values()];
+}
+
+export function getExitedRpcSession(sessionId: string): ExitedRpcSession | undefined {
+  return getExitedMap().get(sessionId);
+}
+
+/** Clear the visible crash state once a replacement child is ready. */
+export function clearExitedRpcSession(sessionId: string): boolean {
+  const cleared = getExitedMap().delete(sessionId);
+  if (cleared) notifyRunningChange();
+  return cleared;
 }
 
 export function getRpcSession(sessionId: string): AgentSessionWrapper | undefined {
@@ -1772,10 +1825,12 @@ let lastRunningSnapshot = "";
  */
 export function notifyRunningChange({ refreshSessionList = false }: { refreshSessionList?: boolean } = {}): void {
   const ids = getRunningRpcSessionIds();
-  const snapshot = JSON.stringify([...ids].sort());
+  const exitedSessions = getExitedRpcSessions();
+  const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+  const snapshot = JSON.stringify([ids.slice().sort(), exitedSessions.slice().sort(byId)]);
   if (snapshot === lastRunningSnapshot && !refreshSessionList) return;
   lastRunningSnapshot = snapshot;
-  const update = { ids, refreshSessionList };
+  const update: RunningSessionUpdate = { ids, refreshSessionList, exitedSessions };
   for (const listener of getRunningListeners()) {
     try { listener(update); } catch { /* ignore listener errors */ }
   }
@@ -1833,7 +1888,7 @@ export async function startRpcSession(
         cwd,
         sessionId: sessionId ?? `session-${Math.random().toString(36).slice(2, 10)}`,
         extraArgs: buildSessionSpawnArgs(sessionFile, toolNames, advisor === true),
-        onExit: ({ stderrTail }) => holder.wrapper?.handleProcessExit(stderrTail),
+        onExit: (info) => holder.wrapper?.handleProcessExit(info, proc),
       });
     } catch (error) {
       // Rust 后端下启动失败 = host 不可用（二进制缺失/启动超时/IPC 失败），
@@ -1843,7 +1898,7 @@ export async function startRpcSession(
       }
       throw error;
     }
-    const created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true);
+    const created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true, sessionFile ? sessionId : "");
     holder.wrapper = created;
     created.start();
     try {
@@ -1883,6 +1938,9 @@ export async function startRpcSession(
       registry.set(newId, created);
     });
     registry.set(realSessionId, created);
+    // A successful respawn supersedes the crash record.
+    clearExitedRpcSession(sessionId);
+    if (realSessionId !== sessionId) clearExitedRpcSession(realSessionId);
     return { session: created, realSessionId };
   })().finally(() => locks.delete(sessionId));
 
