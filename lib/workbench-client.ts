@@ -14,6 +14,11 @@ export async function createTemporarySession(cwd: string): Promise<string> {
   return data.sessionId;
 }
 
+export async function fetchBrowserPreview(url: string): Promise<{ html: string; finalUrl?: string }> {
+  const response = await fetch("/api/browser-proxy?url=" + encodeURIComponent(url));
+  return readJson<{ html: string; finalUrl?: string }>(response);
+}
+
 export async function fetchSubagentTranscript(sessionId: string, subagentId: string): Promise<{ messages: AgentMessage[] }> {
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/subagents/${encodeURIComponent(subagentId)}?fromByte=0`);
   return readJson<{ messages: AgentMessage[] }>(response);
