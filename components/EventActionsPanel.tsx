@@ -103,11 +103,12 @@ export function EventActionsPanel({
       .catch(() => setLoadError(true));
   }, []);
 
-  // No polling — actions fire on chat events, not on a timer. Refresh when the
-  // panel opens and after every CRUD operation (load is called from each).
+  // No polling — actions fire on chat events, not on a timer. Fetch on mount
+  // so the header count is available even while collapsed; re-fetch when the
+  // panel opens (CRUD operations also call load directly). Skip the refetch
+  // when closing.
   useEffect(() => {
-    if (!open) return;
-    load();
+    if (open || !loadedRef.current) load();
   }, [open, load]);
 
   // Live lastRun: the executors broadcast a `chat_action_run` nudge over the

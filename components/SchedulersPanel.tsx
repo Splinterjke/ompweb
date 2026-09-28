@@ -174,9 +174,11 @@ export function SchedulersPanel({
       })
       .catch(() => setLoadError(true));
   }, []);
+  // Fetch once on mount so the header count and status dots are available
+  // even while collapsed; the interval polls only while open.
   useEffect(() => {
+    if (open || !loadedRef.current) load();
     if (!open) return;
-    load();
     const timer = window.setInterval(() => {
       if (document.hidden) return;
       load();
