@@ -459,20 +459,34 @@ export function parseHeldSession(
 }
 
 /**
+ * A holder whose session file has been quiet this long is treated as
+ * stalled (crashed API call, hung tool, orphaned child) rather than
+ * mid-turn: an external omp goes quiet while the model thinks or a long
+ * tool runs, but a process that has not written for minutes while its tail
+ * still shows a pending tool call is not going to finish on its own. The
+ * client reclaims such sessions to idle after the same silence, so server
+ * and client agree; a genuinely long tool re-announces itself on its next
+ * file write and the badge comes straight back. Mirrors
+ * EXTERNAL_RUN_END_SILENCE_MS in hooks/useAgentSession.ts.
+ */
+export const STALE_HOLDER_MS = 5 * 60_000;
+
+/**
  * Session ids currently held by a live `omp` process outside this server
  * (terminal runs, harnesses, children of a previous server instance), mapped
  * to the session file each holder resumed. The web's own children are
  * excluded by process-tree check, NOT by the RPC registry: after a restart a
  * session can hold a freshly restored (idle) RPC while a stale child of the
  * previous server still owns the file, and a registry check would exclude
- * exactly the case that must be detected.
+ * exactly the case that must be detected. Holders whose file has been quiet
+ * for STALE_HOLDER_MS are dropped as stalled (see above).
  * Linux only: on other platforms the write-window check alone still applies.
  */
 function scanExternallyHeldSessions(): Map<string, string> {
   if (process.platform !== "linux") return new Map();
   const now = Date.now();
   if (heldCache && now - heldCache.at < HOLDER_CACHE_MS) return heldCache.byId;
-  const byId = new Map<string, string>();
+  const candidates: { id: string; file: string }[] = [];
   const sessionsDir = join(getAgentDir(), "sessions");
   let pids: string[];
   try {
@@ -503,7 +517,7 @@ function scanExternallyHeldSessions(): Map<string, string> {
         cwd = null;
       }
       const held = parseHeldSession(args, cwd);
-      if (held) byId.set(held.id, held.file);
+      if (held) candidates.push(held);
       continue;
     }
     // Mechanism 2: host-spawned children resume via IPC, so the file never
@@ -523,11 +537,25 @@ function scanExternallyHeldSessions(): Map<string, string> {
         const base = target.slice(target.lastIndexOf("/") + 1);
         if (!isOmpSessionFileName(base)) continue;
         const id = base.slice(0, -".jsonl".length).split("_").pop();
-        if (id) byId.set(id, target);
+        if (id) candidates.push({ id, file: target });
       }
     } catch {
       // Process exited between the readdir and the fd walk.
     }
+  }
+  // A holder whose file has been quiet for STALE_HOLDER_MS is stalled (hung
+  // tool, crashed API call, orphaned child) — drop it so a dead end cannot
+  // keep the session "running" forever. A live run re-announces itself on its
+  // next file write, and the badge returns on the next heartbeat.
+  const byId = new Map<string, string>();
+  for (const { id, file } of candidates) {
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(file).mtimeMs;
+    } catch {
+      continue; // file deleted between the fd walk and the stat
+    }
+    if (now - mtimeMs < STALE_HOLDER_MS) byId.set(id, file);
   }
   heldCache = { at: now, byId };
   return heldCache.byId;

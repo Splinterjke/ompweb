@@ -2932,6 +2932,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const handleAbort = useCallback(async () => {
     const sid = sessionIdRef.current;
     if (!sid) return;
+    // Externally-running sessions have no RPC channel in this server's
+    // registry: an abort would either fail or spawn a fresh child against a
+    // file the external process owns. Surface the notice instead (same as
+    // sending a prompt while externally running).
+    if (rejectIfExternallyRunning()) return;
     if (bashRunningRef.current) {
       try {
         await sendAgentCommand(sid, { type: "abort_bash" });
@@ -2948,7 +2953,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       console.error("Failed to abort:", e);
       toast.error(translate("chatInput.abortFailed"));
     }
-  }, []);
+  }, [rejectIfExternallyRunning]);
 
   const handleFork = useCallback(async (entryId: string) => {
     if (bashRunningRef.current) return;
