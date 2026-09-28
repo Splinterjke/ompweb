@@ -1,5 +1,5 @@
-import { existsSync, statSync } from "fs";
-import { normalize as normalizePath } from "path";
+import { existsSync, readdirSync, statSync } from "fs";
+import { join, normalize as normalizePath } from "path";
 import { getAgentDir } from "./omp/paths";
 import {
   invalidateSessionFileListCache,
@@ -200,6 +200,38 @@ export async function resolveSessionPath(sessionId: string): Promise<string | nu
     return null;
   }
   return resolved;
+}
+/**
+ * Synchronous session-id → file resolution for the session-watcher's /proc
+ * holder scan, which runs in a synchronous context. The path cache is the
+ * fast path (listAllSessions keeps it warm); a bounded scan of the sessions
+ * tree covers a cold cache. A missing session resolves to null — callers
+ * treat that as "not held".
+ */
+export function resolveSessionPathSync(sessionId: string): string | null {
+  const cached = getPathCache().get(sessionId);
+  if (cached && existsSync(cached)) return cached;
+  const suffix = `_${sessionId}.jsonl`;
+  const sessionsDir = join(getAgentDir(), "sessions");
+  let dirs: string[];
+  try {
+    dirs = readdirSync(sessionsDir);
+  } catch {
+    return null;
+  }
+  for (const d of dirs) {
+    const sub = join(sessionsDir, d);
+    let names: string[];
+    try {
+      names = readdirSync(sub);
+    } catch {
+      continue; // a file, or an unreadable dir — not a session dir
+    }
+    for (const n of names) {
+      if (n.endsWith(suffix)) return join(sub, n);
+    }
+  }
+  return null;
 }
 
 export async function resolveSessionIdByPath(filePath: string): Promise<string | undefined> {

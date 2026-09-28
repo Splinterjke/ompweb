@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadSessionFile } from "@/lib/omp/session-files";
 import { buildSessionContext } from "@/lib/session-reader";
+import { getLeafEntryId } from "@/lib/omp/session-files";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
 
 export async function GET(
@@ -38,8 +39,15 @@ export async function GET(
       deferToolResultImages,
       includePreCompaction,
     });
+    // Report the leaf the context actually resolved to. buildSessionContext
+    // falls back to the file's persisted tail when the requested leaf is
+    // missing (a stale branch pointer after external edits); the client
+    // re-attaches its active leaf to this so external writes that extend the
+    // transcript past a pinned leaf are not silently hidden.
+    const resolvedLeafId =
+      leafId && entries.some((e) => e.id === leafId) ? leafId : getLeafEntryId(entries);
 
-    return NextResponse.json({ context });
+    return NextResponse.json({ context, leafId: resolvedLeafId });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -1,5 +1,7 @@
-import { restoreActiveRpcSessions } from "@/lib/rpc-manager";
-
+// rpc-manager is node-only (child processes, fs, RPC protocol) and this file
+// is also bundled for the edge runtime, so it is imported dynamically inside
+// the nodejs guard like the other node-only deps below — a static top-level
+// import puts it in the edge bundle and fails the build on every request.
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
@@ -40,6 +42,7 @@ export async function register(): Promise<void> {
   // process snapshots its live sessions during SIGTERM; recreate those omp
   // children before serving so conversations continue without a browser turn.
   try {
+    const { restoreActiveRpcSessions } = await import("@/lib/rpc-manager");
     await restoreActiveRpcSessions();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -109,7 +112,26 @@ export async function register(): Promise<void> {
   };
   const describe = (value: unknown) =>
     value instanceof Error ? `${value.name}: ${value.message}\n${value.stack ?? ""}` : String(value);
+  // Node's internal recursive fs.watch (node:internal/fs/recursive_watch)
+  // runs unguarded lstatSync/stat for every event inside watched
+  // subdirectories; on filesystems that report EIO for entries mid-deletion
+  // (observed on WSL2/9p against the sessions dir) the throw propagates as
+  // an uncaught exception and kills the whole server. The inotify handle
+  // itself survives the throw, so swallow exactly those and keep running —
+  // the single event is dropped, and the watcher's nameless-event rescan
+  // plus the client's periodic state polling cover it. Anything else still
+  // crashes as before.
+  const isRecursiveWatchFsError = (value: unknown): boolean => {
+    if (!(value instanceof Error)) return false;
+    if (typeof value.stack !== "string" || !value.stack.includes("node:internal/fs/recursive_watch")) return false;
+    const code = (value as NodeJS.ErrnoException).code;
+    return code === "EIO" || code === "ENOENT" || code === "EACCES" || code === "EBADF";
+  };
   process.on("uncaughtException", (error) => {
+    if (isRecursiveWatchFsError(error)) {
+      appendDiag("fs-watch-suppressed", `recursive fs.watch fs error — ${describe(error)}`);
+      return;
+    }
     appendDiag("crash", `uncaughtException ${describe(error)}`);
     // An uncaughtException listener suppresses Node's default exit; keep the
     // crash-visible semantics by exiting explicitly.

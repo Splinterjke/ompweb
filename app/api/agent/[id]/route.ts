@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { readSessionHeader } from "@/lib/session-reader";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
-import { startRpcSession, getRpcSession, resolveSpawnCwdResult, WebRpcError } from "@/lib/rpc-manager";
+import { startRpcSession, getRpcSession, getExitedRpcSession, resolveSpawnCwdResult, WebRpcError } from "@/lib/rpc-manager";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 import { getSessionAdvisorEnabled, setSessionAdvisorEnabled } from "@/lib/session-preferences";
+import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
 
 /** omp-web's own failures carry a stable code the client can localize; omp's
  * errors stay opaque English text. */
@@ -90,21 +91,51 @@ export async function GET(
 
   try {
     const session = getRpcSession(id);
-    if (!session || !session.isAlive()) {
-      return NextResponse.json({ running: false });
-    }
-
-    try {
-      const state = await session.send({ type: "get_state" });
-      return NextResponse.json({ running: true, state });
-    } catch (error) {
-      // A wedged child is recycled by the wrapper. Treat state inspection as
-      // recoverably idle so browser reconciliation can unlock the composer.
-      if (error instanceof WebRpcError && error.code === "session_unresponsive") {
-        return NextResponse.json({ running: false, recovered: true });
+    if (session?.isAlive()) {
+      try {
+        const state = await session.send({ type: "get_state" }) as { isPromptRunning?: boolean; isStreaming?: boolean; isBashRunning?: boolean; isCompacting?: boolean } | undefined;
+        // Idle web process + another live omp holding the same session file
+        // (terminal run / survivor of a restart): the external process drives
+        // the turn, so report it as externally running. Mirrors /state.
+        const idle = !state?.isStreaming && !state?.isPromptRunning && !state?.isBashRunning && !state?.isCompacting;
+        if (idle && heldSessionsWithPendingTurn().includes(id)) {
+          return NextResponse.json({ running: true, external: true, state: null });
+        }
+        return NextResponse.json({ running: true, ...(idle ? { external: false } : {}), state });
+      } catch (error) {
+        // A wedged child is recycled by the wrapper. Treat state inspection as
+        // recoverably idle so browser reconciliation can unlock the composer.
+        if (error instanceof WebRpcError && error.code === "session_unresponsive") {
+          return NextResponse.json({ running: false, recovered: true });
+        }
+        throw error;
       }
-      throw error;
     }
+    // Not managed by this server. A session written by an external omp (a
+    // terminal run, or one whose child outlived a server restart) must still
+    // be reported as running: the client's reconcile poll treats "no registry
+    // session + not running" as the run having ended, which would drop a live
+    // external run from the UI. Mirror the /state route's detection.
+    const exited = getExitedRpcSession(id);
+    if (exited) {
+      const externallyActive =
+        (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
+        heldSessionsWithPendingTurn().includes(id);
+      if (externallyActive) return NextResponse.json({ running: true, external: true, state: null });
+      return NextResponse.json({ running: false, exited });
+    }
+    const resolved = await resolveSessionPathOr404(id);
+    if ("response" in resolved) return NextResponse.json({ running: false });
+    // Same detection as /state: a live external holder (long thinking/tool
+    // gap) keeps the session running even after the activity window lapses.
+    const externallyActive =
+      (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
+      heldSessionsWithPendingTurn().includes(id);
+    return NextResponse.json({
+      running: externallyActive,
+      external: externallyActive,
+      state: null,
+    });
   } catch (error) {
     return commandErrorResponse(error);
   }

@@ -404,6 +404,18 @@ const EVENT_STREAM_SLOW_CONNECT_MS = 4_000;
 const MAX_NOTICES = 5;
 const NOTICE_VISIBLE_MS = 5000;
 const NOTICE_EXIT_ANIMATION_MS = 180;
+// Server-side file-activity window for externally-written sessions (mirrors
+// EXTERNAL_ACTIVITY_WINDOW_MS in lib/session-watcher.ts; that module is
+// Node-only, so it cannot be imported into the client bundle). A state route
+// reporting external:false therefore means the file has been silent for at
+// least this long.
+const EXTERNAL_ACTIVITY_LAPSE_MS = 90_000;
+// How long a session file may stay silent before a quiet external run is
+// presumed dead (crash / killed). A live run can go silent for minutes while
+// the model thinks or a long tool (build, test suite) runs without writing
+// to the file — reclaiming on the 90s lapse alone flickered the running
+// state off mid-run.
+const EXTERNAL_RUN_END_SILENCE_MS = 5 * 60_000;
 
 type EventStreamConnectionStatus = "connected" | "timeout" | "closed";
 
@@ -768,13 +780,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // lets a prompt increment runId before the stale pre-prompt state arrives
   // and clobbers the new run's derived state (model/fast-mode).
   const initialHydrationPendingRef = useRef(false);
-  const externalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const externalPollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   // Unmount: never leak the external-reclaim poller.
   useEffect(() => () => {
-    if (externalPollRef.current) {
-      clearInterval(externalPollRef.current);
-      externalPollRef.current = null;
-    }
+    clearInterval(externalPollRef.current);
+    externalPollRef.current = undefined;
   }, []);
   const bashRecoveryIdRef = useRef(0);
   const handleAgentEventRef = useRef<((event: AgentEvent) => void) | null>(null);
@@ -798,6 +808,26 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // Delayed live-roster hydration after mount/reconnect; cancelled on unmount
   // so a stale get_subagents cannot target a session that was switched away.
   const rosterRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref to the latest enterExternalMode so the sessions-changed handler
+  // (defined earlier in the file) can re-arm external mode without a TDZ
+  // dependency on a later-defined callback.
+  const enterExternalModeRef = useRef<((sid: string) => void) | null>(null);
+  // Mirrors of view state the sessions-changed handler needs; assigned during
+  // render so the async handler always sees the latest value.
+  const showPreCompactionHistoryRef = useRef(false);
+  showPreCompactionHistoryRef.current = showPreCompactionHistory;
+  const activeLeafIdRef = useRef<string | null>(null);
+  activeLeafIdRef.current = activeLeafId;
+  // Timestamp of the last session-file write this client observed (external
+  // mode only). The reclaim poller uses it as the silence baseline: a run is
+  // presumed dead only after the file has been quiet this long.
+  const lastFileChangeAtRef = useRef(0);
+  // Mirror of `messages` for the reclaim poller, which is declared after the
+  // state: it inspects the committed tail to tell "run finished" (final
+  // assistant message, no pending tool call) from "long tool still running"
+  // (tail is a tool call or tool result).
+  const messagesRef = useRef<AgentMessage[]>([]);
+  messagesRef.current = messages;
   const promptRunIdRef = useRef(0);
   // Bumped on every roster clear (run end): in-flight get_subagents/history
   // responses from the finished run must not merge into the cleared (or next
@@ -1008,6 +1038,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // currently-running subagents, so this fills gaps after an SSE reconnect or
   // a missed lifecycle frame; it never reports finished runs.
   const refreshSubagentRoster = useCallback(async (sid: string) => {
+    // Externally-running sessions have no web-owned process to query: the
+    // get_subagents POST would spawn a stray idle omp (or fail with "already
+    // in use" and leave a crash record in the sidebar). The on-disk history
+    // already covers finished runs, so skip the live roster here.
+    if (externalRunningRef.current) return;
     const requestedAt = Date.now();
     const runId = promptRunIdRef.current;
     const generation = subagentRosterGenerationRef.current;
@@ -1125,10 +1160,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (showLoading) setLoading(true);
       if (sessionIdRef.current !== sid) {
         // Switching sessions: drop any external-running state and its poller.
-        if (externalPollRef.current) {
-          clearInterval(externalPollRef.current);
-          externalPollRef.current = null;
-        }
+        clearInterval(externalPollRef.current);
+        externalPollRef.current = undefined;
         externalRunningRef.current = false;
       }
       const params = new URLSearchParams({ deferThinking: "1", deferMedia: "1" });
@@ -1245,10 +1278,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       const url = `/api/sessions/${encodeURIComponent(sid)}/context?${params}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json() as { context: { messages: AgentMessage[]; entryIds: string[]; todoPhases: TodoPhase[] } };
+      const d = await res.json() as { context: { messages: AgentMessage[]; entryIds: string[]; todoPhases: TodoPhase[] }; leafId?: string | null };
       // Fence like loadSession: drop the response if the session changed or a
       // newer navigate started while this request was in flight.
       if (sessionIdRef.current !== sid || contextRequestSeqRef.current !== seq) return;
+      // Keep the active leaf in sync with what is actually displayed: the
+      // route resolves a missing/stale requested leaf to the file's live
+      // tail, so an external write extending the transcript re-attaches us
+      // to it instead of hiding the new messages.
+      if (d.leafId) setActiveLeafId(d.leafId);
       setMessages(d.context.messages);
       setEntryIds(d.context.entryIds ?? []);
       setShowPreCompactionHistory(includePreCompaction);
@@ -1377,9 +1415,37 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     return client.system.subscribeSessionsChanged((sessionIds) => {
       const sid = sessionIdRef.current;
       if (!sid || eventSourceRef.current || !sessionIds.includes(sid)) return;
-      void loadSession(sid);
+      lastFileChangeAtRef.current = Date.now();
+      // A file write without an RPC stream means an external omp (a terminal
+      // run, or a session that outlived a server restart) is driving the
+      // transcript. If the reclaim poller cleared the running state during a
+      // quiet stretch, re-check the state route and re-enter external mode
+      // instead of letting the live turn render as a collapsed, idle
+      // transcript.
+      if (!agentRunningRef.current) {
+        void fetch(`/api/sessions/${encodeURIComponent(sid)}/state`)
+          .then((res) => (res.ok ? res.json() as Promise<{ external?: boolean }> : null))
+          .then((st) => {
+            if (sessionIdRef.current === sid && !eventSourceRef.current && !agentRunningRef.current && st?.external) {
+              enterExternalModeRef.current?.(sid);
+            }
+          })
+          .catch(() => {
+            // transient — the next file event or mount recheck retries
+          });
+      }
+      // Preserve an open pre-compaction view: loadSession always fetches the
+      // compact context and resets the flag, which would close "View earlier
+      // history" on every external write. Pass null (no pinned leaf) so the
+      // context resolves to the file's live tail — a stale pinned leaf would
+      // hide the very messages the external write just appended.
+      if (showPreCompactionHistoryRef.current) {
+        void loadContext(sid, null, true);
+      } else {
+        void loadSession(sid);
+      }
     });
-  }, [client, loadSession]);
+  }, [client, loadSession, loadContext]);
 
   // Reconnect actions captured after their definitions (host-tool and URI
   // registrations are per-wrapper and are not persisted by omp, and the
@@ -1454,7 +1520,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           reconnectTimerRef.current = setTimeout(() => {
             reconnectTimerRef.current = null;
-            if (agentRunningRef.current && sessionIdRef.current === sid) {
+            // Never re-attach a per-session stream for an externally-running
+            // session: the new server has no wrapper for it (the route 409s),
+            // and the external run is observed through the session-file watcher.
+            if (agentRunningRef.current && !externalRunningRef.current && sessionIdRef.current === sid) {
               void connectEvents(sid);
               // The reconnect restores the event stream, but host tools, URI
               // schemes, and the subagent roster were registered on the old
@@ -1965,15 +2034,28 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // through the same path as prompt_done.
   const reconcileAgentState = useCallback(async (sid: string) => {
     if (!agentRunningRef.current) return;
+    // Externally-running sessions have no RPC session in this server's
+    // registry; the session-file poller (externalRunningRef) is the authority
+    // for their lifecycle, so skip the registry reconcile for them.
+    if (externalRunningRef.current) return;
     const runId = promptRunIdRef.current;
     try {
       const res = await fetch(`/api/agent/${encodeURIComponent(sid)}`);
       if (!res.ok) return;
-      const data = await res.json() as { running?: boolean; state?: AgentStateResponse };
+      const data = await res.json() as { running?: boolean; external?: boolean; state?: AgentStateResponse };
       // A slow response can straddle a run boundary (previous run finished
       // and the user already started the next one while this request was in
       // flight) — everything in it is stale, drop it.
       if (promptRunIdRef.current !== runId) return;
+      // The server restarted (or the registry lost the session) while an
+      // external omp kept driving this run: the route now reports it as
+      // external instead of idle. Keep the run alive under external mode —
+      // the session-file poller owns the lifecycle from here — instead of
+      // ending it, which would flip the UI to an idle "Send" state.
+      if (data.external) {
+        enterExternalModeRef.current?.(sid);
+        return;
+      }
       const state = data.state;
       // Mirror compaction state unconditionally: a missed compaction_end
       // would otherwise leave the "Stop compaction" UI stuck. No state
@@ -3425,6 +3507,92 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     computeFollowAllowed();
   }, [computeFollowAllowed]);
 
+  // Enter external-running mode: the session is being written by something
+  // outside this server's RPC registry (a terminal `omp` run, or a session
+  // that outlived a server restart). There is no RPC stream to attach — it
+  // would silently miss the external writes — so show the session as running
+  // and let the session-file watcher reload the transcript as the file grows.
+  const enterExternalMode = useCallback((sid: string) => {
+    if (externalRunningRef.current) return;
+    externalRunningRef.current = true;
+    agentRunningRef.current = true;
+    setAgentRunning(true);
+    setAgentPhase({ kind: "running_command" });
+    dispatch({ type: "start" });
+    addNotice({ type: "info", message: translate("agentSession.externallyRunning") });
+    // When the external CLI finishes, the file stops changing and the state
+    // route reports external:false again — reclaim the session for web sending
+    // and clear the running state. Silence alone is not proof of completion,
+    // though: an external omp goes quiet while the model thinks or a long
+    // tool (build, test suite) runs without writing to the file. Reclaim as
+    // soon as the committed tail says the turn is over (a final assistant
+    // message with no pending tool call); otherwise hold until the file has
+    // been silent long enough to presume the run died.
+    lastFileChangeAtRef.current = Date.now();
+    clearInterval(externalPollRef.current);
+    externalPollRef.current = setInterval(() => {
+      void fetch(`/api/sessions/${encodeURIComponent(sid)}/state`)
+        .then((res) => (res.ok ? res.json() as Promise<{ external?: boolean; state?: unknown }> : null))
+        .then((st) => {
+          if (!st) return;
+          const tail = messagesRef.current[messagesRef.current.length - 1];
+          const tailIsFinal =
+            !!tail &&
+            tail.role === "assistant" &&
+            !tail.content.some((block) => block.type === "toolCall");
+          const silentMs = lastFileChangeAtRef.current > 0
+            ? Date.now() - lastFileChangeAtRef.current
+            : EXTERNAL_ACTIVITY_LAPSE_MS;
+          if (st.external) {
+            // The server still reports the external run as active (a live
+            // holder with a turn in flight). Silence for the full run-end
+            // window means the holder's turn is stalled (crashed API call,
+            // hung tool) — reclaim so the session is usable again instead of
+            // stuck "running" forever. Live external writes keep resetting
+            // the clock (sessions-changed) and re-enter external mode when
+            // they land, so a genuinely long tool only flickers idle for a
+            // moment before the next write resumes the running UI.
+            if (silentMs < EXTERNAL_RUN_END_SILENCE_MS) return;
+          } else if (!tailIsFinal && silentMs < EXTERNAL_RUN_END_SILENCE_MS) {
+            return;
+          }
+          clearInterval(externalPollRef.current);
+          externalPollRef.current = undefined;
+          if (sessionIdRef.current !== sid) return;
+          externalRunningRef.current = false;
+          agentRunningRef.current = false;
+          setAgentRunning(false);
+          dispatch({ type: "end" });
+          addNotice({ type: "info", message: translate("agentSession.externalFinished") });
+          // If this server also holds its own (idle) RPC process for the
+          // session, it never saw the entries the external run appended —
+          // restart it against the file so the next prompt continues from
+          // the committed tail instead of a stale in-memory state.
+          if (st.state) {
+            void sendAgentCommand(sid, { type: "reload" }).catch(() => {
+              // best effort — the wrapper restarts on the next command too
+            });
+          }
+        })
+        .catch(() => {
+          // transient failure — keep polling
+        });
+    }, 10_000);
+    // Rehydrate the live roster (missed lifecycle/progress frames). Tracked +
+    // session-guarded: a session switch during the delay must not issue a
+    // stale get_subagents against the old session.
+    if (rosterRefreshTimerRef.current) {
+      clearTimeout(rosterRefreshTimerRef.current);
+      rosterRefreshTimerRef.current = null;
+    }
+    const rosterTimerSid = sid;
+    rosterRefreshTimerRef.current = setTimeout(() => {
+      rosterRefreshTimerRef.current = null;
+      if (sessionIdRef.current !== rosterTimerSid) return;
+      void refreshSubagentRoster(rosterTimerSid);
+    }, 600);
+  }, [addNotice, refreshSubagentRoster, translate]);
+  enterExternalModeRef.current = enterExternalMode;
   // Load session on mount
   // React StrictMode re-invokes this effect for the freshly mounted keyed
   // <ChatWindow> (setup → cleanup → setup), which made every session switch
@@ -3463,56 +3631,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             void registerHostTools(session.id);
             void registerHostUriSchemes(session.id);
           } else if (agentState.external) {
-            // The session is being written by a terminal `omp` / another
-            // harness: no RPC stream to attach (it would silently miss the
-            // external writes). Show it as running and let the session-file
-            // watcher reload the transcript as the file grows.
-            externalRunningRef.current = true;
-            agentRunningRef.current = true;
-            setAgentRunning(true);
-            setAgentPhase({ kind: "running_command" });
-            dispatch({ type: "start" });
-            addNotice({ type: "info", message: translate("agentSession.externallyRunning") });
-            // When the external CLI finishes, the file stops changing and the
-            // state route reports external:false again — reclaim the session
-            // for web sending and clear the running state.
-            if (externalPollRef.current) clearInterval(externalPollRef.current);
-            externalPollRef.current = setInterval(() => {
-              void fetch(`/api/sessions/${encodeURIComponent(session.id)}/state`)
-                .then((res) => (res.ok ? res.json() as Promise<{ external?: boolean }> : null))
-                .then((st) => {
-                  if (!st || st.external !== false) return;
-                  if (externalPollRef.current) {
-                    clearInterval(externalPollRef.current);
-                    externalPollRef.current = null;
-                  }
-                  if (sessionIdRef.current !== session.id) return;
-                  externalRunningRef.current = false;
-                  agentRunningRef.current = false;
-                  setAgentRunning(false);
-                  dispatch({ type: "end" });
-                  addNotice({ type: "info", message: translate("agentSession.externalFinished") });
-                })
-                .catch(() => {
-                  // transient failure — keep polling
-                });
-            }, 10_000);
-            // Rehydrate the live roster (missed lifecycle/progress frames).
-            // Tracked + session-guarded: a session switch during the delay must
-            // not issue a stale get_subagents against the old session.
-            if (rosterRefreshTimerRef.current) {
-              clearTimeout(rosterRefreshTimerRef.current);
-              rosterRefreshTimerRef.current = null;
-            }
-            const rosterTimerSid = session.id;
-            rosterRefreshTimerRef.current = setTimeout(() => {
-              rosterRefreshTimerRef.current = null;
-              if (sessionIdRef.current !== rosterTimerSid) return;
-              void refreshSubagentRoster(rosterTimerSid);
-            }, 600);
-            if (agentState.state && !agentState.state.isStreaming && agentState.state.isPromptRunning) {
-              void waitForPromptSettlement(session.id);
-            }
+            enterExternalMode(session.id);
           }
           if (agentState.state?.isBashRunning) {
             bashRunningRef.current = true;
@@ -3577,7 +3696,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       subagentVersionFlushRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSubagentRoster, registerHostTools, registerHostUriSchemes]);
+  }, [refreshSubagentRoster, registerHostTools, registerHostUriSchemes, enterExternalMode]);
 
   useEffect(() => {
     onSystemPromptChange?.(systemPrompt);

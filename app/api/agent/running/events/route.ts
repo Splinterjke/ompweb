@@ -1,5 +1,5 @@
 import { getExitedRpcSessions, getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
-import { subscribeSessionFileChanges, getExternallyActiveIds } from "@/lib/session-watcher";
+import { subscribeSessionFileChanges, getExternallyActiveIds, heldSessionsWithPendingTurn } from "@/lib/session-watcher";
 import { subscribeChatEventActions } from "@/lib/chat-event-action-bus";
 import { subscribeUiRefresh, wasUiUpdated } from "@/lib/ui-refresh-bus";
 import { SERVER_STARTED_AT } from "@/lib/npm-update";
@@ -90,12 +90,20 @@ export async function GET(req: Request) {
       const unsubscribeFiles = holder.fn;
 
       // Periodically re-broadcast the externally-running set so badges expire
-      // client-side once a CLI session stops writing (no event fires then).
+      // client-side once a CLI session stops writing (no event fires then). The
+      // union also covers sessions held by a live omp process whose file is
+      // currently quiet (long thinking/tool gaps, or a child that outlived an
+      // ompweb restart): the write window alone would drop their badge mid-turn.
+      const externallyRunningIds = () => {
+        // Exclude the web's own RPC sessions: their file writes are ours.
+        const rpcIds = new Set(getRunningRpcSessionIds());
+        const active = new Set(getExternallyActiveIds(5000).filter((id) => !rpcIds.has(id)));
+        for (const id of heldSessionsWithPendingTurn()) if (!rpcIds.has(id)) active.add(id);
+        return [...active];
+      };
       const externalHeartbeat = setInterval(() => {
         try {
-          // Exclude the web's own RPC sessions: their file writes are ours.
-          const rpcIds = new Set(getRunningRpcSessionIds());
-          const active = getExternallyActiveIds(5000).filter((id) => !rpcIds.has(id));
+          const active = externallyRunningIds();
           if (active.length > 0) {
             encode({ type: "externally-running", externallyRunning: active });
           }
@@ -107,6 +115,10 @@ export async function GET(req: Request) {
       // Initial snapshot so the client renders the correct state immediately.
       // (A duplicate frame here is harmless: the client just sets the same set.)
       encode({ type: "running", runningSessionIds: getRunningRpcSessionIds(), exitedSessions: getExitedRpcSessions() });
+      const initialExternal = externallyRunningIds();
+      if (initialExternal.length > 0) {
+        encode({ type: "externally-running", externallyRunning: initialExternal });
+      }
 
       // Heartbeat to keep the connection alive through proxies/timeouts.
       const heartbeat = setInterval(() => {

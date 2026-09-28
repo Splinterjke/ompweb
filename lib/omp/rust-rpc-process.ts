@@ -111,6 +111,14 @@ export class RustHostManager {
   private nextId = 1;
   private subscribers = new Set<RpcFrameHandler>();
   private refs = 0;
+  /** Pid of the live host daemon, or null when it is not running. The web's
+   * omp children are this daemon's direct children (Rust backend) or this
+   * Node process's direct children (node backend) — callers distinguish
+   * them from external holders (terminal runs, children of a previous
+   * server) by comparing the process's PPid against these. */
+  get hostPid(): number | null {
+    return this.host?.pid ?? null;
+  }
 
   constructor(private readonly spawnHost: typeof spawn = spawn) {}
 
@@ -211,6 +219,23 @@ export class RustHostManager {
       // process alive (tests, short-lived scripts). shutdown() owns its final
       // cleanup while the process runs.
       child.unref();
+      // Track every host this Node process has ever spawned (globalThis:
+      // dev HMR re-evaluates this module and each evaluation gets its own
+      // RustHostManager — the previous instance's host keeps serving its
+      // sessions' children under a different pid). session-watcher uses the
+      // set to distinguish web-owned omp children from external holders.
+      if (child.pid !== undefined) {
+        const hostPid = child.pid;
+        webOwnedHostPids.add(hostPid);
+        child.once("exit", () => webOwnedHostPids.delete(hostPid));
+      } else {
+        child.once("spawn", () => {
+          if (child.pid === undefined) return;
+          const hostPid = child.pid;
+          webOwnedHostPids.add(hostPid);
+          child.once("exit", () => webOwnedHostPids.delete(hostPid));
+        });
+      }
       this.host = child;
       child.on("error", (err) => {
         clearTimeout(timer);
@@ -544,6 +569,18 @@ export class RustHostManager {
 
 const hostManager = new RustHostManager();
 export { hostManager };
+// Every Rust host daemon pid spawned by this Node process. Dev HMR re-evaluates
+// this module, so several RustHostManager instances (each with its own host)
+// can coexist in one process; globalThis keeps the set across re-evaluations.
+// session-watcher consults it to tell web-owned omp children apart from
+// external holders (terminal runs, children of a previous server instance).
+const webOwnedHostPids: Set<number> =
+  (globalThis as { __ompWebHostPids?: Set<number> }).__ompWebHostPids ??
+  ((globalThis as { __ompWebHostPids?: Set<number> }).__ompWebHostPids = new Set());
+
+export function getWebOwnedHostPids(): Set<number> {
+  return webOwnedHostPids;
+}
 
 /** Map a POSIX signal number (as broadcast by the host) to its name. */
 function posixSignalName(code: number): NodeJS.Signals {
