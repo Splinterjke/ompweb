@@ -1,0 +1,633 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ompweb System & Runtime Architecture (v5.1)",
+    "quality_profile": "standard",
+    "viewBox": [
+      1360,
+      920
+    ],
+    "views": [
+      {
+        "id": "full-overview",
+        "label": "Full System Topology",
+        "focus": [
+          "browser-ui",
+          "desktop-app",
+          "next-server",
+          "host-client",
+          "supervisor",
+          "omp-process",
+          "model-providers"
+        ],
+        "note": "Complete end-to-end architecture across Presentation, Next.js Gateway, Rust Native Host, and OMP Core."
+      },
+      {
+        "id": "rust-host-core",
+        "label": "Rust Native Host Authority",
+        "focus": [
+          "host-client",
+          "supervisor",
+          "git-service",
+          "pty-service",
+          "session-scan",
+          "settings-service",
+          "sqlite-journal"
+        ],
+        "note": "ompweb-host Rust daemon providing high-performance, memory-safe system authority."
+      },
+      {
+        "id": "session-and-chat",
+        "label": "Session & Agent RPC Flow",
+        "focus": [
+          "browser-ui",
+          "next-server",
+          "host-client",
+          "supervisor",
+          "omp-process",
+          "local-storage",
+          "model-providers"
+        ],
+        "note": "Streaming JSONL reads, head-window indexing, and prompt execution via stdio NDJSON RPC."
+      },
+      {
+        "id": "terminal-and-git",
+        "label": "Terminal, Git & Workspace",
+        "focus": [
+          "terminal-ui",
+          "host-client",
+          "git-service",
+          "pty-service",
+          "file-sandbox"
+        ],
+        "note": "Interactive pseudo-terminal execution, Git diff/status, and canonicalized workspace bounds."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser-ui",
+      "type": "frontend",
+      "label": "Web Browser UI",
+      "sublabel": "React 19 / Base UI",
+      "brand": "react",
+      "pos": [
+        80,
+        100
+      ],
+      "size": [
+        160,
+        68
+      ]
+    },
+    {
+      "id": "desktop-app",
+      "type": "frontend",
+      "label": "Desktop Client",
+      "sublabel": "Electron 44 / Native Shell",
+      "pos": [
+        80,
+        240
+      ],
+      "size": [
+        160,
+        68
+      ]
+    },
+    {
+      "id": "terminal-ui",
+      "type": "frontend",
+      "label": "Web PTY Terminal",
+      "sublabel": "xterm.js / TrueColor",
+      "pos": [
+        80,
+        420
+      ],
+      "size": [
+        160,
+        68
+      ]
+    },
+    {
+      "id": "composer-panel",
+      "type": "frontend",
+      "label": "Composer & Plan UI",
+      "sublabel": "Todo Kanban / Subagents",
+      "pos": [
+        80,
+        580
+      ],
+      "size": [
+        160,
+        68
+      ]
+    },
+    {
+      "id": "next-server",
+      "type": "backend",
+      "label": "Next.js Gateway",
+      "sublabel": "HTTP / SSE / Cookie Auth",
+      "brand": "next-js",
+      "pos": [
+        360,
+        100
+      ],
+      "size": [
+        180,
+        68
+      ]
+    },
+    {
+      "id": "host-client",
+      "type": "backend",
+      "label": "HostClient Facade",
+      "sublabel": "Typed IPC / Fail-Closed",
+      "brand": "node-js",
+      "pos": [
+        360,
+        260
+      ],
+      "size": [
+        180,
+        68
+      ]
+    },
+    {
+      "id": "session-reader",
+      "type": "backend",
+      "label": "Session Reader",
+      "sublabel": "JSONL LRU Cache / Fast-Path",
+      "pos": [
+        360,
+        420
+      ],
+      "size": [
+        180,
+        68
+      ]
+    },
+    {
+      "id": "file-sandbox",
+      "type": "security",
+      "label": "File Sandbox",
+      "sublabel": "Canonical Path Validator",
+      "pos": [
+        360,
+        580
+      ],
+      "size": [
+        180,
+        68
+      ]
+    },
+    {
+      "id": "supervisor",
+      "type": "backend",
+      "label": "Process Supervisor",
+      "sublabel": "omp Lifecycle & Crash Auto-Heal",
+      "pos": [
+        690,
+        100
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "Auto-Heal"
+    },
+    {
+      "id": "git-service",
+      "type": "backend",
+      "label": "Git Native Service",
+      "sublabel": "diff / status / branches / push",
+      "pos": [
+        690,
+        260
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "Rust Core"
+    },
+    {
+      "id": "pty-service",
+      "type": "backend",
+      "label": "PTY Engine",
+      "sublabel": "Virtual Terminal / Bounded Buffer",
+      "pos": [
+        690,
+        420
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "Rust Core"
+    },
+    {
+      "id": "session-scan",
+      "type": "backend",
+      "label": "Session Scanner",
+      "sublabel": "Head-Window Indexing <15ms",
+      "pos": [
+        690,
+        580
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "<15ms"
+    },
+    {
+      "id": "settings-service",
+      "type": "backend",
+      "label": "Settings Service",
+      "sublabel": "485-Key OMP Config Proxy",
+      "pos": [
+        690,
+        720
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "Rust Core"
+    },
+    {
+      "id": "omp-process",
+      "type": "backend",
+      "label": "omp Core Process",
+      "sublabel": "omp --mode rpc-ui",
+      "pos": [
+        1030,
+        100
+      ],
+      "size": [
+        190,
+        68
+      ],
+      "tag": "Per Session"
+    },
+    {
+      "id": "model-providers",
+      "type": "cloud",
+      "label": "LLM Providers",
+      "sublabel": "Anthropic, OpenAI, DeepSeek",
+      "brand": "anthropic",
+      "pos": [
+        1030,
+        240
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "agent-db",
+      "type": "database",
+      "label": "Auth DB",
+      "sublabel": "~/.omp/agent/agent.db",
+      "brand": "sqlite",
+      "pos": [
+        1030,
+        380
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "local-storage",
+      "type": "database",
+      "label": "Session Storage",
+      "sublabel": "~/.omp/agent/sessions/*.jsonl",
+      "pos": [
+        1030,
+        520
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "sqlite-journal",
+      "type": "database",
+      "label": "SQLite Journal",
+      "sublabel": "Device Registry & 24h Ledger",
+      "brand": "sqlite",
+      "pos": [
+        1030,
+        660
+      ],
+      "size": [
+        190,
+        68
+      ]
+    },
+    {
+      "id": "mcp-servers",
+      "type": "messagebus",
+      "label": "Project MCP & Skills",
+      "sublabel": ".omp/mcp.json & skills.sh",
+      "pos": [
+        1030,
+        780
+      ],
+      "size": [
+        190,
+        68
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Presentation Layer (Web Browser & Electron Desktop)",
+      "wraps": [
+        "browser-ui",
+        "desktop-app",
+        "terminal-ui",
+        "composer-panel"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "ompweb Application Server (Next.js 16 / Node.js)",
+      "wraps": [
+        "next-server",
+        "host-client",
+        "session-reader",
+        "file-sandbox"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "ompweb-host Native Runtime (Rust Daemon)",
+      "wraps": [
+        "supervisor",
+        "git-service",
+        "pty-service",
+        "session-scan",
+        "settings-service"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "OMP AI Agent Runtime & Persistence",
+      "wraps": [
+        "omp-process",
+        "model-providers",
+        "agent-db",
+        "local-storage",
+        "sqlite-journal",
+        "mcp-servers"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-to-server",
+      "from": "browser-ui",
+      "to": "next-server",
+      "label": "HTTP / SSE",
+      "variant": "emphasis"
+    },
+    {
+      "id": "desktop-to-server",
+      "from": "desktop-app",
+      "to": "next-server",
+      "label": "internal IPC",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "terminal-ui-to-server",
+      "from": "terminal-ui",
+      "to": "host-client",
+      "label": "SSE stream",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "composer-to-reader",
+      "from": "composer-panel",
+      "to": "session-reader",
+      "label": "plan context",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "server-to-client",
+      "from": "next-server",
+      "to": "host-client",
+      "label": "route dispatch",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        450,
+        215
+      ]
+    },
+    {
+      "id": "client-to-supervisor",
+      "from": "host-client",
+      "to": "supervisor",
+      "label": "session RPC",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "client-to-git",
+      "from": "host-client",
+      "to": "git-service",
+      "label": "git IPC",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "client-to-pty",
+      "from": "host-client",
+      "to": "pty-service",
+      "label": "pty IPC",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "client-to-scan",
+      "from": "host-client",
+      "to": "session-scan",
+      "label": "scan IPC",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "client-to-settings",
+      "from": "host-client",
+      "to": "settings-service",
+      "label": "config IPC",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          640,
+          294
+        ],
+        [
+          640,
+          754
+        ]
+      ],
+      "labelAt": [
+        640,
+        710
+      ]
+    },
+    {
+      "id": "file-to-git",
+      "from": "file-sandbox",
+      "to": "git-service",
+      "label": "path bounds",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        [
+          600,
+          614
+        ],
+        [
+          600,
+          350
+        ],
+        [
+          785,
+          350
+        ]
+      ],
+      "labelAt": [
+        680,
+        365
+      ]
+    },
+    {
+      "id": "supervisor-to-omp",
+      "from": "supervisor",
+      "to": "omp-process",
+      "label": "stdio NDJSON",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "omp-to-models",
+      "from": "omp-process",
+      "to": "model-providers",
+      "label": "LLM Inference",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1125,
+        204
+      ]
+    },
+    {
+      "id": "omp-to-db",
+      "from": "omp-process",
+      "to": "agent-db",
+      "label": "SQLite auth",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        [
+          1280,
+          134
+        ],
+        [
+          1280,
+          414
+        ]
+      ]
+    },
+    {
+      "id": "scan-to-storage",
+      "from": "session-scan",
+      "to": "local-storage",
+      "label": "zero-copy head scan",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [
+        975,
+        545
+      ]
+    },
+    {
+      "id": "settings-to-mcp",
+      "from": "settings-service",
+      "to": "mcp-servers",
+      "label": "MCP proxy",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "supervisor-to-journal",
+      "from": "supervisor",
+      "to": "sqlite-journal",
+      "label": "crash recovery",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          935,
+          134
+        ],
+        [
+          935,
+          694
+        ]
+      ],
+      "labelAt": [
+        935,
+        200
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Presentation & Interaction",
+      "items": [
+        "React 19 & Base UI warm-paper styled workspace",
+        "Electron 44 desktop client with system tray & splash",
+        "Zero-Reflow streaming markdown & xterm.js terminal",
+        "Composer-attached Todo Plan & Subagent live telemetry"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Rust Native Host Authority",
+      "items": [
+        "ompweb-host Rust daemon connected via high-speed IPC",
+        "Native Git service executing diff, status, branches & push",
+        "PTY engine with bounded buffers & crash resilience",
+        "Head-window session scanning under 15ms for GB logs"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "OMP Core & Sovereignty",
+      "items": [
+        "Process supervisor with crash recovery and --resume support",
+        "HMAC-SHA256 challenge-proof remote client authentication",
+        "24-hour mutation ledger guaranteeing idempotent actions",
+        "Full 485-key OMP configuration proxy & MCP management"
+      ]
+    }
+  ]
+}
