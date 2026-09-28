@@ -19,57 +19,58 @@ ompweb はローカル omp ランタイム用のブラウザワークスペー�
 
 | | |
 | :---: | :---: |
-| メインワークスペース<br>![](screenshots/screenshot-main-workspace.png) | セッション作成コンポーザー<br>![](screenshots/new-session-composer.png) |
-| 展開された処理詳細（ツール呼び出し）<br>![](screenshots/chat-expanded-details.png) | コンポーザーのタスクパネル<br>![](screenshots/composer-tasks-expanded.png) |
-| スラッシュコマンドメニュー<br>![](screenshots/slash-command-popover.png) | セッション情報 / コンテキストポップオーバー<br>![](screenshots/session-info-popover.png) |
-| コマンドパレット<br>![](screenshots/command-palette.png) | Git Graph モーダル<br>![](screenshots/gitgraph-commit-log.png) |
-| Git Graph — コミット差分<br>![](screenshots/gitgraph-commit-diff.png) | ファイルビューヤータブ<br>![](screenshots/fileviewer-tab.png) |
-| セッションリスト（展開）<br>![](screenshots/sidebar-sessions-full.png) | アーカイブセッションブラウザ<br>![](screenshots/archived-sessions.png) |
-| エクスプローラー（ホバー + メンション）<br>![](screenshots/explorer-hover-mention.png) | サブエージェントパネル（タスク）<br>![](screenshots/rightpanel-taskmanager.png) |
-| Git パネル（変更ファイル）<br>![](screenshots/rightpanel-git.png) | Goal & Subagents ハブ（展開）<br>![](screenshots/composer-goal-subagents.png) |
-| サイドチャットパネル<br>![](screenshots/rightpanel-sidechat.png) | サイドチャット（空のステート）<br>![](screenshots/rightpanel-sidechat-empty.png) |
-| ファイルパネル<br>![](screenshots/rightpanel-files.png) | チャットミニマップのホバーツールチップ<br>![](screenshots/minimap-tooltip.png) |
-| サービスエラー復旧キュー<br>![](screenshots/service-error-recovery.png) | チャットイベントアクション<br>![](screenshots/chat-event-actions-section.png) |
-| チャットイベントアクションのモダール<br>![](screenshots/chat-event-actions-modals.png) | スケジューラ編集ダイアログ<br>![](screenshots/scheduler-edit-modal.png) |
-| 組み込みターミナル（開いた状態）<br>![](screenshots/embedded-terminal.png) | テーマパレット — 静的<br>![](screenshots/themepalette-static.png) |
-| テーマパレット — フローティング<br>![](screenshots/themepalette-flowing.png) | テーマパレット — モーション<br>![](screenshots/themepalette-motion.png) |
-| テーマパレット — フォント<br>![](screenshots/themepalette-font.png) | テーマパレット — UI フォントスケーリング<br>![](screenshots/theme-palette-ui-scale-settings.png) |
-| 設定 — インターフェースと動作<br>![](screenshots/settings-interface-behavior.png) | 設定 — セキュリティと承認<br>![](screenshots/settings-safety-approvals.png) |
-| 設定 — AI モデルデフォルト<br>![](screenshots/settings-ai-model-defaults.png) | 設定 — エージェントとインテリジェンス<br>![](screenshots/settings-agent-intelligence.png) |
-| 設定 — エージェント<br>![](screenshots/settings-agents.png) | 設定 — 拡張機能とツール<br>![](screenshots/settings-extensions-tools.png) |
-| 設定 — OMP ネイティブ<br>![](screenshots/settings-omp-native.png) | 設定 — リモートアクセス<br>![](screenshots/settings-remote-access.png) |
-| 設定 — スキルハブ<br>![](screenshots/settings-skill-hub.png) | 設定 — システムと更新<br>![](screenshots/settings-system-updates.png) |
-| 設定 — 検索<br>![](screenshots/settings-search.png) | 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) |
-| テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) | テーマ: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
-| テーマ: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | テーマ: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
-| テーマ: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | テーマ: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
-| テーマ: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | テーマ: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
-| テーマ: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | テーマ: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| テーマ: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | モバイル: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
-| テーマ: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | テーマ: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
-| テーマ: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | テーマ: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
-| テーマ: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | テーマ: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
-| テーマ: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) | テーマ: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) |
-| テーマ: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) | テーマ: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) |
-| テーマ: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) | テーマ: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) |
-| テーマ: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) | テーマ: One Light<br>![](screenshots/screenshot-theme-one-light.png) |
-| テーマ: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) | テーマ: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) |
-| テーマ: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) | テーマ: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) |
-| テーマ: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) | モバイル: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light-mobile.png) |
-| モバイル: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) | モバイル: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) |
-| モバイル: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) | モバイル: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) |
-| モバイル: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) | モバイル: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) |
-| モバイル: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) | モバイル: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) |
-| モバイル: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) | モバイル: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) |
-| モバイル: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) | モバイル: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) |
-| モバイル: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) | モバイル: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) |
-| モバイル: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) | モバイル: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) |
-| モバイル: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) | モバイル: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) |
-| モバイル: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) | モバイル: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) |
-| モバイル: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) | モバイル: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) |
-| モバイル: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | モバイル: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
-| モバイル: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | モバイル: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
-| モバイル: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | モバイル: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
+| メインワークスペース<br>![](screenshots/screenshot-main-workspace.png) | コンパクトなハブバー（行レイアウト）<br>![](screenshots/compact-hub-bars.png) |
+| セッション作成コンポーザー<br>![](screenshots/new-session-composer.png) | 展開された処理詳細（ツール呼び出し）<br>![](screenshots/chat-expanded-details.png) |
+| コンポーザーのタスクパネル<br>![](screenshots/composer-tasks-expanded.png) | スラッシュコマンドメニュー<br>![](screenshots/slash-command-popover.png) |
+| セッション情報 / コンテキストポップオーバー<br>![](screenshots/session-info-popover.png) | コマンドパレット<br>![](screenshots/command-palette.png) |
+| Git Graph モーダル<br>![](screenshots/gitgraph-commit-log.png) | Git Graph — コミット差分<br>![](screenshots/gitgraph-commit-diff.png) |
+| ファイルビューヤータブ<br>![](screenshots/fileviewer-tab.png) | セッションリスト（展開）<br>![](screenshots/sidebar-sessions-full.png) |
+| アーカイブセッションブラウザ<br>![](screenshots/archived-sessions.png) | エクスプローラー（ホバー + メンション）<br>![](screenshots/explorer-hover-mention.png) |
+| サブエージェントパネル（タスク）<br>![](screenshots/rightpanel-taskmanager.png) | Git パネル（変更ファイル）<br>![](screenshots/rightpanel-git.png) |
+| Goal & Subagents ハブ（展開）<br>![](screenshots/composer-goal-subagents.png) | サイドチャットパネル<br>![](screenshots/rightpanel-sidechat.png) |
+| サイドチャット（空のステート）<br>![](screenshots/rightpanel-sidechat-empty.png) | ファイルパネル<br>![](screenshots/rightpanel-files.png) |
+| チャットミニマップのホバーツールチップ<br>![](screenshots/minimap-tooltip.png) | サービスエラー復旧キュー<br>![](screenshots/service-error-recovery.png) |
+| チャットイベントアクション<br>![](screenshots/chat-event-actions-section.png) | チャットイベントアクションのモダール<br>![](screenshots/chat-event-actions-modals.png) |
+| スケジューラ編集ダイアログ<br>![](screenshots/scheduler-edit-modal.png) | 組み込みターミナル（開いた状態）<br>![](screenshots/embedded-terminal.png) |
+| テーマパレット — 静的<br>![](screenshots/themepalette-static.png) | テーマパレット — フローティング<br>![](screenshots/themepalette-flowing.png) |
+| テーマパレット — モーション<br>![](screenshots/themepalette-motion.png) | テーマパレット — フォント<br>![](screenshots/themepalette-font.png) |
+| テーマパレット — UI フォントスケーリング<br>![](screenshots/theme-palette-ui-scale-settings.png) | 設定 — インターフェースと動作<br>![](screenshots/settings-interface-behavior.png) |
+| 設定 — セキュリティと承認<br>![](screenshots/settings-safety-approvals.png) | 設定 — AI モデルデフォルト<br>![](screenshots/settings-ai-model-defaults.png) |
+| 設定 — エージェントとインテリジェンス<br>![](screenshots/settings-agent-intelligence.png) | 設定 — エージェント<br>![](screenshots/settings-agents.png) |
+| 設定 — 拡張機能とツール<br>![](screenshots/settings-extensions-tools.png) | 設定 — OMP ネイティブ<br>![](screenshots/settings-omp-native.png) |
+| 設定 — リモートアクセス<br>![](screenshots/settings-remote-access.png) | 設定 — スキルハブ<br>![](screenshots/settings-skill-hub.png) |
+| 設定 — システムと更新<br>![](screenshots/settings-system-updates.png) | 設定 — 検索<br>![](screenshots/settings-search.png) |
+| 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) | テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) |
+| テーマ: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | テーマ: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
+| テーマ: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | テーマ: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
+| テーマ: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | テーマ: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |
+| テーマ: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) | テーマ: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) |
+| テーマ: Harbor<br>![](screenshots/screenshot-theme-harbor.png) | テーマ: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) |
+| モバイル: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) | テーマ: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) |
+| テーマ: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) | テーマ: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) |
+| テーマ: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) | テーマ: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) |
+| テーマ: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) | テーマ: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) |
+| テーマ: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) | テーマ: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) |
+| テーマ: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) | テーマ: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) |
+| テーマ: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) | テーマ: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) |
+| テーマ: One Light<br>![](screenshots/screenshot-theme-one-light.png) | テーマ: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) |
+| テーマ: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) | テーマ: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) |
+| テーマ: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) | テーマ: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) |
+| モバイル: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light-mobile.png) | モバイル: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) |
+| モバイル: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) | モバイル: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) |
+| モバイル: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) | モバイル: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) |
+| モバイル: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) | モバイル: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) |
+| モバイル: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) | モバイル: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) |
+| モバイル: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) | モバイル: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) |
+| モバイル: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) | モバイル: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) |
+| モバイル: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) | モバイル: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) |
+| モバイル: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) | モバイル: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) |
+| モバイル: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) | モバイル: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) |
+| モバイル: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) | モバイル: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) |
+| モバイル: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) | モバイル: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) |
+| モバイル: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) | モバイル: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) |
+| モバイル: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) | モバイル: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) |
+| モバイル: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |  |
 </details>
 
 ## 🐳 Docker で実行

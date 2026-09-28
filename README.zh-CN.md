@@ -19,57 +19,58 @@ ompweb 为你的本地 omp 运行时提供一个浏览器工作区：会话浏�
 
 | | |
 | :---: | :---: |
-| 主工作区<br>![](screenshots/screenshot-main-workspace.png) | 新会话编辑器<br>![](screenshots/new-session-composer.png) |
-| 展开的处理详情（工具调用）<br>![](screenshots/chat-expanded-details.png) | 编辑器任务面板<br>![](screenshots/composer-tasks-expanded.png) |
-| 斜杠命令菜单<br>![](screenshots/slash-command-popover.png) | 会话信息 / 上下文弹窗<br>![](screenshots/session-info-popover.png) |
-| 命令面板<br>![](screenshots/command-palette.png) | Git 图形模态框<br>![](screenshots/gitgraph-commit-log.png) |
-| Git 图形 — 提交差异<br>![](screenshots/gitgraph-commit-diff.png) | 文件查看器标签<br>![](screenshots/fileviewer-tab.png) |
-| 会话列表（展开）<br>![](screenshots/sidebar-sessions-full.png) | 归档会话浏览器<br>![](screenshots/archived-sessions.png) |
-| 资源管理器（悬停 + 引用）<br>![](screenshots/explorer-hover-mention.png) | 子智能体面板（任务）<br>![](screenshots/rightpanel-taskmanager.png) |
-| Git 面板（更改的文件）<br>![](screenshots/rightpanel-git.png) | 目标与子智能体中心（展开）<br>![](screenshots/composer-goal-subagents.png) |
-| 侧边聊天面板<br>![](screenshots/rightpanel-sidechat.png) | 侧边聊天（空状态）<br>![](screenshots/rightpanel-sidechat-empty.png) |
-| 文件面板<br>![](screenshots/rightpanel-files.png) | 聊天小地图悬停提示<br>![](screenshots/minimap-tooltip.png) |
-| 服务错误恢复队列<br>![](screenshots/service-error-recovery.png) | 聊天事件动作<br>![](screenshots/chat-event-actions-section.png) |
-| 聊天事件动作弹窗<br>![](screenshots/chat-event-actions-modals.png) | 计划器编辑对话框<br>![](screenshots/scheduler-edit-modal.png) |
-| 嵌入式终端（打开状态）<br>![](screenshots/embedded-terminal.png) | 主题色板 — 静态<br>![](screenshots/themepalette-static.png) |
-| 主题色板 — 流动<br>![](screenshots/themepalette-flowing.png) | 主题色板 — 动效<br>![](screenshots/themepalette-motion.png) |
-| 主题色板 — 字体<br>![](screenshots/themepalette-font.png) | 主题色板 — UI 字体缩放<br>![](screenshots/theme-palette-ui-scale-settings.png) |
-| 设置 — 界面与行为<br>![](screenshots/settings-interface-behavior.png) | 设置 — 安全与审批<br>![](screenshots/settings-safety-approvals.png) |
-| 设置 — AI 模型默认值<br>![](screenshots/settings-ai-model-defaults.png) | 设置 — 智能体与智能<br>![](screenshots/settings-agent-intelligence.png) |
-| 设置 — 智能体<br>![](screenshots/settings-agents.png) | 设置 — 扩展与工具<br>![](screenshots/settings-extensions-tools.png) |
-| 设置 — OMP 原生<br>![](screenshots/settings-omp-native.png) | 设置 — 远程访问<br>![](screenshots/settings-remote-access.png) |
-| 设置 — 技能中心<br>![](screenshots/settings-skill-hub.png) | 设置 — 系统与更新<br>![](screenshots/settings-system-updates.png) |
-| 设置 — 搜索<br>![](screenshots/settings-search.png) | 设置 — 诊断与恢复<br>![](screenshots/settings-diagnostics.png) |
-| 主题：Light（暖纸）<br>![](screenshots/screenshot-theme-light.png) | 主题：omp 午夜<br>![](screenshots/screenshot-theme-omp-midnight.png) |
-| 主题：燕麦拿铁<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | 主题：Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
-| 主题：Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | 主题：Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
-| 主题：单色（Codex）<br>![](screenshots/screenshot-theme-monochrome-codex.png) | 主题：Monokai Pro 日光<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
-| 主题：Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | 主题：Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| 主题：Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | 移动端：Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
-| 主题：Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | 主题：Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
-| 主题：OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | 主题：Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
-| 主题：Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | 主题：Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
-| 主题：Pine Forest<br>![](screenshots/screenshot-theme-pine.png) | 主题：Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) |
-| 主题：Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) | 主题：Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) |
-| 主题：Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) | 主题：Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) |
-| 主题：Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) | 主题：One Light<br>![](screenshots/screenshot-theme-one-light.png) |
-| 主题：One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) | 主题：Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) |
-| 主题：Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) | 主题：Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) |
-| 主题：Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) | 移动端：Light（暖纸）<br>![](screenshots/screenshot-theme-light-mobile.png) |
-| 移动端：Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) | 移动端：Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) |
-| 移动端：Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) | 移动端：OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) |
-| 移动端：Monochrome（Codex）<br>![](screenshots/screenshot-theme-codex-mobile.png) | 移动端：Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) |
-| 移动端：Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) | 移动端：Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) |
-| 移动端：Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) | 移动端：Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) |
-| 移动端：Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) | 移动端：Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) |
-| 移动端：Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) | 移动端：Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) |
-| 移动端：Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) | 移动端：Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) |
-| 移动端：Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) | 移动端：Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) |
-| 移动端：Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) | 移动端：omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) |
-| 移动端：One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) | 移动端：One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) |
-| 移动端：Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | 移动端：Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
-| 移动端：Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | 移动端：Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
-| 移动端：Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | 移动端：Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
+| 主工作区<br>![](screenshots/screenshot-main-workspace.png) | 紧凑枢纽栏（行布局）<br>![](screenshots/compact-hub-bars.png) |
+| 新会话编辑器<br>![](screenshots/new-session-composer.png) | 展开的处理详情（工具调用）<br>![](screenshots/chat-expanded-details.png) |
+| 编辑器任务面板<br>![](screenshots/composer-tasks-expanded.png) | 斜杠命令菜单<br>![](screenshots/slash-command-popover.png) |
+| 会话信息 / 上下文弹窗<br>![](screenshots/session-info-popover.png) | 命令面板<br>![](screenshots/command-palette.png) |
+| Git 图形模态框<br>![](screenshots/gitgraph-commit-log.png) | Git 图形 — 提交差异<br>![](screenshots/gitgraph-commit-diff.png) |
+| 文件查看器标签<br>![](screenshots/fileviewer-tab.png) | 会话列表（展开）<br>![](screenshots/sidebar-sessions-full.png) |
+| 归档会话浏览器<br>![](screenshots/archived-sessions.png) | 资源管理器（悬停 + 引用）<br>![](screenshots/explorer-hover-mention.png) |
+| 子智能体面板（任务）<br>![](screenshots/rightpanel-taskmanager.png) | Git 面板（更改的文件）<br>![](screenshots/rightpanel-git.png) |
+| 目标与子智能体中心（展开）<br>![](screenshots/composer-goal-subagents.png) | 侧边聊天面板<br>![](screenshots/rightpanel-sidechat.png) |
+| 侧边聊天（空状态）<br>![](screenshots/rightpanel-sidechat-empty.png) | 文件面板<br>![](screenshots/rightpanel-files.png) |
+| 聊天小地图悬停提示<br>![](screenshots/minimap-tooltip.png) | 服务错误恢复队列<br>![](screenshots/service-error-recovery.png) |
+| 聊天事件动作<br>![](screenshots/chat-event-actions-section.png) | 聊天事件动作弹窗<br>![](screenshots/chat-event-actions-modals.png) |
+| 计划器编辑对话框<br>![](screenshots/scheduler-edit-modal.png) | 嵌入式终端（打开状态）<br>![](screenshots/embedded-terminal.png) |
+| 主题色板 — 静态<br>![](screenshots/themepalette-static.png) | 主题色板 — 流动<br>![](screenshots/themepalette-flowing.png) |
+| 主题色板 — 动效<br>![](screenshots/themepalette-motion.png) | 主题色板 — 字体<br>![](screenshots/themepalette-font.png) |
+| 主题色板 — UI 字体缩放<br>![](screenshots/theme-palette-ui-scale-settings.png) | 设置 — 界面与行为<br>![](screenshots/settings-interface-behavior.png) |
+| 设置 — 安全与审批<br>![](screenshots/settings-safety-approvals.png) | 设置 — AI 模型默认值<br>![](screenshots/settings-ai-model-defaults.png) |
+| 设置 — 智能体与智能<br>![](screenshots/settings-agent-intelligence.png) | 设置 — 智能体<br>![](screenshots/settings-agents.png) |
+| 设置 — 扩展与工具<br>![](screenshots/settings-extensions-tools.png) | 设置 — OMP 原生<br>![](screenshots/settings-omp-native.png) |
+| 设置 — 远程访问<br>![](screenshots/settings-remote-access.png) | 设置 — 技能中心<br>![](screenshots/settings-skill-hub.png) |
+| 设置 — 系统与更新<br>![](screenshots/settings-system-updates.png) | 设置 — 搜索<br>![](screenshots/settings-search.png) |
+| 设置 — 诊断与恢复<br>![](screenshots/settings-diagnostics.png) | 主题：Light（暖纸）<br>![](screenshots/screenshot-theme-light.png) |
+| 主题：omp 午夜<br>![](screenshots/screenshot-theme-omp-midnight.png) | 主题：燕麦拿铁<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
+| 主题：Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | 主题：Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
+| 主题：Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | 主题：单色（Codex）<br>![](screenshots/screenshot-theme-monochrome-codex.png) |
+| 主题：Monokai Pro 日光<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) | 主题：Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) |
+| 主题：Harbor<br>![](screenshots/screenshot-theme-harbor.png) | 主题：Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) |
+| 移动端：Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) | 主题：Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) |
+| 主题：Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) | 主题：OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) |
+| 主题：Warm Ember<br>![](screenshots/screenshot-theme-dark.png) | 主题：Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) |
+| 主题：Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) | 主题：Pine Forest<br>![](screenshots/screenshot-theme-pine.png) |
+| 主题：Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) | 主题：Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) |
+| 主题：Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) | 主题：Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) |
+| 主题：Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) | 主题：Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) |
+| 主题：One Light<br>![](screenshots/screenshot-theme-one-light.png) | 主题：One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) |
+| 主题：Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) | 主题：Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) |
+| 主题：Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) | 主题：Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) |
+| 移动端：Light（暖纸）<br>![](screenshots/screenshot-theme-light-mobile.png) | 移动端：Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) |
+| 移动端：Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) | 移动端：Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) |
+| 移动端：OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) | 移动端：Monochrome（Codex）<br>![](screenshots/screenshot-theme-codex-mobile.png) |
+| 移动端：Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) | 移动端：Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) |
+| 移动端：Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) | 移动端：Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) |
+| 移动端：Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) | 移动端：Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) |
+| 移动端：Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) | 移动端：Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) |
+| 移动端：Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) | 移动端：Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) |
+| 移动端：Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) | 移动端：Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) |
+| 移动端：Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) | 移动端：Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) |
+| 移动端：omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) | 移动端：One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) |
+| 移动端：One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) | 移动端：Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) |
+| 移动端：Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) | 移动端：Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) |
+| 移动端：Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) | 移动端：Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) |
+| 移动端：Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |  |
 </details>
 
 ## 🐳 Docker 运行

@@ -19,57 +19,58 @@ ompweb provides a browser workspace for your local omp runtime: session browsing
 
 | | |
 | :---: | :---: |
-| Main workspace<br>![](screenshots/screenshot-main-workspace.png) | New-session composer<br>![](screenshots/new-session-composer.png) |
-| Expanded process details (tool calls)<br>![](screenshots/chat-expanded-details.png) | Composer task panel<br>![](screenshots/composer-tasks-expanded.png) |
-| Slash-command menu<br>![](screenshots/slash-command-popover.png) | Session-info / context popover<br>![](screenshots/session-info-popover.png) |
-| Command palette<br>![](screenshots/command-palette.png) | Git Graph modal<br>![](screenshots/gitgraph-commit-log.png) |
-| Git Graph — commit diff<br>![](screenshots/gitgraph-commit-diff.png) | File Viewer tab<br>![](screenshots/fileviewer-tab.png) |
-| Session list (expanded)<br>![](screenshots/sidebar-sessions-full.png) | Archived sessions browser<br>![](screenshots/archived-sessions.png) |
-| Explorer (hover + mention)<br>![](screenshots/explorer-hover-mention.png) | Sub-agents panel (Tasks)<br>![](screenshots/rightpanel-taskmanager.png) |
-| Git panel (changed files)<br>![](screenshots/rightpanel-git.png) | Goal & Subagents hub (expanded)<br>![](screenshots/composer-goal-subagents.png) |
-| Side chat panel<br>![](screenshots/rightpanel-sidechat.png) | Side chat (empty state)<br>![](screenshots/rightpanel-sidechat-empty.png) |
-| Files panel<br>![](screenshots/rightpanel-files.png) | Chat minimap hover tooltip<br>![](screenshots/minimap-tooltip.png) |
-| Service-error recovery queue<br>![](screenshots/service-error-recovery.png) | Chat event actions<br>![](screenshots/chat-event-actions-section.png) |
-| Chat events actions modals<br>![](screenshots/chat-event-actions-modals.png) | Scheduler edit dialog<br>![](screenshots/scheduler-edit-modal.png) |
-| Embedded terminal (open)<br>![](screenshots/embedded-terminal.png) | Theme Palette — Static<br>![](screenshots/themepalette-static.png) |
-| Theme Palette — Flowing<br>![](screenshots/themepalette-flowing.png) | Theme Palette — Motion<br>![](screenshots/themepalette-motion.png) |
-| Theme Palette — Font<br>![](screenshots/themepalette-font.png) | Theme Palette - UI Font Scale<br>![](screenshots/theme-palette-ui-scale-settings.png) |
-| Settings — Interface & Behavior<br>![](screenshots/settings-interface-behavior.png) | Settings — Safety & Approvals<br>![](screenshots/settings-safety-approvals.png) |
-| Settings — AI Model Defaults<br>![](screenshots/settings-ai-model-defaults.png) | Settings — Agent & Intelligence<br>![](screenshots/settings-agent-intelligence.png) |
-| Settings — Agents<br>![](screenshots/settings-agents.png) | Settings — Extensions & Tools<br>![](screenshots/settings-extensions-tools.png) |
-| Settings — OMP Native<br>![](screenshots/settings-omp-native.png) | Settings — Remote Access<br>![](screenshots/settings-remote-access.png) |
-| Settings — Skill Hub<br>![](screenshots/settings-skill-hub.png) | Settings — System & Updates<br>![](screenshots/settings-system-updates.png) |
-| Settings — search<br>![](screenshots/settings-search.png) | Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) |
-| Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) | Theme: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
-| Theme: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | Theme: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
-| Theme: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | Theme: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
-| Theme: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | Theme: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
-| Theme: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | Theme: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
-| Theme: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Mobile: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
-| Theme: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | Theme: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
-| Theme: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | Theme: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
-| Theme: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | Theme: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
-| Theme: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) | Theme: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) |
-| Theme: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) | Theme: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) |
-| Theme: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) | Theme: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) |
-| Theme: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) | Theme: One Light<br>![](screenshots/screenshot-theme-one-light.png) |
-| Theme: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) | Theme: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) |
-| Theme: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) | Theme: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) |
-| Theme: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) | Mobile: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light-mobile.png) |
-| Mobile: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) | Mobile: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) |
-| Mobile: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) | Mobile: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) |
-| Mobile: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) | Mobile: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) |
-| Mobile: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) | Mobile: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) |
-| Mobile: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) | Mobile: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) |
-| Mobile: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) | Mobile: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) |
-| Mobile: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) | Mobile: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) |
-| Mobile: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) | Mobile: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) |
-| Mobile: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) | Mobile: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) |
-| Mobile: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) | Mobile: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) |
-| Mobile: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) | Mobile: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) |
-| Mobile: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | Mobile: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
-| Mobile: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | Mobile: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
-| Mobile: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | Mobile: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
+| Main workspace<br>![](screenshots/screenshot-main-workspace.png) | Compact hub bars (row layout)<br>![](screenshots/compact-hub-bars.png) |
+| New-session composer<br>![](screenshots/new-session-composer.png) | Expanded process details (tool calls)<br>![](screenshots/chat-expanded-details.png) |
+| Composer task panel<br>![](screenshots/composer-tasks-expanded.png) | Slash-command menu<br>![](screenshots/slash-command-popover.png) |
+| Session-info / context popover<br>![](screenshots/session-info-popover.png) | Command palette<br>![](screenshots/command-palette.png) |
+| Git Graph modal<br>![](screenshots/gitgraph-commit-log.png) | Git Graph — commit diff<br>![](screenshots/gitgraph-commit-diff.png) |
+| File Viewer tab<br>![](screenshots/fileviewer-tab.png) | Session list (expanded)<br>![](screenshots/sidebar-sessions-full.png) |
+| Archived sessions browser<br>![](screenshots/archived-sessions.png) | Explorer (hover + mention)<br>![](screenshots/explorer-hover-mention.png) |
+| Sub-agents panel (Tasks)<br>![](screenshots/rightpanel-taskmanager.png) | Git panel (changed files)<br>![](screenshots/rightpanel-git.png) |
+| Goal & Subagents hub (expanded)<br>![](screenshots/composer-goal-subagents.png) | Side chat panel<br>![](screenshots/rightpanel-sidechat.png) |
+| Side chat (empty state)<br>![](screenshots/rightpanel-sidechat-empty.png) | Files panel<br>![](screenshots/rightpanel-files.png) |
+| Chat minimap hover tooltip<br>![](screenshots/minimap-tooltip.png) | Service-error recovery queue<br>![](screenshots/service-error-recovery.png) |
+| Chat event actions<br>![](screenshots/chat-event-actions-section.png) | Chat events actions modals<br>![](screenshots/chat-event-actions-modals.png) |
+| Scheduler edit dialog<br>![](screenshots/scheduler-edit-modal.png) | Embedded terminal (open)<br>![](screenshots/embedded-terminal.png) |
+| Theme Palette — Static<br>![](screenshots/themepalette-static.png) | Theme Palette — Flowing<br>![](screenshots/themepalette-flowing.png) |
+| Theme Palette — Motion<br>![](screenshots/themepalette-motion.png) | Theme Palette — Font<br>![](screenshots/themepalette-font.png) |
+| Theme Palette - UI Font Scale<br>![](screenshots/theme-palette-ui-scale-settings.png) | Settings — Interface & Behavior<br>![](screenshots/settings-interface-behavior.png) |
+| Settings — Safety & Approvals<br>![](screenshots/settings-safety-approvals.png) | Settings — AI Model Defaults<br>![](screenshots/settings-ai-model-defaults.png) |
+| Settings — Agent & Intelligence<br>![](screenshots/settings-agent-intelligence.png) | Settings — Agents<br>![](screenshots/settings-agents.png) |
+| Settings — Extensions & Tools<br>![](screenshots/settings-extensions-tools.png) | Settings — OMP Native<br>![](screenshots/settings-omp-native.png) |
+| Settings — Remote Access<br>![](screenshots/settings-remote-access.png) | Settings — Skill Hub<br>![](screenshots/settings-skill-hub.png) |
+| Settings — System & Updates<br>![](screenshots/settings-system-updates.png) | Settings — search<br>![](screenshots/settings-search.png) |
+| Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) | Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
+| Theme: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | Theme: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
+| Theme: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | Theme: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
+| Theme: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | Theme: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |
+| Theme: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) | Theme: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) |
+| Theme: Harbor<br>![](screenshots/screenshot-theme-harbor.png) | Theme: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) |
+| Mobile: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) | Theme: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) |
+| Theme: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) | Theme: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) |
+| Theme: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) | Theme: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) |
+| Theme: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) | Theme: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) |
+| Theme: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) | Theme: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) |
+| Theme: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) | Theme: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) |
+| Theme: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) | Theme: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) |
+| Theme: One Light<br>![](screenshots/screenshot-theme-one-light.png) | Theme: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) |
+| Theme: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) | Theme: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) |
+| Theme: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) | Theme: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) |
+| Mobile: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light-mobile.png) | Mobile: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) |
+| Mobile: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) | Mobile: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) |
+| Mobile: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) | Mobile: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) |
+| Mobile: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) | Mobile: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) |
+| Mobile: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) | Mobile: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) |
+| Mobile: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) | Mobile: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) |
+| Mobile: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) | Mobile: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) |
+| Mobile: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) | Mobile: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) |
+| Mobile: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) | Mobile: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) |
+| Mobile: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) | Mobile: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) |
+| Mobile: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) | Mobile: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) |
+| Mobile: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) | Mobile: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) |
+| Mobile: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) | Mobile: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) |
+| Mobile: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) | Mobile: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) |
+| Mobile: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |  |
 </details>
 
 ## 🐳 Running in Docker
