@@ -2312,11 +2312,16 @@ export function AppShell() {
               </PanelErrorBoundary>
             )}
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
+            onClose={isMobile ? () => setRightPanelOpen(false) : undefined}
           />
         </div>
       {/* File panel toggle — fixed at top-right; when the panels are swapped
-          it moves inline to the top-left of the top bar instead. */}
-      {!panelsSwappedActive && !isMobile && (
+          it moves inline to the top-left of the top bar instead. On mobile it
+          doubles as the collapse control: it stays visible while the left
+          drawer is closed (the drawer would cover the fixed button while open)
+          and toggles the right panel open/closed; the open panel additionally
+          carries its own in-panel close button (RightWorkbench onClose). */}
+      {!panelsSwappedActive && (!isMobile || !sidebarOpen) && (
         <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
           <button
           onClick={toggleFilePanel}
