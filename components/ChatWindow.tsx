@@ -161,9 +161,8 @@ function withAssistantBlocks(
   return next;
 }
 
-function ProcessDetailsGroup({ messageCount, toolCallCount, autoExpand = false, children }: { messageCount: number; toolCallCount: number; autoExpand?: boolean; children: ReactNode }) {
+function ProcessDetailsGroup({ messageCount, toolCallCount, expanded, onToggle, children }: { messageCount: number; toolCallCount: number; expanded: boolean; onToggle: (expanded: boolean) => void; children: ReactNode }) {
   const { t, tn } = useI18n();
-  const [expanded, setExpanded] = useState(autoExpand);
   const parts = [t("chatWindow.processDetails"), tn("chatWindow.messageCount", messageCount)];
   if (toolCallCount > 0) parts.push(tn("chatWindow.toolCallCount", toolCallCount));
 
@@ -173,7 +172,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, autoExpand = false, 
         <button
         type="button"
         aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => onToggle(!expanded)}
         className="process-details-toggle"
       >
         <ChevronDown
@@ -244,6 +243,15 @@ const CommittedTranscript = memo(function CommittedTranscript({
   toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
+  // The user's expand/collapse choice per process-details group, keyed by the
+  // anchor entry id. Lifted out of ProcessDetailsGroup's local state so a
+  // group the user expanded cannot be silently re-collapsed when it is
+  // remounted (virtual-window recycling, a transcript reload from an
+  // external file write, or a live-tail ↔ process-group switch).
+  const [processExpanded, setProcessExpanded] = useState<Record<string, boolean>>({});
+  const handleProcessToggle = useCallback((key: string, next: boolean) => {
+    setProcessExpanded((prev) => (prev[key] === next ? prev : { ...prev, [key]: next }));
+  }, []);
   // omp's `branch` command accepts a user entry only, so every row forks at the
   // user prompt that started its turn.
   const forkEntryIds = useMemo(
@@ -492,7 +500,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
         ? [userIdx, ...processIndices, finalAssistantIdx, ...tailIndices]
         : [userIdx, ...processIndices, ...tailIndices];
       return (
-        <Fragment key={"g-" + userIdx}>
+        <Fragment key={"g-" + (entryIds[userIdx] ?? userIdx)}>
           {liveIndices.map((i) => renderMessage(i))}
         </Fragment>
       );
@@ -511,6 +519,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     const finalAnswerMessage = finalSplit.answerBlocks.length > 0
       ? withAssistantBlocks(finalAssistant, finalSplit.answerBlocks)
       : null;
+    const processGroupKey = entryIds[userIdx] ?? String(userIdx);
     const processCount = visibleProcessIndices.length + (finalProcessMessage ? 1 : 0);
     if (processCount > 0) {
       const processRefIdx = visibleProcessIndices
@@ -519,13 +528,14 @@ const CommittedTranscript = memo(function CommittedTranscript({
         ?? (finalAnswerMessage ? undefined : visibleRefIndexByMessage.get(finalAssistantIdx));
       nodes.push(
         <div
-          key={"process-group-" + userIdx + "-" + finalAssistantIdx}
+          key={"process-group-" + (entryIds[userIdx] ?? userIdx)}
           ref={processRefIdx === undefined ? undefined : (el) => { messageRefs.current[processRefIdx] = el; }}
         >
           <ProcessDetailsGroup
             messageCount={processCount}
             toolCallCount={countToolCalls(messages, visibleProcessIndices) + countToolCallBlocks(finalSplit.processBlocks)}
-            autoExpand={groupIndex === autoExpandGroupIndex}
+            expanded={processExpanded[processGroupKey] ?? (groupIndex === autoExpandGroupIndex)}
+            onToggle={(next) => handleProcessToggle(processGroupKey, next)}
           >
             {visibleProcessIndices.map((i) => renderMessage(i, { attachRef: false, keyPrefix: "process" }))}
             {finalProcessMessage && renderMessage(finalAssistantIdx, { attachRef: false, keyPrefix: "process-final", messageOverride: finalProcessMessage, showTimestamp: false })}
@@ -536,7 +546,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     if (finalAnswerMessage) nodes.push(renderMessage(finalAssistantIdx, { messageOverride: finalAnswerMessage }));
     else if (finalAssistantError) nodes.push(renderMessage(finalAssistantIdx));
     for (const i of tailIndices) nodes.push(renderMessage(i));
-    return <Fragment key={"g-" + userIdx}>{nodes}</Fragment>;
+    return <Fragment key={"g-" + (entryIds[userIdx] ?? userIdx)}>{nodes}</Fragment>;
   };
 
   // 窗口内组 → JSX；上下 spacer 撑起完整滚动条（双向回收 DOM）。
@@ -548,7 +558,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
   const windowGroups: ReactNode[] = [];
   for (let g = win.startGroup; g < win.endGroup; g++) {
     windowGroups.push(
-      <div key={virtualKeyPrefix + "-vg-" + g} data-vg={g} data-committed="true" ref={attachGroupRef(g)}>
+      <div key={virtualKeyPrefix + "-vg-" + (entryIds[groups[g].userIdx] ?? g)} data-vg={g} data-committed="true" ref={attachGroupRef(g)}>
         {renderGroup(groups[g], g)}
       </div>,
     );

@@ -20,7 +20,10 @@ test("virtual transcript removes recycled observer targets and keeps callbacks s
 
 test("virtual group DOM is never reused across different sessions", () => {
   assert.match(transcript, /const virtualKeyPrefix = sessionId \?\? "new-session"/);
-  assert.match(transcript, /key=\{virtualKeyPrefix \+ "-vg-" \+ g\}/);
+  // Keyed by the anchor entry id (session-scoped), falling back to the group
+  // index, so groups are stable across index shifts yet never shared across
+  // sessions.
+  assert.match(transcript, /key=\{virtualKeyPrefix \+ "-vg-" \+ \(entryIds\[groups\[g\]\.userIdx\] \?\? g\)\}/);
 });
 
 test("the complete virtual transcript remounts on a sidebar session switch", () => {
