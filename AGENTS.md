@@ -114,6 +114,40 @@ host then won't boot and the card shows "未就绪/Unavailable" (binary missing,
 
 ---
 
+## Long sessions: avoiding re-verification loops
+
+ompweb tasks (especially multi-fix bug sessions) easily outlive the ~200 k
+context window. One 17-hour bug-fixing session compacted 32 times, and every
+compaction archive instructs the agent to *re-derive from the workspace
+(re-read files, re-run commands)* rather than guess. That is correct for code
+state, but without a durable record of what is already done it turns "I
+verified X" into "re-verify X" — observed: one fix re-checked 20+ times across
+hours, one test file re-run 55×, the full suite 65×, the dev server restarted
+122×.
+
+Rules:
+
+- **Commit as you go.** As soon as a fix is implemented and verified (tests
+  pass, browser check confirmed), commit it in its own commit. `git log` +
+  `git status` becomes the durable "done" ledger that survives every
+  compaction and server restart. After a compaction or restart, check the git
+  state first — never re-do or re-verify work that is already committed and
+  green unless its inputs changed.
+- **Before re-running any verification** (E2E, browser check, full test
+  suite), confirm the inputs changed since the last run (code edit, server
+  restart, config change). Same inputs → the previous result is still valid;
+  skip the re-run.
+- **E2E restart tests must not kill the server hosting the current agent
+  session.** Killing it (e.g. `pkill -f "next dev"`) interrupts the running
+  turn, triggers a "server restarted — continue from persisted context"
+  re-establishment, and restarts the whole re-verification cycle. Run
+  restart tests against a throwaway instance on a non-sibling port (see the
+  `ompweb-dev` skill, "E2E / restart testing").
+- **Keep a progress ledger in the todo list.** Mark items with explicit
+  completion evidence ("verified in browser 15:32", "tests green", "committed
+  as `abc123`") so the todo itself carries the proof across compactions, not
+  just the task name.
+
 ## Architecture
 
 omp-web never imports `@oh-my-pi/*` or `@earendil-works/*` packages (they are
@@ -303,6 +337,17 @@ handled or safely ignored.
 - `GET /api/sessions/[id]/state` reports `external: true` when the file had a recent write (90 s `EXTERNAL_ACTIVITY_WINDOW_MS`) or a live holder has a turn in flight. "Turn in flight" = the last committed `message` entry is a user/toolResult (model generating) or an assistant with a pending toolCall. Idle holders (a terminal waiting for input, a leftover child after its turn finished) end on a final assistant message and must not keep the session "running" forever.
 - Client (`useAgentSession` `enterExternalMode`): external sessions render as running (Stop button, "running in an external omp terminal" notice), never attach a per-session RPC stream or registry reconcile, and a 10 s poller reclaims to idle once the file is quiet and the committed tail is final. The session-file watcher re-enters external mode on the next write (which also reloads via `loadContext(sid, null, true)` so an open pre-compaction view survives external writes).
 - The session-file watcher uses per-directory non-recursive inotify watches (one per project dir, lazily added with a one-shot resync). Node's recursive `fs.watch` lstats every directory entry on folder events, which raises an uncaught EIO on WSL2/9p (dentry race on transient `.jsonl.lock` files) and killed the server. `instrumentation.ts` additionally suppresses exactly those errors.
+
+### `instrumentation.ts` — edge-runtime import trap
+- `instrumentation.ts` is bundled for **both** Node and Edge runtimes. A static
+  top-level `import` of a Node-only module (e.g. `@/lib/rpc-manager`, which
+  pulls `child_process`/`fs`/the RPC protocol) forces it into the edge
+  bundle; Turbopack then fails the edge build on every request and loops in
+  continuous rebuilds — the dev log balloons to hundreds of MB and page
+  hydration takes minutes, producing false "page never hydrated" E2E failures
+  that look like an app bug but are an environment bug. All Node-only imports
+  in this file MUST be dynamic `await import()` calls inside the
+  `NEXT_RUNTIME === "nodejs"` guard (the file-header comment enforces this).
 
 ### Process-details group stability (`components/ChatWindow.tsx`)
 - "Process details" groups key their React `key` on the anchor entry id (`process-group-<entryId>`) — never on the message index or the final-assistant index — because the group grows as new tool calls commit mid-turn and index-based keys remount it, silently resetting the user's expanded state. Expansion state lives in `CommittedTranscript.processExpanded` keyed by anchor id, so it survives remounts and virtual-window recycling. An in-flight turn renders as the visible live tail, not a collapsed group.

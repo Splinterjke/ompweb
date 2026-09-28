@@ -106,6 +106,63 @@ npm run dev
 - **Docker/compose rebuild** (bound repo): run the `ompweb-rebuild-restart.sh` scheduler (Settings → Script schedulers, manual launch) — it rebuilds and redeploys, then a page refresh picks up the new build.
 - After any restart, `instrumentation.ts` restores active RPC sessions from disk, so open sessions re-attach automatically.
 
+## E2E / restart testing
+
+### Do not kill the server that hosts your agent session
+
+The most expensive mistake in a long dev session: an E2E test that `kill -9`s
+the dev server your own agent session is connected to. The turn is interrupted
+mid-flight, the next turn opens with "the omp-web server restarted while your
+previous turn was active — continue, do not repeat completed side effects",
+and the agent re-establishes state (server up? login? git state? which edits
+are applied?) and re-verifies everything. In one 17-hour session this cycle
+repeated 10+ times (122 dev-server starts, 13 `pkill`s, 72 re-logins, 35
+restart-test script runs) and was the single largest time sink.
+
+**Instead:**
+
+1. **Run restart tests against a throwaway instance** on a port **outside**
+   `SIBLING_PORTS` (30177/30178/30179) — the launcher probes those and will
+   adopt or compete with a test instance sitting on them. Reuse the hosting
+   server's env (read it with `tr '\0' '\n' < /proc/<next-server-pid>/environ |
+   grep -E 'OMP_|OMPWEB_'`), then:
+   ```bash
+   env <the above vars> node --require ./bin/request-peer-preload.js \
+     ./node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 30180 \
+     > /tmp/dev-e2e.log 2>&1 &
+   E2E_PID=$!
+   ```
+   Kill **only** `$E2E_PID` (or its process tree, by PID). NEVER
+   `pkill -f "next dev"` — it hits every dev server on the machine, including
+   the one hosting your session.
+2. **Batch the whole E2E into one script, run once, in the background.**
+   Write the full flow (start turn → wait until it streams → kill → restart →
+   poll until up → verify state) as a single shell script and launch it as a
+   background job; wait for its result instead of iterating the kill-restart
+   cycle interactively. Each interactive round costs a full turn plus
+   re-establishment.
+3. **Use a dedicated `chrome-agent` browser profile** for the E2E
+   (e.g. `--browser e2e`) so the script and your manual checks don't fight
+   over one page.
+4. **Wait for hydration before interacting.** On WSL2 + Turbopack the page
+   can take 1–2 minutes to hydrate. Poll for the expected element (Send/Stop
+   button) with a generous timeout before declaring "page never hydrated".
+5. **Parse `chrome-agent --json` output as JSON** — it is double-escaped;
+   `grep` for unescaped strings will never match. Pipe through
+   `python3 -c "import json,sys; …"` or `jq`.
+6. **After a server restart the browser session cookie is stale** — re-login
+   in the browser profile; a `curl` cookie jar does not carry over.
+
+### Edge-bundle rebuild loop (minutes-long hydration, huge logs)
+
+If the dev server log grows rapidly (100+ MB in minutes) and pages take
+minutes to hydrate, suspect a **Node-only static import in
+`instrumentation.ts`** (see AGENTS.md, "instrumentation.ts — edge-runtime
+import trap"): Turbopack fails the edge bundle on every request and rebuilds
+forever. This produces false "page never hydrated" E2E failures that look
+like an app bug but are an environment bug — check the import before
+concluding the app is broken.
+
 ## Quick pre-flight checklist
 
 1. Port: dev = **30178**, `npm run start` = **30177**, compose = **6767**.
