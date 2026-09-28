@@ -240,7 +240,6 @@ export function RightWorkbench({
   agents,
   requestedView,
   onOpenFile,
-  onClose,
 }: {
   storageKey?: string;
   cwd: string | null;
@@ -248,8 +247,6 @@ export function RightWorkbench({
   agents: ReactNode;
   requestedView?: { view: WorkbenchView; nonce: number } | null;
   onOpenFile?: (filePath: string, fileName: string) => void;
-  /** Collapse the full-width mobile panel from inside (AppShell passes it only on mobile). */
-  onClose?: () => void;
 }) {
   const { t } = useI18n();
   const [layout, setLayout] = useState<Layout>(emptyLayout);
@@ -414,18 +411,6 @@ export function RightWorkbench({
         <Split size={14} aria-hidden="true" />
       </button>
       </Tooltip>
-      {onClose && (
-        <Tooltip content={t("appShell.hideFilePanel")}>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("appShell.hideFilePanel")}
-            style={{ display: "grid", placeItems: "center", width: 26, height: 26, flexShrink: 0, border: 0, borderRadius: 5, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
-        </Tooltip>
-      )}
       {menuOpen && <div data-right-workbench-menu role="menu" style={{ position: "fixed", left: menuPosition.left, top: menuPosition.top, zIndex: 1000, minWidth: 150, padding: 5, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", boxShadow: "var(--shadow-pop)" }}>{actions.map((view) => { const Icon = VIEW_META[view].icon; return <Tooltip key={view} content={labelFor(t, view)}>
         <button type="button" role="menuitem" onClick={() => { openView(view); setMenuOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", border: 0, borderRadius: 5, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}><Icon size={14} style={{ color: "var(--accent)" }} aria-hidden="true" />{labelFor(t, view)}</button>
       </Tooltip>; })}</div>}
