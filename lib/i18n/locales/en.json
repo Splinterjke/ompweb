@@ -259,7 +259,6 @@
   "chatInput.disableSound": "Disable completion sound",
   "chatInput.advisorEnableTitle": "Enable advisor for this chat",
   "chatInput.advisorDisableTitle": "Advisor: {model} ({reasoning}) — click to disable",
-  "chatInput.advisorEnabledTitle": "Advisor enabled · {model} ({reasoning})",
   "chatInput.advisorReasoningDefault": "model default",
   "chatInput.enableSound": "Enable completion sound",
   "chatInput.filesHeader": "Files · {countLabel}",

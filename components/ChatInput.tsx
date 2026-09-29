@@ -2980,21 +2980,23 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
             <div style={{ flex: 1 }} />
 
-            {/* Advisor — visible while enabled for this chat; lit while it reviews the running turn */}
+            {/* Advisor — visible while enabled for this chat; lit while it reviews the running turn; click to toggle */}
             {(advisorEnabled || advisorActive) && (
-              <Tooltip content={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorEnabledTitle", {
+              <Tooltip content={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorDisableTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
                 })}>
-                <span
-                aria-label={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorEnabledTitle", {
+                <button
+                type="button"
+                onClick={() => onAdvisorChange?.(!advisorEnabled)}
+                aria-label={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorDisableTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
                 })}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, flexShrink: 0, color: advisorActive ? "var(--accent)" : "var(--text-muted)" }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, flexShrink: 0, padding: 0, border: "none", background: "none", cursor: "pointer", color: advisorActive ? "var(--accent)" : "var(--text-muted)" }}
               >
                 <Zap size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-              </span>
+              </button>
               </Tooltip>
             )}
 

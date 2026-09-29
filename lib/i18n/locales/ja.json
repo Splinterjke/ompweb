@@ -254,7 +254,6 @@
   "chatInput.disableSound": "完了音を無効にする",
   "chatInput.advisorEnableTitle": "このチャットでアドバイザーを有効にする",
   "chatInput.advisorDisableTitle": "アドバイザー：{model}（{reasoning}）— クリックで無効化",
-  "chatInput.advisorEnabledTitle": "アドバイザー有効 · {model}（{reasoning}）",
   "chatInput.advisorReasoningDefault": "モデルのデフォルト",
   "chatInput.enableSound": "完了音を有効にする",
   "chatInput.filesHeader": "ファイル · {countLabel}",

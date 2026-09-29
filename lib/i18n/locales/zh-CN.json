@@ -254,7 +254,6 @@
   "chatInput.disableSound": "关闭完成提示音",
   "chatInput.advisorEnableTitle": "在此对话中启用顾问",
   "chatInput.advisorDisableTitle": "顾问：{model}（{reasoning}）— 点击禁用",
-  "chatInput.advisorEnabledTitle": "顾问已启用 · {model}（{reasoning}）",
   "chatInput.advisorReasoningDefault": "模型默认",
   "chatInput.enableSound": "开启完成提示音",
   "chatInput.filesHeader": "文件 · {countLabel}",

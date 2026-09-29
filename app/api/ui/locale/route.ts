@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUiLocale, isUiLocale, setUiLocale, UI_LOCALES } from "@/lib/ui-locale";
+import { getUiLocale, isUiLocale, persistUiLocale, setUiLocale, UI_LOCALES } from "@/lib/ui-locale";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 // chat-action variable) match the UI. Loopback-gated like the other /api/ui
 // routes is not needed: the value is only used to pick a translation string,
 // and the auth middleware gates /api/* when a password is set.
+// Persisted to ~/.omp/agent/ui-locale.json so the choice survives server
+// restarts (the in-process mirror alone would reset to "en").
 
 export function GET() {
   return NextResponse.json({ locale: getUiLocale() });
@@ -29,5 +31,6 @@ export async function PUT(req: Request) {
     );
   }
   setUiLocale(locale);
+  persistUiLocale(locale);
   return NextResponse.json({ locale });
 }
