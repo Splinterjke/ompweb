@@ -3,7 +3,7 @@
   "files": {
     "app/remote/page.tsx": 1,
     "components/AgentsConfig.tsx": 5,
-    "components/AppShell.tsx": 12,
+    "components/AppShell.tsx": 13,
     "components/ArchiveBrowser.tsx": 2,
     "components/BackendDiagnostics.tsx": 12,
     "components/ChatInput.tsx": 4,

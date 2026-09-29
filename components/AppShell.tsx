@@ -36,10 +36,12 @@ import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText }
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import { showBrowserNotification, showCompletionNotification } from "@/lib/browser-notifications";
-import type { ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
+import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SubagentInfo } from "@/hooks/useAgentSession";
+import { runHostTool } from "@/hooks/useAgentSession";
+import { sendAgentCommand } from "@/lib/agent-client";
 import type { SettingsTab } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
 import { ArchiveBrowser } from "./ArchiveBrowser";
@@ -60,6 +62,7 @@ const FileViewer = dynamic(() => import("./FileViewer").then((m) => m.FileViewer
 // --sidebar-width CSS variable (globals.css) and persisted between sessions.
 const SIDEBAR_WIDTH_STORAGE_KEY = "omp-web:sidebar-width";
 const TOOL_CALLS_COLLAPSED_STORAGE_KEY = "omp-web:tool-calls-collapsed";
+const OPEN_URL_AUTOMATICALLY_STORAGE_KEY = "omp-web:open-url-automatically";
 const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
 const EXTENDED_THINKING_BLOCK_STORAGE_KEY = "omp-web:extended-thinking-block";
 const EXTENDED_BLOCKS_STORAGE_KEY = "omp-web:extended-detail-blocks";
@@ -200,6 +203,7 @@ export function AppShell() {
     return GIT_GRAPH_SIZE_PRESETS.includes(clamped) ? clamped : GIT_GRAPH_DEFAULT_SIZE;
   });
   const [toolCallsDefaultCollapsed, setToolCallsDefaultCollapsed] = useState(true);
+  const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
   const [thinkingDisplayMode, setThinkingDisplayMode] = useState<ThinkingDisplayMode>("auto");
   const [extendedThinkingBlock, setExtendedThinkingBlock] = useState(false);
   const [extendedBlocks, setExtendedBlocks] = useState(false);
@@ -377,6 +381,11 @@ export function AppShell() {
       // Keep the compact default when storage is unavailable.
     }
     try {
+      setOpenUrlAutomatically(window.localStorage.getItem(OPEN_URL_AUTOMATICALLY_STORAGE_KEY) === "true");
+    } catch {
+      // Keep the default when storage is unavailable.
+    }
+    try {
       const savedThinkingMode = window.localStorage.getItem(THINKING_DISPLAY_MODE_STORAGE_KEY);
       if (savedThinkingMode === "collapsed" || savedThinkingMode === "expanded" || savedThinkingMode === "auto") {
         setThinkingDisplayMode(savedThinkingMode);
@@ -406,6 +415,14 @@ export function AppShell() {
     setToolCallsDefaultCollapsed(collapsed);
     try {
       window.localStorage.setItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY, String(collapsed));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleOpenUrlAutomaticallyChange = useCallback((enabled: boolean) => {
+    setOpenUrlAutomatically(enabled);
+    try {
+      window.localStorage.setItem(OPEN_URL_AUTOMATICALLY_STORAGE_KEY, String(enabled));
     } catch {
       // The preference still applies for this page load.
     }
@@ -1366,6 +1383,69 @@ export function AppShell() {
   const handleOpenLinkedFile = useCallback((filePath: string) => {
     handleOpenFile(filePath, getFileName(filePath), selectedSession?.id ?? null);
   }, [handleOpenFile, selectedSession?.id]);
+  // Agent open requests that wait for the user. URLs always ask unless the
+  // user opted into opening links from the viewed session automatically; URLs
+  // and files from a session this tab is not viewing always ask, so they cannot
+  // take over the current view. The click is also the user gesture that lets
+  // the new tab through pop-up blockers.
+  const [pendingOpens, setPendingOpens] = useState<Array<{ kind: "url" | "file"; target: string; name: string; sessionId: string; crossSession: boolean }>>([]);
+  const pendingOpen = pendingOpens[0] ?? null;
+  // Keep the last request on screen while the dialog animates closed.
+  const shownOpenRef = useRef(pendingOpen);
+  if (pendingOpen) shownOpenRef.current = pendingOpen;
+  const shownOpen = pendingOpen ?? shownOpenRef.current;
+  const dismissPendingOpen = useCallback(() => setPendingOpens((queue) => queue.slice(1)), []);
+  const requestOpenUrl = useCallback((url: string, sessionId: string, crossSession: boolean): string => {
+    if (!crossSession && openUrlAutomatically) {
+      window.open(url, "_blank", "noopener,noreferrer")?.focus?.();
+      return `Opened ${url}`;
+    }
+    setPendingOpens((queue) => [...queue, { kind: "url", target: url, name: url, sessionId, crossSession }]);
+    return crossSession
+      ? `Asked the user to confirm opening ${url}; they are viewing another omp-web session.`
+      : `Asked the user to confirm opening ${url}.`;
+  }, [openUrlAutomatically]);
+  const handleSessionOpenUrl = useCallback((url: string) => requestOpenUrl(url, selectedSession?.id ?? "", false), [requestOpenUrl, selectedSession?.id]);
+  const handleCrossSessionHostTool = useCallback(async (call: CrossSessionHostToolCall) => {
+    // Full-page Settings hides the chat, so its session counts as not viewed.
+    const viewing = call.sessionId === selectedSession?.id && !settingsTab;
+    const { text, isError } = await runHostTool(call.toolName, call.arguments, {
+      openUrl: (url) => requestOpenUrl(url, call.sessionId, !viewing),
+      openFile: (path, name) => {
+        if (viewing) return handleOpenFile(path, name, call.sessionId);
+        setPendingOpens((queue) => [...queue, { kind: "file", target: path, name, sessionId: call.sessionId, crossSession: true }]);
+        return `Asked the user to confirm opening ${path}; they are viewing another omp-web session.`;
+      },
+    });
+    try {
+      await sendAgentCommand(call.sessionId, {
+        type: "host_tool_result",
+        id: call.id,
+        isError,
+        result: { content: [{ type: "text", text }] },
+      });
+    } catch (e) {
+      console.error("Failed to send host tool result:", e);
+    }
+  }, [handleOpenFile, requestOpenUrl, selectedSession?.id, settingsTab]);
+  const crossSessionHostToolRef = useRef(handleCrossSessionHostTool);
+  useEffect(() => { crossSessionHostToolRef.current = handleCrossSessionHostTool; }, [handleCrossSessionHostTool]);
+  useEffect(() => {
+    // Mounted with the shell (not the sidebar) so it keeps listening on the
+    // full-page Settings view too.
+    const source = new EventSource("/api/agent/host-tools/events");
+    source.onmessage = (e) => {
+      try {
+        const call = JSON.parse(e.data) as CrossSessionHostToolCall & { type?: string };
+        if (call.type === "host_tool_call" && call.sessionId && call.id && call.toolName) {
+          void crossSessionHostToolRef.current({ sessionId: call.sessionId, id: call.id, toolName: call.toolName, arguments: call.arguments ?? {} });
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    };
+    return () => source.close();
+  }, []);
 
   const handleOpenGitTab = useCallback(() => {
     setWorkbenchRequestedView({ view: "git", nonce: Date.now() });
@@ -1623,6 +1703,23 @@ export function AppShell() {
       cancelLabel={t("appShell.exitStay")}
       danger
       onConfirm={sidebarHistory.leave}
+    />
+    <ConfirmDialog
+      open={pendingOpen !== null}
+      onOpenChange={(open) => { if (!open) dismissPendingOpen(); }}
+      title={t(shownOpen?.kind === "file" ? "appShell.openFileTitle" : shownOpen?.crossSession ? "appShell.openUrlTitle" : "appShell.openUrlSameSessionTitle")}
+      description={t(shownOpen?.crossSession ? "appShell.openUrlDescription" : "appShell.openUrlSameSessionDescription", { url: shownOpen?.target ?? "" })}
+      confirmLabel={t("appShell.openUrlConfirm")}
+      cancelLabel={t("appShell.openUrlCancel")}
+      onConfirm={() => {
+        if (pendingOpen?.kind === "url") window.open(pendingOpen.target, "_blank", "noopener,noreferrer");
+        else if (pendingOpen) {
+          // The file panel is hidden behind full-page Settings.
+          setSettingsTab(null);
+          handleOpenFile(pendingOpen.target, pendingOpen.name, pendingOpen.sessionId);
+        }
+        dismissPendingOpen();
+      }}
     />
     <style>{`
       @keyframes session-info-pop {
@@ -2137,6 +2234,7 @@ export function AppShell() {
               modelsRefreshKey={modelsRefreshKey}
               chatInputRef={chatInputRef}
               onOpenFile={handleOpenLinkedFile}
+              onOpenUrl={handleSessionOpenUrl}
               onBranchDataChange={handleBranchDataChange}
               onSystemPromptChange={handleSystemPromptChange}
               onSystemPromptLoaderChange={handleSystemPromptLoaderChange}
@@ -2344,7 +2442,54 @@ export function AppShell() {
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
-    {settingsTab && <SettingsConfig activeTab={settingsTab} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange} thinkingDisplayMode={thinkingDisplayMode} onThinkingDisplayModeChange={handleThinkingDisplayModeChange} extendedThinkingBlock={extendedThinkingBlock} onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange} extendedBlocks={extendedBlocks} onExtendedBlocksChange={handleExtendedBlocksChange} gitGraphModalSize={gitGraphModalSize} onGitGraphModalSizeChange={handleGitGraphModalSizeChange} sessionInfoButtonVisible={sessionInfoButtonVisible} onSessionInfoButtonChange={handleSessionInfoButtonChange} showJumpToBottomButton={showJumpToBottomButton} onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange} toolOutputCapEnabled={toolOutputCapEnabled} onToolOutputCapChange={handleToolOutputCapChange} thinkingAutoFollowEnabled={thinkingAutoFollowEnabled} onThinkingAutoFollowChange={handleThinkingAutoFollowChange} messageActionsVisible={messageActionsVisible} onMessageActionsVisibleChange={handleMessageActionsVisibleChange} processDetailsAutoExpand={processDetailsAutoExpand} onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange} messageTimeFormat={messageTimeFormat} onMessageTimeFormatChange={handleMessageTimeFormatChange} panelsSwapped={panelsSwapped} onPanelsSwappedChange={handlePanelsSwappedChange} gitStatsPlacement={gitStatsPlacement} onGitStatsPlacementChange={handleGitStatsPlacementChange} hubBarLayout={hubBarLayout} onHubBarLayoutChange={handleHubBarLayoutChange} hubBarsVisible={hubBarsVisible} onHubBarsVisibleChange={handleHubBarsVisibleChange} composerAccentBg={composerAccentBg} onComposerAccentBgChange={handleComposerAccentBgChange} cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sessionId={selectedSession?.id ?? null} onModelsSaved={() => setModelsRefreshKey((k) => k + 1)} onPluginsReloaded={() => setSessionKey((k) => k + 1)} onOmpUpdateAvailabilityChange={setOmpUpdateAvailable} onSelectTab={setSettingsTab} onClose={() => setSettingsTab(null)} />}
+    {settingsTab && (
+      <SettingsConfig
+        activeTab={settingsTab}
+        toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+        onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange}
+        thinkingDisplayMode={thinkingDisplayMode}
+        onThinkingDisplayModeChange={handleThinkingDisplayModeChange}
+        extendedThinkingBlock={extendedThinkingBlock}
+        onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange}
+        extendedBlocks={extendedBlocks}
+        onExtendedBlocksChange={handleExtendedBlocksChange}
+        gitGraphModalSize={gitGraphModalSize}
+        onGitGraphModalSizeChange={handleGitGraphModalSizeChange}
+        sessionInfoButtonVisible={sessionInfoButtonVisible}
+        onSessionInfoButtonChange={handleSessionInfoButtonChange}
+        showJumpToBottomButton={showJumpToBottomButton}
+        onShowJumpToBottomButtonChange={handleShowJumpToBottomButtonChange}
+        toolOutputCapEnabled={toolOutputCapEnabled}
+        onToolOutputCapChange={handleToolOutputCapChange}
+        thinkingAutoFollowEnabled={thinkingAutoFollowEnabled}
+        onThinkingAutoFollowChange={handleThinkingAutoFollowChange}
+        messageActionsVisible={messageActionsVisible}
+        onMessageActionsVisibleChange={handleMessageActionsVisibleChange}
+        processDetailsAutoExpand={processDetailsAutoExpand}
+        onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange}
+        messageTimeFormat={messageTimeFormat}
+        onMessageTimeFormatChange={handleMessageTimeFormatChange}
+        panelsSwapped={panelsSwapped}
+        onPanelsSwappedChange={handlePanelsSwappedChange}
+        gitStatsPlacement={gitStatsPlacement}
+        onGitStatsPlacementChange={handleGitStatsPlacementChange}
+        hubBarLayout={hubBarLayout}
+        onHubBarLayoutChange={handleHubBarLayoutChange}
+        hubBarsVisible={hubBarsVisible}
+        onHubBarsVisibleChange={handleHubBarsVisibleChange}
+        composerAccentBg={composerAccentBg}
+        onComposerAccentBgChange={handleComposerAccentBgChange}
+        openUrlAutomatically={openUrlAutomatically}
+        onOpenUrlAutomaticallyChange={handleOpenUrlAutomaticallyChange}
+        cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+        sessionId={selectedSession?.id ?? null}
+        onModelsSaved={() => setModelsRefreshKey((k) => k + 1)}
+        onPluginsReloaded={() => setSessionKey((k) => k + 1)}
+        onOmpUpdateAvailabilityChange={setOmpUpdateAvailable}
+        onSelectTab={setSettingsTab}
+        onClose={() => setSettingsTab(null)}
+      />
+    )}
     <UsageDashboardModal
       open={usageDashboardOpen}
       onOpenChange={setUsageDashboardOpen}

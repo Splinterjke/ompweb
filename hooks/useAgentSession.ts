@@ -26,7 +26,7 @@ import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-prese
 import { expandWebSlashCommand } from "@/lib/web-slash-commands";
 import { validateOutgoingPrompt } from "@/lib/image-attachments";
 import { createActiveGoal, parseActiveGoal, type ActiveGoal, type ActivePlan } from "@/lib/web-mode-state";
-import type { HostToolDefinition, HostUriSchemeDefinition, RpcAvailableSlashCommand, SessionStatsInfo, TodoPhase } from "@/lib/pi-types";
+import type { HostToolDefinition, HostUriSchemeDefinition, RpcAskDialogAnswer, RpcAvailableSlashCommand, SessionStatsInfo, TodoPhase } from "@/lib/pi-types";
 import { isRecord } from "@/lib/type-guards";
 
 // Stable across renders and HMR: the default transport for every hook instance.
@@ -306,7 +306,7 @@ function toThinkingModelMeta(model: { provider?: string; id?: string; name?: str
   return { provider: model.provider, modelId: model.id, name: model.name, reasoning: model.reasoning, thinking: model.thinking };
 }
 
-type ExtensionUiDialogRequest = Extract<ExtensionUiRequest, { method: "select" | "confirm" | "input" | "editor" }>;
+type ExtensionUiDialogRequest = Extract<ExtensionUiRequest, { method: "select" | "confirm" | "input" | "editor" | "ask" }>;
 type ExtensionUiCustomRequest = Extract<ExtensionUiRequest, { method: "custom" }>;
 // omp's rpc-ui frames add open_url (OAuth) and cancel on top of lib/types' union.
 type IncomingExtensionUiRequest =
@@ -380,6 +380,8 @@ export interface UseAgentSessionOptions {
   setToolPreset?: (preset: "none" | "default" | "full") => void;
   /** Opens a file in the web UI's file viewer (used by the open_file host tool). */
   onOpenFile?: (filePath: string, name: string, sessionId?: string) => void;
+  /** Handles the open_url host tool (may ask the user first); returns the result text. */
+  onOpenUrl?: (url: string) => string;
   /** Transport override (tests / future LocalHost adapter). Defaults to HTTP+SSE. */
   client?: OmpwebClient;
 }
@@ -456,6 +458,64 @@ function isSafeOpenUrl(raw: unknown): boolean {
   if (!match) return false;
   const scheme = match[1].toLowerCase();
   return scheme === "http" || scheme === "https" || scheme === "mailto";
+}
+export interface HostToolHandlers {
+  /** Open a validated URL; returns the result text reported to the agent. */
+  openUrl: (url: string) => string;
+  /** Open a file tab; may return the result text reported to the agent. */
+  openFile?: (path: string, name: string) => string | void;
+}
+
+/**
+ * Execute an omp-web host tool (open_url / notify / open_file) and return the
+ * toolResult text. Shared by the session's own stream and by tabs answering
+ * calls for a session they are not viewing.
+ */
+export async function runHostTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  handlers: HostToolHandlers,
+): Promise<{ text: string; isError: boolean }> {
+  const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+  switch (toolName) {
+    case "open_url": {
+      const raw = str(args.url) ?? "";
+      if (!isSafeOpenUrl(raw)) return { text: "Unsafe or invalid URL not opened", isError: !!raw };
+      return { text: handlers.openUrl(raw), isError: false };
+    }
+    case "notify": {
+      const title = str(args.title) ?? "OMP";
+      const message = str(args.message) ?? "";
+      if (typeof Notification !== "undefined") {
+        try {
+          if (Notification.permission === "granted") {
+            new Notification(title, { body: message });
+          } else if (Notification.permission === "default") {
+            const permission = await Notification.requestPermission();
+            if (permission === "granted") new Notification(title, { body: message });
+          }
+        } catch {
+          // Notification API blocked — the result still succeeds.
+        }
+      }
+      return { text: "Notification shown", isError: false };
+    }
+    case "open_file": {
+      const path = str(args.path) ?? "";
+      if (!path) return { text: "No path provided", isError: true };
+      let text: string | void = undefined;
+      if (handlers.openFile) {
+        try {
+          text = handlers.openFile(path, path.split(/[\\/]/).pop() || path);
+        } catch {
+          // ignore navigation failures
+        }
+      }
+      return { text: text || `Opened ${path}`, isError: false };
+    }
+    default:
+      return { text: `Host tool "${toolName}" is not available in omp-web`, isError: true };
+  }
 }
 
 function delay(ms: number): Promise<void> {
@@ -639,7 +699,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const {
     session, newSessionCwd, onAgentEnd, onSessionCreated, onSessionForked,
     modelsRefreshKey, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
-    onOpenFile,
+    onOpenFile, onOpenUrl,
   } = opts;
   // 5.0 doc 01 Slice 2: the hook consumes the transport-agnostic client
   // interface; HttpSseAdapter is the default so behavior is unchanged.
@@ -1545,7 +1605,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
   const respondToExtensionUi = useCallback(async (
     request: ExtensionUiDialogRequest,
-    response: { value: string } | { confirmed: boolean } | { cancelled: true },
+    response: { value: string } | { confirmed: boolean } | { cancelled: true } | { answers: RpcAskDialogAnswer[] },
   ) => {
     const sid = sessionIdRef.current;
     if (!sid) {
@@ -1667,55 +1727,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const handleHostToolCall = useCallback(async (id: string, toolName: string, args: Record<string, unknown>) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
-    const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
-    switch (toolName) {
-      case "open_url": {
-        const raw = typeof args.url === "string" ? args.url : "";
-        const safe = isSafeOpenUrl(raw);
-        const url = safe ? raw : "";
-        if (url && typeof window !== "undefined") {
-          const opened = window.open(url, "_blank", "noopener,noreferrer");
-          opened?.focus?.();
-        }
-        const message = safe ? (raw ? `Opened ${raw}` : "No URL provided") : "Unsafe or invalid URL not opened";
-        await respondHostTool(sid, id, message, !safe && !!raw);
-        break;
-      }
-      case "notify": {
-        const title = str(args.title) ?? "OMP";
-        const message = str(args.message) ?? "";
-        if (typeof Notification !== "undefined") {
-          try {
-            if (Notification.permission === "granted") {
-              new Notification(title, { body: message });
-            } else if (Notification.permission === "default") {
-              const permission = await Notification.requestPermission();
-              if (permission === "granted") new Notification(title, { body: message });
-            }
-          } catch {
-            // Notification API blocked — the result still succeeds.
-          }
-        }
-        await respondHostTool(sid, id, "Notification shown");
-        break;
-      }
-      case "open_file": {
-        const path = str(args.path) ?? "";
-        if (path && onOpenFile) {
-          try {
-            const name = path.split(/[\\/]/).pop() || path;
-            onOpenFile(path, name, sid);
-          } catch {
-            // ignore navigation failures
-          }
-        }
-        await respondHostTool(sid, id, path ? `Opened ${path}` : "No path provided", !path);
-        break;
-      }
-      default:
-        await respondHostTool(sid, id, `Host tool \"${toolName}\" is not available in omp-web`, true);
-    }
-  }, [onOpenFile, respondHostTool]);
+    const { text, isError } = await runHostTool(toolName, args, {
+      openUrl: onOpenUrl ?? ((url) => {
+        window.open(url, "_blank", "noopener,noreferrer")?.focus?.();
+        return `Opened ${url}`;
+      }),
+      openFile: onOpenFile ? (path, name) => onOpenFile(path, name, sid) : undefined,
+    });
+    await respondHostTool(sid, id, text, isError);
+  }, [onOpenFile, onOpenUrl, respondHostTool]);
 
   /** Answer a host_uri_request (agent read/write of a registered scheme). */
   const respondHostUri = useCallback(async (sid: string, id: string, frame: { content?: string; contentType?: "text/markdown" | "application/json" | "text/plain"; isError?: boolean; error?: string }) => {
@@ -1852,6 +1872,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "confirm":
       case "input":
       case "editor":
+      case "ask":
         if (extensionDialogClearTimerRef.current) {
           clearTimeout(extensionDialogClearTimerRef.current);
           extensionDialogClearTimerRef.current = null;

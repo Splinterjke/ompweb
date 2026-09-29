@@ -1,11 +1,11 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-09-28T03:50:37.408Z · totals: 163 calls / 35 files · http 154 (read 81 / write 82) · sse 9
+Generated: 2026-09-28T19:19:30.993Z · totals: 164 calls / 35 files · http 154 (read 82 / write 82) · sse 10
 
 | domain | calls |
 |---|---|
 | sessions | 27 |
-| agent | 16 |
+| agent | 17 |
 | omp-update | 13 |
 | pair | 9 |
 | files | 9 |

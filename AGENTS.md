@@ -198,6 +198,7 @@ app/api/
   agent/[id]/route.ts             GET state | POST any RPC command
   agent/[id]/events/route.ts      GET SSE stream
   agent/running/events/route.ts   GET SSE stream of currently-running session ids + `chat_event_action` frames
+  agent/host-tools/events/route.ts  GET SSE stream of cross-session host tool calls (open_url, notify, open_file) for sessions no tab is watching
   chat-event-actions/route.ts     GET/POST named actions fired on chat events
   chat-event-actions/[id]/route.ts  GET/PATCH/DELETE a single action
   auth/**                         provider list, login/logout, API keys (via RPC)
@@ -288,6 +289,13 @@ hooks/
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not.
 - Idle sessions are disposed after a timeout; concurrent `startRpcSession()`
   calls must share a single start promise.
+
+### Cross-session host tools and the ask dialog (`lib/rpc-manager.ts`, `/api/agent/host-tools/events`)
+- Agent-callable host tools (`open_url`, `notify`, `open_file`) are registered per session via `set_host_tools`. While a tab is viewing the session, `host_tool_call` frames go to that session's own SSE stream and the tab answers with `host_tool_result`. When **no** tab views the session (the user switched sessions mid-run), the call is broadcast to *every* open omp-web tab through `subscribeHostToolCalls()` + the `agent/host-tools/events` SSE; each tab executes the tool and sends a `host_tool_result`, and the server settles the call on the first one received (`pendingHostTools.delete`, so later duplicates are no-ops).
+- Calls routed to other tabs are flagged `webCrossSession` in `pendingHostTools`. When the last other tab leaves (`subscribeHostToolCalls` unsubscribe with an empty set), only the cross calls are settled via `rejectCrossSessionHostTools()` (`which: "cross"`) — the session's own outstanding calls are untouched; when the session's last listener detaches, only the own calls are rejected.
+- Full-page Settings hides the chat, so its session counts as *not viewed* (`viewing = call.sessionId === selectedSession?.id && !settingsTab` in `AppShell`) — opens from it go through the confirm queue like any cross-session open.
+- URL opens from a session the tab is **not** viewing always go through the `pendingOpens` confirm queue (`ConfirmDialog` in `AppShell`). The "Open agent links without asking" setting only auto-opens links from the viewed session (`!crossSession && openUrlAutomatically`).
+- The multi-question `ask` dialog is opted into on spawn **and** respawn with `set_ask_dialog` (bounded like `get_state`, so a child that never answers cannot stall startup); older omp rejects the command and the per-question select/editor fallback keeps working. Pending `ask` requests only accept their `answers` payload or a cancel — `isAskAnswers()` shape-checks it in `extension_ui_response`, so a replayed reconnect response cannot drop them with a stale/malformed payload.
 
 ### Two kinds of branching — don't confuse them
 - **Fork** (Fork button on user message): creates a new independent `.jsonl` file. Shown as a child in the sidebar tree via `parentSession` header field.

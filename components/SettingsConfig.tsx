@@ -264,6 +264,7 @@ type SettingIndexEntry = {
 const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior
   { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
+  { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
   { id: "thinking-display-mode", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingDisplayMode", descKey: "settingsConfig.thinkingDisplayModeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking Display Behavior", fallbackDesc: "Configure whether model thinking blocks default to collapsed, auto-collapse, or always expanded.", scope: "UI" },
   { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
   { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
@@ -504,7 +505,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = false, onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = false, onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -548,6 +549,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Swap the docked side panels: sidebar right, file panel left (desktop only). */
   panelsSwapped?: boolean;
   onPanelsSwappedChange?: (swapped: boolean) => void;
+  /** Open links the agent shares without asking (UI-only preference). */
+  openUrlAutomatically?: boolean;
+  onOpenUrlAutomaticallyChange?: (enabled: boolean) => void;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   onThinkingDisplayModeChange?: (mode: "auto" | "collapsed" | "expanded") => void;
   /** Full-width thinking/tool details rows (Interface & Behavior switch). */
@@ -991,6 +995,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
                     <ToggleSwitch checked={toolCallsDefaultCollapsed} onChange={onToolCallsDefaultCollapsedChange} />
+                  </NativeSetting>
+                  <NativeSetting searchId="open-url-automatically" label={t("settingsConfig.openUrlAutomatically")} description={t("settingsConfig.openUrlAutomaticallyDesc")} scope="UI">
+                    <ToggleSwitch checked={openUrlAutomatically} onChange={(v) => onOpenUrlAutomaticallyChange?.(v)} />
                   </NativeSetting>
                   <NativeSetting searchId="thinking-display-mode" label={t("settingsConfig.thinkingDisplayMode")} description={t("settingsConfig.thinkingDisplayModeDesc")} scope="UI">
                     <select

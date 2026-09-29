@@ -1,5 +1,5 @@
 // Types mirrored from oh-my-pi coding-agent session-entries (v3 format).
-import type { TodoPhase } from "./pi-types";
+import type { RpcAskDialogAnswer, RpcAskDialogQuestion, TodoPhase } from "./pi-types";
 
 // omp-web cannot import the Bun-only @oh-my-pi packages, so the on-disk
 // shapes are re-declared here. Legacy pi v1/v2 fields are kept optional.
@@ -222,6 +222,14 @@ export type ExtensionUiRequest =
   | {
       type: "extension_ui_request";
       id: string;
+      method: "ask";
+      questions: RpcAskDialogQuestion[];
+      timeout?: number;
+      expiresAt?: number;
+    }
+  | {
+      type: "extension_ui_request";
+      id: string;
       method: "notify";
       message: string;
       notifyType?: "info" | "warning" | "error";
@@ -264,7 +272,8 @@ export type ExtensionUiRequest =
 export type ExtensionUiResponse =
   | { type: "extension_ui_response"; id: string; value: string }
   | { type: "extension_ui_response"; id: string; confirmed: boolean }
-  | { type: "extension_ui_response"; id: string; cancelled: true };
+  | { type: "extension_ui_response"; id: string; cancelled: true }
+  | { type: "extension_ui_response"; id: string; answers: RpcAskDialogAnswer[] };
 
 export interface ExtensionStatusItem {
   key: string;
@@ -479,6 +488,14 @@ export interface SessionContext {
   model: { provider: string; modelId: string } | null;
   /** Latest persisted todo snapshot on the selected session branch. */
   todoPhases: TodoPhase[];
+}
+
+/** A host tool call for a session no tab is watching, sent to every open tab. */
+export interface CrossSessionHostToolCall {
+  sessionId: string;
+  id: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
 }
 
 export interface ExitedRpcSession {
