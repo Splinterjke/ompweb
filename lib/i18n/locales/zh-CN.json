@@ -624,6 +624,7 @@
   "messageView.collapseInput": "收起输入",
   "messageView.showDetails": "显示详情",
   "messageView.showExtensionMessage": "显示扩展消息",
+  "messageView.skill": "技能",
   "messageView.thinking": "思考",
   "messageView.thinkingUnavailable": "思考内容不可用",
   "messageView.tokensPerSecond": "{tps} t/s",

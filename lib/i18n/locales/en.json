@@ -630,6 +630,7 @@
   "messageView.collapseInput": "Collapse input",
   "messageView.showDetails": "Show details",
   "messageView.showExtensionMessage": "Show extension message",
+  "messageView.skill": "Skill",
   "messageView.thinking": "Thinking",
   "messageView.thinkingUnavailable": "Thinking content unavailable",
   "messageView.tokensPerSecond": "{tps} t/s",

@@ -235,6 +235,8 @@ fn extract_message_text(value: &JsonValue) -> String {
 /// `custom_message` (customType "skill-prompt") as a trailing
 /// "User: <prompt>" line — there is no role:"user" message entry. Recover
 /// that trailer so the session is not invisible to the session list.
+/// Without the trailer there is no user text to recover (falling back to
+/// the whole skill body would name the session after the skill).
 fn extract_skill_prompt_user(value: &JsonValue) -> Option<String> {
     if value.get(&["type"]).and_then(|t| t.as_str()) != Some("custom_message") {
         return None;
@@ -243,14 +245,32 @@ fn extract_skill_prompt_user(value: &JsonValue) -> Option<String> {
         return None;
     }
     let content = value.get(&["content"])? .as_str()?;
-    // The user's prompt follows the LAST "User: " trailer; the skill body can
-    // contain its own "User:" text. Bound like other first messages.
-    let user = content.rsplit("User: ").next().unwrap_or(content).trim();
-    if user.is_empty() {
-        None
-    } else {
-        Some(user.chars().take(240).collect())
+    // Without a "User: " trailer there is no user prompt to recover (rsplit
+    // would otherwise yield the whole skill body as the "first message").
+    if !content.contains("User: ") {
+        return None;
     }
+    // The user's prompt follows the LAST "User: " trailer; the skill body can
+    // contain its own "User:" text.
+    let user = content
+        .rsplit("User: ")
+        .next()
+        .unwrap_or("")
+        .trim();
+    if user.is_empty() {
+        return None;
+    }
+    // The trailer can carry a web slash-command wrapper ("/goal", "/plan",
+    // "/fix" send "Prefix:\n\n<task>"); drop it so the session reads as the
+    // task itself.
+    let lines: Vec<&str> = user.split('\n').collect();
+    let unwrapped = if lines.len() >= 2 && lines[0].ends_with(':') && lines[1].trim().is_empty() {
+        lines[2..].join("\n").trim().to_string()
+    } else {
+        user.to_string()
+    };
+    let final_text = if unwrapped.is_empty() { user.to_string() } else { unwrapped };
+    Some(final_text.chars().take(240).collect())
 }
 
 /// Scan one file into a projection (head-window read, Node-parity).
@@ -544,6 +564,41 @@ mod tests {
         assert_eq!(p.first_message, "find the bug");
         assert_eq!(p.title, "find the bug");
         assert_eq!(p.messages, 0);
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn skill_prompt_without_user_marker_is_not_a_first_message() {
+        // A skill-prompt with no "User: " trailer carries only the skill body;
+        // falling back to the whole body would name the session after the
+        // skill, so it must not surface as a first message.
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_skill0000000000000000000003.jsonl");
+        fs::write(
+            &file,
+            "{\"type\":\"session\",\"version\":3,\"id\":\"skill0000000000000000000003\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}\n\
+             {\"type\":\"custom_message\",\"customType\":\"skill-prompt\",\"content\":\"[IMPORTANT: User invoked the skill]\\n\\n# skill body\\n\\nNo trailer here\"}\n",
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "");
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn skill_prompt_strips_web_slash_wrapper() {
+        // "/goal <task>" is sent as "Work toward this goal ...:\n\n<task>...";
+        // the recovered first message must start at the task, not the wrapper.
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_skill0000000000000000000004.jsonl");
+        fs::write(
+            &file,
+            "{\"type\":\"session\",\"version\":3,\"id\":\"skill0000000000000000000004\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}\n\
+             {\"type\":\"custom_message\",\"customType\":\"skill-prompt\",\"content\":\"# skill body\\n\\nUser: Work toward this goal for the rest of the session:\\n\\nFix the sidebar bug\\n\\nTreat it as the objective to prioritize when deciding what to do next.\"}\n",
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "Fix the sidebar bug\n\nTreat it as the objective to prioritize when deciding what to do next.");
         fs::remove_file(&file).ok();
     }
 }

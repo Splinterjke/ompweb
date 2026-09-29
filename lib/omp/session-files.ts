@@ -737,13 +737,23 @@ function extractTextFromContent(content: unknown): string {
 /** omp records a `/skill:` first prompt's user text inside a `custom_message`
  * (customType "skill-prompt") as a trailing "User: <prompt>" line — there is no
  * role:"user" message entry. Recover that trailer so such sessions stay visible.
- * Mirrors the Rust session_scan extract_skill_prompt_user. */
+ * Without the trailer there is no user text to recover (falling back to the
+ * whole skill body would name the session after the skill). Mirrors the Rust
+ * session_scan extract_skill_prompt_user. */
 function extractSkillPromptUser(entry: { type?: string; customType?: string; content?: unknown }): string {
   if (entry.type !== "custom_message" || entry.customType !== "skill-prompt") return "";
   if (typeof entry.content !== "string") return "";
   const idx = entry.content.lastIndexOf("User: ");
-  const user = (idx === -1 ? entry.content : entry.content.slice(idx + "User: ".length)).trim();
-  return user.slice(0, 240);
+  if (idx === -1) return "";
+  const user = entry.content.slice(idx + "User: ".length).trim();
+  if (!user) return "";
+  // The trailer can carry a web slash-command wrapper ("/goal", "/plan", "/fix"
+  // send "Prefix:\n\n<task>"); drop it so the session reads as the task itself.
+  const lines = user.split("\n");
+  const unwrapped = lines.length >= 2 && lines[0].endsWith(":") && lines[1].trim() === ""
+    ? lines.slice(2).join("\n").trim()
+    : user;
+  return (unwrapped || user).slice(0, 240);
 }
 
 interface TailMessage {

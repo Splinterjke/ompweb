@@ -656,6 +656,20 @@ Location: `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
   be tolerated by readers.
 - Large payloads (images) are externalized to the content-addressed blob store
   at `~/.omp/agent/blobs` and referenced from entries.
+- **`/skill:` first prompts** are stored as a `custom_message`
+  (customType `skill-prompt`, display true) containing the invoked skill's
+  full body plus the user's own text as a trailing `User: <prompt>` block —
+  there is **no** `role:"user"` entry for the first turn. ompweb renders it
+  as a user-style prompt bubble with a collapsible "Skill: \<name\>" badge
+  (`SkillPromptView` in `components/MessageView.tsx`), so the session opens
+  with the user's prompt instead of a wall of skill instructions.
+- Session-list first messages for such sessions are recovered from that
+  `User: ` trailer (`extractSkillPromptUser` in `lib/omp/session-files.ts`,
+  mirrored by `extract_skill_prompt_user` in `crates/ompweb-host/src/
+  session_scan.rs` — keep the two in sync). Both strip a web slash-command
+  wrapper prefix ("/goal"/"/plan" send "Prefix:\n\n\<task>") and return
+  nothing when the trailer is missing (never the whole skill body, which
+  would name the session after the skill).
 
 `entryIds[]` in `SessionContext` is a parallel array to `messages[]` — maps each displayed message back to its `.jsonl` entry id, used for fork and navigate_tree calls.
 

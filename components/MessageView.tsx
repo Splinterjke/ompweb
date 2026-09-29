@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type ComponentProps } from "react";
-import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive } from "lucide-react";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
@@ -212,6 +212,13 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     }
     if (custom.display === false) {
       return <HiddenExtensionView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
+    }
+    // A `/skill:` first prompt is stored as a skill-prompt custom message with
+    // the user's own text in a trailing "User: " block — render that text as
+    // a user-style prompt bubble (with the skill as a collapsible badge)
+    // instead of dumping the whole skill body.
+    if (custom.customType === "skill-prompt") {
+      return <SkillPromptView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
     }
     return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
   }
@@ -1855,6 +1862,102 @@ function HiddenExtensionView({ message, cwd, onOpenFile, timeFormat = "24h" }: {
               </pre>
             ) : null}
           </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A `/skill:` first prompt (customType "skill-prompt"): omp stores the invoked
+ * skill's full instructions together with the user's own text (as a trailing
+ * "User: <prompt>" block) in one custom message. Surface the user's text as
+ * the prompt bubble and the skill as a collapsible badge, so the session
+ * opens with the user's prompt, not a wall of skill instructions.
+ */
+function parseSkillPrompt(text: string): { skillName: string | null; userText: string; skillBody: string } {
+  const idx = text.lastIndexOf("User: ");
+  const userText = idx === -1 ? "" : text.slice(idx + "User: ".length).trim();
+  const beforeUser = idx === -1 ? text : text.slice(0, idx);
+  const nameMatch = beforeUser.match(/User invoked the "([^"]+)" skill/);
+  const skillName = nameMatch ? nameMatch[1] : null;
+  const lines = beforeUser.split("\n");
+  const bodyStart = lines[0]?.startsWith("[IMPORTANT") ? 1 : 0;
+  const skillBody = lines.slice(bodyStart).join("\n").trim();
+  return { skillName, userText, skillBody };
+}
+
+function SkillPromptView({ message, cwd, onOpenFile, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; timeFormat?: MessageTimeFormat }) {
+  const { t, locale } = useI18n();
+  const [skillExpanded, setSkillExpanded] = useState(false);
+  const text = getMessageText(message.content);
+  const { skillName, userText, skillBody } = useMemo(() => parseSkillPrompt(text), [text]);
+  const time = formatTime(message.timestamp, locale, timeFormat);
+
+  return (
+    <div style={{ marginBottom: 18, display: "flex", flexDirection: "column", alignItems: "flex-end", paddingRight: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", maxWidth: "85%", minWidth: 0, gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => setSkillExpanded((v) => !v)}
+          aria-expanded={skillExpanded}
+          aria-label={skillExpanded ? t("messageView.collapse") : t("messageView.expand")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "3px 10px",
+            border: "1px solid var(--border)",
+            borderRadius: 999,
+            background: "var(--bg-subtle)",
+            color: "var(--text-muted)",
+            cursor: "pointer",
+            fontFamily: "var(--font-mono)",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+            fontWeight: 650,
+          }}
+        >
+          <BookOpenText size={12} strokeWidth={1.8} aria-hidden="true" />
+          <span>{t("messageView.skill")}{skillName ? `: ${skillName}` : ""}</span>
+          <ChevronRight size={11} strokeWidth={1.8} style={{ transform: skillExpanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+        </button>
+        {skillExpanded && skillBody ? (
+          <div
+            style={{
+              width: "100%",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              background: "var(--bg-subtle)",
+              padding: "8px 10px",
+            }}
+          >
+            <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>{skillBody}</MarkdownBody>
+          </div>
+        ) : null}
+        {userText ? (
+          <div
+            className="chat-message-card"
+            style={{
+              maxWidth: "100%",
+              minWidth: 0,
+              background: "var(--user-bg)",
+              border: "1px solid color-mix(in srgb, var(--accent) 28%, transparent)",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "var(--shadow-card)",
+              padding: "8px 12px",
+              fontSize: "calc(14px * var(--ui-font-scale-lg, 1))",
+              lineHeight: 1.6,
+              color: "var(--text)",
+              wordBreak: "break-word",
+            }}
+          >
+            <SafeMarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{userText}</SafeMarkdownBody>
+          </div>
+        ) : null}
+        {time ? (
+          <span style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums", opacity: 0.75 }}>
+            {time}
+          </span>
         ) : null}
       </div>
     </div>
