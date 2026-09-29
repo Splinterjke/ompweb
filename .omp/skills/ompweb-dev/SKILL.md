@@ -90,6 +90,27 @@ Fix, in order:
 3. Verify with `curl` before blaming the browser — a browser can't fix a stale server build.
    After a clean rebuild, re-navigate the test browser with a fresh `goto` (not a soft reload).
 
+## Git index.lock collisions (dev server's own pollers)
+
+While a dev instance is serving this repo, its 5 s git health pollers spawn
+`git diff/status` children that refresh the index stat-cache and briefly hold
+`.git/index.lock`. Index-writing commands (`git commit`, `reset`, `add`,
+`read-tree`) can fail with "index.lock: File exists" for that reason — it is
+transient, not a stale lock from a crashed process.
+
+- **Retry**; a short sequence rarely collides twice.
+- **Never delete `.git/index.lock` while a live git child is running.**
+  `ps -ef | grep git`: the app's pollers appear as
+  `git -c safe.directory=* -C <repo> diff HEAD --shortstat` under the
+  next-server pid — those are the running dev instance and must not be
+  killed. Only remove the lock when no process holds it (and no stuck
+  editor/`git commit` is left behind).
+- **Multi-step sequences stop mid-way** (a `set -e` reword/rebase script
+  aborts on the collision with the next step's tree already staged in the
+  index). After a failure, verify where the sequence actually stopped —
+  `git log`, `git status`, `git write-tree` — and commit only the remaining
+  steps. Re-running the whole script double-commits.
+
 ## Kill / restart
 
 ```bash
