@@ -338,6 +338,37 @@ events, and the queue length comes from `get_state.queuedMessageCount`.
 New frame types (`turn_start/end`, `notice`, `todo_reminder`, ...) must be
 handled or safely ignored.
 
+### Skill-invoked first prompt (`customType: "skill-prompt"`)
+- When a session is started with a skill mention (`/skill:name …`), omp stores the
+  first content entry as a `custom_message` (`customType: "skill-prompt"`,
+  `display: true`) containing the full skill body plus the user's original prompt
+  in a trailing `"User: <prompt>"` block — **there is no `role:"user"` message
+  entry**. The session therefore must not be named after the skill body.
+- `MessageView` renders these via `SkillPromptView` (NOT `CustomMessageView`): a
+  collapsible "Skill: <name>" badge (expands to the skill body) above a
+  user-style bubble showing the `"User: "` trailer. The branch sits AFTER the
+  `display === false` check, so a hidden skill-prompt stays hidden.
+- Session-list `firstMessage` recovery: `extractSkillPromptUser` in
+  `lib/omp/session-files.ts` and `extract_skill_prompt_user` in
+  `crates/ompweb-host/src/session_scan.rs` (Rust is the default scan path — keep
+  the two in parity). Rules: no `"User: "` marker → no first message (NEVER
+  fall back to the whole skill body); a leading web-slash-command wrapper line
+  (`"Prefix:"` + blank line, e.g. `/goal`'s "Work toward this goal for the rest
+  of the session:") is stripped so the session reads as the task itself.
+
+### "Todo reminder" chat rows are agent nudges, not errors
+- `todo-error-reminder` and `mid-run-todo-nudge` custom messages (`display:
+  false`) are **model-directed** system-reminders injected by omp: when a `todo`
+  tool call fails (e.g. a new turn in a conversation whose previous todos all
+  completed — the old tasks no longer exist, so "Task … not found" /
+  "Missing list for …"), omp tells the model "todo failed, so todo progress is
+  not visible to the user" to force a valid retry (the follow-up `todo init`).
+- ompweb surfaces these as collapsed "Todo reminder" pills via `HiddenExtensionView`
+  (`friendlyHiddenLabel` in `components/MessageView.tsx`). That display is
+  intentional — it is the faithful rendering of the internal nudge, not an
+  ompweb error and not a failure of the todo list. Don't "fix" the pill away;
+  the composer `TodoList` bar (ComposerPanels) is a different surface.
+
 ### Running state SSE + reconciliation
 - The sidebar listens to `/api/agent/running/events`, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.
 - `useAgentSession` still treats per-session SSE as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs or half-open connections.
