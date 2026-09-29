@@ -2980,18 +2980,18 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
             <div style={{ flex: 1 }} />
 
-            {/* Advisor activity — thunder while the advisor model reviews this run */}
-            {advisorActive && (
-              <Tooltip content={t("chatInput.advisorReviewingTitle", {
+            {/* Advisor — visible while enabled for this chat; lit while it reviews the running turn */}
+            {(advisorEnabled || advisorActive) && (
+              <Tooltip content={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorEnabledTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
                 })}>
                 <span
-                aria-label={t("chatInput.advisorReviewingTitle", {
+                aria-label={t(advisorActive ? "chatInput.advisorReviewingTitle" : "chatInput.advisorEnabledTitle", {
                   model: advisorModel?.name ?? t("messageView.advisorLabel"),
                   reasoning: advisorModel?.reasoning ?? t("chatInput.advisorReasoningDefault"),
                 })}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, flexShrink: 0, color: "var(--accent)" }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, flexShrink: 0, color: advisorActive ? "var(--accent)" : "var(--text-muted)" }}
               >
                 <Zap size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" />
               </span>

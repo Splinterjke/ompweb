@@ -37,6 +37,18 @@ export function LanguageSwitcher() {
     if (open) itemRefs.current[activeIndex]?.focus();
   }, [open, activeIndex]);
 
+  // Mirror the UI language to the server: locale-dependent server-side
+  // rendering (e.g. the $event_name chat-action variable) translates in the
+  // user's chosen language. Sync on load (the server's in-memory copy resets
+  // on restart) and on every change.
+  useEffect(() => {
+    void fetch("/api/ui/locale", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ locale }),
+    }).catch(() => {});
+  }, [locale]);
+
   // Close on outside click / Escape is handled in onKeyDown below; also close
   // when the trigger loses focus to something outside the component.
   const close = (returnFocus = true) => {

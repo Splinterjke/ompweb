@@ -28,6 +28,9 @@ export interface ChatEventPayload {
   sessionId: string;
   /** Session display name (best-effort; the notification defaults use it). */
   sessionName?: string;
+  /** Localized display name of the fired event (the user's UI language).
+   *  Available to actions as $event_name. */
+  eventName?: string;
   /** The assistant's most recent text reply in this session (best-effort;
    *  captured at message_end). Available to actions as $last_reply. */
   lastAssistantReply?: string;
@@ -64,7 +67,8 @@ function record(action: ChatEventAction, ok: boolean, detail?: string): void {
 
 /**
  * Substitute $event-data variables in an action field. Supported:
- * $session_name, $session_id, $last_reply, $question. Unknown $names are
+ * $session_name, $session_id, $event_name, $last_reply, $question.
+ * Unknown $names are
  * left as-is (a typo in a body is user content, not an error). No variable
  * in the string -> the original is returned untouched (zero-copy fast path).
  */
@@ -73,6 +77,7 @@ export function interpolateEventVars(value: string, payload: ChatEventPayload): 
   const vars: Record<string, string> = {
     session_name: payload.sessionName ?? "",
     session_id: payload.sessionId,
+    event_name: payload.eventName ?? "",
     last_reply: payload.lastAssistantReply ?? "",
     question: payload.question ?? "",
   };

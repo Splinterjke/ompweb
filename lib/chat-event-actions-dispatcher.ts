@@ -1,6 +1,7 @@
 import { loadActionsForEvent } from "./chat-event-action-store";
 import { executeChatAction, type ChatEventPayload } from "./chat-event-actions-executors";
 import type { ChatEventType } from "./chat-event-action-types";
+import { translateEventName } from "./ui-locale";
 
 export type { ChatEventPayload };
 
@@ -65,6 +66,9 @@ export function dispatchChatEvent(type: ChatEventType, payload: ChatEventPayload
     }
     const actions = loadActionsForEvent(type);
     if (actions.length === 0) return;
+    // $event_name: localized display name of the firing event, in the
+    // user's selected UI language (default en until the client syncs one).
+    payload.eventName = translateEventName(type);
     for (const action of actions) {
       // Each action in its own guard: an executor throwing (it shouldn't —
       // executeChatAction wraps internally, but the store read or a future

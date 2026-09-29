@@ -2127,13 +2127,29 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     };
   }, [agentRunning, reconcileAgentState]);
 
-  // Sample omp's own tokensPerSecond (get_state) at an adaptive cadence while
-  // a run is active. Start at 2s; back off to 4s after 3 consecutive null
+  // Sample omp's get_state (tokensPerSecond + contextUsage) at an adaptive
+  // cadence while a run is active. This is the live source for the composer
+  // context ring: the 15s reconcile poll skips the ring while busy, and a
+  // new session's first turn never gets a loadSession refresh — without this
+  // the ring stays frozen for the whole run (including after mid-run
+  // compaction). Start at 2s; back off to 4s after 3 consecutive null
   // samples (tool execution / thinking, not generating tokens) to reduce
   // server-side round-trips; snap back to 2s on the first non-null sample.
   // On run end take one trailing sample: omp publishes its final throughput
   // right around agent_end, possibly after the last in-run poll.
   useEffect(() => {
+    // Field-level comparison: contextUsage is a fresh object per fetch, so a
+    // plain set would re-render the ring on every identical 2s snapshot.
+    const applyContextUsage = (data: { state?: AgentStateResponse } | null) => {
+      const cu = data?.state?.contextUsage;
+      if (cu === undefined) return;
+      const next = cu ?? null;
+      setContextUsage((prev) =>
+        prev?.percent === next?.percent && prev?.contextWindow === next?.contextWindow && prev?.tokens === next?.tokens
+          ? prev
+          : next,
+      );
+    };
     if (!agentRunning) {
       const sid = sessionIdRef.current;
       if (!sid) return;
@@ -2144,6 +2160,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (cancelled) return;
           const tps = data?.state?.tokensPerSecond;
           setTokensPerSecond(typeof tps === "number" && Number.isFinite(tps) && tps > 0 ? tps : null);
+          applyContextUsage(data);
         })
         .catch(() => {});
       return () => { cancelled = true; };
@@ -2165,6 +2182,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           const tps = data?.state?.tokensPerSecond;
           const hasValue = typeof tps === "number" && Number.isFinite(tps) && tps > 0;
           setTokensPerSecond(hasValue ? tps : null);
+          applyContextUsage(data);
           if (hasValue) {
             consecutiveNulls = 0;
           } else {

@@ -593,6 +593,11 @@ handled or safely ignored.
   JSON and the `tool_execution_end` frame carries none). `question_asked`
   fires on `tool_execution_start` for the `ask` tool; the question text (from
   the frame's `args.questions[].question`) is handed to actions as `$question`.
+  Action bodies may also use `$event_name` — the localized display name of the
+  firing event — resolved server-side by `translateEventName()` in
+  `lib/ui-locale.ts`, which mirrors the client's "Switch language to" choice
+  (synced to `/api/ui/locale` by `LanguageSwitcher` on load and change; the
+  server keeps it in `globalThis.__ompUiLocale`, defaulting to `en`).
 - Persistence mirrors the scheduler store: atomic temp-file + rename at
   `~/.omp/agent/chat-event-actions.json`. `loadActionsForEvent(type)` is cached on
   `globalThis.__ompChatActionCache` and invalidated on every save — a new action must

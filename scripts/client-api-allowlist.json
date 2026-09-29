@@ -13,6 +13,7 @@
     "components/FileExplorer.tsx": 4,
     "components/FileViewer.tsx": 7,
     "components/GitChangesPanel.tsx": 2,
+    "components/LanguageSwitcher.tsx": 1,
     "components/LoginForm.tsx": 1,
     "components/McpConfig.tsx": 5,
     "components/MessageView.tsx": 2,

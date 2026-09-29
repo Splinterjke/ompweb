@@ -10,6 +10,7 @@ import {
   validateActionSpec,
 } from "@/lib/chat-event-action-store";
 import { executeChatAction } from "@/lib/chat-event-actions-executors";
+import { translateEventName } from "@/lib/ui-locale";
 import type { ActionSpec, ChatActionRun } from "@/lib/chat-event-action-types";
 
 const MAX_REQUEST_BYTES = 8_192;
@@ -62,9 +63,9 @@ export async function POST(req: Request) {
 
     try {
       // The throwaway payload still carries sample event data so $session_name /
-      // $session_id / $last_reply substitute during a Test run (the real values
-      // arrive only for live events).
-      executeChatAction(action, { sessionId: "test", sessionName: "Test", lastAssistantReply: "Test reply" });
+      // $session_id / $event_name / $last_reply substitute during a Test run (the
+      // real values arrive only for live events).
+      executeChatAction(action, { sessionId: "test", sessionName: "Test", lastAssistantReply: "Test reply", eventName: translateEventName("conversation_completed") });
       const run = await waitForRun(action.id);
       return NextResponse.json({ ok: run.ok, ...(run.detail ? { detail: run.detail } : {}) });
     } finally {
