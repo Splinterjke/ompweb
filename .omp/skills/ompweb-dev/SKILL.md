@@ -119,6 +119,11 @@ are applied?) and re-verifies everything. In one 17-hour session this cycle
 repeated 10+ times (122 dev-server starts, 13 `pkill`s, 72 re-logins, 35
 restart-test script runs) and was the single largest time sink.
 
+**Identifying the host instance:** your own session (title = the current task)
+appears in the sidebar of the ompweb instance you are connected to. If a
+throwaway test instance shows your own *running* session in its sidebar, it is
+the host — treat it as untouchable and pick a different test port.
+
 **Instead:**
 
 1. **Run restart tests against a throwaway instance** on a port **outside**
@@ -149,9 +154,31 @@ restart-test script runs) and was the single largest time sink.
    button) with a generous timeout before declaring "page never hydrated".
 5. **Parse `chrome-agent --json` output as JSON** — it is double-escaped;
    `grep` for unescaped strings will never match. Pipe through
-   `python3 -c "import json,sys; …"` or `jq`.
+   `python3 -c "import json,sys; …"` or `jq`. Long inline `python3 -c`
+   filters tend to get mangled — write the snapshot to a file and filter it
+   with a small script file instead.
 6. **After a server restart the browser session cookie is stale** — re-login
    in the browser profile; a `curl` cookie jar does not carry over.
+7. **A throwaway instance can die silently.** A server backgrounded with a
+   plain `&` subshell can be reaped mid-session leaving no log and a
+   connection-refused port. Relaunch it as a managed background service with
+   a `Ready in` readiness gate (bash tool `name` + `ready`). It inherits
+   `OMP_WEB_PASSWORD` from your environment, so after any (re)start treat the
+   gate as ON: re-login before navigating.
+8. **Modal overlays swallow clicks.** If a `click` verdict is `intercepted`,
+   read `intercepted_by` — in this app it is almost always an open dialog
+   (e.g. the "Add a chat event action" modal) covering the target. Close it
+   (Escape or Cancel), re-inspect for fresh uids, then retry. No selector
+   trick gets through while the dialog is on top.
+9. **Tooltips (base-ui) need a warm-up hover.** The popup has a 400 ms open
+   delay and renders in a portal; a direct hover right after another action
+   can miss the `pointerenter`. Hover a neutral element first, then the
+   target, then `wait` for the tooltip's text before `inspect`/`screenshot`.
+   The screenshot argument is `filename` (not `out`).
+10. **"(no output)" in <0.2 s means the command died early**, not "no match"
+   (a real `inspect` takes ~0.1–0.5 s and prints a tree even when empty).
+   Two consecutive empty results → check the browser is alive
+   (`ps -ef | grep <profile>`); a fresh `goto` relaunches a dead browser.
 
 ### Edge-bundle rebuild loop (minutes-long hydration, huge logs)
 
