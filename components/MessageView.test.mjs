@@ -112,6 +112,52 @@ test("tool operations render as compact timeline rows", () => {
   assert.doesNotMatch(html, /border-radius:7px/);
 });
 
+test("ask tool calls show the question text, not [object Object]", () => {
+  // Malformed (header present, question missing) — falls back to the header.
+  const malformed = renderToStaticMarkup(React.createElement(MessageView, {
+    isStreaming: true,
+    toolCallsDefaultCollapsed: false,
+    message: {
+      role: "assistant",
+      content: [{
+        type: "toolCall",
+        toolCallId: "call-ask",
+        toolName: "ask",
+        input: {
+          questions: [
+            { header: "Resume engine", id: "resume-engine", options: [{ description: "a" }] },
+            { header: "Prompt", id: "prompt", options: [{ description: "b" }] },
+          ],
+        },
+      }],
+    },
+  }));
+  assert.doesNotMatch(malformed, /\[object Object\]/);
+  assert.match(malformed, /Resume engine/);
+  assert.match(malformed, /Prompt/);
+
+  // Valid (question present) — shows the question text.
+  const valid = renderToStaticMarkup(React.createElement(MessageView, {
+    isStreaming: true,
+    toolCallsDefaultCollapsed: false,
+    message: {
+      role: "assistant",
+      content: [{
+        type: "toolCall",
+        toolCallId: "call-ask",
+        toolName: "ask",
+        input: {
+          questions: [
+            { id: "q1", question: "Which resume engine should I use?", options: [] },
+          ],
+        },
+      }],
+    },
+  }));
+  assert.doesNotMatch(valid, /\[object Object\]/);
+  assert.match(valid, /Which resume engine should I use\?/);
+});
+
 test("committed assistant messages offer copy actions before the fork button", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     message: {

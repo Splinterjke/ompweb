@@ -2105,8 +2105,30 @@ function getToolPreview(block: ToolCallContent): string {
   if ("pattern" in input) return String(input.pattern).slice(0, 120);
   if ("query" in input) return String(input.query).slice(0, 120);
 
+  // ask tool: { questions: [{ question?, header?, ... }] } — show the
+  // question text (falling back to the header) instead of [object Object].
+  if (block.toolName === "ask" && Array.isArray(input.questions)) {
+    const labels = (input.questions as Array<Record<string, unknown>>)
+      .map((question) => {
+        const text = typeof question?.question === "string" && question.question.trim()
+          ? question.question
+          : typeof question?.header === "string" && question.header.trim() ? question.header : null;
+        return text;
+      })
+      .filter((label): label is string => label !== null);
+    if (labels.length > 0) return labels.join(" · ").slice(0, 120);
+    return `ask · ${input.questions.length} question${input.questions.length === 1 ? "" : "s"}`;
+  }
+
   const first = input[keys[0]];
-  return String(first).slice(0, 120);
+  if (typeof first === "string" || typeof first === "number") return String(first).slice(0, 120);
+  // Objects and object-arrays used to render as [object Object] via
+  // Array.toString / Object coercion — compact JSON is a safe one-line fallback.
+  try {
+    return JSON.stringify(first).slice(0, 120);
+  } catch {
+    return String(first).slice(0, 120);
+  }
 }
 function formatToolCommand(block: ToolCallContent): string {
   const input = block.input;
