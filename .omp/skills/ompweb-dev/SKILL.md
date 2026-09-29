@@ -71,6 +71,13 @@ curl -s -b /tmp/jar http://127.0.0.1:30178/api/diagnostics
 3. **Diagnostics KPI** — `GET /api/diagnostics` drives the "Rust Host Daemon" card and backend-error alerts; if it 500s the whole panel shows a fallback even when the host is fine. Host check is **binary existence** at the resolved path, not process liveness (see resolution order in AGENTS.md: `OMPWEB_HOST_BIN` → packaged → `vendor/ompweb-host/` → `crates/target/debug/ompweb-host`).
 4. **Stale build** — dev writes to `.next-dev/`, `next build` to `.next/`; they can run concurrently. `scripts/clean-dev-types.mjs` sweeps dev type dirs before builds (TS1128 trap: a live dev server rewriting `.next/dev/types/` mid-build). After a rebuild the UI shows an in-app "OMP update available / Refresh" notification.
 5. **Live agent** — one `omp --mode rpc-ui` child per active session (NDJSON over stdio). Find them: `ps -ef | grep "omp --mode rpc-ui"`. Each is a child of the `ompweb-host --ipc` process. Killing one drops that session's live state; the session file is untouched.
+6. **Rust host daemon is per-process** — each ompweb server instance spawns its
+   own `ompweb-host` child; rebuilding the binary does NOT affect an
+   already-running daemon (it keeps the old code in memory until its 30 s idle
+   teardown or a kill). To test a freshly built host binary, start a **new**
+   server instance (it spawns a new daemon from the updated path), or set
+   `OMPWEB_BACKEND=node` to bypass the Rust host entirely. Never kill a daemon
+   that serves another instance (e.g. the 6767 production one).
 
 ## Stale `.next-dev` build — HTML 404 on live routes
 
@@ -178,6 +185,10 @@ the host — treat it as untouchable and pick a different test port.
    `python3 -c "import json,sys; …"` or `jq`. Long inline `python3 -c`
    filters tend to get mangled — write the snapshot to a file and filter it
    with a small script file instead.
+
+   Note: `chrome-agent` selectors use **native `querySelector`**, not Playwright
+   CSS. `:has-text("…")` will not parse. To click by visible text, use an
+   `eval`: `[...document.querySelectorAll('button')].find(b => b.textContent.includes('Label'))?.click()`.
 6. **After a server restart the browser session cookie is stale** — re-login
    in the browser profile; a `curl` cookie jar does not carry over.
 7. **A throwaway instance can die silently.** A server backgrounded with a

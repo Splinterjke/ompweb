@@ -99,6 +99,12 @@ For a dev-server smoke test, set `OMPWEB_HOST_BIN` to the prebuilt debug binary
 "运行中/Available". If cargo isn't installed, that binary may be absent — the
 host then won't boot and the card shows "未就绪/Unavailable" (binary missing,
 **not** the process being dead).
+- The host daemon is **per Node process**: each ompweb server instance spawns
+  its own `ompweb-host` child. Rebuilding the binary (`cargo build`) does NOT
+  affect an already-running daemon — it keeps the old code in memory until it
+  exits (30 s idle teardown) or is killed. To test a freshly built binary,
+  start a **new** server instance (it will spawn a new daemon from the updated
+  path) or use `OMPWEB_BACKEND=node` to bypass the Rust host entirely.
 
 ### Quick checklist before testing a dev instance
 
@@ -111,6 +117,12 @@ host then won't boot and the card shows "未就绪/Unavailable" (binary missing,
 5. The diagnostics route (`/api/diagnostics`) is where the Rust Host Daemon KPI
    and backend-error alerts are driven from — if it 500s, the whole panel shows
    a fallback even when the host is fine.
+6. **Test env-var contamination**: `OMPWEB_HOST_BIN` and `OMP_WEB_PACKAGE_DIR`
+   in the ambient shell (e.g. leaked from a dev-server launch) cause
+   `host-bin.test.mjs` route-3 tests to fail because `resolveHostBin` falls
+   through to `process.env` when a test doesn't inject an explicit `env`.
+   Run the suite with `env -u OMPWEB_HOST_BIN -u OMP_WEB_PACKAGE_DIR node
+   --experimental-strip-types --test …` for a clean result.
 
 ---
 
