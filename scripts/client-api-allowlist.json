@@ -23,7 +23,7 @@
     "components/PluginsConfig.tsx": 3,
     "components/RemoteAccessSetting.tsx": 7,
     "components/SessionSidebar.tsx": 18,
-    "components/SettingsConfig.tsx": 5,
+    "components/SettingsConfig.tsx": 7,
     "components/SkillsConfig.tsx": 6,
     "components/SubagentTranscriptDialog.tsx": 2,
     "components/TerminalPanel.tsx": 6,

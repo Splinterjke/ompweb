@@ -38,16 +38,18 @@ export async function register(): Promise<void> {
     // Diagnostics are best-effort.
   }
 
-  // A service restart tears down the in-memory RPC registry. The previous
-  // process snapshots its live sessions during SIGTERM; recreate those omp
-  // children before serving so conversations continue without a browser turn.
-  try {
-    const { restoreActiveRpcSessions } = await import("@/lib/rpc-manager");
-    await restoreActiveRpcSessions();
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.warn(`[omp-web] active-session restore failed: ${detail}`);
-  }
+  // Resume sessions that were mid-run when omp-web last stopped (controlled
+  // by the "Resume running sessions after a restart" web setting, default on).
+  // Fire-and-forget: resuming must not block boot.
+  void (async () => {
+    try {
+      const { resumeInterruptedSessions } = await import("@/lib/rpc-manager");
+      await resumeInterruptedSessions();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`[omp-web] session auto-resume failed: ${detail}`);
+    }
+  })();
   // Ship the repo's rebuild script in "Script schedulers" (manual launch) on
   // first boot. Best-effort: a packaged install without the script skips it,
   // and a pre-existing entry is never duplicated. scheduler-store is

@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-09-28T19:19:30.993Z",
+  "generatedAt": "2026-09-29T07:42:35.479Z",
   "totals": {
     "files": 35,
-    "calls": 164,
-    "http": 154,
+    "calls": 166,
+    "http": 156,
     "sse": 10,
     "read": 82,
-    "write": 82
+    "write": 84
   },
   "domains": {
     "pair": 9,
@@ -36,6 +36,7 @@
     "projects": 5,
     "home": 1,
     "worktrees": 3,
+    "web-settings": 2,
     "terminal": 6,
     "usage-summary": 1,
     "provider-usage": 1,
@@ -1158,7 +1159,25 @@
       "file": "components/SettingsConfig.tsx",
       "calls": [
         {
-          "line": 651,
+          "line": 445,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/web-settings",
+          "domain": "web-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 455,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/web-settings",
+          "domain": "web-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 687,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -1167,7 +1186,7 @@
           "stream": false
         },
         {
-          "line": 674,
+          "line": 710,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -1176,7 +1195,7 @@
           "stream": false
         },
         {
-          "line": 726,
+          "line": 762,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1185,7 +1204,7 @@
           "stream": false
         },
         {
-          "line": 775,
+          "line": 811,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1194,7 +1213,7 @@
           "stream": false
         },
         {
-          "line": 794,
+          "line": 830,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",

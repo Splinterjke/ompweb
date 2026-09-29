@@ -216,6 +216,7 @@ app/api/
   skills/route.ts                 GET/PATCH loaded skills and disable-model-invocation
   skills/install/route.ts         POST install skills through npx skills add
   skills/search/route.ts          GET/POST skills.sh search
+  web-settings/route.ts          GET/PUT server settings (auto-resume sessions)
   worktrees/route.ts              GET/POST/DELETE git worktrees
 
 lib/
@@ -239,11 +240,13 @@ lib/
   schedule.ts          ScheduleSpec (interval/daily/weekdays/weekly/cron/manual) + next-slot math
   scheduler-seed.test.mjs  seeds the rebuild script as a "Manual launch" scheduler on boot
   session-reader.ts    session .jsonl parsing + path cache + buildSessionContext
+  session-resume.ts    mid-run session tracker (on-disk list) + resume prompt; resume orchestration lives in rpc-manager
   skills-service.ts    pure-Node skill discovery mirroring omp's providers
   tool-presets.ts      PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts             shared TypeScript types
   normalize.ts         normalizeToolCalls() — field name mismatch between file format and our types
   worktree.ts          project/worktree resolution and git worktree operations
+  web-settings.ts      omp-web server settings (autoResumeSessions) persistence, ~/.omp/agent/omp-web-settings.json
 
 components/
   AppShell.tsx        layout + URL state + tab management
@@ -345,6 +348,29 @@ handled or safely ignored.
 - `GET /api/sessions/[id]/state` reports `external: true` when the file had a recent write (90 s `EXTERNAL_ACTIVITY_WINDOW_MS`) or a live holder has a turn in flight. "Turn in flight" = the last committed `message` entry is a user/toolResult (model generating) or an assistant with a pending toolCall. Idle holders (a terminal waiting for input, a leftover child after its turn finished) end on a final assistant message and must not keep the session "running" forever. A holder whose file has been quiet for `STALE_HOLDER_MS` (5 min, mirrors the client's `EXTERNAL_RUN_END_SILENCE_MS`) is treated as stalled (hung tool, crashed API call, orphaned child) and dropped by the `/proc` scan — otherwise a dead-end process would keep the session "running" forever; a live run re-announces itself on its next file write and the badge returns.
 - Client (`useAgentSession` `enterExternalMode`): external sessions render as running (Stop button, "running in an external omp terminal" notice), never attach a per-session RPC stream or registry reconcile, and a 10 s poller reclaims to idle once the file is quiet and the committed tail is final. Stop/send/steer/compact are rejected with the same notice — the web server has no RPC channel to the external process, so it must be stopped at its source (the terminal). The session-file watcher re-enters external mode on the next write (which also reloads via `loadContext(sid, null, true)` so an open pre-compaction view survives external writes).
 - The session-file watcher uses per-directory non-recursive inotify watches (one per project dir, lazily added with a one-shot resync). Node's recursive `fs.watch` lstats every directory entry on folder events, which raises an uncaught EIO on WSL2/9p (dentry race on transient `.jsonl.lock` files) and killed the server. `instrumentation.ts` additionally suppresses exactly those errors.
+
+### Auto-resume after a restart (`lib/session-resume.ts`, `lib/web-settings.ts`)
+- ON by default (`autoResumeSessions` in `~/.omp/agent/omp-web-settings.json`, toggle in
+  Settings → System & Updates, served by `/api/web-settings`). Replaces the older
+  SIGTERM-snapshot restore. While on, `notifyRunningChange()` keeps
+  `~/.omp/agent/omp-web-interrupted-sessions.json` in the agent dir listing sessions
+  that are mid-run.
+- A session leaves the list when its run ends normally (process still alive), or
+  `EXIT_GRACE_MS` (2 s) after its process dies — a service stop signals every process
+  at once, so a child can die just before the shutdown handler runs;
+  `markShuttingDown()` (the registry cleanup hook, fired from `instrumentation.ts`)
+  freezes the list so those deaths still count as interrupted, while a crash with
+  omp-web still up is dropped after the window.
+- On boot, `instrumentation.ts` calls `resumeInterruptedSessions()` (fire-and-forget,
+  must never block boot): each interrupted session is re-spawned and prompted with the
+  side-effect-aware recovery prompt ("The omp-web server restarted while your previous
+  turn was active… Do not repeat completed side effects…").
+- Only session ids + the `--advisor` flag are stored; paths are re-resolved on resume,
+  and invalid ids are dropped. The tracker claims the previous run's list on first use
+  in the process (`readLeftover`), so this run's first write can never clobber it before
+  resume consumes it.
+- Known limit: resume does not detect a terminal `omp --resume <id>` started on the
+  same session while omp-web was down; both would write the file.
 
 ### `instrumentation.ts` — edge-runtime import trap
 - `instrumentation.ts` is bundled for **both** Node and Edge runtimes. A static

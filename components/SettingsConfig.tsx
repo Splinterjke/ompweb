@@ -323,6 +323,8 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "load-project-mcp-servers", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.loadProjectMcp", descKey: "settingsConfig.loadProjectMcpDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "Load Project MCP Servers", fallbackDesc: "Allow project-root MCP configuration to be discovered.", scope: "Native OMP" },
   { id: "render-mcp-markdown", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.renderMcpMarkdown", descKey: "settingsConfig.renderMcpMarkdownDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "Render MCP Markdown", fallbackDesc: "Render non-JSON MCP results as Markdown in transcript.", scope: "Native OMP" },
   { id: "mcp-resource-updates", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.mcpResourceUpdates", descKey: "settingsConfig.mcpResourceUpdatesDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "MCP Resource Updates", fallbackDesc: "Inject server resource updates into conversation.", scope: "Native OMP" },
+  // System & Updates
+  { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System & Updates", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
 ];
 
 function SearchResultsList({ results, query, onSelect }: { results: SearchResult[]; query: string; onSelect: (result: SearchResult) => void }) {
@@ -431,6 +433,40 @@ function ToggleSwitch({
         }}
       />
     </button>
+  );
+}
+
+/** Server-side omp-web setting (lib/web-settings.ts), loaded on mount. */
+function AutoResumeSessionsSetting() {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/web-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { autoResumeSessions?: boolean } | null) => { if (alive) setEnabled(data?.autoResumeSessions === true); })
+      .catch(() => { if (alive) setEnabled(false); });
+    return () => { alive = false; };
+  }, []);
+  const change = async (next: boolean) => {
+    const previous = enabled;
+    setEnabled(next);
+    try {
+      const res = await fetch("/api/web-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoResumeSessions: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      setEnabled(previous);
+      toast.error(t("settingsConfig.autoResumeSessionsSaveFailed"), error instanceof Error ? error.message : String(error));
+    }
+  };
+  return (
+    <NativeSetting searchId="auto-resume-sessions" label={t("settingsConfig.autoResumeSessions")} description={t("settingsConfig.autoResumeSessionsDesc")}>
+      <ToggleSwitch checked={enabled === true} disabled={enabled === null} onChange={(next) => void change(next)} />
+    </NativeSetting>
   );
 }
 
@@ -1717,6 +1753,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.systemUpdatesDescription")}</p>
                 </div>
 
+
+                <AutoResumeSessionsSetting />
 
                 {/* OMP runtime update card */}
                 <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 10 }}>

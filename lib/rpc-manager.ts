@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync } from "fs";
 import { homedir } from "os";
 import { clearBackendErrors, recordBackendError, recentBackendErrors } from "./backend-errors";
 import { validateAgentImages } from "./image-attachments";
@@ -8,7 +8,8 @@ import { createRpcProcess, type RpcProcessLike } from "./omp/rust-rpc-process";
 import { readNativeSettings } from "./omp/settings-config";
 import { scanSessionInfo } from "./omp/session-files";
 import { sanitizeSessionTitle } from "./session-title";
-import { cacheSessionPath, invalidateSessionListCache, readSessionHeader } from "./session-reader";
+import { cacheSessionPath, invalidateSessionListCache, readSessionHeader, resolveSessionPath } from "./session-reader";
+import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { taskCompletedDiff } from "./todo-completion";
 import { PRESET_FULL } from "./tool-presets";
@@ -73,83 +74,6 @@ export function recentRpcFailures(windowMs = 60_000): Array<{ at: number; detail
 /** Clear failures after an explicit recovery action succeeded. */
 export function clearRpcFailures(): void {
   clearBackendErrors();
-}
-
-const INTERRUPTED_TURN_RECOVERY_PROMPT = [
-  "The omp-web server restarted while your previous turn was active.",
-  "Continue the same task from the persisted session context.",
-  "Do not repeat completed side effects. If an operation may have completed before the restart, verify its current state before acting.",
-].join(" ");
-const ACTIVE_SESSIONS_PATH = process.env.OMP_WEB_ACTIVE_SESSIONS_PATH
-  ?? `${homedir()}/.omp/agent/omp-web-active-sessions.json`;
-
-interface PersistedActiveSession {
-  sessionId: string;
-  sessionFile: string;
-  cwd: string;
-  advisor: boolean;
-  turnActive: boolean;
-}
-
-function activeSessionSnapshot(): PersistedActiveSession[] {
-  return [...new Set(getRegistry().values())]
-    .filter((session) => session.isAlive())
-    .map((session) => ({
-      sessionId: session.sessionId,
-      sessionFile: session.sessionFile,
-      cwd: session.cwd,
-      advisor: session.advisorSpawned,
-      turnActive: session.hasActiveTurn(),
-    }))
-    .filter((session) => session.sessionId && session.sessionFile);
-}
-
-function persistActiveSessionsForRestart(): void {
-  const sessions = activeSessionSnapshot();
-  try {
-    if (sessions.length === 0) {
-      unlinkSync(ACTIVE_SESSIONS_PATH);
-      return;
-    }
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
-  const temporary = `${ACTIVE_SESSIONS_PATH}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify({ version: 1, sessions })}\n`, { mode: 0o600 });
-  renameSync(temporary, ACTIVE_SESSIONS_PATH);
-}
-
-function consumeActiveSessionSnapshot(): PersistedActiveSession[] {
-  try {
-    const value = JSON.parse(readFileSync(ACTIVE_SESSIONS_PATH, "utf8")) as {
-      version?: unknown;
-      sessions?: unknown;
-    };
-    unlinkSync(ACTIVE_SESSIONS_PATH);
-    if (value.version !== 1 || !Array.isArray(value.sessions)) return [];
-    return value.sessions.flatMap((candidate) => {
-      if (!candidate || typeof candidate !== "object") return [];
-      const session = candidate as Record<string, unknown>;
-      if (
-        typeof session.sessionId !== "string"
-        || typeof session.sessionFile !== "string"
-        || typeof session.cwd !== "string"
-        || typeof session.advisor !== "boolean"
-        || typeof session.turnActive !== "boolean"
-      ) return [];
-      return [{
-        sessionId: session.sessionId,
-        sessionFile: session.sessionFile,
-        cwd: session.cwd,
-        advisor: session.advisor,
-        turnActive: session.turnActive,
-      }];
-    });
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
-    console.warn("[omp-web] failed to read active-session restart snapshot", error);
-    return [];
-  }
 }
 
 const RESTARTING_MESSAGE = "This session is restarting — retry in a moment.";
@@ -1742,16 +1666,9 @@ declare global {
 function getRegistry(): Map<string, AgentSessionWrapper> {
   if (!globalThis.__ompSessions) {
     globalThis.__ompSessions = new Map();
-    let snapshotWritten = false;
     const cleanup = () => {
-      if (!snapshotWritten) {
-        snapshotWritten = true;
-        try {
-          persistActiveSessionsForRestart();
-        } catch (error) {
-          console.error("[omp-web] failed to persist active sessions for restart", error);
-        }
-      }
+      // Children dying from here on are the shutdown, not finished runs.
+      markShuttingDown();
       globalThis.__ompSessions?.forEach((session) => session.destroy());
     };
     process.once("exit", cleanup);
@@ -1806,40 +1723,6 @@ export async function restartAllRpcSessions(): Promise<number> {
   // that must not block restarting the rest.
   await Promise.all(sessions.map((session) => session.destroyAndWait().catch(() => undefined)));
   return sessions.length;
-}
-
-/** Resume every live RPC session captured during the previous server shutdown. */
-export async function restoreActiveRpcSessions(): Promise<number> {
-  const sessions = consumeActiveSessionSnapshot();
-  const restored = await Promise.allSettled(
-    sessions.map(async (saved) => {
-      if (!existsSync(saved.sessionFile)) throw new Error(`session file missing: ${saved.sessionFile}`);
-      const header = readSessionHeader(saved.sessionFile);
-      const { cwd } = resolveSpawnCwdResult(header?.cwd ?? saved.cwd);
-      const { session } = await startRpcSession(
-        saved.sessionId,
-        saved.sessionFile,
-        cwd,
-        undefined,
-        saved.advisor,
-        header?.cwd,
-      );
-      if (saved.turnActive) {
-        await session.send({ type: "prompt", message: INTERRUPTED_TURN_RECOVERY_PROMPT });
-      }
-    }),
-  );
-  let count = 0;
-  for (let index = 0; index < restored.length; index++) {
-    const result = restored[index];
-    if (result?.status === "fulfilled") count++;
-    else console.warn(
-      `[omp-web] failed to restore active session ${sessions[index]?.sessionId ?? "unknown"}`,
-      result?.reason,
-    );
-  }
-  if (count > 0) console.log(`[omp-web] restored ${count} active session${count === 1 ? "" : "s"}`);
-  return count;
 }
 
 // ----------------------------------------------------------------------------
@@ -1901,10 +1784,41 @@ export function notifyRunningChange({ refreshSessionList = false }: { refreshSes
   const snapshot = JSON.stringify([ids.slice().sort(), exitedSessions.slice().sort(byId)]);
   if (snapshot === lastRunningSnapshot && !refreshSessionList) return;
   lastRunningSnapshot = snapshot;
+  syncInterruptibleSessions();
   const update: RunningSessionUpdate = { ids, refreshSessionList, exitedSessions };
   for (const listener of getRunningListeners()) {
     try { listener(update); } catch { /* ignore listener errors */ }
   }
+}
+
+/** Record which sessions are mid-run, for resume after a restart. */
+export function syncInterruptibleSessions(): void {
+  const registry = getRegistry();
+  const running = new Map<string, { id: string; advisor: boolean }>();
+  for (const session of registry.values()) {
+    if (session.sessionId && session.isRunning()) running.set(session.sessionId, { id: session.sessionId, advisor: session.advisorSpawned });
+  }
+  recordRunningSessions([...running.values()], (id) => registry.get(id)?.isAlive() === true);
+}
+
+/**
+ * Restart the sessions that were mid-run when omp-web last stopped and ask
+ * each to continue. Only runs when the auto-resume setting is on.
+ */
+export async function resumeInterruptedSessions(): Promise<void> {
+  await Promise.all(takeInterruptedSessions().map(async ({ id, advisor }) => {
+    try {
+      const filePath = await resolveSessionPath(id);
+      if (!filePath) return;
+      const header = readSessionHeader(filePath);
+      const { cwd } = resolveSpawnCwdResult(header?.cwd);
+      const { session } = await startRpcSession(id, filePath, cwd, undefined, advisor, header?.cwd);
+      await session.send({ type: "prompt", message: RESUME_PROMPT });
+      console.log(`[omp-web] resumed interrupted session ${id}`);
+    } catch (error) {
+      console.warn(`[omp-web] could not resume session ${id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }));
 }
 
 /**

@@ -54,6 +54,7 @@
     "invalid_port",
     "invalid_request_type",
     "invalid_session_file",
+    "invalid_settings",
     "invalid_sort_order",
     "invalid_subagent_id",
     "invalid_upload_type",
