@@ -2589,7 +2589,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           setCompactResult(null);
         } else if (!event.aborted && !event.skipped) {
           setCompactResult(readCompactResult(event.result, "auto"));
-          if (sessionIdRef.current) loadSession(sessionIdRef.current);
+          if (sessionIdRef.current) loadSession(sessionIdRef.current, false, true);
         }
         break;
       case "subagent_lifecycle": {
@@ -3220,7 +3220,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     try {
       const result = await sendAgentCommand<CompactCommandResult>(sid, { type: "compact" });
       setCompactResult(readCompactResult(result, "manual"));
-      await loadSession(sid, true);
+      await loadSession(sid, true, true);
       void refreshLiveModelState(sid);
     } catch (e) {
       setCompactError(e instanceof Error ? e.message : String(e));
@@ -3292,7 +3292,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             ...(args ? { customInstructions: args } : {}),
           });
           setCompactResult(readCompactResult(result, "manual"));
-          await loadSession(sid, true);
+          await loadSession(sid, true, true);
           isCompactingRef.current = false;
           setIsCompacting(false);
           // loadSession resolves to null unless state was requested, so promote
