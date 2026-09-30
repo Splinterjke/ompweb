@@ -333,7 +333,6 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
             alignItems: "center",
             justifyContent: "center",
             background: "rgba(0, 0, 0, 0.45)",
-            backdropFilter: "blur(2px)",
             padding: 16,
           }}
           onClick={() => setRejectModalOpen(false)}

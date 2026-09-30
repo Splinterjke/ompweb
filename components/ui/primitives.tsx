@@ -36,7 +36,6 @@ export function DialogContent({ children, className, style, ariaLabel }: {
         style={{
           position: "fixed", inset: 0,
           background: "var(--overlay-backdrop)",
-          backdropFilter: "blur(2px)",
           zIndex: 1000,
           animation: "ui-fade-in var(--dur-med) var(--ease-out-warm) both",
         }}
