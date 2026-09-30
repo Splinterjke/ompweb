@@ -64,7 +64,7 @@ curl -s -b /tmp/jar http://127.0.0.1:30178/api/diagnostics
 
 1. **Read the running env first** — most "it's broken" reports are env-shaped:
    ```bash
-   ps -ef | grep "next dev"          # find launcher + next-server pids
+   ps -ef | grep -E "next dev|next-server"   # launcher (next dev) + server (next-server vX) pids
    tr '\0' '\n' < /proc/<next-server-pid>/environ | grep -E 'OMP_WEB_PASSWORD|OMPWEB_HOST_BIN|OMP_WEB_OMP_BIN'
    ```
 2. **Auth** — 401 with `password_required` means the gate is on; do the login flow above. Non-loopback hosts need `OMP_WEB_ALLOWED_HOSTS` (comma-separated); loopback is always allowed.
@@ -121,18 +121,33 @@ transient, not a stale lock from a crashed process.
 ## Kill / restart
 
 ```bash
-# graceful dev server stop (kills launcher + next-server + children)
-pkill -f "next dev"        # or kill the launcher pid; the next-server child follows
+# Find the launcher AND the real server. The running server's process title is
+# rewritten to `next-server (vX)`, so `pkill -f "next dev"` only kills the
+# npm/sh/node wrappers and leaves an ORPHANED next-server (PPid 1) still bound
+# to the port — it keeps serving and blocks the restart. Kill the next-server:
+ps -ef | grep -E "next dev|next-server"     # identify the `next-server (vX)` pid
+kill <next-server-pid>                       # SIGTERM; host-daemon children follow
+# (also kill the launcher pid if it is still around)
 
-# verify the port is free before restarting
-ss -ltnp | grep 30178      # (or lsof -i :30178)
+# Verify the port is actually free with curl (a direct port test), not ss —
+# `ss`/`lsof` can be unreliable in this containerized WSL2 setup.
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:30178/   # expect 000
 
 npm run dev
 ```
 
+- **Killed processes may linger as zombies** (STAT `Z`): the container's PID 1
+  does not reap orphans, so `ps` keeps listing them. They are already dead (no
+  ports, no memory) and clear on container restart — do NOT loop on `kill -9`
+  retries. A process in D state (blocked on WSL2/9p I/O) cannot be signalled at
+  all until the I/O unblocks; leave it alone.
+- **Always re-check with `ps -ef | grep next-server` after a kill** — an
+  orphaned next-server is the usual reason a "stopped" port still serves (the
+  `pkill` above only removed the wrappers).
+
 - **Restarting an active session** (after a CLI `omp` update): `POST /api/omp-update {"action":"restart"}` restarts active OMP sessions; `{"action":"check"}` runs `omp update --check`.
 - **Docker/compose rebuild** (bound repo): run the `ompweb-rebuild-restart.sh` scheduler (Settings → Script schedulers, manual launch) — it rebuilds and redeploys, then a page refresh picks up the new build.
-- After any restart, `instrumentation.ts` restores active RPC sessions from disk, so open sessions re-attach automatically.
+- After any restart, `instrumentation.ts` restores active RPC sessions from disk (auto-resume, ON by default), so open sessions re-attach automatically. If the killed server was hosting a **mid-run** session, it re-opens with the "The omp-web server restarted while your previous turn was active — continue, do not repeat completed side effects" prompt (`RESUME_PROMPT`, `lib/session-resume.ts`) — **expected**, not a bug; it is the visible cost of restarting the host server.
 
 ## E2E / restart testing
 
@@ -151,6 +166,14 @@ restart-test script runs) and was the single largest time sink.
 appears in the sidebar of the ompweb instance you are connected to. If a
 throwaway test instance shows your own *running* session in its sidebar, it is
 the host — treat it as untouchable and pick a different test port.
+
+**Killing is not the only way to restart it — editing config does too.**
+`next dev` watches `next.config.ts` (and other config files); saving a change
+auto-restarts the dev server **with no pkill at all**. So if your session is
+driven through a dev instance, don't run that instance on a port you are
+connected through, and don't edit its `next.config.ts` — a well-intentioned
+config change (e.g. adding a header exclusion) silently restarts the server
+your session lives on and interrupts your turn exactly like a kill does.
 
 **Instead:**
 
