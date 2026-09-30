@@ -1,6 +1,6 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-09-29T09:10:25.980Z · totals: 167 calls / 36 files · http 157 (read 82 / write 85) · sse 10
+Generated: 2026-09-30T14:58:34.633Z · totals: 166 calls / 36 files · http 156 (read 81 / write 85) · sse 10
 
 | domain | calls |
 |---|---|
@@ -39,6 +39,5 @@ Generated: 2026-09-29T09:10:25.980Z · totals: 167 calls / 36 files · http 157 
 | usage-summary | 1 |
 | provider-usage | 1 |
 | stt | 1 |
-| browser-proxy | 1 |
 
 Machine-readable record: `api-call-inventory.json`. Sync gate: `lib/api-inventory.test.mjs`; lint gate: `eslint.config.mjs`.

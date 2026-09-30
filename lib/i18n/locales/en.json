@@ -1572,7 +1572,7 @@
   "rightWorkbench.browserGo": "Open",
   "rightWorkbench.browserExternal": "Open externally",
   "rightWorkbench.browserHint": "Enter a URL to preview it in this workspace",
-  "rightWorkbench.browserFrameNote": "If the page stays blank, the site blocks embedding — try Proxy mode or use Open externally",
+  "rightWorkbench.browserFrameNote": "If the page stays blank, the site may be blocking the request — use Open externally",
   "rightWorkbench.browserBlocked": "This site blocks embedding (X-Frame-Options / CSP frame-ancestors).",
   "rightWorkbench.browserModeDirect": "Direct",
   "rightWorkbench.browserModeProxy": "Proxy",

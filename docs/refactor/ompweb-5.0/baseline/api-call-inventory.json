@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-09-29T09:10:25.980Z",
+  "generatedAt": "2026-09-30T14:58:34.633Z",
   "totals": {
     "files": 36,
-    "calls": 167,
-    "http": 157,
+    "calls": 166,
+    "http": 156,
     "sse": 10,
-    "read": 82,
+    "read": 81,
     "write": 85
   },
   "domains": {
@@ -43,8 +43,7 @@
     "provider-usage": 1,
     "usage": 3,
     "stt": 1,
-    "schedulers": 2,
-    "browser-proxy": 1
+    "schedulers": 2
   },
   "files": [
     {
@@ -675,7 +674,7 @@
           "stream": false
         },
         {
-          "line": 2228,
+          "line": 2331,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}/bash-output",
@@ -1712,15 +1711,6 @@
         },
         {
           "line": 18,
-          "kind": "http",
-          "method": "GET",
-          "endpoint": "/api/browser-proxy",
-          "domain": "browser-proxy",
-          "rw": "read",
-          "stream": false
-        },
-        {
-          "line": 23,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/subagents/{param}",

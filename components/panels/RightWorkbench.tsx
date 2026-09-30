@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Bot, Columns2, ExternalLink, Files, GitBranch, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
-import { createTemporarySession, fetchBrowserPreview } from "@/lib/workbench-client";
+import { createTemporarySession } from "@/lib/workbench-client";
 import { GitChangesPanel } from "../GitChangesPanel";
 
 export type WorkbenchView = "files" | "agents" | "git" | "sidechat" | "browser";
@@ -115,32 +115,13 @@ function BrowserView() {
   const [navKey, setNavKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  // Two render modes: "direct" loads the URL in a same-origin-keeping
-  // <iframe src> (full JS, but blocked by X-Frame-Options on many sites);
-  // "proxy" fetches the HTML server-side and renders it via srcDoc, which
-  // bypasses frame-ancestors restrictions (JS runs in an opaque origin).
-  const [mode, setMode] = useState<"direct" | "proxy">("direct");
-  const [proxyHtml, setProxyHtml] = useState<string | null>(null);
-  const [proxyError, setProxyError] = useState<string | null>(null);
+  // Two render modes: "proxy" (default) loads the page through
+  // /api/browser-proxy, which returns the HTML with a permissive per-response
+  // CSP — bypasses X-Frame-Options while letting external scripts/styles
+  // load. "direct" loads the URL in a same-origin-keeping <iframe src> (full
+  // JS, own origin, but blocked by X-Frame-Options on many sites).
+  const [mode, setMode] = useState<"direct" | "proxy">("proxy");
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const loadProxy = useCallback(async (target: string) => {
-    setLoading(true);
-    setProxyError(null);
-    setProxyHtml(null);
-    try {
-      const payload = await fetchBrowserPreview(target);
-      const base = payload.finalUrl || target;
-      const escapedBase = base.replace(/"/g, "&quot;");
-      const html = /<head[\s>]/i.test(payload.html)
-        ? payload.html.replace(/<head([^>]*)>/i, `<head$1><base href="${escapedBase}">`)
-        : `<!doctype html><html><head><base href="${escapedBase}"></head><body>${payload.html}</body></html>`;
-      setProxyHtml(html);
-    } catch (loadError) {
-      setProxyError(loadError instanceof Error ? loadError.message : String(loadError));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
   const openUrl = useCallback((value: string) => {
     const target = value.trim();
     if (!/^https?:\/\//i.test(target)) return;
@@ -148,13 +129,10 @@ function BrowserView() {
     setNavKey((k) => k + 1);
     setLoading(true);
     setBlocked(false);
-    setProxyHtml(null);
-    setProxyError(null);
-    if (mode === "proxy") void loadProxy(target);
-  }, [mode, loadProxy]);
+  }, []);
   const handleIframeLoad = useCallback(() => {
-    if (mode !== "direct") return;
     setLoading(false);
+    if (mode !== "direct") return;
     try {
       const href = iframeRef.current?.contentWindow?.location.href;
       if (href === "about:blank") setBlocked(true);
@@ -165,20 +143,17 @@ function BrowserView() {
   const switchMode = useCallback((next: "direct" | "proxy") => {
     setMode(next);
     setBlocked(false);
-    setProxyHtml(null);
-    setProxyError(null);
     if (!url) return;
     setNavKey((k) => k + 1);
     setLoading(true);
-    if (next === "proxy") void loadProxy(url);
-  }, [url, loadProxy]);
+  }, [url]);
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, background: "var(--bg)" }}>
       <form onSubmit={(event) => { event.preventDefault(); openUrl(draft); }} style={{ display: "flex", gap: 6, padding: "7px 8px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
         <Search size={14} style={{ alignSelf: "center", color: "var(--text-dim)" }} aria-hidden="true" />
         <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t("rightWorkbench.browserPlaceholder") === "rightWorkbench.browserPlaceholder" ? "Enter an http(s) URL…" : t("rightWorkbench.browserPlaceholder")} aria-label={t("rightWorkbench.browserPlaceholder")} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--text)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }} />
         <button type="submit" disabled={!/^https?:\/\//i.test(draft.trim())} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", padding: "3px 8px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("rightWorkbench.browserGo") === "rightWorkbench.browserGo" ? "Open" : t("rightWorkbench.browserGo")}</button>
-        <Tooltip content={mode === "direct" ? "Load via proxy (bypasses X-Frame-Options; JS limited)" : "Load directly in an iframe (full JS; some sites block framing)"}>
+        <Tooltip content={mode === "proxy" ? "Load directly in an iframe (full JS, own origin; some sites block framing)" : "Load via proxy (bypasses X-Frame-Options; external scripts and styles load)"}>
           <button type="button" onClick={() => switchMode(mode === "direct" ? "proxy" : "direct")} aria-pressed={mode === "proxy"} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: mode === "proxy" ? "color-mix(in srgb, var(--accent) 18%, var(--bg))" : "var(--bg)", color: "var(--text)", padding: "3px 8px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }}>{mode === "direct" ? (t("rightWorkbench.browserModeProxy") === "rightWorkbench.browserModeProxy" ? "Proxy" : t("rightWorkbench.browserModeProxy")) : (t("rightWorkbench.browserModeDirect") === "rightWorkbench.browserModeDirect" ? "Direct" : t("rightWorkbench.browserModeDirect"))}</button>
         </Tooltip>
       </form>
@@ -198,9 +173,13 @@ function BrowserView() {
           ) : (
             <iframe
               key={navKey}
+              ref={iframeRef}
               aria-label={url}
-              srcDoc={proxyHtml ?? undefined}
+              src={`/api/browser-proxy?url=${encodeURIComponent(url)}`}
               sandbox="allow-forms allow-modals allow-popups allow-scripts"
+              referrerPolicy="no-referrer"
+              onLoad={handleIframeLoad}
+              onError={() => setLoading(false)}
               style={{ width: "100%", height: "100%", border: 0, background: "var(--bg)" }}
             />
           )}
@@ -211,12 +190,6 @@ function BrowserView() {
             <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--bg)", color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}>
               <div>{t("rightWorkbench.browserBlocked") === "rightWorkbench.browserBlocked" ? "This site blocks embedding (X-Frame-Options / CSP frame-ancestors)." : t("rightWorkbench.browserBlocked")}</div>
               <button type="button" onClick={() => switchMode("proxy")} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", padding: "5px 9px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("rightWorkbench.browserSwitchToProxy") === "rightWorkbench.browserSwitchToProxy" ? "Try proxy mode" : t("rightWorkbench.browserSwitchToProxy")}</button>
-            </div>
-          )}
-          {proxyError && !loading && mode === "proxy" && (
-            <div role="alert" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, background: "var(--bg)", color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center", padding: 20 }}>
-              <div>{proxyError}</div>
-              <button type="button" onClick={() => switchMode("direct")} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", padding: "5px 9px", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("rightWorkbench.browserSwitchToDirect") === "rightWorkbench.browserSwitchToDirect" ? "Try direct mode" : t("rightWorkbench.browserSwitchToDirect")}</button>
             </div>
           )}
           <Tooltip content={t("rightWorkbench.browserExternal") === "rightWorkbench.browserExternal" ? "Open in system browser" : t("rightWorkbench.browserExternal")}>

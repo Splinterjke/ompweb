@@ -581,19 +581,41 @@ handled or safely ignored.
   the RPC protocol, so failures surface as toasts (`toast.error`) from the
   editor actions, not inline text.
 - The endpoint is guarded by the same allowed-root rules as `/api/files`.
-### Browser tab — direct-src iframe (`components/panels/RightWorkbench.tsx` BrowserView)
-- The Browser tab embeds arbitrary http(s) pages with a **direct** `<iframe src=…>`
-  navigation (page keeps its own origin), so scripts, storage, XHR and dynamic
-  content all execute. The old fetch-into-`srcDoc` proxy (`/api/browser-proxy`,
-  removed) ran page JS in an opaque, sandboxed context that rendered JS-heavy
-  pages blank — that is why it looked like "JavaScript is disabled".
-- Cross-origin framing requires `frame-src 'self' http: https:` in the app CSP
-  (`next.config.ts`); without it `default-src 'self'` blocks every cross-origin
-  frame. `frame-ancestors 'none'` (the app can't be framed) is independent.
+### Browser tab — proxy-default iframe (`components/panels/RightWorkbench.tsx` BrowserView)
+- The Browser tab has two modes; **proxy is the default**. "proxy" loads
+  `/api/browser-proxy?url=…` in a sandboxed same-origin `<iframe src>`
+  (`sandbox="allow-forms allow-modals allow-popups allow-scripts"` — no
+  `allow-same-origin`); "direct" loads the target URL in an `<iframe src>`
+  (full JS, own origin, but blocked by X-Frame-Options / CSP frame-ancestors
+  on many sites — the "blocked" overlay offers the switch to proxy).
+- The proxy route (`app/api/browser-proxy/route.ts`) fetches the page
+  server-side, injects a `<base href>` (relative scripts/styles/fetches
+  resolve against the original origin), and returns the HTML with a
+  **permissive per-response CSP** (`script-src`/`style-src`/`connect-src`/
+  `base-uri`/`img-src`/`font-src` allow `https: http:`). That header is what
+  makes proxy mode JavaScript-compatible: the sandboxed iframe has an opaque
+  origin, so `'self'` matches nothing, and the inherited app CSP
+  (`script-src 'self' …`) would refuse every external script/stylesheet —
+  the "partly loaded" pages. The permissive policy is scoped to the proxy
+  response; the app's own CSP stays strict. Proxy errors (400/413/502) render
+  a styled in-iframe HTML page, never raw JSON.
+- `next.config.ts` global header rule must exclude `/api/browser-proxy`
+  (`source: "/((?!api/files/)(?!api/browser-proxy).*)"`): config-level headers
+  overwrite route-handler headers, so without the exclusion the global
+  `X-Frame-Options: DENY` (and the strict app CSP) would be stamped on the
+  proxy response and the iframe would refuse to frame it.
+- Known proxy limits: the document origin is opaque, so `window.location` is
+  the proxy URL and `localStorage`/`sessionStorage` are unavailable; page JS
+  that builds absolute URLs from `window.location.origin` (or whose
+  cross-origin fetches need CORS headers the site doesn't send) won't fully
+  work — "Open externally" covers that case.
+- Cross-origin framing for direct mode requires `frame-src 'self' http: https:`
+  in the app CSP (`next.config.ts`); `frame-ancestors 'none'` (the app can't be
+  framed) is independent.
 - A `loading` overlay (`role="status"`) covers the frame until `onLoad`. A site
-  that refuses framing (X-Frame-Options / CSP frame-ancestors) renders blank —
-  the empty-state note (`rightWorkbench.browserFrameNote`) and the
-  "Open externally" button cover that case.
+  that refuses framing in direct mode renders blank — the empty-state note
+  (`rightWorkbench.browserFrameNote`) and the "Open externally" button cover
+  that case.
 
 ### Plugins and skills
 - `/api/plugins` shells out to the user's `omp plugin` CLI (`list/install/uninstall/enable/disable/upgrade`, `--json` where available) — never the Bun-only SDK.

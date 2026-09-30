@@ -1567,7 +1567,7 @@
   "rightWorkbench.browserGo": "打开",
   "rightWorkbench.browserExternal": "外部打开",
   "rightWorkbench.browserHint": "输入网址后在工作区内预览",
-  "rightWorkbench.browserFrameNote": "如果页面保持空白，说明该站点禁止嵌入 — 请尝试代理模式或使用外部打开",
+  "rightWorkbench.browserFrameNote": "如果页面保持空白，说明该站点阻止了请求 — 请使用外部打开",
   "rightWorkbench.browserBlocked": "该站点禁止嵌入（X-Frame-Options / CSP frame-ancestors）。",
   "rightWorkbench.browserModeDirect": "直接",
   "rightWorkbench.browserModeProxy": "代理",

@@ -120,9 +120,12 @@ const nextConfig = (phase: string): NextConfig => {
       // only relaxes reads of public assets and the HTML shell.
       const corsAllowAllHeader = { key: "Access-Control-Allow-Origin", value: "*" };
       const globalRule = {
-        // Everything except /api/files (negative lookahead, same pattern style
-        // as the proxy matcher).
-        source: "/((?!api/files/).*)",
+        // Everything except /api/files and /api/browser-proxy (negative
+        // lookahead, same pattern style as the proxy matcher). The proxy
+        // response must NOT carry the global X-Frame-Options: DENY (the
+        // Browser tab frames it) or the strict app CSP (the proxied page
+        // needs its own permissive CSP set by the route handler).
+        source: "/((?!api/files/)(?!api/browser-proxy).*)",
         headers: [...securityHeaders, corsAllowAllHeader],
       };
       const fileRule = {

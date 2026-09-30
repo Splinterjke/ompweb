@@ -1538,7 +1538,7 @@
   "rightWorkbench.browserGo": "開く",
   "rightWorkbench.browserExternal": "外部で開く",
   "rightWorkbench.browserHint": "URL を入力するとワークスペース内でプレビューします",
-  "rightWorkbench.browserFrameNote": "ページが真っ白な場合は、そのサイトが埋め込みをブロックしている可能性があります — プロキシモードを試すか、外部で開いてください",
+  "rightWorkbench.browserFrameNote": "ページが真っ白な場合は、そのサイトがリクエストをブロックしている可能性があります — 外部で開いてください",
   "rightWorkbench.browserBlocked": "このサイトは埋め込みをブロックしています（X-Frame-Options / CSP frame-ancestors）。",
   "rightWorkbench.browserModeDirect": "直接",
   "rightWorkbench.browserModeProxy": "プロキシ",
