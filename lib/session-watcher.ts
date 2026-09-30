@@ -216,10 +216,12 @@ function stopWatchers(): void {
   }
   for (const w of dirWatchers.values()) w.close();
   dirWatchers.clear();
+  stopPolling();
 }
 
 function ensureWatcher(): void {
   if (rootWatcher || retryTimer) return;
+  startPolling();
   const sessionsDir = join(getAgentDir(), "sessions");
   try {
     rootWatcher = watch(sessionsDir, { persistent: false }, (_event, filename) =>
@@ -245,6 +247,79 @@ function ensureWatcher(): void {
     for (const name of readdirSync(sessionsDir)) addDirWatch(join(sessionsDir, name));
   } catch {
     // Unreadable sessions dir — the root watcher will report it.
+  }
+}
+
+// ── Polling fallback ────────────────────────────────────────────────────────
+// inotify never fires on 9p/drvfs mounts (WSL2 with the agent directory on a
+// Windows drive, e.g. /root/.omp → C:\), so the directory watches above can
+// stay silent for the whole process lifetime and external sessions never
+// update in the chat window. A periodic stat-based sweep over known session
+// files guarantees size changes still reach the listeners on such platforms.
+// On filesystems where inotify works, the sweep is a cheap no-op: it compares
+// against the same size baselines inotify feeds (lastSizeByPath) and the
+// pendingPaths Set dedupes paths both sources queue.
+
+const POLL_INTERVAL_MS = 2000;
+const DISCOVERY_INTERVAL_MS = 15_000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let lastDiscoveryAt = 0;
+const knownPaths = new Set<string>();
+
+function startPolling(): void {
+  if (pollTimer) return;
+  lastDiscoveryAt = 0;
+  pollTimer = setInterval(pollForChanges, POLL_INTERVAL_MS);
+}
+
+function stopPolling(): void {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  knownPaths.clear();
+  lastDiscoveryAt = 0;
+}
+
+/**
+ * One sweep of the polling fallback: (re)discover .jsonl files in the session
+ * tree, stat every known file, and feed paths whose size changed into the
+ * same pipeline the inotify events use (pendingPaths → flush → listeners).
+ * A path without a size baseline yet is reported as "new" by flush() — the
+ * list refreshes, and it is not marked as external activity.
+ * Exported so tests can drive a sweep without waiting for the interval.
+ */
+export function pollForChanges(): void {
+  if (Date.now() - lastDiscoveryAt >= DISCOVERY_INTERVAL_MS) {
+    lastDiscoveryAt = Date.now();
+    discoverSessionFiles();
+  }
+  const changed: string[] = [];
+  for (const path of [...knownPaths]) {
+    let size: number;
+    try {
+      size = statSync(path).size;
+    } catch {
+      knownPaths.delete(path);
+      continue;
+    }
+    if (lastSizeByPath.get(path) !== size) changed.push(path);
+  }
+  if (changed.length === 0) return;
+  for (const path of changed) pendingPaths.add(path);
+  if (!flushTimer) flushTimer = setTimeout(flush, DEBOUNCE_MS);
+}
+
+function discoverSessionFiles(): void {
+  const dirs = [join(getAgentDir(), "sessions"), ...dirWatchers.keys()];
+  for (const dir of dirs) {
+    try {
+      for (const name of readdirSync(dir)) {
+        if (name.endsWith(".jsonl")) knownPaths.add(join(dir, name));
+      }
+    } catch {
+      // Directory vanished between discovery and scan
+    }
   }
 }
 
