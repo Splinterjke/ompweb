@@ -923,6 +923,85 @@ html[data-theme="deepseek"], html.theme-deepseek {
   --omp-p: #8FACF8;
 }
 
+/* Qwen Chat palette (dark) — ported from the Qwen Studio web design system
+   (html.dark). Qwen brand blue on near-black surfaces; the sidebar is darker
+   than the main area, as on the site. Text/background pairs verified WCAG AA
+   (≥4.5:1 for small text) — measured values noted per token. */
+html[data-theme="qwen"], html.theme-qwen {
+  color-scheme: dark;
+  --bg: #222222;
+  --bg-panel: #111112;
+  --bg-hover: #2E2E33;
+  --bg-selected: #2A3457;
+  --border: #35353D;
+  /* 15.39:1 on --bg, 18.25:1 on --bg-panel, 13.06:1 on --bg-hover */
+  --text: #FAFBFF;
+  /* 8.20:1 on --bg, 9.72:1 on --bg-panel, 6.96:1 on --bg-hover */
+  --text-muted: #B9BABD;
+  /* 4.87:1 on --bg, 5.77:1 on --bg-panel */
+  --text-dim: #8E8E90;
+  /* Qwen brand blue #426EFF brightened for AA (site value is 3.72:1 on --bg).
+     4.60:1 on --bg, 5.46:1 on --bg-panel */
+  --accent: #5A82FF;
+  /* White on fill: 5.11:1 (passes AA for small text); site brand #426EFF
+     darkened for contrast */
+  --accent-strong: #3D62E8;
+  /* Link hover. 6.18:1 on --bg */
+  --accent-hover: #7A9EFF;
+  --user-bg: #293652;
+  --tool-bg: #1D1D1F;
+  --bg-subtle: rgba(250,251,255,0.04);
+  --status-error: #FC6D6D;
+  --status-success: #08E5A6;
+  --status-warning: #F78E4B;
+  --status-modified: #F2B22D;
+  --status-renamed: #3B6FFF;
+  --on-accent: #FFFFFF;
+  --overlay-backdrop: color-mix(in srgb, var(--text) 24%, transparent);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.5), 0 0 0 1px rgba(250,251,255,0.04);
+  --shadow-pop: 0 4px 16px rgba(0,0,0,0.6), 0 0 0 1px rgba(250,251,255,0.06);
+  --shadow-modal: 0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(250,251,255,0.08);
+  --omp-o: #2E4AFF;
+  --omp-m: #3B6FFF;
+  --omp-p: #5A82FF;
+}
+
+/* Qwen Chat Light palette — ported from the Qwen Studio web design system
+   (html.light). White surface with Qwen brand blue (#082dff) accents.
+   Text/background pairs verified WCAG AA (≥4.5:1 for small text) —
+   measured values noted per token. */
+html[data-theme="qwen-light"], html.theme-qwen-light {
+  color-scheme: light;
+  --bg: #FFFFFF;
+  --bg-panel: #F7F7F9;
+  --bg-hover: #F1F2F8;
+  --bg-selected: #EAF1FF;
+  --border: #D8DAE3;
+  /* 15.91:1 on --bg, 14.87:1 on --bg-panel */
+  --text: #222222;
+  /* 5.74:1 on --bg, 5.37:1 on --bg-panel, 5.14:1 on --bg-hover */
+  --text-muted: #666666;
+  --text-dim: #999999;
+  /* Qwen brand blue. 7.42:1 on --bg */
+  --accent: #082DFF;
+  /* White on fill: 7.42:1 (passes AA for small text) */
+  --accent-strong: #0008C9;
+  --accent-hover: #00059E;
+  --user-bg: #F7F8FC;
+  --tool-bg: #F5F6F7;
+  --bg-subtle: rgba(34,34,34,0.04);
+  --status-error: #F55353;
+  --status-success: #00B784;
+  --status-warning: #E54D11;
+  --status-modified: #EDA20E;
+  --status-renamed: #082DFF;
+  --on-accent: #FFFFFF;
+  --overlay-backdrop: color-mix(in srgb, var(--text) 24%, transparent);
+  --omp-o: #082DFF;
+  --omp-m: #2E4AFF;
+  --omp-p: #6B9CFF;
+}
+
 /* Tokyo Night palette. */
 html[data-theme="tokyo-night"], html.theme-tokyo-night {
   color-scheme: dark;
@@ -3900,18 +3979,20 @@ html[data-hidden="true"] :is(.chat-input-beam-rect, .icon-spin, .animate-spin, [
 }
 
 /* Spinning themed ring around the jump-to-bottom button while a session is
-   actively running (agent or bash). Conic gradient masked to a thin band,
-   reusing the shared `spin` keyframes; the global reduced-motion rule
-   collapses it to a static ring. */
+   actively running (agent or bash). Ported from Qwen Studio's
+   .scroll-down-button-loading: conic gradient masked to a 2px band hugging
+   the button border; the global reduced-motion rule collapses it to a
+   static ring. */
 .chat-jump-to-bottom--streaming::after {
   content: "";
   position: absolute;
-  inset: -3px;
+  inset: 0;
   border-radius: 50%;
   background: conic-gradient(from 0deg, transparent 0%, var(--accent) 100%);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-  animation: spin 1.2s linear infinite;
+  transform-origin: center center;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  animation: spin 2s linear infinite;
   pointer-events: none;
 }
 /* Composer-attached git changes bar: compact status summary above the
