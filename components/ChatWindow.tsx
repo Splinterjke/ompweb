@@ -9,7 +9,7 @@ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecuti
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
  import { MessageView } from "./MessageView";
-import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility } from "./AppShell";
+import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
  import { resolveForkEntryIds } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
@@ -50,8 +50,8 @@ interface Props {
   hideThinkingBlock?: boolean;
   /** Show the copy/fork/edit buttons under messages (Interface & Behavior switch). */
   messageActionsVisible?: boolean;
-  /** Auto-expand the last turn's process details before the compaction block when the
-   *  pre-compaction history is open (Interface & Behavior switch). */
+  /** Auto-expand all turns' process details instead of keeping them collapsed
+   *  (Interface & Behavior select). */
   processDetailsAutoExpand?: boolean;
   /** Timestamp format for message times (Interface & Behavior switch). */
   messageTimeFormat?: MessageTimeFormat;
@@ -72,8 +72,9 @@ interface Props {
   hubBarLayout?: HubBarLayout;
   /** Per-bar visibility for the composer hub bars (Interface & Behavior). */
   hubBarsVisible?: HubBarsVisibility;
-  /** Accent tint for the composer shell background (Interface & Behavior). */
-  composerAccentBg?: boolean;
+  /** Composer shell background secondary color (Interface & Behavior select):
+   *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
+  composerAccentBg?: ComposerAccentBg;
   /** Opens the Git tab in the right workbench (from the composer git bar). */
   onOpenGitTab?: () => void;
   onOpenFile?: (filePath: string) => void;
@@ -286,25 +287,6 @@ const CommittedTranscript = memo(function CommittedTranscript({
   const attachVisibleRef = (idx: number, refIndex: number) => (el: HTMLDivElement | null) => {
     messageRefs.current[refIndex] = el;
   };
-  // When the pre-compaction history is open and auto-expand is enabled
-  // (Interface & Behavior), the process details of the last turn anchored
-  // directly above the newest compaction block start expanded.
-  const autoExpandGroupIndex = useMemo(() => {
-    if (!processDetailsAutoExpand) return -1;
-    let compactionIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role === "custom" && (m as CustomMessage).customType === "compaction") {
-        compactionIdx = i;
-        break;
-      }
-    }
-    if (compactionIdx < 0) return -1;
-    for (let g = groups.length - 1; g >= 0; g--) {
-      if (groups[g].userIdx < compactionIdx) return g;
-    }
-    return -1;
-  }, [messages, groups, processDetailsAutoExpand]);
 
   const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] } = {}): ReactNode => {
     const msg = options.messageOverride ?? messages[idx];
@@ -568,7 +550,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
           <ProcessDetailsGroup
             messageCount={segment.stepCount}
             toolCallCount={segment.toolCallCount}
-            expanded={processExpanded[foldKey] ?? (groupIndex === autoExpandGroupIndex)}
+            expanded={processExpanded[foldKey] ?? processDetailsAutoExpand}
             onToggle={(next) => handleProcessToggle(foldKey, next)}
           >
             {renderActivityPieces(messages, segment.pieces, renderMessage)}
@@ -606,7 +588,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = false, onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();

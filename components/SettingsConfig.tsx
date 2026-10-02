@@ -15,7 +15,7 @@ import { SettingsTabs, type SettingsTab, SETTINGS_CATEGORIES, getNormalizedActiv
 import { BackendDiagnosticsBody } from "./BackendDiagnostics";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
-import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility } from "./AppShell";
+import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
 
 const SettingsTabLoading = () => {
   const { t } = useI18n();
@@ -265,6 +265,8 @@ type SettingIndexEntry = {
 const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior
   { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
+  { id: "thinking-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hide Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
+  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
   { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
   { id: "thinking-display-mode", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingDisplayMode", descKey: "settingsConfig.thinkingDisplayModeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking Display Behavior", fallbackDesc: "Configure whether model thinking blocks default to collapsed, auto-collapse, or always expanded.", scope: "UI" },
   { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
@@ -278,11 +280,10 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
   { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
   { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Compact hub bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
-  { id: "composer-accent-bg", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.composerAccentBg", descKey: "settingsConfig.composerAccentBgDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat input background secondary color", fallbackDesc: "Tint the chat input shell with a subtle accent-color background. When off, the shell keeps the plain page background.", scope: "UI" },
+  { id: "composer-accent-bg", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.composerAccentBg", descKey: "settingsConfig.composerAccentBgDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat input background secondary color", fallbackDesc: "Secondary color for the chat input shell: Off keeps the plain page background, Dimmed uses the panel background, Themed tints it with a subtle accent color.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
   { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
   { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
-  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of the last turn before the compaction block when the earlier history is opened.", scope: "UI" },
   { id: "message-time-format", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.timeFormat", descKey: "settingsConfig.timeFormatDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message time format", fallbackDesc: "How timestamps next to chat messages are displayed: 24 hours or AM/PM.", scope: "UI" },
   { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
@@ -297,7 +298,6 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "reasoning", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.reasoning", descKey: "settingsConfig.reasoningDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Reasoning", fallbackDesc: "Default effort level for thinking-capable models.", scope: "Native OMP" },
   { id: "verbosity", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.verbosity", descKey: "settingsConfig.verbosityDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Verbosity", fallbackDesc: "Response detail level for supporting providers.", scope: "Native OMP" },
   { id: "personality", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.personality", descKey: "settingsConfig.personalityDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Personality", fallbackDesc: "Style included in OMP's system prompt.", scope: "Native OMP" },
-  { id: "thinking-blocks", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
   { id: "external-thinking", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.externalThinking", descKey: "settingsConfig.externalThinkingDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "External Thinking", fallbackDesc: "Private scratchpad reasoning via think tool.", scope: "Native OMP" },
   // Context Compaction
   { id: "automatic-compaction", tab: "intelligence", sectionKey: "settingsConfig.contextCompaction", labelKey: "settingsConfig.automaticCompaction", descKey: "settingsConfig.automaticCompactionDesc", fallbackSection: "Context Compaction", fallbackLabel: "Automatic Compaction", fallbackDesc: "Compact context before model context limit is hit.", scope: "Native OMP" },
@@ -542,7 +542,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = false, onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -565,9 +565,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Per-bar visibility for the composer hub bars. */
   hubBarsVisible?: HubBarsVisibility;
   onHubBarsVisibleChange?: (visible: HubBarsVisibility) => void;
-  /** Accent tint for the composer shell background (Interface & Behavior). */
-  composerAccentBg?: boolean;
-  onComposerAccentBgChange?: (enabled: boolean) => void;
+  /** Composer shell background secondary color (Interface & Behavior select):
+   *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
+  composerAccentBg?: ComposerAccentBg;
+  onComposerAccentBgChange?: (mode: ComposerAccentBg) => void;
   /** Cap expanded tool-call output height (Interface & Behavior). */
   toolOutputCapEnabled?: boolean;
   onToolOutputCapChange?: (enabled: boolean) => void;
@@ -1034,6 +1035,15 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
                     <ToggleSwitch checked={toolCallsDefaultCollapsed} onChange={onToolCallsDefaultCollapsedChange} />
                   </NativeSetting>
+                  <NativeSetting searchId="thinking-blocks" label={t("settingsConfig.thinkingBlocks")} description={t("settingsConfig.thinkingBlocksDesc")} scope="Native OMP">
+                    <ToggleSwitch
+                      checked={nativeSettings?.hideThinkingBlock ?? false}
+                      onChange={(checked) => { patchSettings({ hideThinkingBlock: checked }); onHideThinkingBlockChange?.(checked); }}
+                    />
+                  </NativeSetting>
+                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
+                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
+                  </NativeSetting>
                   <NativeSetting searchId="open-url-automatically" label={t("settingsConfig.openUrlAutomatically")} description={t("settingsConfig.openUrlAutomaticallyDesc")} scope="UI">
                     <ToggleSwitch checked={openUrlAutomatically} onChange={(v) => onOpenUrlAutomaticallyChange?.(v)} />
                   </NativeSetting>
@@ -1149,7 +1159,15 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
                   </NativeSetting>
                   <NativeSetting searchId="composer-accent-bg" label={t("settingsConfig.composerAccentBg")} description={t("settingsConfig.composerAccentBgDesc")} scope="UI">
-                    <ToggleSwitch checked={composerAccentBg} onChange={(next) => onComposerAccentBgChange?.(next)} />
+                    <select
+                      style={nativeSelectStyle}
+                      value={composerAccentBg}
+                      onChange={(event) => onComposerAccentBgChange?.(event.target.value as ComposerAccentBg)}
+                    >
+                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgOff")}</option>
+                      <option value="dimmed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgDimmed")}</option>
+                      <option value="themed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgThemed")}</option>
+                    </select>
                   </NativeSetting>
                   <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
                     <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />
@@ -1159,9 +1177,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="message-actions-visible" label={t("settingsConfig.messageActions")} description={t("settingsConfig.messageActionsDesc")} scope="UI">
                     <ToggleSwitch checked={messageActionsVisible} onChange={(next) => onMessageActionsVisibleChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
-                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
                   </NativeSetting>
                   <NativeSetting searchId="message-time-format" label={t("settingsConfig.timeFormat")} description={t("settingsConfig.timeFormatDesc")} scope="UI">
                     <select
@@ -1328,12 +1343,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="pragmatic" style={nativeOptionStyle}>{t("settingsConfig.personalityPragmatic")}</option>
                       <option value="none" style={nativeOptionStyle}>{t("settingsConfig.personalityNone")}</option>
                     </select>
-                  </NativeSetting>
-                  <NativeSetting searchId="thinking-blocks" label={t("settingsConfig.thinkingBlocks")} description={t("settingsConfig.thinkingBlocksDesc")} scope="Native OMP">
-                    <ToggleSwitch
-                      checked={nativeSettings?.hideThinkingBlock ?? false}
-                      onChange={(checked) => { patchSettings({ hideThinkingBlock: checked }); onHideThinkingBlockChange?.(checked); }}
-                    />
                   </NativeSetting>
                   <NativeSetting searchId="external-thinking" label={t("settingsConfig.externalThinking")} description={t("settingsConfig.externalThinkingDesc")} scope="Native OMP">
                     <ToggleSwitch

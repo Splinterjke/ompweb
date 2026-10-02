@@ -82,6 +82,7 @@ const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
 export type HubBarLayout = "stack" | "row";
+export type ComposerAccentBg = "off" | "dimmed" | "themed";
 export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
@@ -281,14 +282,19 @@ export function AppShell() {
       return { git: true, tasks: true, subagents: true };
     }
   });
-  // Accent-tint the composer shell background (Interface & Behavior switch).
-  // Absent or corrupt stored values keep the plain page background.
-  const [composerAccentBg, setComposerAccentBg] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
+  // Composer shell background secondary color (Interface & Behavior select).
+  // "off" = plain page background (default), "dimmed" = panel background,
+  // "themed" = subtle accent tint. The legacy switch stored "true" for the
+  // old on state, which maps to "themed"; absent or corrupt values keep "off".
+  const [composerAccentBg, setComposerAccentBg] = useState<ComposerAccentBg>(() => {
+    if (typeof window === "undefined") return "off";
     try {
-      return window.localStorage.getItem(COMPOSER_ACCENT_BG_STORAGE_KEY) === "true";
+      const raw = window.localStorage.getItem(COMPOSER_ACCENT_BG_STORAGE_KEY);
+      if (raw === "dimmed" || raw === "themed") return raw;
+      if (raw === "true") return "themed";
+      return "off";
     } catch {
-      return false;
+      return "off";
     }
   });
   // Cap expanded tool-call output at a fixed height (Interface & Behavior
@@ -539,10 +545,10 @@ export function AppShell() {
       // The preference still applies for this page load.
     }
   }, []);
-  const handleComposerAccentBgChange = useCallback((enabled: boolean) => {
-    setComposerAccentBg(enabled);
+  const handleComposerAccentBgChange = useCallback((mode: ComposerAccentBg) => {
+    setComposerAccentBg(mode);
     try {
-      window.localStorage.setItem(COMPOSER_ACCENT_BG_STORAGE_KEY, String(enabled));
+      window.localStorage.setItem(COMPOSER_ACCENT_BG_STORAGE_KEY, mode);
     } catch {
       // The preference still applies for this page load.
     }
