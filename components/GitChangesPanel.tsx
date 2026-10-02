@@ -1,8 +1,8 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AtSign, Check, ExternalLink, GitBranch, RefreshCw, Search, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AtSign, Check, ChevronRight, ExternalLink, GitBranch, RefreshCw, Search, X } from "lucide-react";
 import { getFileIcon } from "./FileIcons";
 import { DiffView } from "./FileViewer";
 import { GIT_STATUS_COLORS, GIT_STATUS_LABEL_KEYS } from "./FileExplorer";
@@ -13,7 +13,14 @@ import {
   getRelativeFilePath,
   normalizeFilePathSlashes,
 } from "@/lib/file-paths";
-import type { GitFileDiffResponse, GitStatusResponse } from "@/lib/git-types";
+import type { GitCollapseReason, GitFileDiffResponse, GitFileStatus, GitStatusResponse } from "@/lib/git-types";
+
+const COLLAPSE_REASON_LABEL_KEYS: Record<GitCollapseReason, string> = {
+  generated: "gitChanges.reasonGenerated",
+  vendored: "gitChanges.reasonVendored",
+  documentation: "gitChanges.reasonDocumentation",
+  "no-diff": "gitChanges.reasonNoDiff",
+};
 import { GitCommitForm } from "./GitCommitForm";
 // Poll interval while the git tab is the active workbench view.
 const GIT_POLL_INTERVAL_MS = 5000;
@@ -59,6 +66,8 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   const [patchError, setPatchError] = useState<string | null>(null);
   const [treeRefreshKey, setTreeRefreshKey] = useState(0);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+  const [showAttributeFiles, setShowAttributeFiles] = useState(false);
+  const attributeListId = useId();
   const filterInputRef = useRef<HTMLInputElement>(null);
   const patchRequestRef = useRef(0);
   // Bumped whenever a status poll observes a changed worktree; drives a
@@ -108,12 +117,15 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
             setStatusVersion((v) => v + 1);
           }
           // Keep the selection when it still exists; otherwise preview the first
-          // changed file so the diff pane is never blank behind a file list.
+          // reviewable change (not one .gitattributes marks generated/docs/-diff)
+          // so the diff pane is never blank behind a file list.
           setSelectedPath((prev) =>
             prev && nextFiles.some((f) => f.filePath === prev)
               ? prev
-              : nextFiles[0]?.filePath ?? null,
+              : (nextFiles.find((f) => !f.collapseReason) ?? nextFiles[0])?.filePath ?? null,
           );
+          // Nothing else to review: open the group so the previewed file is visible.
+          if (nextFiles.length > 0 && nextFiles.every((f) => f.collapseReason)) setShowAttributeFiles(true);
           setError(null);
         })
         .catch((e) => {
@@ -171,12 +183,12 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
       });
   }, [cwd, selectedPath, refreshToken, statusVersion]);
 
-  const filteredFiles = useMemo(() => {
+  const [primaryFiles, attributeFiles] = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return files;
-    return files.filter((f) =>
-      normalizeFilePathSlashes(getRelativeFilePath(f.filePath, cwd)).toLowerCase().includes(q),
-    );
+    const matching = q
+      ? files.filter((f) => normalizeFilePathSlashes(getRelativeFilePath(f.filePath, cwd)).toLowerCase().includes(q))
+      : files;
+    return [matching.filter((f) => !f.collapseReason), matching.filter((f) => f.collapseReason)];
   }, [files, filter, cwd]);
 
   const selectedFile = selectedPath ? files.find((f) => f.filePath === selectedPath) ?? null : null;
@@ -189,6 +201,143 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   const mentionSelected = useCallback(() => {
     if (selectedPath) onAtMention?.(getRelativeFilePath(selectedPath, cwd), false);
   }, [selectedPath, cwd, onAtMention]);
+
+  const renderRow = (file: GitFileStatus) => {
+    const relative = getRelativeFilePath(file.filePath, cwd);
+    const name = getFileName(relative);
+    const directory = getFileDirectory(relative);
+    const isSelected = file.filePath === selectedPath;
+    const isHovered = file.filePath === hoveredPath;
+    const reasonLabel = file.collapseReason ? t(COLLAPSE_REASON_LABEL_KEYS[file.collapseReason]) : null;
+    return (
+      <div
+        className="git-change-row"
+        key={file.filePath}
+        role="option"
+        tabIndex={0}
+        aria-selected={isSelected}
+        aria-label={`${name} (${t(GIT_STATUS_LABEL_KEYS[file.status])}${reasonLabel ? `, ${reasonLabel}` : ""})`}
+        onClick={() => setSelectedPath(file.filePath)}
+        onDoubleClick={() => onOpenFile(file.filePath, getFileName(file.filePath))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onOpenFile(file.filePath, getFileName(file.filePath));
+          } else if (e.key === " ") {
+            e.preventDefault();
+            setSelectedPath(file.filePath);
+          }
+        }}
+        onMouseEnter={() => setHoveredPath(file.filePath)}
+        onMouseLeave={() => setHoveredPath((prev) => (prev === file.filePath ? null : prev))}
+        style={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          paddingLeft: 8,
+          paddingRight: 8,
+          height: 26,
+          cursor: "pointer",
+          background: isSelected ? "var(--bg-selected)" : isHovered ? "var(--bg-hover)" : "transparent",
+          borderRadius: "var(--radius-control)",
+          userSelect: "none",
+          boxShadow: isSelected ? "inset 2px 0 0 var(--accent)" : "none",
+          outline: "none",
+        }}
+      >
+        <span style={{ flexShrink: 0, display: "flex", alignItems: "center", color: "var(--text-dim)" }}>
+          {getFileIcon(name, 14)}
+        </span>
+        <Tooltip content={file.filePath}>
+          <span
+          style={{
+            fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+            color: "var(--text)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: directory ? "0 0 auto" : 1,
+            maxWidth: directory ? "60%" : undefined,
+          }}
+        >
+          {name}
+        </span>
+        </Tooltip>
+        {directory && (
+          <Tooltip content={file.filePath}>
+            <span
+            style={{
+              flex: "1 1 auto",
+              minWidth: 0,
+              fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+              color: "var(--text-dim)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              direction: "rtl",
+              textAlign: "left",
+            }}
+          >
+            {directory}
+          </span>
+          </Tooltip>
+        )}
+        {reasonLabel && (
+          <span aria-hidden="true" style={{ flexShrink: 0, marginLeft: directory ? 0 : "auto", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+            {reasonLabel}
+          </span>
+        )}
+        <Tooltip content={t(GIT_STATUS_LABEL_KEYS[file.status])}>
+          <span
+          aria-hidden="true"
+          style={{
+            width: 14,
+            flexShrink: 0,
+            color: GIT_STATUS_COLORS[file.status],
+            fontFamily: "var(--font-mono)",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          {file.code}
+        </span>
+        </Tooltip>
+        {isHovered && (
+          <Tooltip content={t("gitChanges.openFile")}>
+            <button
+            className="git-change-open-action"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenFile(file.filePath, getFileName(file.filePath));
+            }}
+            aria-label={t("gitChanges.openFile")}
+            style={{
+              position: "absolute",
+              right: 4,
+              top: "50%",
+              transform: "translateY(-50%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 20,
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-control)",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+            }}
+          >
+            <ExternalLink size={11} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+          </Tooltip>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -304,139 +453,41 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
           <div style={{ padding: "0 12px 4px", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
             {tn("gitChanges.filesChanged", files.length)}
           </div>
-          <div role="listbox" aria-label={t("tabBar.git")} style={{ flex: "0 1 auto", maxHeight: "38%", minHeight: 60, overflowY: "auto", overflowX: "hidden", padding: "0 4px", flexShrink: 1, borderBottom: "1px solid var(--border)" }}>
-            {filteredFiles.length === 0 ? (
+          <div style={{ flex: "0 1 auto", maxHeight: "38%", minHeight: 60, overflowY: "auto", overflowX: "hidden", padding: "0 4px", flexShrink: 1, borderBottom: "1px solid var(--border)" }}>
+            {primaryFiles.length === 0 && attributeFiles.length === 0 ? (
               <div style={{ padding: "8px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("fileExplorer.noMatchingFiles")}</div>
-            ) : filteredFiles.map((file) => {
-              const relative = getRelativeFilePath(file.filePath, cwd);
-              const name = getFileName(relative);
-              const directory = getFileDirectory(relative);
-              const isSelected = file.filePath === selectedPath;
-              const isHovered = file.filePath === hoveredPath;
-              return (
-                <div
-                  className="git-change-row"
-                  key={file.filePath}
-                  role="option"
-                  tabIndex={0}
-                  aria-selected={isSelected}
-                  aria-label={`${name} (${t(GIT_STATUS_LABEL_KEYS[file.status])})`}
-                  onClick={() => setSelectedPath(file.filePath)}
-                  onDoubleClick={() => onOpenFile(file.filePath, getFileName(file.filePath))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      onOpenFile(file.filePath, getFileName(file.filePath));
-                    } else if (e.key === " ") {
-                      e.preventDefault();
-                      setSelectedPath(file.filePath);
-                    }
-                  }}
-                  onMouseEnter={() => setHoveredPath(file.filePath)}
-                  onMouseLeave={() => setHoveredPath((prev) => (prev === file.filePath ? null : prev))}
+            ) : primaryFiles.length > 0 && (
+              <div role="listbox" aria-label={t("tabBar.git")}>
+                {primaryFiles.map(renderRow)}
+              </div>
+            )}
+            {attributeFiles.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  aria-expanded={showAttributeFiles}
+                  aria-controls={showAttributeFiles ? attributeListId : undefined}
+                  onClick={() => setShowAttributeFiles((v) => !v)}
+                  title={t("gitChanges.attributeFilesHint")}
                   style={{
-                    position: "relative",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingLeft: 8,
-                    paddingRight: 8,
-                    height: 26,
-                    cursor: "pointer",
-                    background: isSelected ? "var(--bg-selected)" : isHovered ? "var(--bg-hover)" : "transparent",
-                    borderRadius: "var(--radius-control)",
-                    userSelect: "none",
-                    boxShadow: isSelected ? "inset 2px 0 0 var(--accent)" : "none",
-                    outline: "none",
+                    display: "flex", alignItems: "center", gap: 4, width: "100%",
+                    height: 26, padding: "0 8px", marginTop: primaryFiles.length > 0 ? 2 : 0,
+                    background: "none", border: "none", borderRadius: "var(--radius-control)",
+                    color: "var(--text-dim)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", textAlign: "left",
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-hover)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
                 >
-                  <span style={{ flexShrink: 0, display: "flex", alignItems: "center", color: "var(--text-dim)" }}>
-                    {getFileIcon(name, 14)}
-                  </span>
-                  <Tooltip content={file.filePath}>
-                    <span
-                    style={{
-                      fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
-                      color: "var(--text)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      flex: directory ? "0 0 auto" : 1,
-                      maxWidth: directory ? "60%" : undefined,
-                    }}
-                  >
-                    {name}
-                  </span>
-                  </Tooltip>
-                  {directory && (
-                    <Tooltip content={file.filePath}>
-                      <span
-                      style={{
-                        flex: "1 1 auto",
-                        minWidth: 0,
-                        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                        color: "var(--text-dim)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        direction: "rtl",
-                        textAlign: "left",
-                      }}
-                    >
-                      {directory}
-                    </span>
-                    </Tooltip>
-                  )}
-                  <Tooltip content={t(GIT_STATUS_LABEL_KEYS[file.status])}>
-                    <span
-                    aria-hidden="true"
-                    style={{
-                      width: 14,
-                      flexShrink: 0,
-                      color: GIT_STATUS_COLORS[file.status],
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                      fontWeight: 600,
-                      textAlign: "center",
-                    }}
-                  >
-                    {file.code}
-                  </span>
-                  </Tooltip>
-                  {isHovered && (
-                    <Tooltip content={t("gitChanges.openFile")}>
-                      <button
-                      className="git-change-open-action"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenFile(file.filePath, getFileName(file.filePath));
-                      }}
-                      aria-label={t("gitChanges.openFile")}
-                      style={{
-                        position: "absolute",
-                        right: 4,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 22,
-                        height: 20,
-                        background: "var(--bg-panel)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-control)",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <ExternalLink size={11} strokeWidth={2.2} aria-hidden="true" />
-                    </button>
-                    </Tooltip>
-                  )}
-                </div>
-              );
-            })}
+                  <ChevronRight size={12} strokeWidth={2.2} aria-hidden="true" style={{ flexShrink: 0, transform: showAttributeFiles ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+                  {tn("gitChanges.attributeFiles", attributeFiles.length)}
+                </button>
+                {showAttributeFiles && (
+                  <div id={attributeListId} role="listbox" aria-label={tn("gitChanges.attributeFiles", attributeFiles.length)}>
+                    {attributeFiles.map(renderRow)}
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <div
             style={{
@@ -543,7 +594,9 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                 </button>
               </div>
             ) : !patchSupported || patch === null ? (
-              <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>{t("gitChanges.diffUnavailable")}</div>
+              <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>
+                {t(selectedFile?.collapseReason === "no-diff" ? "gitChanges.diffSuppressed" : "gitChanges.diffUnavailable")}
+              </div>
             ) : (
               <DiffView patch={patch} />
             )}

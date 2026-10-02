@@ -457,8 +457,10 @@ handled or safely ignored.
   hidden (hidden workspaces are not polled).
 - Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
   for terminal states) fed by the same `subagent_lifecycle`/`subagent_progress`
-  SSE frames; clicking a chip opens the transcript dialog. `TodoList` keeps a
-  non-collapsible default (`collapsible` prop) for SSR tests.
+  SSE frames; clicking a chip opens the transcript dialog. Non-running
+  subagents (terminal or history) nest under a collapsible `Completed (N)`
+  group inside the hub, re-collapsing on every mount (not persisted).
+  `TodoList` keeps a non-collapsible default (`collapsible` prop) for SSR tests.
 
 ### Subagent integration (`lib/subagent-types.ts`, `lib/subagent-history.ts`)
 - **Live detail**: `subagent_progress` frames carry the full `AgentProgress`

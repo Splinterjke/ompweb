@@ -147,6 +147,30 @@ test("mixed-status rows expose status badges and stay collapsed by default", () 
   assert.match(expandedHtml, /class="live-status-dot live-pulse/);
 });
 
+test("completed subagents nest under a collapsed Completed group", () => {
+  // Panel expanded via controlled prop, completed group collapsed on mount —
+  // finished runs pile up, so the group must not force them open.
+  const html = renderHub({
+    subagents: [
+      { id: "s1", agent: "scout", status: "started", task: "Map the surface", index: 0 },
+      { id: "s2", agent: "worker", status: "completed", task: "Write the code", index: 1 },
+      { id: "s3", agent: "worker", status: "failed", task: "Break the build", index: 2 },
+      { id: "s4", agent: "scout", status: "started", task: "Old snapshot", index: 3, source: "history" },
+    ],
+    onSelectSubagent: noop,
+    collapsed: false,
+    onCollapsedChange: noop,
+  });
+
+  assert.match(html, /Map the surface/);
+  assert.match(html, /Completed \(3\)/);
+  // The completed-group header reports collapsed even though the panel is open.
+  assert.match(html, /aria-expanded="false"/);
+  assert.doesNotMatch(html, /Write the code/);
+  assert.doesNotMatch(html, /Break the build/);
+  assert.doesNotMatch(html, /Old snapshot/);
+});
+
 test("hierarchy builder is deterministic and preserves parent ordering", () => {
   const roster = [
     { id: "root", agent: "scout", status: "started", index: 0, task: "Inspect" },

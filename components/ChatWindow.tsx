@@ -1,12 +1,13 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 import { sendAgentCommand } from "@/lib/agent-client";
+import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown } from "lucide-react";
-import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
+import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
-import { countToolCallBlocks, getDisplayableAssistantBlocks, splitFinalAssistantBlocks } from "@/lib/message-display";
+import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
  import { MessageView } from "./MessageView";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility } from "./AppShell";
  import { resolveForkEntryIds } from "@/lib/chat-fork";
@@ -45,6 +46,8 @@ interface Props {
   toolCallsDefaultCollapsed?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  /** omp `hideThinkingBlock`: omit thinking blocks from the transcript. */
+  hideThinkingBlock?: boolean;
   /** Show the copy/fork/edit buttons under messages (Interface & Behavior switch). */
   messageActionsVisible?: boolean;
   /** Auto-expand the last turn's process details before the compaction block when the
@@ -118,41 +121,6 @@ function getUserInputText(message: AgentMessage): string | null {
   return text.length > 0 ? text : null;
 }
 
-function countToolCalls(messages: AgentMessage[], indices: number[]): number {
-  let count = 0;
-  for (const idx of indices) {
-    const msg = messages[idx];
-    if (msg?.role !== "assistant") continue;
-    count += countToolCallBlocks(getDisplayableAssistantBlocks(msg as AssistantMessage));
-  }
-  return count;
-}
-
-function hasDisplayableProcessMessage(message: AgentMessage): boolean {
-  if (message.role === "assistant") {
-    const assistant = message as AssistantMessage;
-    return getDisplayableAssistantBlocks(assistant).length > 0
-      || assistant.stopReason === "error"
-      || assistant.errorMessage !== undefined
-      || assistant.errorStatus !== undefined
-      || assistant.errorCode !== undefined;
-  }
-  return message.role === "custom";
-}
-
-// A user message normally anchors a turn (user prompt → process → final
-// answer), and the process messages in between get folded into a collapsed
-// ProcessDetailsGroup. When compaction fires mid-turn, pi drops the original
-// user prompt and inserts a compaction summary (role "custom", customType
-// "compaction") in its place; the agent then keeps producing tool calls and a
-// final answer with no user message left to anchor them. Treat a compaction
-// summary as an anchor too, otherwise every post-compaction message renders
-// standalone and never collapses.
-function isGroupAnchor(message: AgentMessage): boolean {
-  if (message.role === "user") return true;
-  return message.role === "custom" && (message as CustomMessage).customType === "compaction";
-}
-
 function withAssistantBlocks(
   message: AssistantMessage,
   content: AssistantContentBlock[],
@@ -161,6 +129,59 @@ function withAssistantBlocks(
   const next = { ...message, content };
   if (options.omitUsage) next.usage = undefined;
   return next;
+}
+
+type RenderMessage = (idx: number, options?: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] }) => ReactNode;
+
+/** Render a folded activity run; consecutive tool calls cluster into one row.
+ *  Each block renders as a one-block message — `sourceBlockIndices` carries
+ *  the block's index in the source entry's content so deferred thinking
+ *  loads the right block (not block 0 of a one-block message). */
+function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage): ReactNode[] {
+  const rendered: ReactNode[] = [];
+  let pendingToolCalls: Array<{ block: ToolCallContent; msgIdx: number }> = [];
+
+  const flushToolCalls = () => {
+    if (pendingToolCalls.length === 0) return;
+    const first = pendingToolCalls[0];
+    rendered.push(
+      renderMessage(first.msgIdx, {
+        attachRef: false,
+        keyPrefix: `activity-tools-${first.msgIdx}-${rendered.length}`,
+        messageOverride: { ...withAssistantBlocks(messages[first.msgIdx] as AssistantMessage, pendingToolCalls.map((c) => c.block), { omitUsage: true }), errorMessage: undefined },
+        showTimestamp: false,
+      }),
+    );
+    pendingToolCalls = [];
+  };
+
+  for (const piece of pieces) {
+    if (!piece.blocks) {
+      flushToolCalls();
+      rendered.push(renderMessage(piece.index, { attachRef: false, keyPrefix: "activity" }));
+      continue;
+    }
+    const msg = messages[piece.index] as AssistantMessage;
+    piece.blocks.forEach((block, bIdx) => {
+      if (block.type === "toolCall") {
+        pendingToolCalls.push({ block: block as ToolCallContent, msgIdx: piece.index });
+        return;
+      }
+      flushToolCalls();
+      rendered.push(
+        renderMessage(piece.index, {
+          attachRef: false,
+          keyPrefix: `activity-block-${piece.index}-${bIdx}`,
+          messageOverride: { ...withAssistantBlocks(msg, [block], { omitUsage: true }), errorMessage: undefined },
+          showTimestamp: false,
+          sourceBlockIndices: [msg.content.indexOf(block)],
+        }),
+      );
+    });
+  }
+
+  flushToolCalls();
+  return rendered;
 }
 
 function ProcessDetailsGroup({ messageCount, toolCallCount, expanded, onToggle, children }: { messageCount: number; toolCallCount: number; expanded: boolean; onToggle: (expanded: boolean) => void; children: ReactNode }) {
@@ -220,6 +241,8 @@ interface CommittedTranscriptProps {
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  /** omp `hideThinkingBlock`: omit thinking from the transcript. */
+  hideThinkingBlock?: boolean;
   messageActionsVisible?: boolean;
   processDetailsAutoExpand?: boolean;
   messageTimeFormat?: MessageTimeFormat;
@@ -242,7 +265,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
   handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, sessionId,
-  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // The user's expand/collapse choice per process-details group, keyed by the
@@ -283,7 +306,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     return -1;
   }, [messages, groups, processDetailsAutoExpand]);
 
-  const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean } = {}): ReactNode => {
+  const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] } = {}): ReactNode => {
     const msg = options.messageOverride ?? messages[idx];
     const prevAssistantEntryId =
       msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant"
@@ -330,6 +353,8 @@ const CommittedTranscript = memo(function CommittedTranscript({
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
         thinkingDisplayMode={thinkingDisplayMode}
         thinkingAutoFollow={thinkingAutoFollow}
+        hideThinking={hideThinkingBlock}
+        sourceBlockIndices={options.sourceBlockIndices}
         messageActionsVisible={messageActionsVisible}
         timeFormat={messageTimeFormat}
       />
@@ -508,46 +533,49 @@ const CommittedTranscript = memo(function CommittedTranscript({
       );
     }
     const nodes: ReactNode[] = [renderMessage(userIdx)];
-    const visibleProcessIndices = processIndices.filter((i) => hasDisplayableProcessMessage(messages[i]));
-    const finalAssistant = messages[finalAssistantIdx] as AssistantMessage;
-    const finalAssistantError = finalAssistant.stopReason === "error"
-      || finalAssistant.errorMessage !== undefined
-      || finalAssistant.errorStatus !== undefined
-      || finalAssistant.errorCode !== undefined;
-    const finalSplit = splitFinalAssistantBlocks(finalAssistant);
-    const finalProcessMessage = finalSplit.processBlocks.length > 0
-      ? withAssistantBlocks(finalAssistant, finalSplit.processBlocks, { omitUsage: true })
-      : null;
-    const finalAnswerMessage = finalSplit.answerBlocks.length > 0
-      ? withAssistantBlocks(finalAssistant, finalSplit.answerBlocks)
-      : null;
     const processGroupKey = entryIds[userIdx] ?? String(userIdx);
-    const processCount = visibleProcessIndices.length + (finalProcessMessage ? 1 : 0);
-    if (processCount > 0) {
-      const processRefIdx = visibleProcessIndices
-        .map((i) => visibleRefIndexByMessage.get(i))
-        .find((value): value is number => typeof value === "number")
-        ?? (finalAnswerMessage ? undefined : visibleRefIndexByMessage.get(finalAssistantIdx));
+    // TUI-style folding: agent text is always visible; each run of activity
+    // (thinking, tool calls, job results, reminders) between two pieces of
+    // text folds into one collapsed row. A message split across segments
+    // keeps its navigation ref on the first rendered segment.
+    const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking: hideThinkingBlock });
+    const attached = new Set<number>();
+    segments.forEach((segment, segmentIdx) => {
+      if (segment.kind === "text") {
+        const msg = messages[segment.index] as AssistantMessage;
+        const override = withAssistantBlocks(msg, segment.blocks, { omitUsage: !segment.last });
+        if (!segment.last) override.errorMessage = undefined;
+        nodes.push(renderMessage(segment.index, {
+          attachRef: !attached.has(segment.index),
+          keyPrefix: `text-${segmentIdx}`,
+          messageOverride: override,
+          ...(segment.last ? {} : { showTimestamp: false }),
+        }));
+        attached.add(segment.index);
+        return;
+      }
+      const foldKey = `${processGroupKey}:${segmentIdx}`;
+      const refIdx = segment.pieces
+        .filter((p) => !attached.has(p.index))
+        .map((p) => visibleRefIndexByMessage.get(p.index))
+        .find((value): value is number => typeof value === "number");
+      for (const p of segment.pieces) attached.add(p.index);
       nodes.push(
         <div
-          key={"process-group-" + (entryIds[userIdx] ?? userIdx)}
-          ref={processRefIdx === undefined ? undefined : (el) => { messageRefs.current[processRefIdx] = el; }}
+          key={"activity-" + (entryIds[userIdx] ?? userIdx) + "-" + segmentIdx}
+          ref={refIdx === undefined ? undefined : (el) => { messageRefs.current[refIdx] = el; }}
         >
           <ProcessDetailsGroup
-            messageCount={processCount}
-            toolCallCount={countToolCalls(messages, visibleProcessIndices) + countToolCallBlocks(finalSplit.processBlocks)}
-            expanded={processExpanded[processGroupKey] ?? (groupIndex === autoExpandGroupIndex)}
-            onToggle={(next) => handleProcessToggle(processGroupKey, next)}
+            messageCount={segment.stepCount}
+            toolCallCount={segment.toolCallCount}
+            expanded={processExpanded[foldKey] ?? (groupIndex === autoExpandGroupIndex)}
+            onToggle={(next) => handleProcessToggle(foldKey, next)}
           >
-            {visibleProcessIndices.map((i) => renderMessage(i, { attachRef: false, keyPrefix: "process" }))}
-            {finalProcessMessage && renderMessage(finalAssistantIdx, { attachRef: false, keyPrefix: "process-final", messageOverride: finalProcessMessage, showTimestamp: false })}
+            {renderActivityPieces(messages, segment.pieces, renderMessage)}
           </ProcessDetailsGroup>
         </div>,
       );
-    }
-    if (finalAnswerMessage) nodes.push(renderMessage(finalAssistantIdx, { messageOverride: finalAnswerMessage }));
-    else if (finalAssistantError) nodes.push(renderMessage(finalAssistantIdx));
-    for (const i of tailIndices) nodes.push(renderMessage(i));
+    });
     return <Fragment key={"g-" + (entryIds[userIdx] ?? userIdx)}>{nodes}</Fragment>;
   };
 
@@ -578,7 +606,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = false, onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = false, onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -1024,6 +1052,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     onSubagentsChange?.(subagentsRef.current);
   }, [subagents, onSubagentsChange]);
   useEffect(() => () => { onSubagentsChange?.(null); }, [onSubagentsChange]);
+  // Ref keeps the link handler stable so roster updates do not re-render every
+  // MarkdownBody through the context.
+  const openAgentLink = useCallback((candidateIds: string[]) => {
+    onSelectSubagent?.(agentLinkTarget(candidateIds, subagentsRef.current));
+  }, [onSelectSubagent]);
 
   const onDrop = useCallback((files: File[]) => {
     if (sessionBusy) return;
@@ -1262,6 +1295,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }
 
   return (
+    <AgentLinkContext.Provider value={openAgentLink}>
     <div
       className="relative flex h-full flex-col overflow-hidden aurora-flow-bg"
       onDragEnter={handleDragEnter}
@@ -1399,6 +1433,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollow}
+              hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
               processDetailsAutoExpand={processDetailsAutoExpand}
               messageTimeFormat={messageTimeFormat}
@@ -1561,6 +1596,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       </>
       )}
     </div>
+    </AgentLinkContext.Provider>
   );
 }
 

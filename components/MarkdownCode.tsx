@@ -13,7 +13,9 @@ export function markdownCodeRenderer(options: {
   defaultPreview?: boolean;
   inlineClassName?: string;
 }) {
-  return function Code({ className, children, ...props }: HTMLAttributes<HTMLElement>) {
+  // `node` is react-markdown metadata, not a DOM attribute.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return function Code({ className, children, node, ...props }: HTMLAttributes<HTMLElement> & { node?: unknown }) {
     const lang = className?.replace("language-", "").toLowerCase() ?? "";
     const raw = String(children);
     const isBlock = className?.includes("language-") || raw.includes("\n");

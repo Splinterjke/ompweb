@@ -206,6 +206,20 @@ export function AppShell() {
   const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
   const [thinkingDisplayMode, setThinkingDisplayMode] = useState<ThinkingDisplayMode>("auto");
   const [extendedThinkingBlock, setExtendedThinkingBlock] = useState(false);
+  const [hideThinkingBlock, setHideThinkingBlock] = useState(false);
+  useEffect(() => {
+    // omp's own setting, so the transcript hides thinking when the TUI does.
+    // Re-read on focus: the TUI or another tab may have changed it.
+    const load = () => {
+      fetch("/api/omp-settings")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { hideThinkingBlock?: boolean } | null) => { if (data) setHideThinkingBlock(data.hideThinkingBlock === true); })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, []);
   const [extendedBlocks, setExtendedBlocks] = useState(false);
   // Session Info button below the composer (Interface & Behavior switch).
   // Absent or corrupt stored values keep the button visible.
@@ -2246,6 +2260,7 @@ export function AppShell() {
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollowEnabled}
+              hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
               processDetailsAutoExpand={processDetailsAutoExpand}
               messageTimeFormat={messageTimeFormat}
@@ -2451,6 +2466,7 @@ export function AppShell() {
         onThinkingDisplayModeChange={handleThinkingDisplayModeChange}
         extendedThinkingBlock={extendedThinkingBlock}
         onExtendedThinkingBlockChange={handleExtendedThinkingBlockChange}
+        onHideThinkingBlockChange={setHideThinkingBlock}
         extendedBlocks={extendedBlocks}
         onExtendedBlocksChange={handleExtendedBlocksChange}
         gitGraphModalSize={gitGraphModalSize}

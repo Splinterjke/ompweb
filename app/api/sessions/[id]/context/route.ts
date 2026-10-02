@@ -3,6 +3,7 @@ import { loadSessionFile } from "@/lib/omp/session-files";
 import { buildSessionContext } from "@/lib/session-reader";
 import { getLeafEntryId } from "@/lib/omp/session-files";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
+import { getRpcSession } from "@/lib/rpc-manager";
 
 export async function GET(
   req: Request,
@@ -18,7 +19,19 @@ export async function GET(
 
   try {
     const resolved = await resolveSessionPathOr404(id);
-    if ("response" in resolved) return resolved.response;
+    if ("response" in resolved) {
+      // omp does not create the session file until the first assistant message
+      // commits, so a live web-owned session (its first turn still running) can
+      // have no file yet. A live wrapper proves the session exists — answer with
+      // an empty context instead of a 404 so the client can attach its event
+      // stream and show the running state (mirrors GET /api/sessions/[id]).
+      const live = getRpcSession(id);
+      if (live?.isAlive()) {
+        const context = buildSessionContext([], null, { deferThinking, deferToolResultImages, includePreCompaction });
+        return NextResponse.json({ context, leafId: null });
+      }
+      return resolved.response;
+    }
     const filePath = resolved.filePath;
 
     const { header, entries, error: loadError } = loadSessionFile(filePath, {

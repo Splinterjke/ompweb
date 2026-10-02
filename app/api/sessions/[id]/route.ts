@@ -296,36 +296,39 @@ export async function PATCH(
     if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "name is required", code: "session_name_required" }, { status: 400 });
     }
-    // A running omp process owns its session file; route the rename through it
-    // so the in-memory title cannot clobber ours on the next flush. This runs
-    // before the path check because omp does not create the session file until
-    // the history holds an assistant message.
-    let renamed = false;
+    // Update the in-memory title in the live omp process so the next file
+    // flush cannot clobber the on-disk rename. omp does not create the session
+    // file until the history holds an assistant message, so the in-memory update
+    // may be the only place the title exists for a moment.
     const rpc = getRpcSession(id);
+    let rpcRenamed = false;
     if (rpc?.isAlive?.() && typeof rpc.send === "function") {
       try {
         await rpc.send({ type: "set_session_name", name: name.trim() });
-        renamed = true;
+        rpcRenamed = true;
       } catch (error) {
-        // The on-disk rename below is the authority; a live-process title
-        // update failing must not pass silently.
-        console.warn("[ompweb] set_session_name RPC failed — falling through to on-disk rename:", error instanceof Error ? error.message : error);
+        console.warn("[ompweb] set_session_name RPC failed:", error instanceof Error ? error.message : error);
       }
     }
-    if (!renamed) {
-      const resolved = await resolveSessionPathOr404(id);
-      if ("response" in resolved) return resolved.response;
-      const filePath = resolved.filePath;
+    // Also write the title to disk (when the file exists) so the sidebar list
+    // reflects the rename immediately instead of waiting for the next flush.
+    let diskWritten = false;
+    const filePath = await resolveSessionPath(id);
+    if (filePath) {
       if (rustBackendActive()) {
         try {
           await hostClient.sessions.rename(join(getAgentDir(), "sessions"), filePath, name.trim());
+          diskWritten = true;
         } catch (error) {
           recordBackendError("session_rename_failed", `Rust session.rename failed: ${error instanceof Error ? error.message : String(error)}`);
           throw rustAuthorityError("session_rename_failed", error);
         }
       } else {
-        setSessionTitle(filePath, name.trim(), "user");
+        diskWritten = setSessionTitle(filePath, name.trim(), "user");
       }
+    }
+    if (!rpcRenamed && !diskWritten) {
+      return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
     }
     invalidateSessionListCache();
     return NextResponse.json({ ok: true });

@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "fs";
+import { uptime } from "os";
 import { resolve } from "path";
 import { getAgentDir } from "./omp/paths";
 import { isValidSessionId } from "./session-file-references-core";
@@ -28,7 +29,7 @@ export interface InterruptibleSession {
 }
 
 interface TrackerState {
-  /** The list the previous run left behind, claimed before this run writes. */
+  /** The lists previous runs left behind, claimed before this run writes. */
   leftover: InterruptibleSession[];
   sessions: Map<string, InterruptibleSession>;
   drops: Map<string, NodeJS.Timeout>;
@@ -42,31 +43,82 @@ declare global {
   var __ompResumeTracker: TrackerState | undefined;
 }
 
+// On globalThis so it survives Next.js hot-reload and is shared by every
+// bundle that imports this module. Created on first use, which claims the
+// previous runs' lists before anything in this run can overwrite them.
 function tracker(): TrackerState {
   globalThis.__ompResumeTracker ??= { leftover: readLeftover(), sessions: new Map(), drops: new Map(), shuttingDown: false };
   return globalThis.__ompResumeTracker;
 }
 
-function readLeftover(): InterruptibleSession[] {
-  const path = interruptedPath();
-  if (!existsSync(path)) return [];
-  let sessions: InterruptibleSession[] = [];
+// Each omp-web instance keeps its own list, named by pid, so two instances
+// sharing an agent dir never overwrite or resume each other's running sessions.
+// The unsuffixed name is the list written before per-instance lists existed.
+const LIST_NAME = /^omp-web-interrupted-sessions(?:-(\d+))?\.json$/;
+
+/** True when the list at `path`, written by `pid`, belongs to a running omp-web. */
+// ponytail: pid liveness only; same-boot pid reuse (or an unreaped zombie
+// writer) leaves that list unresumed, and hosts sharing an agent dir are not detected.
+function ownedByLiveInstance(path: string, pid: number): boolean {
+  if (pid === process.pid) return false;
+  let mtimeMs: number;
   try {
-    const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
-    const list = isRecord(raw) && Array.isArray(raw.sessions) ? raw.sessions : [];
-    sessions = list.flatMap((entry) =>
-      isRecord(entry) && typeof entry.id === "string" && isValidSessionId(entry.id)
-        ? [{ id: entry.id, advisor: entry.advisor === true }]
-        : []);
+    mtimeMs = statSync(path).mtimeMs;
   } catch {
-    // A corrupt list resumes nothing.
+    // Vanished or unreadable: the owner may be rewriting it, so leave it alone.
+    return true;
   }
-  rmSync(path, { force: true });
-  return sessions;
+  // A list from before this boot is stale even if its pid is in use again.
+  if (mtimeMs < Date.now() - uptime() * 1000) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM: the process exists but belongs to another user.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+function readLeftover(): InterruptibleSession[] {
+  const dir = getAgentDir();
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const sessions = new Map<string, InterruptibleSession>();
+  for (const name of names) {
+    const match = LIST_NAME.exec(name);
+    if (!match) continue;
+    const path = resolve(dir, name);
+    if (match[1] && ownedByLiveInstance(path, Number(match[1]))) continue;
+    // Rename claims the list atomically: of two instances starting together,
+    // only one gets it.
+    const claimed = `${path}.claimed-${process.pid}`;
+    try {
+      renameSync(path, claimed);
+    } catch {
+      continue;
+    }
+    try {
+      const raw: unknown = JSON.parse(readFileSync(claimed, "utf8"));
+      const list = isRecord(raw) && Array.isArray(raw.sessions) ? raw.sessions : [];
+      for (const entry of list) {
+        if (isRecord(entry) && typeof entry.id === "string" && isValidSessionId(entry.id)) {
+          sessions.set(entry.id, { id: entry.id, advisor: entry.advisor === true });
+        }
+      }
+    } catch {
+      // A corrupt list resumes nothing.
+    }
+    rmSync(claimed, { force: true });
+  }
+  return [...sessions.values()];
 }
 
 function interruptedPath(): string {
-  return resolve(getAgentDir(), "omp-web-interrupted-sessions.json");
+  return resolve(getAgentDir(), `omp-web-interrupted-sessions-${process.pid}.json`);
 }
 
 function writeInterrupted(sessions: InterruptibleSession[]): void {

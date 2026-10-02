@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type ComponentProps } from "react";
+import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useContext, type ComponentProps } from "react";
 import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
+import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
@@ -128,6 +129,10 @@ interface Props {
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   /** Follow the bottom of a streaming thinking block (Interface & Behavior). */
   thinkingAutoFollow?: boolean;
+  /** omp `hideThinkingBlock`: omit thinking blocks entirely. */
+  hideThinking?: boolean;
+  /** Source `content` indices of each block when `message` carries a subset of an entry's blocks (folded activity rows), so deferred thinking loads the right block. */
+  sourceBlockIndices?: number[];
   /** True once the run is finished: tool calls with no committed result show
    *  the done marker instead of a spinner (subagent transcripts). */
   settled?: boolean;
@@ -191,12 +196,12 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
   if (message.role === "user") {
     return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "assistant") {
-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} hideThinking={hideThinking} sourceBlockIndices={sourceBlockIndices} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "toolResult") {
     // Rendered inline under its toolCall — skip standalone rendering if paired
@@ -246,6 +251,8 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.toolCallsDefaultCollapsed === next.toolCallsDefaultCollapsed
     && prev.thinkingDisplayMode === next.thinkingDisplayMode
     && prev.thinkingAutoFollow === next.thinkingAutoFollow
+    && prev.hideThinking === next.hideThinking
+    && prev.sourceBlockIndices?.join() === next.sourceBlockIndices?.join()
     && prev.messageActionsVisible === next.messageActionsVisible
     && prev.timeFormat === next.timeFormat
     && prev.liveTokensPerSecond === next.liveTokensPerSecond
@@ -485,6 +492,8 @@ function AssistantMessageView({
   toolCallsDefaultCollapsed,
   thinkingDisplayMode = "auto",
   thinkingAutoFollow = true,
+  hideThinking,
+  sourceBlockIndices,
   liveTokensPerSecond,
   settled = false,
   messageActionsVisible = true,
@@ -507,6 +516,8 @@ function AssistantMessageView({
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  hideThinking: boolean;
+  sourceBlockIndices?: number[];
   liveTokensPerSecond?: number | null;
   settled?: boolean;
   messageActionsVisible?: boolean;
@@ -517,8 +528,8 @@ function AssistantMessageView({
   const texts = (message.content ?? []).filter((block): block is TextContent => block.type === "text").map((block) => block.text);
   const canFork = !!forkEntryId && !!onFork;
   const blockItems = (message.content ?? [])
-    .map((block, originalIndex) => ({ block, originalIndex }))
-    .filter(({ block }) => !isEmptyThinkingBlock(block, { isStreaming }));
+    .map((block, index) => ({ block, originalIndex: sourceBlockIndices?.[index] ?? index }))
+    .filter(({ block }) => !(hideThinking && block.type === "thinking") && !isEmptyThinkingBlock(block, { isStreaming }));
   const blocks = blockItems.map(({ block }) => block);
   const hasActivityBlocks = blocks.some((block) => block.type === "thinking" || block.type === "toolCall");
   const isInterrupted = isInterruptedMessage(message.errorMessage, message.stopReason);
@@ -1008,8 +1019,20 @@ function isSkillContentTool(block: ToolCallContent, resultText?: string | null):
   return /(^|\/)(\.agents|\.claude|\.omp|\.codex)\/skills\/|(^|\/)skills\/|SKILL\.md$/i.test(path);
 }
 
+/** The page a `read` of an http(s) URL fetched, without read selectors such as `:raw` or `:10-20`. */
+function readTargetWebUrl(target: string): string | null {
+  try {
+    const url = new URL(target);
+    url.pathname = url.pathname.replace(/(?::(?:raw|-?\d[\d,+-]*))+$/, "");
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isStreaming, defaultCollapsed = true, onOpenFile, cwd, settled = false }: { block: ToolCallContent; result?: ToolResultMessage; duration?: number; isStreaming?: boolean; defaultCollapsed?: boolean; onOpenFile?: (filePath: string) => void; cwd?: string; settled?: boolean }) {
   const { t } = useI18n();
+  const openAgentLink = useContext(AgentLinkContext);
   const [inputExpanded, setInputExpanded] = useState(false);
   const inputId = useId();
   // executing (see lib/types.ts); the committed toolResult replaces them.
@@ -1064,6 +1087,13 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
     : hubJobs
       ? hubJobs.map((job) => job.label).join(" · ")
       : null;
+  const rawFilePath = typeof block.input === "object" && block.input !== null && "path" in block.input && typeof (block.input as Record<string, unknown>).path === "string"
+    ? String((block.input as Record<string, unknown>).path).trim()
+    : null;
+  const agentIds = agentLinkIds(rawFilePath ?? undefined);
+  // `history://`, `proc://`, `local://`, ... are resolved by omp, not files the viewer can open.
+  const hasUrlScheme = rawFilePath !== null && /^[a-z][a-z0-9+.-]*:\/\//i.test(rawFilePath);
+  const webUrl = hasUrlScheme && /^https?:\/\//i.test(rawFilePath) ? readTargetWebUrl(rawFilePath) : null;
   return (
     <div className="activity-row" data-activity-operation="true">
         <Collapsible open={expanded} onOpenChange={setUserToggled}>
@@ -1072,7 +1102,49 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
             {isError ? <CircleAlert size={12} strokeWidth={1.8} /> : !isRunning && (result || settled) ? <Check size={12} strokeWidth={2} /> : <LoaderCircle size={12} strokeWidth={1.8} className="activity-row-spinner" />}
           </span>
           <span className={`activity-row-tool${isError ? " activity-row-tool-error" : ""}`}>{hubTool ?? block.toolName}</span>
-          <span className="activity-row-preview">{hubPreview ?? getToolPreview(block)}</span>
+          <span className="activity-row-preview">
+            {agentIds.length > 0 && openAgentLink ? (
+              <span
+                role="link"
+                tabIndex={0}
+                className="activity-file-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAgentLink(agentIds);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    openAgentLink(agentIds);
+                  }
+                }}
+                title={hubPreview ?? getToolPreview(block)}
+              >
+                {hubPreview ?? getToolPreview(block)}
+              </span>
+            ) : webUrl ? (
+              <span
+                role="link"
+                tabIndex={0}
+                className="activity-file-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(webUrl, "_blank", "noopener,noreferrer");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    window.open(webUrl, "_blank", "noopener,noreferrer");
+                  }
+                }}
+                title={webUrl}
+              >
+                {hubPreview ?? getToolPreview(block)}
+              </span>
+            ) : (
+              hubPreview ?? getToolPreview(block)
+            )}
+          </span>
           {duration !== undefined && (
             <span className="activity-row-duration">{t("messageView.durationSeconds", { seconds: duration })}</span>
           )}

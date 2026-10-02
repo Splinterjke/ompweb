@@ -19,6 +19,7 @@ export type BackendErrorKind =
   | "git_status_failed"
   | "git_branches_failed"
   | "git_checkout_failed"
+  | "git_clone_failed"
   | "git_commit_failed"
   | "git_push_failed"
   | "git_diff_failed"

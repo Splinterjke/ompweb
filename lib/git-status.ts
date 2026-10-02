@@ -1,4 +1,45 @@
 import type { GitFileStatus } from "./git-types";
+import type { GitCollapseReason } from "./git-types";
+
+/** Attributes queried by `git check-attr` for `parseGitCollapseReasons`. */
+export const GIT_REVIEW_ATTRIBUTES = [
+  "linguist-generated",
+  "linguist-vendored",
+  "linguist-documentation",
+  "diff",
+  "binary",
+] as const;
+
+// Linguist overrides are boolean: `attr` / `attr=true` set it, `-attr` / `attr=false` clear it.
+const isTrue = (value: string | undefined) => value === "set" || value === "true";
+
+function collapseReasonFromAttributes(attrs: Map<string, string>): GitCollapseReason | undefined {
+  // `no-diff` wins so callers can suppress the diff from the reason alone.
+  // `binary` also unsets diff; binary changes (images, fonts) stay in the main list.
+  if (attrs.get("diff") === "unset" && attrs.get("binary") !== "set") return "no-diff";
+  if (isTrue(attrs.get("linguist-generated"))) return "generated";
+  if (isTrue(attrs.get("linguist-vendored"))) return "vendored";
+  if (isTrue(attrs.get("linguist-documentation"))) return "documentation";
+  return undefined;
+}
+
+/** Parses `git check-attr -z` output (`path NUL attr NUL value` triples). */
+export function parseGitCollapseReasons(output: string): Map<string, GitCollapseReason> {
+  const records = output.split("\0");
+  const byPath = new Map<string, Map<string, string>>();
+  for (let i = 0; i + 2 < records.length; i += 3) {
+    const [filePath, attr, value] = [records[i], records[i + 1], records[i + 2]];
+    let attrs = byPath.get(filePath);
+    if (!attrs) byPath.set(filePath, attrs = new Map());
+    attrs.set(attr, value);
+  }
+  const reasons = new Map<string, GitCollapseReason>();
+  for (const [filePath, attrs] of byPath) {
+    const reason = collapseReasonFromAttributes(attrs);
+    if (reason) reasons.set(filePath, reason);
+  }
+  return reasons;
+}
 
 export interface GitPorcelainEntry {
   path: string;

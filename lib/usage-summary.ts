@@ -10,6 +10,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { getSessionsDir } from "./omp/paths";
+import { listSessionArtifactTranscripts } from "./omp/session-files";
 
 export const USAGE_SUMMARY_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
 export const USAGE_SUMMARY_TTL_MS = 2_000;
@@ -31,6 +32,7 @@ interface SummaryCache {
 let cache: SummaryCache | null = null;
 
 interface ParsedFileEntry {
+  id: string;
   input: number;
   output: number;
   at: number;
@@ -53,8 +55,8 @@ export function sessionFileTime(fileName: string): number | null {
   return Number.isFinite(time) ? time : null;
 }
 
-export function parseUsageSummaryLine(line: string): { input: number; output: number; at: number } | null {
-  let entry: { type?: string; timestamp?: string; message?: { usage?: { input?: unknown; output?: unknown } } };
+export function parseUsageSummaryLine(line: string): { id: string; input: number; output: number; at: number } | null {
+  let entry: { id?: string; type?: string; timestamp?: string; message?: { usage?: { input?: unknown; output?: unknown } } };
   try {
     entry = JSON.parse(line) as typeof entry;
   } catch {
@@ -68,7 +70,7 @@ export function parseUsageSummaryLine(line: string): { input: number; output: nu
   if (input === 0 && output === 0) return null;
   const at = entry.timestamp ? Date.parse(entry.timestamp) : NaN;
   if (!Number.isFinite(at)) return null;
-  return { input, output, at };
+  return { id: typeof entry.id === "string" ? entry.id : "", input, output, at };
 }
 
 export function computeUsageSummary(
@@ -84,6 +86,11 @@ export function computeUsageSummary(
   let month = 0;
   let total = 0;
   let scannedFiles = 0;
+
+  // The same (entry id, timestamp) pair appearing in more than one file is a
+  // copy of one billed request (forks, /tan clones, branch copies) — count it
+  // once. Entries without an id are always counted.
+  const seen = new Set<string>();
 
   for (const file of files) {
     if (file.fileTime < windowStart) continue; // skip stale sessions by name
@@ -121,6 +128,11 @@ export function computeUsageSummary(
 
     scannedFiles += 1;
     for (const parsed of entries) {
+      if (parsed.id !== "") {
+        const key = parsed.id + "\u0000" + parsed.at;
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
       const tokens = parsed.input + parsed.output;
       total += tokens;
       if (parsed.at >= dayStart) today += tokens;
@@ -201,6 +213,16 @@ export function listSessionFilesWithTime(): Array<{ path: string; fileTime: numb
         continue;
       }
       out.push({ path: full, fileTime });
+      // Include per-session artifact transcripts (subagents, advisors,
+      // extension sub-sessions). They carry their own usage not present in
+      // the top-level file. mtime serves as the recency pre-filter.
+      for (const artifact of listSessionArtifactTranscripts(full)) {
+        try {
+          out.push({ path: artifact, fileTime: statSync(artifact).mtimeMs });
+        } catch {
+          continue; // skip unreadable
+        }
+      }
     }
   }
   return out;

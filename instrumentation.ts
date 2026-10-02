@@ -91,13 +91,14 @@ export async function register(): Promise<void> {
   // runs are killed with their terminal; pages then show endless loading
   // until the process is restarted). Append fatal errors and event-loop
   // stalls to a file so the next incident explains itself. Node's default
-  // crash semantics are preserved — this only adds the record before exiting.
+  // crash semantics are preserved — this only adds the record before exiting
+  // — except for client aborts, which are journaled and survived (see below).
   // fs/path are node-only and this file is also bundled for the edge runtime,
   // so they are imported dynamically like the other node-only deps.
   const { appendFileSync, mkdirSync, renameSync, statSync } = await import("fs");
   const { join } = await import("path");
-  const { getConfigRoot } = await import("@/lib/omp/paths");
-  const logDir = join(getConfigRoot(), "omp-web");
+  const { getDiagnosticsDir } = await import("@/lib/omp/paths");
+  const logDir = getDiagnosticsDir();
   const logPath = join(logDir, "diagnostics.log");
   const appendDiag = (kind: string, detail: string) => {
     try {
@@ -132,6 +133,17 @@ export async function register(): Promise<void> {
   process.on("uncaughtException", (error) => {
     if (isRecursiveWatchFsError(error)) {
       appendDiag("fs-watch-suppressed", `recursive fs.watch fs error — ${describe(error)}`);
+      return;
+    }
+    // A client disconnecting mid-request can surface here as an unhandled
+    // `Error: aborted` (ECONNRESET): for POSTs through proxy.ts, Next's body
+    // cloning drops the request's `error` listeners (replaceRequestBody,
+    // vercel/next.js#99278). That is a peer event, not a corrupted server:
+    // journal it (one line, no stack, so aborts cannot rotate real crash
+    // records out of the journal quickly) and keep serving, as Next's own
+    // handler does.
+    if (error instanceof Error && error.message === "aborted" && (error as NodeJS.ErrnoException).code === "ECONNRESET") {
+      appendDiag("client-abort", "uncaughtException Error: aborted (ECONNRESET)");
       return;
     }
     appendDiag("crash", `uncaughtException ${describe(error)}`);

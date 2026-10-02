@@ -788,6 +788,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [sessionStatsOverride, setSessionStatsOverride] = useState<SessionStatsInfo | null>(null);
   const [extensionDialog, setExtensionDialog] = useState<ExtensionUiDialogRequest | null>(null);
   const extensionDialogClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locallyAnsweredDialogRef = useRef<string | null>(null);
   useEffect(() => () => {
     if (extensionDialogClearTimerRef.current) clearTimeout(extensionDialogClearTimerRef.current);
   }, []);
@@ -1612,6 +1613,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setExtensionDialog((current) => current?.id === request.id ? null : current);
       return;
     }
+    // Claim the dialog before awaiting: another tab answering broadcasts a
+    // synchronized "cancel" for the same request id, which must not tear down
+    // THIS tab's hand-off window. Cleared when the hand-off timer fires, or
+    // when a genuinely new request arrives.
+    locallyAnsweredDialogRef.current = request.id;
     try {
       await sendAgentCommand(sid, {
         type: "extension_ui_response",
@@ -1628,6 +1634,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (extensionDialogClearTimerRef.current) clearTimeout(extensionDialogClearTimerRef.current);
       extensionDialogClearTimerRef.current = setTimeout(() => {
         setExtensionDialog((current) => current?.id === request.id ? null : current);
+        if (locallyAnsweredDialogRef.current === request.id) locallyAnsweredDialogRef.current = null;
         extensionDialogClearTimerRef.current = null;
       }, 250);
     }
@@ -1877,10 +1884,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           clearTimeout(extensionDialogClearTimerRef.current);
           extensionDialogClearTimerRef.current = null;
         }
+        locallyAnsweredDialogRef.current = null;
         setExtensionDialog(request);
         break;
       case "cancel":
-        setExtensionDialog((current) => current?.id === request.targetId ? null : current);
+        if (request.targetId !== locallyAnsweredDialogRef.current) {
+          setExtensionDialog((current) => current?.id === request.targetId ? null : current);
+        }
         break;
       case "open_url": {
         // OAuth and similar flows: try to open a tab (often blocked outside a
@@ -2222,36 +2232,79 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     });
   }, []);
 
-  /** Remove one queued message from the client-side queue mirror. omp's RPC
-   *  protocol has no queue-mutation commands, so this only affects the queue
-   *  panel: a message removed here may still be delivered by the running agent
-   *  (it then arrives in the chat like any delivered turn). */
-  const removeQueuedMessage = useCallback((text: string) => {
-    if (!text) return;
-    setQueuedMessages((prev) => {
-      const si = prev.steering.indexOf(text);
-      const fi = prev.followUp.indexOf(text);
-      if (si === -1 && fi === -1) return prev;
-      return {
-        steering: si === -1 ? prev.steering : prev.steering.filter((_, i) => i !== si),
-        followUp: fi === -1 ? prev.followUp : prev.followUp.filter((_, i) => i !== fi),
-      };
-    });
-  }, []);
+  // Guards against concurrent queue mutations (remove/steer) racing the same
+  // mirror — the delivery path also mutates, so a stale optimistic update
+  // could clobber a freshly delivered message.
+  const queueActionBusyRef = useRef(false);
 
-  /** Promote the first queued follow-up to a steering message (client-side
-   *  relabel; the delivery order itself is owned by omp). */
-  const promoteQueuedToSteer = useCallback((text: string) => {
-    if (!text) return;
-    setQueuedMessages((prev) => {
-      const fi = prev.followUp.indexOf(text);
-      if (fi === -1) return prev;
-      return {
-        steering: [...prev.steering, text],
-        followUp: prev.followUp.filter((_, i) => i !== fi),
-      };
-    });
-  }, []);
+  /** Cancel one pending message in omp, then drop it from the local mirror
+   *  only after omp confirms the removal. A message already delivered by the
+   *  running agent cannot be cancelled (it arrives in the chat like any turn). */
+  const removeQueuedMessage = useCallback(async (text: string, queue: keyof QueuedMessages): Promise<boolean> => {
+    const sid = sessionIdRef.current;
+    if (!hookAliveRef.current || !sid || !text) return false;
+    if (queueActionBusyRef.current) return false;
+    queueActionBusyRef.current = true;
+    try {
+      const result = await sendAgentCommand<{ removed?: boolean }>(sid, {
+        type: "remove_queued_message", message: text, queue,
+      });
+      if (result?.removed !== true) {
+        if (hookAliveRef.current && sessionIdRef.current === sid) {
+          addNotice({ type: "warning", message: translate("agentSession.queuedRemovalUnavailable") });
+        }
+        return false;
+      }
+      setQueuedMessages((prev) => {
+        const index = prev[queue].indexOf(text);
+        if (index < 0) return prev;
+        return { ...prev, [queue]: prev[queue].filter((_, i) => i !== index) };
+      });
+      return true;
+    } catch (error) {
+      if (hookAliveRef.current && sessionIdRef.current === sid) {
+        addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      }
+      return false;
+    } finally {
+      queueActionBusyRef.current = false;
+    }
+  }, [addNotice]);
+
+  /** Promote a queued follow-up into a steering message in omp, then relabel
+   *  the local mirror to match the new delivery order. */
+  const promoteQueuedToSteer = useCallback(async (text: string) => {
+    const sid = sessionIdRef.current;
+    if (!hookAliveRef.current || !sid || !text) return;
+    if (queueActionBusyRef.current) return;
+    queueActionBusyRef.current = true;
+    try {
+      const result = await sendAgentCommand<{ promoted?: boolean }>(sid, {
+        type: "promote_queued_message",
+        message: text,
+      });
+      if (result?.promoted !== true) {
+        if (hookAliveRef.current && sessionIdRef.current === sid) {
+          addNotice({ type: "warning", message: translate("agentSession.queuedPromotionUnavailable") });
+        }
+        return;
+      }
+      setQueuedMessages((prev) => {
+        const fi = prev.followUp.indexOf(text);
+        if (fi === -1) return prev;
+        return {
+          steering: [...prev.steering, text],
+          followUp: prev.followUp.filter((_, i) => i !== fi),
+        };
+      });
+    } catch (error) {
+      if (hookAliveRef.current && sessionIdRef.current === sid) {
+        addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      }
+    } finally {
+      queueActionBusyRef.current = false;
+    }
+  }, [addNotice]);
 
   // Mirror queued texts into sessionStorage so a reload can restore them.
   // The dirty gate keeps the initial empty state from wiping a stored queue

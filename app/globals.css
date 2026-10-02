@@ -3326,6 +3326,25 @@ html.dark .dropdown-surface :is(select, option) {
   white-space: nowrap;
   flex: 1 1 auto;
 }
+.activity-file-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-file-link:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
 .activity-row-duration {
   margin-left: auto;
   min-width: 42px;

@@ -1,6 +1,6 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-09-30T14:58:34.633Z · totals: 166 calls / 36 files · http 156 (read 81 / write 85) · sse 10
+Generated: 2026-10-02T15:59:10.260Z · totals: 169 calls / 36 files · http 159 (read 82 / write 87) · sse 10
 
 | domain | calls |
 |---|---|
@@ -9,14 +9,14 @@ Generated: 2026-09-30T14:58:34.633Z · totals: 166 calls / 36 files · http 156 
 | omp-update | 13 |
 | pair | 9 |
 | files | 9 |
+| omp-settings | 7 |
 | skills | 7 |
+| projects | 7 |
 | git | 6 |
-| omp-settings | 6 |
 | auth | 6 |
 | terminal | 6 |
 | agents | 5 |
 | mcp | 5 |
-| projects | 5 |
 | diagnostics | 4 |
 | models-config | 4 |
 | reveal | 3 |

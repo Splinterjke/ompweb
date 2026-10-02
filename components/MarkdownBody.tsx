@@ -1,7 +1,8 @@
 "use client";
 
-import { Children, cloneElement, isValidElement, useMemo, type ComponentProps, type MouseEvent, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useMemo, useContext, type ComponentProps, type MouseEvent, type ReactElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import { normalizeDisplayMath, useMarkdownPlugins } from "../lib/markdown";
@@ -25,6 +26,7 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
     [children, isStreaming],
   );
   const { remarkPlugins, rehypePlugins } = useMarkdownPlugins(isStreaming ? "" : normalizedMarkdown, isStreaming);
+  const openAgentLink = useContext(AgentLinkContext);
 
   // Rebuilt only when its captured props change, not on every render.
   const components = useMemo<Components>(() => {
@@ -101,6 +103,19 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
       if (imageParts.length > 0 && !hasMeaningfulText(textParts)) {
         return <>{children}</>;
       }
+      const agentIds = agentLinkIds(href);
+      if (agentIds.length > 0) {
+        // Outside a chat view there is nothing to open: render the handle as text.
+        if (!openAgentLink) return <>{textParts}{imageParts}</>;
+        const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+          if (event.defaultPrevented || event.button !== 0) return;
+          event.preventDefault();
+          openAgentLink(agentIds);
+        };
+        // Middle-click never fires `click`; stop it opening the unnavigable href.
+        const anchor = <a href={href} {...props} onClick={handleClick} onAuxClick={(event) => event.preventDefault()}>{textParts}</a>;
+        return imageParts.length > 0 ? <>{anchor}{imageParts}</> : anchor;
+      }
       const filePath = onOpenFile ? resolveLocalFileHref(href, cwd) : null;
       const openFile = onOpenFile;
       if (filePath && openFile) {
@@ -132,7 +147,7 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
       );
     },
     };
-  }, [isStreaming, cwd, onOpenFile]);
+  }, [isStreaming, cwd, onOpenFile, openAgentLink]);
 
   return (
     <div className={["markdown-body", className].filter(Boolean).join(" ")}>
@@ -140,11 +155,13 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
-        // Keep drive-letter/UNC paths intact: react-markdown's default
-        // urlTransform strips "C:"-style schemes to "", which would break
-        // local path resolution. rehype-sanitize still blocks dangerous
-        // protocols (javascript:, data:) via its attribute schema.
-        urlTransform={(url) => url}
+        // `agent://` handles are opened in-app via AgentLinkContext (chat) or
+        // shown as plain text elsewhere; the write-only broadcast address is
+        // dropped entirely. All other hrefs stay as written: react-markdown's
+        // default transform would blank unknown schemes and break drive-letter/UNC
+        // local path resolution. rehype-sanitize still blocks dangerous protocols
+        // (javascript:, data:) via its attribute schema.
+        urlTransform={(url) => (url.startsWith("agent://") ? (agentLinkIds(url).length > 0 ? url : undefined) : url)}
       >
         {normalizedMarkdown}
       </ReactMarkdown>

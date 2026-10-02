@@ -10,7 +10,7 @@ import {
   vs,
   vscDarkPlus,
 } from "@/lib/syntax-highlight";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import { AtSign, Download, WrapText } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import {
@@ -1315,6 +1315,9 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
             <ReactMarkdown
               remarkPlugins={markdownPlugins.remarkPlugins}
               rehypePlugins={markdownPlugins.rehypePlugins}
+              // The shared sanitizer admits `agent:` for chat links; previews
+              // have no subagent to open, so drop such hrefs as before.
+              urlTransform={(url) => defaultUrlTransform(url) || undefined}
               components={{
                 code: markdownCodeRenderer({ defaultPreview: true }),
                 pre({ children }) {

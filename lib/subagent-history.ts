@@ -235,9 +235,43 @@ export function extractSubagentHistory(sessionFilePath: string): SubagentHistory
     if (available) {
       entry.sessionFile = candidate;
       entry.transcriptAvailable = true;
+      // Async task results never carry the model; the transcript always does.
+      entry.resolvedModel ??= transcriptModel(candidate);
     }
   }
   return roster.sort((a, b) => a.index - b.index || a.id.localeCompare(b.id));
+}
+
+/** Bytes read from a transcript's head to find its model entries. */
+const TRANSCRIPT_HEAD_BYTES = 8 * 1024;
+
+/**
+ * `provider/model:thinking` from the `model_change` / `thinking_level_change`
+ * entries omp writes at the head of a subagent transcript, before its
+ * (large) `session_init` line.
+ * ponytail: head only, so a mid-run model switch is not reflected; scan the
+ * whole file if subagents start switching models.
+ */
+function transcriptModel(file: string): string | undefined {
+  let head: string;
+  try {
+    const fd = openSync(file, "r");
+    try {
+      const buffer = Buffer.alloc(TRANSCRIPT_HEAD_BYTES);
+      head = buffer.subarray(0, readSync(fd, buffer, 0, buffer.length, 0)).toString("utf8");
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+  let model: string | undefined;
+  let thinking: string | undefined;
+  for (const entry of parseJsonlLenient<Record<string, unknown>>(head.slice(0, head.lastIndexOf("\n") + 1))) {
+    if (entry.type === "model_change") model = asString(entry.model) ?? model;
+    else if (entry.type === "thinking_level_change") thinking = asString(entry.thinkingLevel) ?? thinking;
+  }
+  return model && (thinking ? `${model}:${thinking}` : model);
 }
 
 /** Cap on transcript bytes materialized for the dialog (files are small). */

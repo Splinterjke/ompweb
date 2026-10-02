@@ -1356,6 +1356,15 @@ export class AgentSessionWrapper {
         return null;
       }
 
+      case "remove_queued_message":
+      case "promote_queued_message": {
+        // Queue mutations are synchronous control operations, like get_state.
+        // Expiry must not abort unrelated work or replay a possibly applied
+        // mutation.
+        const result = await this.proc.sendCommand(command as { type: string }, GET_STATE_TIMEOUT_MS);
+        return result ?? null;
+      }
+
       case "abort":
         // Mark the interrupted turn's upcoming terminal agent_end so it does
         // not dispatch conversation_completed (see agent_end handler).
@@ -1507,8 +1516,12 @@ export class AgentSessionWrapper {
         if (("answers" in rest || pendingAsk) && !isAskAnswers(rest.answers) && !(pendingAsk && rest.cancelled === true)) {
           throw new WebRpcError("Invalid ask dialog answers", "invalid_ask_answers");
         }
+        const wasPending = this.pendingUiRequests.has(id);
         this.forgetPendingUiRequest(id);
         this.proc.sendFrame({ type: "extension_ui_response", id, ...rest });
+        // omp sends no cancel for an answered dialog; other tabs on this
+        // session would keep showing it, so settle it for them here.
+        if (wasPending) this.emit({ type: "extension_ui_request", id: `cancel:${id}`, method: "cancel", targetId: id });
         return null;
       }
 

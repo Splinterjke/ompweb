@@ -92,3 +92,10 @@ test("does not normalize escaped delimiters or link destinations", () => {
   assert.equal(normalizeDisplayMath(escaped), escaped);
   assert.equal(normalizeDisplayMath(link), link);
 });
+
+test("does not leak react-markdown node metadata onto inline code", () => {
+  const html = renderMarkdown("Run `npm test` or [`docs`](https://example.com).");
+
+  assert.match(html, /<code class="markdown-inline-code">npm test<\/code>/);
+  assert.doesNotMatch(html, /\snode=/);
+});

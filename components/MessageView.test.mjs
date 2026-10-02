@@ -12,6 +12,7 @@ const jiti = createJiti(import.meta.url, {
 const messageViewSource = await readFile(new URL("./MessageView.tsx", import.meta.url), "utf8");
 const { MessageView, SafeMarkdownBody, isInterruptedMessage } = await jiti.import("./MessageView.tsx");
 const { CodeBlock } = await jiti.import("./MermaidBlock.tsx");
+const { AgentLinkContext } = await jiti.import("../lib/agent-links.ts");
 
 test("large message content avoids the markdown pipeline until requested", () => {
   const largeMessage = "x".repeat(100_001);
@@ -533,4 +534,48 @@ test("late LSP diagnostic notices keep their exact line layout and drop the wrap
   }));
   assert.match(html, /<pre style="[^"]*white-space:pre;[^"]*">Late LSP diagnostics arrived after the edit returned:\n\/repo\/a\.py — 0 error\(s\), 1 warning\(s\)\n\/repo\/a\.py:8:1 \[warning\] \[Ruff\] Import block is un-sorted or un-formatted\n\nhelp: Organize imports \(I001\)<\/pre>/);
   assert.doesNotMatch(html, /system-notice/);
+});
+
+test("read paths with an internal URL scheme are not links", () => {
+  const renderRow = (path) => renderToStaticMarkup(React.createElement(MessageView, {
+    onOpenFile() {},
+    message: {
+      role: "assistant",
+      content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path } }],
+    },
+  }));
+
+  for (const path of ["history://ScoutAgent", "proc://Job1", "local://notes.md", "ftp://example.com/a.ts", "javascript://x%0Aalert(1)", "file:///etc/passwd"]) {
+    assert.doesNotMatch(renderRow(path), /role="link"/, path);
+  }
+});
+
+test("read paths with a web URL render a link to the fetched page without read selectors", () => {
+  const renderRow = (path) => renderToStaticMarkup(React.createElement(MessageView, {
+    onOpenFile() {},
+    message: {
+      role: "assistant",
+      content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path } }],
+    },
+  }));
+
+  const html = renderRow("https://example.com/docs:raw");
+  assert.match(html, /role="link"/);
+  assert.match(html, /title="https:\/\/example\.com\/docs"/);
+
+  const html2 = renderRow("https://example.com:8080/a.md:10-20");
+  assert.match(html2, /role="link"/);
+  assert.match(html2, /title="https:\/\/example\.com:8080\/a\.md"/);
+});
+
+test("read of an agent:// handle renders a link when a chat provider is present", () => {
+  const html = renderToStaticMarkup(React.createElement(AgentLinkContext.Provider, { value() {} },
+    React.createElement(MessageView, {
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "agent://Scout" } }],
+      },
+    })));
+  assert.match(html, /role="link"/);
+  assert.match(html, /agent:\/\/Scout/);
 });

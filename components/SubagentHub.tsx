@@ -369,12 +369,44 @@ export function SubagentHub({
     if (!isControlled) setInternalCollapsed(next);
     onCollapsedChange?.(next);
   };
-  const runningCount = subagents.filter((subagent) => subagent.source !== "history" && subagent.status === "started").length;
+  const { running, completed, runningTreeItems, completedTreeItems } = useMemo(() => {
+    const running = subagents.filter((subagent) => subagent.source !== "history" && subagent.status === "started");
+    const completed = subagents.filter((subagent) => !(subagent.source !== "history" && subagent.status === "started"));
+    return {
+      running,
+      completed,
+      runningTreeItems: buildSubagentHubTree(running),
+      completedTreeItems: buildSubagentHubTree(completed),
+    };
+  }, [subagents]);
+  const runningCount = running.length;
   // When nothing is running the header reports finished agents instead,
   // so a finished run reads "4 / 4 complete" rather than "0 / 4 busy".
-  const finishedCount = subagents.filter((subagent) => subagent.status !== "started").length;
+  const finishedCount = completed.length;
   const allFinished = runningCount === 0;
-  const treeItems = useMemo(() => buildSubagentHubTree(subagents), [subagents]);
+  // Not persisted: finished runs pile up, so the group re-collapses on every mount.
+  const [completedExpanded, setCompletedExpanded] = useState(defaultExpanded);
+
+  const renderRows = (items: SubagentHubTreeItem[]) =>
+    items.map((item) => {
+      if (item.kind === "group") return null;
+      const nestedStyle = item.depth > 0
+        ? {
+            marginLeft: `calc(16px * ${item.depth})`,
+            paddingLeft: "12px",
+            borderLeft: "thin solid var(--border)",
+          }
+        : undefined;
+      return (
+        <div key={item.key} style={{ display: "grid", gap: 6, ...nestedStyle }}>
+          <SubagentRow
+            subagent={item.subagent}
+            events={subagentEvents[item.subagent.id]}
+            onSelectSubagent={onSelectSubagent}
+          />
+        </div>
+      );
+    });
 
   return (
     <section
@@ -444,25 +476,28 @@ export function SubagentHub({
               {t("chatWindow.subagentHub.empty")}
             </div>
           ) : (
-            treeItems.map((item) => {
-              if (item.kind === "group") return null;
-              const nestedStyle = item.depth > 0
-                ? {
-                    marginLeft: `calc(16px * ${item.depth})`,
-                    paddingLeft: "12px",
-                    borderLeft: "thin solid var(--border)",
-                  }
-                : undefined;
-              return (
-                <div key={item.key} style={{ display: "grid", gap: 6, ...nestedStyle }}>
-                  <SubagentRow
-                    subagent={item.subagent}
-                    events={subagentEvents[item.subagent.id]}
-                    onSelectSubagent={onSelectSubagent}
-                  />
+            <>
+              {runningTreeItems.length > 0 && (
+                <div style={{ display: "grid", gap: 8 }}>{renderRows(runningTreeItems)}</div>
+              )}
+              {completedTreeItems.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setCompletedExpanded((v) => !v)}
+                    aria-expanded={completedExpanded}
+                    className="ui-focus-ring flex w-full cursor-pointer items-center gap-1.5 text-left"
+                    style={{ background: "none", border: "none", padding: "2px 0", fontFamily: "inherit", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}
+                  >
+                    <ChevronDown size={12} strokeWidth={1.8} aria-hidden style={{ color: "var(--text-dim)", transform: completedExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform var(--dur-med) var(--ease-out-warm)" }} />
+                    {t("chatWindow.completedSubagents", { count: completed.length })}
+                  </button>
+                  {completedExpanded && (
+                    <div style={{ display: "grid", gap: 8, marginTop: 4 }}>{renderRows(completedTreeItems)}</div>
+                  )}
                 </div>
-              );
-            })
+              )}
+            </>
           )}
         </div>
       )}

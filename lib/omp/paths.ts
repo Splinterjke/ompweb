@@ -83,6 +83,13 @@ function isDefaultAgentDir(): boolean {
   return true;
 }
 
+/** omp-web's crash/stall journal directory: ~/.omp/omp-web, or
+ * <agent dir>/omp-web when PI_CODING_AGENT_DIR points elsewhere, so isolated
+ * runs (tests, dev servers) never write the real journal. */
+export function getDiagnosticsDir(): string {
+  return path.join(isDefaultAgentDir() ? getConfigRoot() : getAgentDir(), "omp-web");
+}
+
 /** XDG data root for the default agent dir: only honored on linux/darwin when
  * $XDG_DATA_HOME/omp (or its profile subdir) already exists — omp treats the
  * XDG layout as opt-in via `omp config init-xdg`. XDG flattens the `agent/`
@@ -135,7 +142,7 @@ export function getSettingsPath(): string {
   return canonical;
 }
 
-/** Custom models file (YAML). models.yml canonical, models.yaml fallback. */
+/** Custom models file (YAML). models.yml canonical, models.yaml the fallback. */
 export function getModelsConfigPath(): string {
   const dir = getAgentDir();
   const canonical = path.join(dir, "models.yml");

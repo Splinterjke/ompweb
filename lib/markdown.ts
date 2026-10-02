@@ -3,6 +3,7 @@ import type { Options as ReactMarkdownOptions } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { remarkAgentLinks } from "./agent-links";
 import { remarkPathLinks } from "./markdown-path-links";
 
 const markdownSanitizeSchema = {
@@ -24,7 +25,9 @@ const markdownSanitizeSchema = {
       .filter((entry) => entry !== "href")
       // URL-encoded forms (%5C = backslash) arrive after react-markdown
       // encodes the href, so the drive-letter/UNC branches accept both.
-      .concat([["href", /^(?:https?:|mailto:|file:|[a-zA-Z]:(?:[\\/]|%5[cC])|\\\\|%5[cC]%5[cC]|\/|\.{1,2}\/|#|\?|[\w\u4e00-\u9fff.-]+\/)/]]),
+      // `agent://` subagent handles are opened in-app by MarkdownBody; the
+      // default protocol whitelist strips them.
+      .concat([["href", /^(?:agent:\/\/|https?:|mailto:|file:|[a-zA-Z]:(?:[\\/]|%5[cC])|\\\\|%5[cC]%5[cC]|\/|\.{1,2}\/|#|\?|[\w\u4e00-\u9fff.-]+\/)/]]),
   },
   strip: [...(defaultSchema.strip || []), "iframe", "object", "style", "form"],
 };
@@ -42,14 +45,16 @@ export interface MarkdownPlugins {
 // built from these same arrays, so the sanitize schema cannot drift between
 // the two.
 const baseMarkdownPlugins: MarkdownPlugins = {
-  remarkPlugins: [[remarkGfm, remarkGfmOptions], remarkPathLinks],
+  // remarkPathLinks first so bare file paths link before the agent plugin
+  // sees the tree; agent links then run over whatever is not yet a link.
+  remarkPlugins: [[remarkGfm, remarkGfmOptions], remarkPathLinks, remarkAgentLinks],
   rehypePlugins: [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema]],
 };
 
 /** Lightweight pipeline for in-flight streaming tokens: skips expensive rehypeRaw
  *  and deep rehypeSanitize passes on incomplete HTML fragments. */
 export const streamingMarkdownPlugins: MarkdownPlugins = {
-  remarkPlugins: [[remarkGfm, remarkGfmOptions], remarkPathLinks],
+  remarkPlugins: [[remarkGfm, remarkGfmOptions], remarkPathLinks, remarkAgentLinks],
   rehypePlugins: [],
 };
 
