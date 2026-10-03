@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "./ui/toast";
 import type { SchedulerStatus, SchedulerWithState } from "@/lib/scheduler-types";
+import { modelFlagValue } from "@/lib/scheduler-types";
 import { createOmpwebClient } from "@/lib/client";
 import { SchedulerModal } from "./SchedulerModal";
 import { SectionChevron } from "./SectionChevron";
@@ -547,7 +548,7 @@ export function SchedulersPanel({
                         </Tooltip>
                         {(s.provider || s.modelId || s.cwd) && (
                           <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {[s.provider || null, s.modelId || null].filter(Boolean).join("/")}
+                            {modelFlagValue(s.provider, s.modelId) ?? s.provider ?? ""}
                             {s.cwd ? ` · ${s.cwd}` : ""}
                           </span>
                         )}

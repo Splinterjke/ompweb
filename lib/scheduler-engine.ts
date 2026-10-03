@@ -16,6 +16,7 @@ import {
 import { repairedChildPath, resolveOmpBin } from "./omp/omp-cli";
 import { getAgentDir, getSessionDirNameForCwd, getSessionsDir } from "./omp/paths";
 import { nextRunAfter } from "./schedule";
+import { modelFlagValue } from "./scheduler-types";
 
 // ============================================================================
 // Scheduler engine: the in-process cron. One 15-second tick checks every
@@ -104,8 +105,9 @@ function compactConfigPath(): string {
 /** Exported for unit tests (argv construction is the contract with the omp CLI). */
 export function promptSpawnArgs(entry: SchedulerEntry): string[] {
   const args = ["-p"];
-  if (entry.modelId) {
-    args.push(`--model=${entry.provider ? `${entry.provider}/${entry.modelId}` : entry.modelId}`);
+  const model = modelFlagValue(entry.provider, entry.modelId);
+  if (model) {
+    args.push(`--model=${model}`);
   } else if (entry.provider) {
     args.push(`--provider=${entry.provider}`);
   }

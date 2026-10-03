@@ -665,7 +665,13 @@ handled or safely ignored.
     used/created (`setSchedulerSessionId`), so the next run resumes from there.
   - `provider`/`modelId` map to `--model=<provider>/<modelId>` (or
     `--model=<modelId>` / `--provider=<provider>` alone). The modal dropdowns are
-    populated from `/api/models` (`modelList`).
+    populated from `/api/models` (`modelList`). The model dropdown stores
+    `modelId` **fully qualified** (`provider/id`), so both the engine's spawn
+    args and the panel's meta chip route through `modelFlagValue(provider,
+    modelId)` in `lib/scheduler-types.ts` — it does NOT re-prefix a `modelId`
+    that already starts with `provider/` (that double-prefixing produced
+    `provider/provider/model` "not found" errors). Keep the two consumers on
+    this one helper.
 - **Session marking**: `getAutomationSessions()` maps session id → scheduler name
   from prompt run records (`run.sessionId`); `GET /api/sessions` annotates matching
   sessions with `automation: <name>` and `SessionItem` renders a clock icon with a

@@ -81,3 +81,14 @@ export interface SchedulerFile {
 
 /** Entry as served by the API: store entry + live running flag. */
 export type SchedulerWithState = SchedulerEntry & { running: boolean };
+
+/** Fully-qualified `provider/model` argument value for prompt runs. The modal
+ *  stores `modelId` fully qualified (`provider/id`), so re-prefixing the
+ *  provider would double it (`prov/prov/model`). A modelId already prefixed
+ *  with the provider is used as-is; a bare id gets the prefix; no model
+ *  returns null. Shared by the engine's spawn args and the panel's meta chip. */
+export function modelFlagValue(provider?: string, modelId?: string): string | null {
+  if (!modelId) return null;
+  if (!provider || modelId.startsWith(`${provider}/`)) return modelId;
+  return `${provider}/${modelId}`;
+}
