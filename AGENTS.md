@@ -304,6 +304,15 @@ hooks/
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not.
 - Idle sessions are disposed after a timeout; concurrent `startRpcSession()`
   calls must share a single start promise.
+- Two cleanup backstops, both unref'd so they never hold the event loop:
+  `IDLE_DESTROY_MS` (10 min) and `DISCONNECT_DESTROY_MS`
+  (`OMP_WEB_DISCONNECT_DESTROY_MS`, 2 min, `0` disables). The shorter one only
+  fires once a session has been genuinely abandoned — no `onEvent` listener, no
+  run in flight, no startup handshake, no unanswered `send()`. The last
+  `onEvent` detach *starts* that window rather than exposing the last frame's,
+  so a reload reattaching seconds later does not 409. Both are fed by
+  `resetIdleTimer()`, the single activity choke point for `send()` and every
+  child frame: adding a new call path must route activity through it.
 
 ### Cross-session host tools and the ask dialog (`lib/rpc-manager.ts`, `/api/agent/host-tools/events`)
 - Agent-callable host tools (`open_url`, `notify`, `open_file`) are registered per session via `set_host_tools`. While a tab is viewing the session, `host_tool_call` frames go to that session's own SSE stream and the tab answers with `host_tool_result`. When **no** tab views the session (the user switched sessions mid-run), the call is broadcast to *every* open omp-web tab through `subscribeHostToolCalls()` + the `agent/host-tools/events` SSE; each tab executes the tool and sends a `host_tool_result`, and the server settles the call on the first one received (`pendingHostTools.delete`, so later duplicates are no-ops).

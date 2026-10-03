@@ -45,6 +45,24 @@ interface CompactionResultLike {
 }
 
 const IDLE_DESTROY_MS = 10 * 60 * 1000;
+/**
+ * How long a session may sit with **no web UI attached** before its omp child is
+ * torn down. IDLE_DESTROY_MS (10min) is the backstop for a session that keeps
+ * receiving traffic; this is the much faster path for "the user closed the tab
+ * and walked away", so abandoned children don't hold a slot for 10 minutes.
+ *
+ * The floor is set by the *client*, not the server: when an SSE stream dies the
+ * browser retries with capped backoff (`EVENT_STREAM_RETRY_MAX_MS` = 30s in
+ * `hooks/useAgentSession-stream.ts`), and a backgrounded tab clamps its timers
+ * to ~1/min. A window anywhere near 60s therefore races the reconnect and turns
+ * a returning tab into a 409 "Session is not managed by omp-web" plus a cold
+ * respawn. 120s keeps ~2x the retry ceiling and still reclaims 5x faster than
+ * the idle backstop. Set `OMP_WEB_DISCONNECT_DESTROY_MS=0` to disable reaping
+ * and fall back to IDLE_DESTROY_MS alone.
+ */
+const DISCONNECT_DESTROY_MS = process.env.OMP_WEB_DISCONNECT_DESTROY_MS !== undefined
+  ? Math.max(0, Number(process.env.OMP_WEB_DISCONNECT_DESTROY_MS) || 0)
+  : 120_000;
 const READY_TIMEOUT_MS = 120_000;
 const MCP_LIST_TIMEOUT_MS = 15_000;
 /** State reads drive UI reconciliation and must never leave a stale spinner
@@ -297,6 +315,16 @@ export class AgentSessionWrapper {
   private compacting = false;
   private fastModeEnabled = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Lazily-armed deadline for tearing down a session nobody is watching. */
+  private reapTimer: ReturnType<typeof setTimeout> | null = null;
+  private reapDeadline = 0;
+  private lastActivityAt = 0;
+  /** In-flight `send()` calls: the reaper must never dispose the child out from
+   * under a command that is still awaiting its response. */
+  private pendingCommands = 0;
+  /** The start handshake (ready + protocol negotiation + get_state) is in flight. */
+  private handshaking = false;
+  private readonly disconnectDestroyMs: number;
   private onDestroyCallback: (() => void) | null = null;
   private onIdentityChangeCallback: ((oldId: string, newId: string) => void) | null = null;
   private unsubscribeFrames: (() => void) | null = null;
@@ -341,12 +369,22 @@ export class AgentSessionWrapper {
 
   // Plain field assignments (not TS parameter properties) keep this module
   // runnable under Node's strip-only TypeScript mode for probes/tests.
-  constructor(proc: RpcProcessLike, cwd: string, recordedCwd?: string | null, advisorSpawned = false, expectedSessionId = "") {
+  constructor(
+    proc: RpcProcessLike,
+    cwd: string,
+    recordedCwd?: string | null,
+    advisorSpawned = false,
+    expectedSessionId = "",
+    /** Test seam: the real value is DISCONNECT_DESTROY_MS (120s), far too long
+     *  for a unit test. 0 disables reaping for that wrapper. */
+    disconnectDestroyMs: number = DISCONNECT_DESTROY_MS,
+  ) {
     this.proc = proc;
     this.cwd = cwd;
     this.recordedCwd = recordedCwd ?? null;
     this.advisorSpawned = advisorSpawned;
     this._sessionId = expectedSessionId;
+    this.disconnectDestroyMs = disconnectDestroyMs;
   }
 
   get sessionId(): string {
@@ -363,6 +401,66 @@ export class AgentSessionWrapper {
 
   isRunning(): boolean {
     return this.isAlive() && (this.promptRunning || this.streaming || this.compacting || this.bashRunning);
+  }
+
+  /** A web UI (SSE stream) is currently attached to this session. */
+  hasSubscribers(): boolean {
+    return this.listeners.length > 0;
+  }
+
+  /**
+   * Any real use of the session: an attached UI, a command from an API route, or
+   * a frame from the child. `resetIdleTimer()` is the single choke point for all
+   * three (start(), handleFrame(), send()), so driving reaping from here means
+   * the deadline can never drift away from what the session is actually doing.
+   *
+   * Deliberately does NOT touch a timer: only the *deadline* moves, and
+   * `armReap` keeps at most one timer alive, so a 100fps token stream costs a
+   * timestamp write instead of clearTimeout/setTimeout churn.
+   */
+  private noteActivity(): void {
+    this.lastActivityAt = Date.now();
+    this.reapDeadline = this.lastActivityAt + this.disconnectDestroyMs;
+    this.armReap();
+  }
+
+  private armReap(): void {
+    if (this.reapTimer || this.disconnectDestroyMs <= 0) return;
+    if (this.hasSubscribers() || !this.isAlive()) return;
+    this.reapTimer = setTimeout(() => {
+      this.reapTimer = null;
+      this.reapIfDisconnected();
+    }, Math.max(0, this.reapDeadline - Date.now()));
+    // Never pin the event loop for a cleanup deadline (cf. the MCP waiter and
+    // lib/session-resume.ts): an unref'd reap must not delay process exit.
+    this.reapTimer.unref?.();
+  }
+
+  /**
+   * Tear the child down only when nobody can observe the loss. Every condition
+   * here is a hard invariant, not a heuristic:
+   *  - a subscriber means an open HTTP 200 stream that `destroy()` would leave
+   *    half-open (the route holds its own detach + heartbeat), so the run would
+   *    vanish silently and the tab would only notice via a later 409;
+   *  - isRunning() covers an in-flight turn that no listener is watching;
+   *  - handshaking covers a spawn that has not finished its startup handshake;
+   *  - pendingCommands covers a route command (predict_word, mcp list, export)
+   *    whose response the child still owes us;
+   *  - the deadline check absorbs activity that landed while this fired.
+   * Anything else keeps the session and re-arms for the remaining window.
+   */
+  private reapIfDisconnected(): void {
+    if (!this.isAlive() || this.hasSubscribers() || this.isRunning()
+      || this.handshaking || this.pendingCommands > 0) {
+      this.armReap();
+      return;
+    }
+    if (Date.now() < this.reapDeadline) {
+      this.reapDeadline = this.lastActivityAt + this.disconnectDestroyMs;
+      this.armReap();
+      return;
+    }
+    this.destroy();
   }
 
   hasActiveTurn(): boolean {
@@ -382,30 +480,42 @@ export class AgentSessionWrapper {
   }
 
   private async initialize(): Promise<void> {
-    const ready = await this.proc.waitReady(READY_TIMEOUT_MS);
-    await this.proc.negotiateProtocol(ready);
-    // Subscribe to subagent lifecycle/progress/event frames so the UI can show
-    // a live subagent roster. Older omp builds may not know the command —
-    // degrade silently (the UI falls back to no subagent info).
-    await this.proc.sendCommand({ type: "set_subagent_subscription", level: "events" }).catch(() => {});
-    // Opt into omp's all-questions ask dialog; older omp rejects the command
-    // and keeps the per-question select/editor fallback.
-    // Bounded like get_state so a child that never answers cannot stall startup.
-    await this.proc.sendCommand({ type: "set_ask_dialog", enabled: true }, GET_STATE_TIMEOUT_MS).catch(() => {});
-    const state = await this.getStateWithTimeout();
-    this.applyIdentity(state);
-    // Warn when the spawn cwd differs from the session's recorded directory.
-    // This happens when the recorded cwd was deleted (removed worktree, moved
-    // repo, different machine): resolveSpawnCwd silently substituted a live
-    // directory so omp can spawn, but without a notice the user would see the
-    // sidebar/header still advertise the (gone) recorded path while file tool
-    // calls operate on a different tree.
-    if (this.recordedCwd && this.recordedCwd !== this.cwd) {
-      this.emit({
-        type: "notice",
-        level: "warning",
-        message: `This session's working directory no longer exists; the agent is running in ${this.cwd}.`,
-      });
+    // READY_TIMEOUT_MS and the reap window are the same order of magnitude, so
+    // the handshake itself counts as in-flight work: a child that is slow to
+    // announce itself must be torn down by its own startup timeout (which
+    // reports a real error), never by the reaper.
+    this.handshaking = true;
+    try {
+      const ready = await this.proc.waitReady(READY_TIMEOUT_MS);
+      await this.proc.negotiateProtocol(ready);
+      // Subscribe to subagent lifecycle/progress/event frames so the UI can show
+      // a live subagent roster. Older omp builds may not know the command —
+      // degrade silently (the UI falls back to no subagent info).
+      await this.proc.sendCommand({ type: "set_subagent_subscription", level: "events" }).catch(() => {});
+      // Opt into omp's all-questions ask dialog; older omp rejects the command
+      // and keeps the per-question select/editor fallback.
+      // Bounded like get_state so a child that never answers cannot stall startup.
+      await this.proc.sendCommand({ type: "set_ask_dialog", enabled: true }, GET_STATE_TIMEOUT_MS).catch(() => {});
+      const state = await this.getStateWithTimeout();
+      this.applyIdentity(state);
+      // Warn when the spawn cwd differs from the session's recorded directory.
+      // This happens when the recorded cwd was deleted (removed worktree, moved
+      // repo, different machine): resolveSpawnCwd silently substituted a live
+      // directory so omp can spawn, but without a notice the user would see the
+      // sidebar/header still advertise the (gone) recorded path while file tool
+      // calls operate on a different tree.
+      if (this.recordedCwd && this.recordedCwd !== this.cwd) {
+        this.emit({
+          type: "notice",
+          level: "warning",
+          message: `This session's working directory no longer exists; the agent is running in ${this.cwd}.`,
+        });
+      }
+    } finally {
+      this.handshaking = false;
+      // The handshake is real activity, so the reap clock restarts from here
+      // rather than from spawn (a slow start must not eat the whole window).
+      this.noteActivity();
     }
   }
 
@@ -995,6 +1105,11 @@ export class AgentSessionWrapper {
   }
 
   private resetIdleTimer(): void {
+    // The single activity choke point: start(), every child frame, and every
+    // send() land here, so this is where "someone is using this session" is
+    // observed. Tracked first, before anything below can defer or replace the
+    // idle timer — it must never hide activity from the reaper.
+    this.noteActivity();
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
       if (this.isRunning()) {
@@ -1003,10 +1118,14 @@ export class AgentSessionWrapper {
       }
       this.destroy();
     }, IDLE_DESTROY_MS);
+    // A cleanup deadline must not keep the process alive; the registry's
+    // process-exit handler disposes every child anyway.
+    this.idleTimer.unref?.();
   }
 
   onEvent(listener: EventListener): () => void {
     this.listeners.push(listener);
+    this.noteActivity();
     const now = Date.now();
     for (const [id, event] of this.pendingUiRequests) {
       const expiresAt = event.expiresAt as number | undefined;
@@ -1024,6 +1143,11 @@ export class AgentSessionWrapper {
       if (this.listeners.length === 0) {
         this.rejectPendingHostTools("The web UI disconnected while the agent was waiting for this host tool", "own");
         this.rejectPendingHostUris("The web UI disconnected while the agent was waiting for this URI request");
+        // The last tab left. Start (not extend) the reap clock, so a session
+        // that was never watched at all — predict_word, /api/agent/new — is
+        // cleaned up on the same schedule as one whose tab just closed.
+        this.reapDeadline = Date.now() + this.disconnectDestroyMs;
+        this.armReap();
       }
     };
   }
@@ -1281,6 +1405,18 @@ export class AgentSessionWrapper {
     if (this.restarting) throw new WebRpcError(RESTARTING_MESSAGE, "session_restarting");
     if (!this.isAlive()) throw new Error("Session is no longer running");
     this.resetIdleTimer();
+    // Covers the whole command, including the awaits inside it: a route that
+    // has an unwatched session in mid-command (predict_word on a keystroke, an
+    // export, a follow-up) must never have its child reaped underneath it.
+    this.pendingCommands += 1;
+    try {
+      return await this.dispatchCommand(command);
+    } finally {
+      this.pendingCommands = Math.max(0, this.pendingCommands - 1);
+    }
+  }
+
+  private async dispatchCommand(command: Record<string, unknown>): Promise<unknown> {
     const type = command.type as string;
 
     if (type === "prompt" || type === "steer" || type === "follow_up" || type === "abort_and_prompt") {
@@ -1627,6 +1763,10 @@ export class AgentSessionWrapper {
     if (!this._alive) return;
     this._alive = false;
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.reapTimer) {
+      clearTimeout(this.reapTimer);
+      this.reapTimer = null;
+    }
     if (this.sessionFileSignalTimer) {
       clearTimeout(this.sessionFileSignalTimer);
       this.sessionFileSignalTimer = null;
