@@ -16,7 +16,7 @@ import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -596,6 +596,17 @@ export function AppShell() {
   // True when the current server boot was a rebuild (new bundle deployed + restarted),
   // so the start notice shows "OmpWeb updated" with a Refresh button.
   const [startedNoticeIsUpdate, setStartedNoticeIsUpdate] = useState(false);
+  // Id of the "OMP update available" toast, so the update flow can dismiss it
+  // automatically once the runtime update succeeds.
+  const ompUpdateToastIdRef = useRef<string | null>(null);
+  // Close the "OMP update available" notification once the runtime update
+  // succeeds, if the user hasn't dismissed it in the meantime.
+  const closeOmpUpdateToast = useCallback(() => {
+    if (ompUpdateToastIdRef.current) {
+      toast.close(ompUpdateToastIdRef.current);
+      ompUpdateToastIdRef.current = null;
+    }
+  }, []);
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
@@ -646,6 +657,7 @@ export function AppShell() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
           { variant: "update" },
         );
+        ompUpdateToastIdRef.current = toastId;
       })
       .catch(() => {});
     return () => controller.abort();
@@ -1525,6 +1537,29 @@ export function AppShell() {
   // While restoring initial session from URL, don't show the placeholder
   const showPlaceholder = initialSessionRestored && !showChat;
 
+  // A workspace is available if the sidebar reports a selection, a managed
+  // project, or an active cwd — the new-session draft needs one as its
+  // destination.
+  const hasWorkspaces = Boolean(
+    workspaceOptions.cwd || workspaceOptions.selectedProject || workspaceOptions.projects.length > 0 || activeCwd,
+  );
+
+  // Empty-state landing: once the initial restore is done and no session is
+  // open, land on the New session page (workspace selector + composer) —
+  // the same page a "+" click opens — instead of a static hint. The
+  // "no workspaces" fallback below covers installs with no projects yet.
+  useEffect(() => {
+    if (!showPlaceholder || initialNavigation.requestedCwd) return;
+    if (initialCwdStatus === "validating" || initialCwdStatus === "error") return;
+    const cwd =
+      workspaceOptions.cwd ??
+      workspaceOptions.selectedProject ??
+      workspaceOptions.projects[0]?.path ??
+      activeCwd;
+    if (!cwd) return;
+    handleNewSession("", cwd);
+  }, [showPlaceholder, initialNavigation.requestedCwd, initialCwdStatus, workspaceOptions, activeCwd, handleNewSession]);
+
   const sidebarHistory = useSidebarHistory({
     active: isMobile && (showChat || Boolean(initialSessionId)),
     ready: mobileSidebarReady,
@@ -2295,31 +2330,27 @@ export function AppShell() {
             />
           ) : !showPlaceholder ? (
             <PanelLoadingFallback />
+          ) : hasWorkspaces ? (
+            // Workspaces exist: the auto-open effect above lands on the New
+            // session page; this is the brief frame before it fires.
+            <PanelLoadingFallback />
           ) : (
-              <div style={{ position: "absolute", top: 12, left: 12, display: "flex", alignItems: "flex-start", gap: 8, userSelect: "none", pointerEvents: "none" }}>
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
-                  <line x1="20" y1="12" x2="4" y2="12" /><polyline points="10 6 4 12 10 18" />
-                </svg>
-                <div>
-                  <div className="display-serif" style={{ fontSize: "calc(20px * var(--ui-font-scale-lg, 1))", color: "var(--text)", marginBottom: 8 }}>{t("appShell.getStarted")}</div>
-                  <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", lineHeight: 1.8 }}>
-                    <span style={{ color: "var(--text-dim)", marginRight: 6 }}>1.</span>{t("appShell.getStartedStep1")}<br />
-                    <span style={{ color: "var(--text-dim)", marginRight: 6 }}>2.</span>
-                    {(() => {
-                      // One translatable sentence; the {models} slot is rendered
-                      // as the emphasized button name so word order stays free.
-                      const [before, after] = t("appShell.getStartedStep2").split("{models}");
-                      return (
-                        <>
-                          {before}
-                          <strong style={{ color: "var(--text)" }}>{t("appShell.models")}</strong>
-                          {after}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
+            // No workspaces yet: the New session page needs a destination
+            // project, so prompt to add one (replaces the old "Get Started" hint).
+            <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, maxWidth: 380, textAlign: "center" }}>
+                <Folder size={36} strokeWidth={1.2} style={{ color: "var(--text-dim)", opacity: 0.7 }} aria-hidden="true" />
+                <div className="display-serif" style={{ fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}>{t("appShell.noWorkspacesTitle")}</div>
+                <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", lineHeight: 1.6 }}>{t("appShell.noWorkspacesHint")}</div>
+                <button
+                  type="button"
+                  onClick={() => { if (isMobile) setSidebarOpen(true); setAddProjectOpen(true); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer", marginTop: 4 }}
+                >
+                  <Plus size={14} aria-hidden="true" />{t("appShell.addWorkspace")}
+                </button>
               </div>
+            </div>
           )}
         </div>
         {/* Bottom terminal bar. It remains independent from the right
@@ -2508,6 +2539,7 @@ export function AppShell() {
         onModelsSaved={() => setModelsRefreshKey((k) => k + 1)}
         onPluginsReloaded={() => setSessionKey((k) => k + 1)}
         onOmpUpdateAvailabilityChange={setOmpUpdateAvailable}
+        onOmpUpdateSucceeded={closeOmpUpdateToast}
         onSelectTab={setSettingsTab}
         onClose={() => setSettingsTab(null)}
       />

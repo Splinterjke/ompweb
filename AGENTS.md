@@ -629,6 +629,8 @@ handled or safely ignored.
 - Automatic in-app self-updating has been removed in favor of explicit user notifications and manual terminal commands.
 - `GET /api/app-update` queries the npm registry for `@Splinterjke/ompweb` updates, detects the install manager (`bun` vs `npm` via `detectInstallMethod`), and returns `updateAvailable` plus the exact terminal command (e.g. `npm install -g @Splinterjke/ompweb` or `bun add -g @Splinterjke/ompweb`).
 - `POST /api/omp-update` (`action: "check"`) runs `omp update --check` and returns `updateAvailable` plus `updateCommand: "omp update"`.
+- `POST /api/omp-update` (`action: "update", stream: true`) runs the real `omp update` as an NDJSON stream (`{type:"out"}` frames + a final `{type:"done", exitCode}`). The stream **must** always terminate with the `done` frame AND `controller.close()` in the route's `finally`/success path — the client's reader loop in `SettingsConfig.runOmpUpdate` exits only on stream close, which is what releases the "Updating" button (`setUpdatingOmp(false)` in `finally`). A stream that never closes leaves the button spinning forever (regression: the close was missing, so the button stuck).
+- The "OMP update available" toast in `AppShell` (id tracked in `ompUpdateToastIdRef`) auto-closes via `closeOmpUpdateToast` when the update flow succeeds: `SettingsConfig` receives the `onOmpUpdateSucceeded` prop (wired in `AppShell`) and fires it in the `runOmpUpdate` success branch alongside `onOmpUpdateAvailabilityChange(false)`.
 - `POST /api/omp-update` (`action: "restart"`) restarts active OMP sessions after a manual CLI update.
 - Notifications in `AppShell` and settings cards in `SettingsConfig` present the update notification alongside copyable terminal update commands.
 

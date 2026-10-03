@@ -29,11 +29,17 @@ export async function POST(request: Request) {
               done();
             };
             try {
-              await runOmpUpdateStream([], (line) => {
+              const result = await runOmpUpdateStream([], (line) => {
                 try { controller.enqueue(JSON.stringify({ type: "out", text: line }) + "\n"); } catch { /* closed */ }
               });
               await restartAllRpcSessions();
               invalidateOmpCliCache();
+              // Terminate the stream with a done frame: the client's reader loop
+              // exits on stream close, which is what releases the "Updating"
+              // button (setUpdatingOmp(false) in the finally block). Without a
+              // close the stream stays open and the button spins forever.
+              try { controller.enqueue(JSON.stringify({ type: "done", exitCode: result.exitCode }) + "\n"); } catch { /* closed */ }
+              done();
             } catch (error) {
               fail(error);
             }

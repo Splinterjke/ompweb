@@ -542,7 +542,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -604,6 +604,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   onModelsSaved: () => void;
   onPluginsReloaded: () => void;
   onOmpUpdateAvailabilityChange: (available: boolean) => void;
+  /** Fired once the OMP runtime update succeeds (Settings System & Updates card). */
+  onOmpUpdateSucceeded?: () => void;
   onSelectTab: (tab: SettingsTab) => void;
   onClose: () => void;
 }) {
@@ -797,13 +799,13 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
       setOmpUpdated(true);
       setOmpUpdateOutput(output);
       onOmpUpdateAvailabilityChange(false);
-      setUpdate((prev) => (prev ? { ...prev, updateAvailable: false } : prev));
+      onOmpUpdateSucceeded?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setUpdatingOmp(false);
     }
-  }, [onOmpUpdateAvailabilityChange]);
+  }, [onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded]);
 
   const ompUpdateDisabled = Boolean(update?.updatesDisabled);
 
