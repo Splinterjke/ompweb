@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { ensureSchedulerEngine, getEngineStartedAt, listSchedulersWithState } from "@/lib/scheduler-engine";
-import { createSchedulerEntry, saveSchedulerFile, SchedulerStoreError, validateScriptPath } from "@/lib/scheduler-store";
+import { createSchedulerEntry, saveSchedulerFile, SchedulerStoreError, validateScriptPath, validateWorkspacePath } from "@/lib/scheduler-store";
 import { ScheduleValidationError, validateSchedule } from "@/lib/schedule";
 
 const MAX_REQUEST_BYTES = 8_192;
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       prompt?: unknown;
       provider?: unknown;
       modelId?: unknown;
+      cwd?: unknown;
       noSession?: unknown;
       clearContext?: unknown;
       compactContext?: unknown;
@@ -67,6 +68,14 @@ export async function POST(req: Request) {
       throw err;
     }
 
+    // Prompt workspace: optional; when set it must resolve to an existing
+    // directory — the engine starts the omp session there.
+    const workspaceCheck = validateWorkspacePath(body.cwd);
+    if (!workspaceCheck.ok) {
+      return NextResponse.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
+    }
+    const workspaceCwd = kind === "prompt" ? workspaceCheck.path : undefined;
+
     const args = kind === "script" && Array.isArray(body.args) ? body.args.filter((a): a is string => typeof a === "string") : [];
     const { file, entry } = createSchedulerEntry({
       name: typeof body.name === "string" ? body.name : undefined,
@@ -76,6 +85,7 @@ export async function POST(req: Request) {
       prompt: typeof body.prompt === "string" ? body.prompt : undefined,
       provider: typeof body.provider === "string" && body.provider ? body.provider : undefined,
       modelId: typeof body.modelId === "string" && body.modelId ? body.modelId : undefined,
+      cwd: workspaceCwd,
       noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
       clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,
       compactContext: typeof body.compactContext === "boolean" ? body.compactContext : undefined,

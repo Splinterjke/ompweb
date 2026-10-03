@@ -60,6 +60,23 @@ function promptCwd(): string {
   }
 }
 
+/** Prompt-run workspace: the entry's selected cwd when set, else the dated
+ *  default directory. A missing workspace directory is recreated (mkdir
+ *  recursive); only when it cannot be created at all (parent is a file,
+ *  permissions) does the run fall back to the default cwd. Exported for
+ *  tests. */
+export function promptRunCwd(entry: SchedulerEntry): string {
+  if (entry.cwd) {
+    try {
+      mkdirSync(entry.cwd, { recursive: true });
+      return entry.cwd;
+    } catch {
+      /* fall through to the default */
+    }
+  }
+  return promptCwd();
+}
+
 /** Config overlay that forces compaction of any non-empty resumed context
  *  (thresholdTokens: 1). Written once per engine process into the agent dir;
  *  passed via --config when "compact context" is set on a prompt entry. */
@@ -260,7 +277,7 @@ function startRun(entry: SchedulerEntry, opts: StartOptions): void {
         persistRun(entry.id, spawnErrorRun(entry.id, opts, new Error("omp binary not found")));
         return;
       }
-      cwd = promptCwd();
+      cwd = promptRunCwd(entry);
       cap = PROMPT_OUTPUT_TAIL_MAX;
       child = spawn(bin, promptSpawnArgs(entry), spawnOptions(cwd));
     } else {

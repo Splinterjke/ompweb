@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-03T02:00:13.119Z",
+  "generatedAt": "2026-10-03T20:02:32.275Z",
   "totals": {
     "files": 37,
-    "calls": 170,
-    "http": 160,
+    "calls": 171,
+    "http": 161,
     "sse": 10,
-    "read": 83,
+    "read": 84,
     "write": 87
   },
   "domains": {
@@ -24,7 +24,7 @@
     "skills": 7,
     "file-index": 2,
     "model-roles": 3,
-    "projects": 7,
+    "projects": 8,
     "files": 9,
     "ui": 1,
     "web-auth": 1,
@@ -1033,11 +1033,20 @@
       "file": "components/SchedulerModal.tsx",
       "calls": [
         {
-          "line": 141,
+          "line": 146,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/models",
           "domain": "models",
+          "rw": "read",
+          "stream": false
+        },
+        {
+          "line": 159,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/projects",
+          "domain": "projects",
           "rw": "read",
           "stream": false
         }

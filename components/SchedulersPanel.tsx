@@ -539,12 +539,19 @@ export function SchedulersPanel({
                 {expanded && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 9px 9px", borderTop: "1px solid var(--border)", maxHeight: detailMaxHeight, overflow: "hidden" }}>
                     {s.kind === "prompt" ? (
-                      <Tooltip content={s.prompt ?? ""}>
-                        <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {s.prompt}
-                          {(s.provider || s.modelId) && ` · ${[s.provider, s.modelId].filter(Boolean).join("/")}`}
-                        </span>
-                      </Tooltip>
+                      <>
+                        <Tooltip content={s.prompt ?? ""}>
+                          <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {s.prompt}
+                          </span>
+                        </Tooltip>
+                        {(s.provider || s.modelId || s.cwd) && (
+                          <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {[s.provider || null, s.modelId || null].filter(Boolean).join("/")}
+                            {s.cwd ? ` · ${s.cwd}` : ""}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <Tooltip content={s.script}>
                         <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

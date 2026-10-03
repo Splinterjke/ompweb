@@ -47,6 +47,10 @@ export interface SchedulerEntry {
   provider?: string;
   /** Prompt type: model id (undefined = default). */
   modelId?: string;
+  /** Prompt type: workspace (cwd) the omp session starts in (undefined =
+   *  the dated default-cwd directory). Validated as an existing directory
+   *  by the API; the engine mkdirs it defensively before spawn. */
+  cwd?: string;
   /** Session mode: the persistent session this automation resumes. Set after
    *  the first successful run; cleared runs create a new one each time. */
   sessionId?: string;

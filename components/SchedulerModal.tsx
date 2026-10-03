@@ -65,11 +65,13 @@ export function SchedulerModal({
   const [prompt, setPrompt] = useState("");
   const [provider, setProvider] = useState("");
   const [modelId, setModelId] = useState("");
+  const [cwd, setCwd] = useState("");
   const [noSession, setNoSession] = useState(false);
   const [clearContext, setClearContext] = useState(false);
   const [compactContext, setCompactContext] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [models, setModels] = useState<{ id: string; name: string; provider: string }[]>([]);
+  const [projects, setProjects] = useState<{ path: string; alias?: string }[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
   const [scriptError, setScriptError] = useState<string | null>(null);
@@ -89,6 +91,7 @@ export function SchedulerModal({
       setPrompt(initial.prompt ?? "");
       setProvider(initial.provider ?? "");
       setModelId(initial.modelId ?? "");
+      setCwd(initial.cwd ?? "");
       setNoSession(initial.noSession ?? false);
       setClearContext(initial.clearContext ?? false);
       setCompactContext(initial.compactContext ?? false);
@@ -116,6 +119,7 @@ export function SchedulerModal({
       setProvider("");
       setModelId("");
       setNoSession(false);
+      setCwd("");
       setClearContext(false);
       setCompactContext(false);
       setPromptError(null);
@@ -133,7 +137,8 @@ export function SchedulerModal({
     setPreview(null);
   }, [open, initial]);
 
-  // Load the model catalog for the prompt-type provider/model dropdowns.
+  // Load the model catalog and the managed-project list (workspace choices)
+  // for the prompt-type dropdowns.
   useEffect(() => {
     if (!open || entryKind !== "prompt") return;
     let cancelled = false;
@@ -150,8 +155,19 @@ export function SchedulerModal({
       .finally(() => {
         if (!cancelled) setModelsLoading(false);
       });
+    let projectsCancelled = false;
+    fetch("/api/projects", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (projectsCancelled) return;
+        setProjects(Array.isArray(data?.projects) ? data.projects : []);
+      })
+      .catch(() => {
+        if (!projectsCancelled) setProjects([]);
+      });
     return () => {
       cancelled = true;
+      projectsCancelled = true;
     };
   }, [open, entryKind]);
 
@@ -248,6 +264,7 @@ export function SchedulerModal({
           prompt: trimmedPrompt,
           provider: provider || undefined,
           modelId: modelId || undefined,
+          cwd: cwd.trim(),
           noSession,
           clearContext,
           compactContext,
@@ -336,6 +353,17 @@ export function SchedulerModal({
       label: m.name || m.id,
     }));
   }, [models, provider]);
+
+  // Managed projects as workspace choices; a saved cwd that is no longer in
+  // the list (project removed) stays selectable so editing never drops it.
+  const workspaceOptions = useMemo(() => {
+    const opts = projects.map((p) => ({
+      value: p.path,
+      label: p.alias && p.alias.trim() ? `${p.alias.trim()} — ${p.path}` : p.path,
+    }));
+    if (cwd && !opts.some((o) => o.value === cwd)) opts.unshift({ value: cwd, label: cwd });
+    return opts;
+  }, [projects, cwd]);
 
   const nextRunText = useMemo(() => {
     if (!preview?.ok || !preview.nextRunAt) return null;
@@ -440,6 +468,15 @@ export function SchedulerModal({
                   </Field>
                 </div>
               </div>
+
+              <Field label={t("schedulers.workspace")} hint={t("schedulers.workspaceHint")}>
+                <Select
+                  value={cwd}
+                  onChange={setCwd}
+                  options={workspaceOptions}
+                  placeholder={t("schedulers.workspacePlaceholder")}
+                />
+              </Field>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>

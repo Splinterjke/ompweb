@@ -647,11 +647,13 @@ handled or safely ignored.
 - **Script entries** (unchanged behavior): `{ name, kind, script, args[], schedule,
   enabled, timeoutMs }` — runs the script via bash (`.sh/.bash/.zsh`) or directly
   (executable bit required).
-- **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?,
+- **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?, cwd?,
   noSession?, clearContext?, compactContext?, schedule, enabled, timeoutMs }`.
-  The engine runs `omp -p <prompt>` with cwd `~/omp-cwd-YYYYMMDD` (same dated
-  default-cwd dir the UI uses for workspace-less sessions) and keeps only a bounded
-  1 kB output tail in the run log — the model answer is not stored, only errors.
+  The engine runs `omp -p <prompt>` with the entry's `cwd` when set (a missing
+  workspace directory is recreated at run time; only an uncreatable path falls
+  back to the default) — otherwise with cwd `~/omp-cwd-YYYYMMDD` (same dated
+  default-cwd dir the UI uses for workspace-less sessions) — and keeps only a
+  bounded 1 kB output tail in the run log; the model answer is not stored, only errors.
   - **Context handling** (session mode, i.e. `noSession` off): the entry persists
     `sessionId` and resumes it (`--resume`) on every run, so context accumulates
     across runs. `clearContext: true` skips the resume (fresh session each run —
@@ -679,9 +681,12 @@ handled or safely ignored.
   root or the `/opt/ompweb` install root), matching the engine's
   `spawn` cwd (`path.dirname(script)`).
 - **API** (JSON; 400 with a stable `code` on validation failure — `instructions_required`,
-  `context_mode_conflict`, `script_required`, `invalid_schedule`, …):
-  - `POST /api/schedulers` — create. Prompt example:
-    `{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","provider":"anthropic","modelId":"claude-opus-4","schedule":{"kind":"daily","hour":9,"minute":0},"timeoutMs":600000}`.
+  `context_mode_conflict`, `script_required`, `invalid_schedule`, `invalid_cwd`, …):
+  - `POST /api/schedulers` — create. Prompt example (`cwd` optional — the workspace
+    folder the automation session starts in; POST/PATCH reject a non-existent,
+    non-creatable path with `invalid_cwd`, and PATCH `{"cwd":""}` clears it back to
+    the dated default):
+    `{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","provider":"anthropic","modelId":"claude-opus-4","cwd":"/work/myrepo","schedule":{"kind":"daily","hour":9,"minute":0},"timeoutMs":600000}`.
     `schedule` uses the same spec as scripts (`manual | interval | daily | weekdays | weekly | cron`).
   - `PATCH /api/schedulers/[id]` — any subset of the entry fields.
   - `GET /api/schedulers` — `{ schedulers: [...], engineStartedAt }`; entries carry
@@ -694,11 +699,14 @@ handled or safely ignored.
 - **Creating a prompt automation from an agent session** (loopback, no password gate):
   ```bash
   curl -s -X POST -H 'Content-Type: application/json' \
-    -d '{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","schedule":{"kind":"daily","hour":9,"minute":0}}' \
+    -d '{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","schedule":{"kind":"daily","hour":9,"minute":0},"cwd":"/work/myrepo"}' \
     http://127.0.0.1:30178/api/schedulers
   ```
   With the `OMP_WEB_PASSWORD` gate enabled, log in via `POST /api/web-auth/session`
   first and pass the `omp_web_session` cookie (see "Web password gate" above).
+  Omit `cwd` to run in the dated default workspace. The modal's **Workspace**
+  dropdown is populated from `GET /api/projects` (alias — path labels); a run's
+  sessions land in that workspace's project group in the sidebar.
 
 ### Chat event actions (`lib/chat-event-action*.ts`, `/api/chat-event-actions`)
 - Named actions fired on 10 chat lifecycle events (`conversation_completed`,

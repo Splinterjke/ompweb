@@ -91,6 +91,7 @@ function normalizeEntry(item: unknown): SchedulerEntry | null {
       prompt: kind === "prompt" ? (e.prompt as string) : undefined,
       provider: typeof e.provider === "string" && e.provider ? e.provider : undefined,
       modelId: typeof e.modelId === "string" && e.modelId ? e.modelId : undefined,
+      cwd: kind === "prompt" && typeof e.cwd === "string" && e.cwd ? e.cwd : undefined,
       noSession: kind === "prompt" && typeof e.noSession === "boolean" ? e.noSession : undefined,
       clearContext: kind === "prompt" && typeof e.clearContext === "boolean" ? e.clearContext : undefined,
       compactContext: kind === "prompt" && typeof e.compactContext === "boolean" && !e.clearContext ? e.compactContext : undefined,
@@ -161,6 +162,7 @@ export interface CreateSchedulerInput {
   prompt?: string;
   provider?: string;
   modelId?: string;
+  cwd?: string;
   noSession?: boolean;
   clearContext?: boolean;
   compactContext?: boolean;
@@ -203,6 +205,7 @@ export function createSchedulerEntry(input: CreateSchedulerInput): { file: Sched
     prompt: kind === "prompt" ? input.prompt!.trim() : undefined,
     provider: kind === "prompt" ? optionalString(input.provider) : undefined,
     modelId: kind === "prompt" ? optionalString(input.modelId) : undefined,
+    cwd: kind === "prompt" ? optionalString(input.cwd) : undefined,
     noSession: kind === "prompt" ? optionalBoolean(input.noSession) : undefined,
     clearContext: kind === "prompt" ? optionalBoolean(input.clearContext) : undefined,
     compactContext: kind === "prompt" && !input.clearContext ? optionalBoolean(input.compactContext) : undefined,
@@ -228,6 +231,7 @@ export function updateSchedulerEntry(
     prompt?: string;
     provider?: string;
     modelId?: string;
+    cwd?: string;
     noSession?: boolean;
     clearContext?: boolean;
     compactContext?: boolean;
@@ -262,6 +266,7 @@ export function updateSchedulerEntry(
     prompt,
     provider: kind === "prompt" ? optionalString(patch.provider ?? prev.provider) : undefined,
     modelId: kind === "prompt" ? optionalString(patch.modelId ?? prev.modelId) : undefined,
+    cwd: kind === "prompt" ? optionalString(patch.cwd ?? prev.cwd) : undefined,
     noSession: kind === "prompt" ? optionalBoolean(patch.noSession ?? prev.noSession) : undefined,
     clearContext,
     compactContext,
@@ -450,4 +455,24 @@ export function validateScriptPath(raw: string): ScriptValidation {
     }
   }
   return { ok: true, path: abs, shell };
+}
+/** Prompt-run workspace validation (POST/PATCH): optional; when set it must
+ *  resolve (with `~/` expansion) to an existing directory. Returns the
+ *  absolute path, `path: undefined` when unset/blank (→ default cwd), or a
+ *  stable `invalid_cwd` error code. */
+export function validateWorkspacePath(raw: unknown): { ok: true; path?: string } | { ok: false; error: "invalid_cwd" } {
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  if (!trimmed) return { ok: true, path: undefined };
+  const expanded = trimmed.startsWith("~/")
+    ? path.join(homedir(), trimmed.slice(2))
+    : trimmed === "~"
+      ? homedir()
+      : trimmed;
+  const abs = path.isAbsolute(expanded) ? expanded : path.resolve(expanded);
+  try {
+    if (!statSync(abs).isDirectory()) return { ok: false, error: "invalid_cwd" };
+  } catch {
+    return { ok: false, error: "invalid_cwd" };
+  }
+  return { ok: true, path: abs };
 }

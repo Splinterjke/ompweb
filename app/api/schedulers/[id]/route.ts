@@ -9,6 +9,7 @@ import {
   SchedulerStoreError,
   updateSchedulerEntry,
   validateScriptPath,
+  validateWorkspacePath,
 } from "@/lib/scheduler-store";
 import { ScheduleValidationError, validateSchedule, type ScheduleSpec } from "@/lib/schedule";
 
@@ -54,6 +55,7 @@ export async function PATCH(
       prompt?: unknown;
       provider?: unknown;
       modelId?: unknown;
+      cwd?: unknown;
       noSession?: unknown;
       clearContext?: unknown;
       compactContext?: unknown;
@@ -68,6 +70,16 @@ export async function PATCH(
         return NextResponse.json({ error: check.error, code: check.error }, { status: 400 });
       }
       body.script = check.path;
+    }
+
+    // Prompt workspace: optional; when sent as a non-blank string it must
+    // resolve to an existing directory. "" clears the workspace (→ default).
+    if (typeof body.cwd === "string") {
+      const workspaceCheck = validateWorkspacePath(body.cwd);
+      if (!workspaceCheck.ok) {
+        return NextResponse.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
+      }
+      body.cwd = workspaceCheck.path ?? "";
     }
 
     let schedule: ScheduleSpec | undefined;
@@ -92,6 +104,7 @@ export async function PATCH(
         prompt: typeof body.prompt === "string" ? body.prompt : undefined,
         provider: typeof body.provider === "string" ? body.provider : undefined,
         modelId: typeof body.modelId === "string" ? body.modelId : undefined,
+        cwd: typeof body.cwd === "string" ? body.cwd : undefined,
         noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
         clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,
         compactContext: typeof body.compactContext === "boolean" ? body.compactContext : undefined,
