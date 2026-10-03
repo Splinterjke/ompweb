@@ -97,6 +97,49 @@ Fix, in order:
 3. Verify with `curl` before blaming the browser — a browser can't fix a stale server build.
    After a clean rebuild, re-navigate the test browser with a fresh `goto` (not a soft reload).
 
+## Silent stale compilation (dead watcher on 9p — no 404, no error)
+
+The 404 above is the loud variant. The **silent** variant is worse: pages return 200 and
+render, but keep showing **old UI/code after you edited the source** — reloads, hard
+reloads and cache-busting all fail because the server itself serves stale chunks. This
+is the normal behavior on this machine: the repo lives on a Windows **9p/drvfs** mount
+(`/work` → `D:\`), where inotify delivers no events, so Turbopack's file watcher never
+invalidates anything. There is no polling option to enable. The server compiles the
+current files **once at startup** and then freezes.
+
+Confirm in ~1 min instead of theorizing:
+
+```bash
+# 1) did the compiled output pick up the edit? grep a NEW string from your change
+grep -rl "a-string-only-in-your-new-code" .next-dev/dev/static/chunks/ # empty = stale
+# 2) cross-check the served chunk
+curl -s http://127.0.0.1:30178/_next/static/chunks/<chunk> | grep -c "old-marker"
+```
+
+**Fix: kill the server and restart it** (same command + env) — a fresh process compiles
+the current code at startup; the dead watcher doesn't matter for verification. Capture
+the env first so the restart is faithful (the dev server is often launched by the 6767
+instance and inherits its password gate / host-bin env):
+
+```bash
+tr '\0' '\n' < /proc/<next-server-pid>/environ | grep -E '^(OMP_WEB_|OMPWEB_|NODE_ENV)'
+# kill, then relaunch with the same env + same argv (see "Kill / restart" above)
+```
+
+### NEVER copy node_modules (or the repo) to /tmp to get a "native" watchable tree
+
+Tried and rejected — all variants lose:
+
+- `node_modules` is 912 MB and 9p reads crawl (~9 MB/s → 15+ min) for a copy that buys
+  nothing: a restart in place compiles the current code just as well.
+- A `/tmp` mirror of **symlinks** fails outright: Turbopack hard-errors with
+  `Symlink [project]/node_modules is invalid, it points out of the filesystem root`.
+- A real full copy costs minutes per setup and diverges from the live tree (your edits
+  keep landing in `/work/ompweb`, not the copy).
+
+To sum up: stale UI after an edit is a **server restart** problem, not a filesystem
+problem. Restart in place; do not build mirrors.
+
 ## Git index.lock collisions (dev server's own pollers)
 
 While a dev instance is serving this repo, its 5 s git health pollers spawn
