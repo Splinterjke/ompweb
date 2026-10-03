@@ -351,7 +351,10 @@ export function SchedulersPanel({
           <Clock size={14} strokeWidth={2} aria-hidden="true" style={{ color: "var(--accent)", flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {t("sessionSidebar.schedulers")}
-            {list.length > 0 && <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}> {list.length}</span>}
+            {/* Section badge = total across both tabs; tab-filtered counts
+                live on the tabs themselves (using `list` here made the badge
+                vanish whenever the active tab was empty). */}
+            {all.length > 0 && <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}> {all.length}</span>}
           </span>
           {anyRunning && (
             <Tooltip content={t("schedulers.dotCounts", { running: runningCount, failed: failedCount })}>
