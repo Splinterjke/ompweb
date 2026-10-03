@@ -404,37 +404,44 @@ export function SchedulersPanel({
 
       {open && (
         <>
-        <div role="tablist" aria-label={t("sessionSidebar.schedulers")} style={{ display: "flex", gap: 6, padding: "0 12px 6px", flexShrink: 0 }}>
+        <div role="tablist" aria-label={t("sessionSidebar.schedulers")} style={{ display: "flex", gap: 2, padding: "0 10px 5px", flexShrink: 0 }}>
           {([
             { key: "scripts" as const, icon: <SquareTerminal size={12} aria-hidden="true" />, count: scriptCount },
             { key: "prompts" as const, icon: <MessageSquareText size={12} aria-hidden="true" />, count: promptCount },
-          ]).map(({ key, icon, count }) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => setTab(key)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                height: 24,
-                padding: "0 10px",
-                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                fontWeight: 500,
-                borderRadius: "var(--radius-control)",
-                border: `1px solid ${tab === key ? "color-mix(in srgb, var(--accent) 45%, var(--border))" : "var(--border)"}`,
-                background: tab === key ? "color-mix(in srgb, var(--accent) 12%, var(--bg-panel))" : "transparent",
-                color: tab === key ? "var(--accent-strong)" : "var(--text-muted)",
-                cursor: "pointer",
-              }}
-            >
-              {icon}
-              {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
-              {count > 0 && <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>{count}</span>}
-            </button>
-          ))}
+          ]).map(({ key, icon, count }) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(key)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  height: 25,
+                  padding: "0 6px",
+                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+                  // Flat underline tabs, matching the right-workbench tab strip
+                  // (without the close affordance): no chip border/fill, the
+                  // active tab is marked by a 2px accent underline.
+                  border: "none",
+                  borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+                  borderRadius: 5,
+                  background: "transparent",
+                  color: active ? "var(--text)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {icon}
+                {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
+                {count > 0 && <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>{count}</span>}
+              </button>
+            );
+          })}
         </div>
         <div
           className="animate-slide-down"

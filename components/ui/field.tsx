@@ -167,14 +167,22 @@ function inputShellStyle({ invalid }: InputShellStyleOptions): CSSProperties {
   };
 }
 
-/** Internal: applied border + box-shadow on focus. */
+/** Internal: applied border + box-shadow on focus.
+ *
+ * `borderColor` is always present (never removed on blur): React warns that
+ * deleting a longhand during rerender while the `border` shorthand from
+ * `inputShellStyle` is set can leave the element with a stale color — the
+ * accent "glow" would stick on the field after it loses focus. */
 function focusGlowStyle(focused: boolean, invalid: boolean): CSSProperties {
-  if (!focused) return {};
   return {
-    borderColor: invalid ? "var(--status-error)" : "var(--accent)",
-    boxShadow: invalid
-      ? "0 0 0 2px color-mix(in srgb, var(--status-error) 28%, transparent)"
-      : "0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent)",
+    borderColor: focused
+      ? invalid ? "var(--status-error)" : "var(--accent)"
+      : invalid ? "var(--status-error)" : "var(--border)",
+    boxShadow: focused
+      ? invalid
+        ? "0 0 0 2px color-mix(in srgb, var(--status-error) 28%, transparent)"
+        : "0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent)"
+      : "none",
   };
 }
 
@@ -455,17 +463,36 @@ export function Select({
   id,
 }: SelectProps) {
   const [focused, setFocused] = useState(false);
+  /** Set on pointer interaction so a mouse-driven pick can blur the select. */
+  const pointerTouchedRef = useRef(false);
   const isInvalid = Boolean(invalid || error);
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
     <select
       id={id}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => {
+        onChange(e.target.value);
+        if (pointerTouchedRef.current) {
+          pointerTouchedRef.current = false;
+          // The native <select> keeps DOM focus after a mouse pick, so the
+          // focus glow stays lit while the user looks at the next field —
+          // it reads as a stuck highlight unlike a text input the user
+          // naturally clicks away from. The selection is complete; drop the
+          // focus. Keyboard picks (no pointerdown) keep focus on purpose.
+          e.currentTarget.blur();
+        }
+      }}
+      onPointerDown={() => {
+        pointerTouchedRef.current = true;
+      }}
       disabled={disabled}
       aria-invalid={isInvalid || undefined}
       onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onBlur={() => {
+        pointerTouchedRef.current = false;
+        setFocused(false);
+      }}
       style={{
         ...inputShellStyle({ invalid: isInvalid }),
         ...focusGlowStyle(focused, isInvalid),
