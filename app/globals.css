@@ -3845,18 +3845,48 @@ html.dark .dropdown-surface :is(select, option) {
     box-shadow: none;
   }
 
+  /* Phone file panel: a full-screen overlay that slides in from the right
+     edge with the same timing as the left sidebar, instead of popping open
+     full-screen. Closed panels are hidden only after the exit slide finishes
+     (visibility delay). The first open mounts already-open, so
+     @starting-style makes it slide too. Safe-area padding keeps the panel
+     clear of notches and rounded corners. Inline width/position styles from
+     AppShell need !important to lose to this overlay. */
   .right-panel-container {
+    position: fixed !important;
+    inset: 0;
+    width: 100vw !important;
     max-width: 100vw !important;
+    min-width: 0 !important;
+    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    opacity: 1;
+    overflow: hidden;
+    transition: transform var(--dur-slow) var(--ease-out-warm), visibility 0s;
   }
   .right-panel-container.right-panel-open {
-    width: 100% !important;
-    min-width: 0 !important;
+    transform: none;
+    visibility: visible;
+    /* The panel mounts on its first open, already open: start that first
+       render off-screen so it slides in too. */
+    @starting-style {
+      transform: translateX(100%);
+    }
   }
   .right-panel-container.right-panel-closed {
-    width: 0 !important;
-    min-width: 0 !important;
+    opacity: 1;
+    transform: translateX(100%);
+    visibility: hidden;
     border-left: none !important;
+    border-right: none !important;
+    transition-delay: 0s, var(--dur-slow);
   }
+  /* Reduced motion: hide the closed panel immediately, not after the slide. */
+  @media (prefers-reduced-motion: reduce) {
+    .right-panel-container {
+      transition-delay: 0s !important;
+    }
+  }
+
   .directory-picker-back,
   .directory-picker-entry,
   .directory-picker-action {
