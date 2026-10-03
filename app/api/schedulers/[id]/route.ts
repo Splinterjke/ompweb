@@ -37,6 +37,7 @@ export async function GET(
 
 // PATCH /api/schedulers/[id]
 // body: { name?, kind?, script?, args?, prompt?, provider?, modelId?,
+//         thinkingLevel?,
 //         noSession?, clearContext?, compactContext?, schedule?, enabled?, timeoutMs? }
 // Any subset; schedule/script are re-validated. Changing the schedule resets
 // nextRunAt to the next slot. Toggling enabled off clears nextRunAt.
@@ -55,6 +56,7 @@ export async function PATCH(
       prompt?: unknown;
       provider?: unknown;
       modelId?: unknown;
+      thinkingLevel?: unknown;
       cwd?: unknown;
       noSession?: unknown;
       clearContext?: unknown;
@@ -104,6 +106,7 @@ export async function PATCH(
         prompt: typeof body.prompt === "string" ? body.prompt : undefined,
         provider: typeof body.provider === "string" ? body.provider : undefined,
         modelId: typeof body.modelId === "string" ? body.modelId : undefined,
+        thinkingLevel: typeof body.thinkingLevel === "string" ? body.thinkingLevel : undefined,
         cwd: typeof body.cwd === "string" ? body.cwd : undefined,
         noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
         clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,

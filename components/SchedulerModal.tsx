@@ -32,6 +32,11 @@ function errorText(t: (key: string) => string, code: string): string {
   return translated === key ? t("schedulers.error.generic") : translated;
 }
 
+/** Catalog key of a model as stored in `modelId` (`provider/id`). */
+function qualifiedModelId(m: { provider: string; id: string }): string {
+  return m.provider ? `${m.provider}/${m.id}` : m.id;
+}
+
 export function SchedulerModal({
   open,
   initial,
@@ -65,12 +70,14 @@ export function SchedulerModal({
   const [prompt, setPrompt] = useState("");
   const [provider, setProvider] = useState("");
   const [modelId, setModelId] = useState("");
+  const [thinkingLevel, setThinkingLevel] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [cwd, setCwd] = useState("");
   const [noSession, setNoSession] = useState(false);
   const [clearContext, setClearContext] = useState(false);
   const [compactContext, setCompactContext] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
-  const [models, setModels] = useState<{ id: string; name: string; provider: string }[]>([]);
+  const [models, setModels] = useState<{ id: string; name: string; provider: string; thinkingLevels?: string[] }[]>([]);
   const [projects, setProjects] = useState<{ path: string; alias?: string }[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
@@ -80,9 +87,20 @@ export function SchedulerModal({
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<{ ok: boolean; human: string; nextRunAt: string | null } | null>(null);
 
+  // Re-seed the form only when the modal opens for a different entry. The
+  // panel polls and re-renders with a fresh `initial` object identity for the
+  // SAME entry; resetting on object identity would wipe in-progress edits
+  // (observed: the thinking level / model / instructions reverting mid-edit).
+  const lastInitKey = useRef<string | null>(null);
   // (Re)initialize the form whenever the modal opens.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      lastInitKey.current = null;
+      return;
+    }
+    const initKey = initial?.id ?? "__new__";
+    if (lastInitKey.current === initKey) return;
+    lastInitKey.current = initKey;
     if (initial) {
       setName(initial.name);
       setEntryKind(initial.kind ?? "script");
@@ -91,6 +109,7 @@ export function SchedulerModal({
       setPrompt(initial.prompt ?? "");
       setProvider(initial.provider ?? "");
       setModelId(initial.modelId ?? "");
+      setThinkingLevel(initial.thinkingLevel ?? "");
       setCwd(initial.cwd ?? "");
       setNoSession(initial.noSession ?? false);
       setClearContext(initial.clearContext ?? false);
@@ -118,6 +137,7 @@ export function SchedulerModal({
       setPrompt("");
       setProvider("");
       setModelId("");
+      setThinkingLevel("");
       setNoSession(false);
       setCwd("");
       setClearContext(false);
@@ -246,6 +266,10 @@ export function SchedulerModal({
       setPromptError(t("schedulers.error.instructions_required"));
       return;
     }
+    if (entryKind === "prompt" && !name.trim()) {
+      setNameError(t("schedulers.error.name_required"));
+      return;
+    }
     const trimmed = script.trim();
     if (entryKind === "script" && !trimmed) {
       setScriptError(t("schedulers.error.script_required"));
@@ -259,18 +283,18 @@ export function SchedulerModal({
     const timeoutMs = timeoutNum !== null && timeoutNum >= 0 ? timeoutNum * 60_000 : 10 * 60_000;
     const body = entryKind === "prompt"
       ? {
-          name: name.trim() || undefined,
+          name: name.trim(),
           kind: "prompt" as const,
           prompt: trimmedPrompt,
           provider: provider || undefined,
           modelId: modelId || undefined,
+          thinkingLevel: thinkingLevel || undefined,
           cwd: cwd.trim(),
           noSession,
           clearContext,
           compactContext,
           schedule: spec,
           enabled,
-          timeoutMs,
         }
       : {
           name: name.trim() || undefined,
@@ -349,10 +373,17 @@ export function SchedulerModal({
   const modelOptions = useMemo(() => {
     const list = provider ? models.filter((m) => m.provider === provider) : models;
     return list.map((m) => ({
-      value: m.provider ? `${m.provider}/${m.id}` : m.id,
+      value: qualifiedModelId(m),
       label: m.name || m.id,
     }));
   }, [models, provider]);
+
+  // Thinking ladder of the selected model (as defined for the model/provider
+  // in settings) plus an explicit "default" (value "" → no flag is sent).
+  const thinkingOptions = useMemo(() => {
+    const levels = models.find((m) => qualifiedModelId(m) === modelId)?.thinkingLevels ?? [];
+    return levels.map((l) => ({ value: l, label: l }));
+  }, [models, modelId]);
 
   // Managed projects as workspace choices; a saved cwd that is no longer in
   // the list (project removed) stays selectable so editing never drops it.
@@ -375,7 +406,7 @@ export function SchedulerModal({
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next && !saving) onClose(); }}>
-      <DialogContent ariaLabel={t(initial ? "schedulers.editTitle" : "schedulers.addTitle")} style={{ width: "min(92vw, 480px)", ...(isMobile ? { maxHeight: "95dvh" } : {}) }}>
+      <DialogContent ariaLabel={t(initial ? "schedulers.editTitle" : "schedulers.addTitle")} style={{ width: "min(92vw, 520px)", ...(isMobile ? { maxHeight: "95dvh" } : {}) }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
           <DialogTitle style={{ margin: 0 }}>{t(initial ? "schedulers.editTitle" : "schedulers.addTitle")}</DialogTitle>
           <button
@@ -389,11 +420,20 @@ export function SchedulerModal({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
-          <Field label={t("schedulers.name")} hint={t("schedulers.nameHint")}>
+          <Field
+            label={t("schedulers.name")}
+            hint={entryKind === "prompt" ? undefined : t("schedulers.nameHint")}
+            required={entryKind === "prompt"}
+            error={nameError}
+          >
             <TextInput
               value={name}
-              onChange={setName}
+              onChange={(v) => {
+                setName(v);
+                if (nameError) setNameError(null);
+              }}
               placeholder={t("schedulers.namePlaceholder")}
+              invalid={Boolean(nameError)}
             />
           </Field>
           <Field label={t("schedulers.type")}>
@@ -409,7 +449,7 @@ export function SchedulerModal({
 
           {entryKind === "script" ? (
             <>
-              <Field label={t("schedulers.script")} required hint={t("schedulers.scriptHint")}>
+              <Field label={t("schedulers.script")} required hint={t("schedulers.scriptHint")} error={checkingScript ? null : scriptError}>
                 <TextInput
                   value={script}
                   onChange={(v) => { setScript(v); setScriptError(null); }}
@@ -433,7 +473,7 @@ export function SchedulerModal({
             </>
           ) : (
             <>
-              <Field label={t("schedulers.instructions")} required hint={t("schedulers.instructionsHint")}>
+              <Field label={t("schedulers.instructions")} required hint={t("schedulers.instructionsHint")} error={promptError}>
                 <Textarea
                   value={prompt}
                   onChange={(v) => { setPrompt(v); if (promptError) setPromptError(null); }}
@@ -449,7 +489,7 @@ export function SchedulerModal({
                   <Field label={t("schedulers.provider")}>
                     <Select
                       value={provider}
-                      onChange={(v) => { setProvider(v); setModelId(""); }}
+                      onChange={(v) => { setProvider(v); setModelId(""); setThinkingLevel(""); }}
                       options={providerOptions}
                       placeholder={t("schedulers.providerPlaceholder")}
                       disabled={modelsLoading}
@@ -460,10 +500,25 @@ export function SchedulerModal({
                   <Field label={t("schedulers.model")}>
                     <Select
                       value={modelId}
-                      onChange={setModelId}
+                      onChange={(v) => {
+                        setModelId(v);
+                        const levels = models.find((m) => qualifiedModelId(m) === v)?.thinkingLevels ?? [];
+                        if (thinkingLevel && !levels.includes(thinkingLevel)) setThinkingLevel("");
+                      }}
                       options={modelOptions}
                       placeholder={t("schedulers.chooseModel")}
                       disabled={modelsLoading}
+                    />
+                  </Field>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Field label={t("schedulers.thinking")}>
+                    <Select
+                      value={thinkingLevel}
+                      onChange={setThinkingLevel}
+                      options={thinkingOptions}
+                      placeholder={t("schedulers.thinkingDefault")}
+                      disabled={modelsLoading || !modelId}
                     />
                   </Field>
                 </div>
@@ -612,11 +667,13 @@ export function SchedulerModal({
           </div>
           )}
           <div style={{ display: "flex", gap: 14, alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <Field label={t("schedulers.timeout")} hint={t("schedulers.timeoutHint")}>
-                <NumInput value={timeoutMin} onChange={setTimeoutMin} placeholder="10" invalid={parseNum(timeoutMin) === null || Number(timeoutMin) < 0} />
-              </Field>
-            </div>
+            {entryKind === "script" && (
+              <div style={{ flex: 1 }}>
+                <Field label={t("schedulers.timeout")} hint={t("schedulers.timeoutHint")}>
+                  <NumInput value={timeoutMin} onChange={setTimeoutMin} placeholder="10" invalid={parseNum(timeoutMin) === null || Number(timeoutMin) < 0} />
+                </Field>
+              </div>
+            )}
             <label
               style={{
                 display: "inline-flex",

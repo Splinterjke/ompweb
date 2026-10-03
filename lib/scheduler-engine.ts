@@ -111,6 +111,7 @@ export function promptSpawnArgs(entry: SchedulerEntry): string[] {
   } else if (entry.provider) {
     args.push(`--provider=${entry.provider}`);
   }
+  if (entry.thinkingLevel) args.push(`--thinking=${entry.thinkingLevel}`);
   const sessionMode = !entry.noSession;
   const resumeId = sessionMode && !entry.clearContext ? entry.sessionId : undefined;
   if (resumeId) args.push("--resume", resumeId);

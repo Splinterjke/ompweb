@@ -91,6 +91,8 @@ function normalizeEntry(item: unknown): SchedulerEntry | null {
       prompt: kind === "prompt" ? (e.prompt as string) : undefined,
       provider: typeof e.provider === "string" && e.provider ? e.provider : undefined,
       modelId: typeof e.modelId === "string" && e.modelId ? e.modelId : undefined,
+      thinkingLevel:
+        kind === "prompt" && typeof e.thinkingLevel === "string" && e.thinkingLevel ? e.thinkingLevel : undefined,
       cwd: kind === "prompt" && typeof e.cwd === "string" && e.cwd ? e.cwd : undefined,
       noSession: kind === "prompt" && typeof e.noSession === "boolean" ? e.noSession : undefined,
       clearContext: kind === "prompt" && typeof e.clearContext === "boolean" ? e.clearContext : undefined,
@@ -162,6 +164,7 @@ export interface CreateSchedulerInput {
   prompt?: string;
   provider?: string;
   modelId?: string;
+  thinkingLevel?: string;
   cwd?: string;
   noSession?: boolean;
   clearContext?: boolean;
@@ -187,10 +190,12 @@ export function createSchedulerEntry(input: CreateSchedulerInput): { file: Sched
   const file = loadSchedulerFile();
   const kind: SchedulerKind = input.kind === "prompt" ? "prompt" : "script";
   if (kind === "prompt" && !(input.prompt ?? "").trim()) throw schedulerError("instructions_required");
+  if (kind === "prompt" && !(input.name ?? "").trim()) throw schedulerError("name_required");
   if (kind === "script" && !(input.script ?? "").trim()) throw schedulerError("script_required");
   if (input.clearContext && input.compactContext) throw schedulerError("context_mode_conflict");
-  const name = (input.name ?? "").trim()
-    || (kind === "prompt" ? (input.prompt ?? "").trim().split(/\s+/).slice(0, 4).join(" ") : path.basename(input.script!));
+  // Prompt names are required (checked above); only scripts fall back to a
+  // generated name.
+  const name = (input.name ?? "").trim() || path.basename(input.script!);
   const schedule = validateSchedule(input.schedule);
   const enabled = input.enabled ?? true;
   const timeoutMs = clampTimeout(input.timeoutMs);
@@ -205,6 +210,7 @@ export function createSchedulerEntry(input: CreateSchedulerInput): { file: Sched
     prompt: kind === "prompt" ? input.prompt!.trim() : undefined,
     provider: kind === "prompt" ? optionalString(input.provider) : undefined,
     modelId: kind === "prompt" ? optionalString(input.modelId) : undefined,
+    thinkingLevel: kind === "prompt" ? optionalString(input.thinkingLevel) : undefined,
     cwd: kind === "prompt" ? optionalString(input.cwd) : undefined,
     noSession: kind === "prompt" ? optionalBoolean(input.noSession) : undefined,
     clearContext: kind === "prompt" ? optionalBoolean(input.clearContext) : undefined,
@@ -231,6 +237,7 @@ export function updateSchedulerEntry(
     prompt?: string;
     provider?: string;
     modelId?: string;
+    thinkingLevel?: string;
     cwd?: string;
     noSession?: boolean;
     clearContext?: boolean;
@@ -251,13 +258,15 @@ export function updateSchedulerEntry(
   if (kind === "script" && !script) throw schedulerError("script_required");
   const prompt = kind === "prompt" ? (patch.prompt ?? prev.prompt ?? "").trim() : undefined;
   if (kind === "prompt" && !prompt) throw schedulerError("instructions_required");
+  const trimmedName = (patch.name ?? prev.name).trim();
+  if (kind === "prompt" && !trimmedName) throw schedulerError("name_required");
   const clearContext = kind === "prompt" ? optionalBoolean(patch.clearContext ?? prev.clearContext) : undefined;
   const compactContext = kind === "prompt" && !clearContext ? optionalBoolean(patch.compactContext ?? prev.compactContext) : undefined;
   if (clearContext && compactContext) throw schedulerError("context_mode_conflict");
   const enabled = patch.enabled ?? prev.enabled;
   const entry: SchedulerEntry = {
     ...prev,
-    name: (patch.name ?? prev.name).trim() || (kind === "prompt" ? prompt!.split(/\s+/).slice(0, 4).join(" ") : path.basename(script!)),
+    name: trimmedName || path.basename(script!),
     kind,
     script,
     args: kind === "script"
@@ -266,6 +275,7 @@ export function updateSchedulerEntry(
     prompt,
     provider: kind === "prompt" ? optionalString(patch.provider ?? prev.provider) : undefined,
     modelId: kind === "prompt" ? optionalString(patch.modelId ?? prev.modelId) : undefined,
+    thinkingLevel: kind === "prompt" ? optionalString(patch.thinkingLevel ?? prev.thinkingLevel) : undefined,
     cwd: kind === "prompt" ? optionalString(patch.cwd ?? prev.cwd) : undefined,
     noSession: kind === "prompt" ? optionalBoolean(patch.noSession ?? prev.noSession) : undefined,
     clearContext,

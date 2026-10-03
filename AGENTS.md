@@ -647,8 +647,12 @@ handled or safely ignored.
 - **Script entries** (unchanged behavior): `{ name, kind, script, args[], schedule,
   enabled, timeoutMs }` — runs the script via bash (`.sh/.bash/.zsh`) or directly
   (executable bit required).
-- **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?, cwd?,
-  noSession?, clearContext?, compactContext?, schedule, enabled, timeoutMs }`.
+- **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?,
+  thinkingLevel?, cwd?, noSession?, clearContext?, compactContext?, schedule,
+  enabled, timeoutMs }`. `name` is REQUIRED for prompts (store + API reject an
+  empty one with `name_required`; only scripts fall back to a generated name).
+  The modal hides the Timeout input for prompts (POST uses the store default,
+  PATCH omits the field so the stored value is kept).
   The engine runs `omp -p <prompt>` with the entry's `cwd` when set (a missing
   workspace directory is recreated at run time; only an uncreatable path falls
   back to the default) — otherwise with cwd `~/omp-cwd-YYYYMMDD` (same dated
@@ -672,6 +676,11 @@ handled or safely ignored.
     that already starts with `provider/` (that double-prefixing produced
     `provider/provider/model` "not found" errors). Keep the two consumers on
     this one helper.
+  - `thinkingLevel` maps to `--thinking=<level>` (absent = no flag = the model
+    default). The modal's Thinking select lists the ladder of the selected
+    model from `/api/models` `modelList[].thinkingLevels` (`["off", …efforts]`,
+    per the settings' Thinking levels) plus an explicit `Default` option
+    (stores nothing).
 - **Session marking**: `getAutomationSessions()` maps session id → scheduler name
   from prompt run records (`run.sessionId`); `GET /api/sessions` annotates matching
   sessions with `automation: <name>` and `SessionItem` renders a clock icon with a
@@ -681,13 +690,13 @@ handled or safely ignored.
   `ompweb-rebuild-restart.sh` is added at boot as a **Manual launch** scheduler
   (`schedule: { kind: "manual" }`, 20 min timeout) if not already present —
   idempotent and best-effort (a packaged install without the script is a no-op).
-  Manual schedulers have `nextRunAt: null` — they never fire on the tick; the user
   triggers them via `POST /api/schedulers/[id]/run` (the panel's run button).
   `ensureSeedSchedulers` resolves the script from `process.cwd()` (the dev repo
   root or the `/opt/ompweb` install root), matching the engine's
   `spawn` cwd (`path.dirname(script)`).
 - **API** (JSON; 400 with a stable `code` on validation failure — `instructions_required`,
-  `context_mode_conflict`, `script_required`, `invalid_schedule`, `invalid_cwd`, …):
+  `context_mode_conflict`, `script_required`, `invalid_schedule`, `invalid_cwd`,
+  `name_required`, …):
   - `POST /api/schedulers` — create. Prompt example (`cwd` optional — the workspace
     folder the automation session starts in; POST/PATCH reject a non-existent,
     non-creatable path with `invalid_cwd`, and PATCH `{"cwd":""}` clears it back to

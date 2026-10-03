@@ -22,8 +22,8 @@ export async function GET() {
 
 // POST /api/schedulers
 // body (script): { name?, script, args?, schedule, enabled?, timeoutMs? }
-// body (prompt): { name?, kind: "prompt", prompt, provider?, modelId?,
-//                  noSession?, clearContext?, compactContext?, schedule, enabled?, timeoutMs? }
+// body (prompt): { name, kind: "prompt", prompt, provider?, modelId?,
+//                  thinkingLevel?, noSession?, clearContext?, compactContext?, schedule, enabled?, timeoutMs? }
 // Script entries validate the script path (exists + regular file; .sh via
 // bash, others must be executable). Prompt entries validate the prompt text
 // (non-empty) and the clear/compact mutual exclusion. 400 on any validation
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       prompt?: unknown;
       provider?: unknown;
       modelId?: unknown;
+      thinkingLevel?: unknown;
       cwd?: unknown;
       noSession?: unknown;
       clearContext?: unknown;
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
       prompt: typeof body.prompt === "string" ? body.prompt : undefined,
       provider: typeof body.provider === "string" && body.provider ? body.provider : undefined,
       modelId: typeof body.modelId === "string" && body.modelId ? body.modelId : undefined,
+      thinkingLevel: typeof body.thinkingLevel === "string" && body.thinkingLevel ? body.thinkingLevel : undefined,
       cwd: workspaceCwd,
       noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
       clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,
