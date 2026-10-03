@@ -62,23 +62,27 @@ function shortVersion(version: string | undefined, t: (key: string) => string): 
 function Toggle({
   enabled,
   loading,
+  readOnly = false,
   onToggle,
 }: {
   enabled: boolean;
   loading: boolean;
+  readOnly?: boolean;
   onToggle: () => void;
 }) {
   const { t } = useI18n();
   return (
     <Tooltip content={
-        enabled
-          ? t("skillsConfig.visibleInPrompt")
-          : t("skillsConfig.hiddenFromPrompt")
+        readOnly
+          ? t("skillsConfig.toggleReadOnly")
+          : enabled
+            ? t("skillsConfig.visibleInPrompt")
+            : t("skillsConfig.hiddenFromPrompt")
       }>
       <button
       type="button"
       onClick={onToggle}
-      disabled={loading}
+      disabled={loading || readOnly}
       aria-pressed={enabled}
       style={{
         flexShrink: 0,
@@ -87,7 +91,8 @@ function Toggle({
         borderRadius: 11,
         border: "none",
         padding: 0,
-        cursor: loading ? "wait" : "pointer",
+        cursor: readOnly ? "not-allowed" : loading ? "wait" : "pointer",
+        opacity: readOnly ? 0.5 : 1,
         background: enabled ? "var(--accent)" : "var(--border)",
         position: "relative",
         transition: "background var(--dur-med) var(--ease-out-warm)",
@@ -185,6 +190,7 @@ function SkillDetail({
         <Toggle
           enabled={enabled}
           loading={toggling}
+          readOnly={skill.togglable === false}
           onToggle={() => onToggle(skill)}
         />
         {saveError && (
@@ -193,6 +199,13 @@ function SkillDetail({
           </span>
         )}
       </div>
+
+      {skill.togglable === false && (
+        // Visible too: a disabled button's title is unreachable by keyboard and touch.
+        <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
+          {t("skillsConfig.toggleReadOnly")}
+        </p>
+      )}
 
       {skill.install?.skillsShUrl && (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -864,6 +877,7 @@ export function SkillsConfig({
         body: JSON.stringify({
           filePath: skill.filePath,
           disableModelInvocation: next,
+          cwd,
         }),
       });
       const d = (await res.json()) as { success?: boolean; error?: string };
@@ -892,7 +906,7 @@ export function SkillsConfig({
         return n;
       });
     }
-  }, [t]);
+  }, [cwd, t]);
 
   const selectedSkill = skills.find((s) => s.filePath === selected) ?? null;
 

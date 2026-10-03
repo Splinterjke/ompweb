@@ -1,8 +1,13 @@
+import { execFile } from "child_process";
 import { existsSync, promises as fs } from "fs";
 import { homedir } from "os";
 import * as path from "path";
+import { promisify } from "util";
 import { parse as parseYaml } from "yaml";
+import { existingPathWithinRootsChecker, getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { resolveOmpBin, versionFingerprint, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { getAgentDir } from "@/lib/omp/paths";
+import { isRecord } from "@/lib/type-guards";
 import type { SkillInfo } from "@/lib/api-types";
 import { annotateSkillsWithInstallInfo } from "@/lib/skill-lock";
 
@@ -233,9 +238,111 @@ async function scanRoot(root: SkillScanRoot, diagnostics: SkillDiagnostic[]): Pr
   return skills;
 }
 
-/** Discover skills for a cwd the way omp does. Name collisions resolve to the
- * highest-priority provider (scan-root order); result is sorted by name. */
-export async function discoverSkills(cwd: string): Promise<SkillsWithDiagnostics> {
+/** omp provider id (the `source` field is "provider:level") mapped to the
+ * provider label the UI renders (the owning directory). */
+const SOURCE_LABEL_BY_PROVIDER: Record<string, string> = {
+  native: ".omp",
+  claude: ".claude",
+  agents: ".agents",
+  codex: ".codex",
+  github: ".github",
+  "omp-managed": "managed",
+};
+
+/**
+ * Map an `omp skill list --json` payload onto the app's SkillInfo shape.
+ * Returns undefined for anything that is not a skills data object, and when
+ * entries were present but none had the expected shape (upstream drift must
+ * fall back to the replica, not render an empty list).
+ */
+export function skillsFromCliPayload(data: unknown): SkillsWithDiagnostics | undefined {
+  if (!isRecord(data) || !Array.isArray(data.skills)) return undefined;
+  const rawSkills = data.skills;
+  const rawWarnings = Array.isArray(data.warnings) ? data.warnings : [];
+  const skills: SkillInfo[] = [];
+  for (const raw of rawSkills) {
+    if (!isRecord(raw) || typeof raw.name !== "string" || typeof raw.filePath !== "string") continue;
+    const [provider = "", scope = ""] = typeof raw.source === "string" ? raw.source.split(":") : [];
+    skills.push({
+      name: raw.name,
+      description: typeof raw.description === "string" ? raw.description : "",
+      filePath: raw.filePath,
+      baseDir: typeof raw.baseDir === "string" ? raw.baseDir : raw.filePath.replace(/[\\/]SKILL\.md$/, ""),
+      // omp's `hide` is the frontmatter `hide`/`disableModelInvocation`
+      // (kebab key normalized), the same keys setDisableModelInvocation writes.
+      disableModelInvocation: raw.hide === true,
+      sourceInfo: { source: SOURCE_LABEL_BY_PROVIDER[provider] ?? provider, scope },
+    });
+  }
+  if (rawSkills.length > 0 && skills.length === 0) return undefined;
+  // omp warnings are { skillPath, message }.
+  const diagnostics: SkillDiagnostic[] = [];
+  for (const raw of rawWarnings) {
+    if (!isRecord(raw) || typeof raw.message !== "string") continue;
+    diagnostics.push({
+      type: "warning",
+      message: raw.message,
+      ...(typeof raw.skillPath === "string" && raw.skillPath ? { path: raw.skillPath } : {}),
+    });
+  }
+  return { skills, diagnostics };
+}
+
+const execFileAsync = promisify(execFile);
+const SKILLS_CLI_TIMEOUT_MS = 15_000;
+// A `skill list` that failed (binary predates the command, hangs, bad output,
+// or omp rejects this project's config) is not re-spawned for the same binary
+// and cwd until the binary changes on disk or this expires. Keyed per cwd so
+// one broken project cannot hide omp's listing for every other project.
+const SKILLS_CLI_MISS_TTL_MS = 5 * 60_000;
+const skillsCliMisses = new Map<string, number>();
+
+/**
+ * Ask the omp binary for its skill listing (`omp skill list --json` run in cwd,
+ * omp >= 18.3.3). The binary is the authoritative source — the same discovery
+ * sessions use, including namespaced collision aliases this replica cannot
+ * reproduce — and every exec re-reads disk, so installs, uninstalls and
+ * toggles show immediately. Returns undefined when no binary is available,
+ * when the binary predates the command, or on any exec/parse failure, letting
+ * the caller fall back to the replica scan.
+ */
+async function discoverSkillsViaCli(cwd: string, ompBin: string | null): Promise<SkillsWithDiagnostics | undefined> {
+  if (!ompBin) return undefined;
+  const cwdPath = path.resolve(cwd);
+  const missKey = `${versionFingerprint(ompBin) ?? ompBin}\0${cwdPath}`;
+  const now = Date.now();
+  if ((skillsCliMisses.get(missKey) ?? 0) > now) return undefined;
+  // Windows .cmd/.bat launchers need cmd.exe, as in the version probe. The
+  // directory goes in as the process cwd, never as an argument: cmd.exe would
+  // interpret `&` and friends in a directory name.
+  const target = wrapWindowsScript(ompBin, ["skill", "list", "--json"]);
+  try {
+    const { stdout } = await execFileAsync(target.file, target.args, {
+      cwd: cwdPath,
+      timeout: SKILLS_CLI_TIMEOUT_MS,
+      maxBuffer: 16 * 1024 * 1024,
+      windowsHide: true,
+    });
+    const listed = skillsFromCliPayload(JSON.parse(stdout));
+    if (listed) return listed;
+  } catch {
+    // Missing/old binary, exec or parse failure — fall back to the replica.
+  }
+  for (const [key, retryAt] of skillsCliMisses) if (retryAt <= now) skillsCliMisses.delete(key);
+  skillsCliMisses.set(missKey, now + SKILLS_CLI_MISS_TTL_MS);
+  return undefined;
+}
+
+/** Discover skills for a cwd the way omp does: through the omp binary when it
+ * supports `skill list`, else the replica scan below. In the replica, name
+ * collisions resolve to the highest-priority provider (scan-root order);
+ * result is sorted by name. `ompBin` is a test seam. */
+export async function discoverSkills(
+  cwd: string,
+  ompBin: string | null = resolveOmpBin(),
+): Promise<SkillsWithDiagnostics> {
+  const viaCli = await discoverSkillsViaCli(cwd, ompBin);
+  if (viaCli) return viaCli;
   const diagnostics: SkillDiagnostic[] = [];
   const byName = new Map<string, SkillInfo>();
   for (const root of buildScanRoots(cwd)) {
@@ -250,10 +357,32 @@ export async function discoverSkills(cwd: string): Promise<SkillsWithDiagnostics
   return { skills, diagnostics };
 }
 
-export async function loadSkillsWithInstallInfo(cwd: string) {
-  const { skills, diagnostics } = await discoverSkills(cwd);
+/**
+ * Roots a SKILL.md must sit under for PATCH /api/skills to rewrite it: the
+ * allowed file roots (workspaces the user opened, so their files are the
+ * user's) plus the replica's user-owned skill roots (with the project walk-up
+ * roots when cwd is itself allowed). This is the allowlist main already had.
+ * Skills omp lists from anywhere else (the plugin cache, registry installs,
+ * custom directories outside a workspace) are read-only: their files belong
+ * to an installer and an update would discard the edit.
+ */
+export async function getSkillToggleRoots(cwd?: string): Promise<Set<string>> {
+  // Copy: getAllowedFileRoots returns its shared cache set.
+  const roots = new Set(await getAllowedFileRoots());
+  const scanCwd = cwd && isExistingFilePathAllowed(cwd, roots) ? cwd : undefined;
+  for (const dir of getSkillScanRootDirs(scanCwd)) roots.add(dir);
+  return roots;
+}
+
+export async function loadSkillsWithInstallInfo(cwd: string, ompBin: string | null = resolveOmpBin()) {
+  const [{ skills, diagnostics }, toggleRoots] = await Promise.all([discoverSkills(cwd, ompBin), getSkillToggleRoots(cwd)]);
+  const isTogglable = existingPathWithinRootsChecker(toggleRoots);
   return {
-    skills: annotateSkillsWithInstallInfo(skills, { cwd, agentDir: getAgentDir() }),
+    skills: annotateSkillsWithInstallInfo(skills, { cwd, agentDir: getAgentDir() }).map((skill) => ({
+      ...skill,
+      togglable: isTogglable(skill.filePath),
+    })),
     diagnostics,
   };
 }
+

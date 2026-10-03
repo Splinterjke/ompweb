@@ -137,11 +137,14 @@ export function annotateSkillsWithInstallInfo(
 
   return skills.map((skill) => {
     if (!existsSync(skill.filePath)) return skill;
+    // omp lists colliding skills as `namespace/name`; lock files key the
+    // installed name.
+    const lockName = skill.name.slice(skill.name.lastIndexOf("/") + 1);
 
     const install = globalSkillsRoots.some((root) => isWithin(skill.filePath, root))
-      ? getInstallInfo(globalEntries, skill.name, "global")
+      ? getInstallInfo(globalEntries, lockName, "global")
       : projectSkillsRoots.some((root) => isWithin(skill.filePath, root))
-        ? getInstallInfo(projectEntries, skill.name, "project")
+        ? getInstallInfo(projectEntries, lockName, "project")
         : undefined;
 
     return install ? { ...skill, install } : skill;

@@ -44,6 +44,9 @@ export interface SkillInfo {
     scope?: string;
   };
   install?: SkillInstallInfo;
+  /** False when the SKILL.md sits outside the user-owned skill roots
+   * (plugin, registry, custom directory): listed, but not rewritable. */
+  togglable?: boolean;
 }
 
 export type PluginScope = "global" | "project";

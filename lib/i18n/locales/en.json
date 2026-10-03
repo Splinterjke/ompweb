@@ -945,6 +945,7 @@
   "skillsConfig.description": "Description",
   "skillsConfig.dormant": "Dormant ({count})",
   "skillsConfig.toggleErrorTitle": "Could not update skill",
+  "skillsConfig.toggleReadOnly": "This skill lives outside the skill folders omp-web edits (for example a plugin or package install), so it can't be toggled here",
   "skillsConfig.toggleSuccessTitle": "Skill updated",
   "skillsConfig.groupGlobalSkillsSh": "global / skills.sh",
   "skillsConfig.groupProjectSkillsSh": "project / skills.sh",

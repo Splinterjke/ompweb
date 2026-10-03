@@ -1,5 +1,5 @@
 import { execFile } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, realpathSync, statSync } from "fs";
 import { homedir } from "os";
 import { delimiter, join } from "path";
 
@@ -95,6 +95,17 @@ export function wrapWindowsScript(bin: string, args: string[]): { file: string; 
     return { file: "cmd.exe", args: ["/d", "/s", "/c", quoteCmdLine(bin, args)] };
   }
   return { file: bin, args };
+}
+
+/** Identity of the binary on disk; changes when it is replaced or updated. */
+export function versionFingerprint(bin: string): string | null {
+  try {
+    const target = realpathSync(bin);
+    const stat = statSync(target, { bigint: true });
+    return `${target}:${stat.size.toString()}:${stat.mtimeMs.toString()}`;
+  } catch {
+    return null;
+  }
 }
 
 /** `omp --version` output (e.g. "omp/17.1.3"), or null when unavailable.

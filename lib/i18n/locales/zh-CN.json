@@ -945,6 +945,7 @@
   "skillsConfig.description": "描述",
   "skillsConfig.dormant": "休眠（{count}）",
   "skillsConfig.toggleErrorTitle": "更新技能失败",
+  "skillsConfig.toggleReadOnly": "此技能位于 omp-web 可编辑的技能文件夹之外（例如插件或软件包的安装位置），因此无法在此切换",
   "skillsConfig.toggleSuccessTitle": "技能已更新",
   "skillsConfig.groupGlobalSkillsSh": "全局 / skills.sh",
   "skillsConfig.groupProjectSkillsSh": "项目 / skills.sh",

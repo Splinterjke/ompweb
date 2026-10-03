@@ -945,6 +945,7 @@
   "skillsConfig.description": "説明",
   "skillsConfig.dormant": "休止中（{count}）",
   "skillsConfig.toggleErrorTitle": "スキルの更新に失敗しました",
+  "skillsConfig.toggleReadOnly": "このスキルは omp-web が編集するスキルフォルダーの外（プラグインやパッケージのインストール先など）にあるため、ここでは切り替えられません",
   "skillsConfig.toggleSuccessTitle": "スキルを更新しました",
   "skillsConfig.groupGlobalSkillsSh": "グローバル / skills.sh",
   "skillsConfig.groupProjectSkillsSh": "プロジェクト / skills.sh",

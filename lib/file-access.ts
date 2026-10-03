@@ -62,12 +62,19 @@ export function isPathWithinRoots(target: string, roots: Set<string>): boolean {
 
 export const isFilePathAllowed = isPathWithinRoots;
 
-export function isExistingPathWithinRoots(target: string, roots: Set<string>): boolean {
-  let realTarget: string;
-  try { realTarget = realpathSync(target); } catch { return false; }
+/** isExistingPathWithinRoots for many targets: realpaths the roots once. */
+export function existingPathWithinRootsChecker(roots: Set<string>): (target: string) => boolean {
   const realRoots = new Set<string>();
   for (const root of roots) { try { realRoots.add(realpathSync(root)); } catch { /* stale */ } }
-  return isPathWithinRoots(realTarget, realRoots);
+  return (target) => {
+    let realTarget: string;
+    try { realTarget = realpathSync(target); } catch { return false; }
+    return isPathWithinRoots(realTarget, realRoots);
+  };
+}
+
+export function isExistingPathWithinRoots(target: string, roots: Set<string>): boolean {
+  return existingPathWithinRootsChecker(roots)(target);
 }
 
 export function isExistingFilePathAllowed(target: string, allowedRoots: Set<string>): boolean {
