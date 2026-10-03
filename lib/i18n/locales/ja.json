@@ -27,6 +27,7 @@
   "agentSession.queuedRemovalUnavailable": "このメッセージはキューに待機しておらず、キャンセルできませんでした。",
   "agentSession.startingAgent": "omp を起動しています… セッションの初回起動には時間がかかる場合があります。",
   "agentSession.toolPresetNotice": "ツールプリセットはセッション開始時に適用されます。このセッションは現在のツールを維持します。",
+  "agentSession.unknownSlashCommand": "/{name} はこのセッションが実行できるコマンドではないため、通常のテキストとして送信されました。TUI 専用のコマンド（例: /guided-goal）は omp のターミナルでのみ動作します。",
   "archiveBrowser.title": "アーカイブされたセッション",
   "archiveBrowser.description": "アーカイブされたセッションを閲覧および復元します。",
   "archiveBrowser.searchPlaceholder": "名前、ディレクトリ、またはメッセージでアーカイブを検索…",

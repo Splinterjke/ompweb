@@ -21,6 +21,7 @@ import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
 import { toast } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
 import { getToolNamesForPreset, type ToolPreset } from "@/lib/tool-presets";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
@@ -788,6 +789,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, []);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const [slashCommandsLoading, setSlashCommandsLoading] = useState(false);
+  // Every command omp reported, builtins included — the palette hides those,
+  // but the unknown-command warning must not flag them (#167). Ref-only: it is
+  // consulted at send time and must never re-render the composer.
+  const knownSlashCommandNamesRef = useRef<string[]>([]);
+  const warnedSlashCommandsRef = useRef(new Set<string>());
   const [noticeState, dispatchNotice] = useReducer(noticeReducer, { visible: [], pending: [] });
   const [sessionStatsOverride, setSessionStatsOverride] = useState<SessionStatsInfo | null>(null);
   const [extensionDialog, setExtensionDialog] = useState<ExtensionUiDialogRequest | null>(null);
@@ -1456,12 +1462,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const sid = sessionIdRef.current ?? await ensureNewSession();
     if (!sid) {
       setSlashCommands([]);
+      knownSlashCommandNamesRef.current = [];
       return [] as SlashCommandInfo[];
     }
     setSlashCommandsLoading(true);
     try {
       const data = await sendAgentCommand<SlashCommandsResponse>(sid, { type: "get_commands" });
-      const commands = (data?.commands ?? [])
+      const available = Array.isArray(data?.commands) ? data.commands : [];
+      // Keep the builtins too: they are hidden from the palette but omp still
+      // runs them when typed, so they must not be reported as unknown (#167).
+      // A reply carrying no list is not evidence that nothing is known, so it
+      // must not erase a roster an earlier reply did supply.
+      if (available.length > 0) knownSlashCommandNamesRef.current = available.map((command) => command.name);
+      const commands = available
         .map(toSlashCommandInfo)
         .filter((c): c is SlashCommandInfo => c !== null);
       setSlashCommands(commands);
@@ -1470,6 +1483,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       console.error("Failed to load slash commands:", e);
       toast.error(translate("agentSession.sendFailed", { detail: e instanceof Error ? e.message : String(e) }));
       setSlashCommands([]);
+      knownSlashCommandNamesRef.current = [];
       return [] as SlashCommandInfo[];
     } finally {
       setSlashCommandsLoading(false);
@@ -2503,6 +2517,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
       case "available_commands_update": {
         const commands = (event.commands as RpcAvailableSlashCommand[] | undefined) ?? [];
+        knownSlashCommandNamesRef.current = commands.map((command) => command.name);
         setSlashCommands(commands.map(toSlashCommandInfo).filter((c): c is SlashCommandInfo => c !== null));
         break;
       }
@@ -2813,6 +2828,18 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
     if (initialHydrationPendingRef.current) return false;
     const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
+    // omp runs TUI-only commands such as `/guided-goal` nowhere but its own
+    // terminal, so over RPC the text is sent as an ordinary prompt and the turn
+    // looks like it obeyed. Say so once per name instead of staying silent
+    // (#167). The prompt itself is still sent: the roster is not proof that the
+    // command is unavailable, and the user may mean the literal text.
+    if (isSlashCommandPrompt && isUnknownSlashCommand(trimmedMessage, knownSlashCommandNamesRef.current)) {
+      const name = slashCommandName(trimmedMessage);
+      if (name && !warnedSlashCommandsRef.current.has(name)) {
+        warnedSlashCommandsRef.current.add(name);
+        addNotice({ type: "warning", message: translate("agentSession.unknownSlashCommand", { name }) });
+      }
+    }
 
     const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
     if (isBashCommand) {
