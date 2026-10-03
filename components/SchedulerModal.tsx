@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, LoaderCircle, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "./ui/primitives";
-import { Field, NumInput, Select, TextInput } from "./ui/field";
+import { Field, NumInput, Select, TextInput, Textarea, Check } from "./ui/field";
 import { toast } from "./ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { createOmpwebClient } from "@/lib/client";
@@ -60,6 +60,18 @@ export function SchedulerModal({
   const [timeoutMin, setTimeoutMin] = useState("10");
   const [enabled, setEnabled] = useState(true);
 
+  // Entry type: "script" (default) runs a script path; "prompt" runs `omp -p`.
+  const [entryKind, setEntryKind] = useState<"script" | "prompt">("script");
+  const [prompt, setPrompt] = useState("");
+  const [provider, setProvider] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [noSession, setNoSession] = useState(false);
+  const [clearContext, setClearContext] = useState(false);
+  const [compactContext, setCompactContext] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [models, setModels] = useState<{ id: string; name: string; provider: string }[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
   const [scriptError, setScriptError] = useState<string | null>(null);
   const [checkingScript, setCheckingScript] = useState(false);
   const previewTimer = useRef<number | null>(null);
@@ -71,8 +83,16 @@ export function SchedulerModal({
     if (!open) return;
     if (initial) {
       setName(initial.name);
-      setScript(initial.script);
+      setEntryKind(initial.kind ?? "script");
+      setScript(initial.script ?? "");
       setArgs(initial.args.join(" "));
+      setPrompt(initial.prompt ?? "");
+      setProvider(initial.provider ?? "");
+      setModelId(initial.modelId ?? "");
+      setNoSession(initial.noSession ?? false);
+      setClearContext(initial.clearContext ?? false);
+      setCompactContext(initial.compactContext ?? false);
+      setPromptError(null);
       const s = initial.schedule;
       setKind(s.kind);
       if (s.kind === "interval") {
@@ -89,8 +109,16 @@ export function SchedulerModal({
       setEnabled(initial.enabled);
     } else {
       setName("");
+      setEntryKind("script");
       setScript("");
       setArgs("");
+      setPrompt("");
+      setProvider("");
+      setModelId("");
+      setNoSession(false);
+      setClearContext(false);
+      setCompactContext(false);
+      setPromptError(null);
       setKind("manual");
       setEvery("30");
       setUnit("minutes");
@@ -104,6 +132,28 @@ export function SchedulerModal({
     if (previewTimer.current) clearTimeout(previewTimer.current);
     setPreview(null);
   }, [open, initial]);
+
+  // Load the model catalog for the prompt-type provider/model dropdowns.
+  useEffect(() => {
+    if (!open || entryKind !== "prompt") return;
+    let cancelled = false;
+    setModelsLoading(true);
+    fetch("/api/models", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setModels(Array.isArray(data?.modelList) ? data.modelList : []);
+      })
+      .catch(() => {
+        if (!cancelled) setModels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, entryKind]);
 
   const buildSpec = (): ScheduleSpec | null => {
     const h = parseNum(hour);
@@ -175,8 +225,13 @@ export function SchedulerModal({
   };
 
   const submit = async () => {
+    const trimmedPrompt = prompt.trim();
+    if (entryKind === "prompt" && !trimmedPrompt) {
+      setPromptError(t("schedulers.error.instructions_required"));
+      return;
+    }
     const trimmed = script.trim();
-    if (!trimmed) {
+    if (entryKind === "script" && !trimmed) {
       setScriptError(t("schedulers.error.script_required"));
       return;
     }
@@ -186,14 +241,29 @@ export function SchedulerModal({
     }
     const timeoutNum = parseNum(timeoutMin);
     const timeoutMs = timeoutNum !== null && timeoutNum >= 0 ? timeoutNum * 60_000 : 10 * 60_000;
-    const body = {
-      name: name.trim() || undefined,
-      script: trimmed,
-      args: args.trim() ? args.trim().split(/\s+/) : [],
-      schedule: spec,
-      enabled,
-      timeoutMs,
-    };
+    const body = entryKind === "prompt"
+      ? {
+          name: name.trim() || undefined,
+          kind: "prompt" as const,
+          prompt: trimmedPrompt,
+          provider: provider || undefined,
+          modelId: modelId || undefined,
+          noSession,
+          clearContext,
+          compactContext,
+          schedule: spec,
+          enabled,
+          timeoutMs,
+        }
+      : {
+          name: name.trim() || undefined,
+          kind: "script" as const,
+          script: trimmed,
+          args: args.trim() ? args.trim().split(/\s+/) : [],
+          schedule: spec,
+          enabled,
+          timeoutMs,
+        };
     setSaving(true);
     try {
       if (initial) {
@@ -245,6 +315,28 @@ export function SchedulerModal({
 
   const unitOptions = UNIT_KEYS.map((k) => t(`schedulers.unit.${k}`));
 
+  const entryKindOptions = [t("schedulers.type.script"), t("schedulers.type.prompt")];
+
+  const providerOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const m of models) {
+      if (!seen.has(m.provider)) {
+        seen.add(m.provider);
+        out.push(m.provider);
+      }
+    }
+    return out;
+  }, [models]);
+
+  const modelOptions = useMemo(() => {
+    const list = provider ? models.filter((m) => m.provider === provider) : models;
+    return list.map((m) => ({
+      value: m.provider ? `${m.provider}/${m.id}` : m.id,
+      label: m.name || m.id,
+    }));
+  }, [models, provider]);
+
   const nextRunText = useMemo(() => {
     if (!preview?.ok || !preview.nextRunAt) return null;
     const date = new Date(preview.nextRunAt);
@@ -276,27 +368,110 @@ export function SchedulerModal({
               placeholder={t("schedulers.namePlaceholder")}
             />
           </Field>
-          <Field label={t("schedulers.script")} required hint={t("schedulers.scriptHint")}>
-            <TextInput
-              value={script}
-              onChange={(v) => { setScript(v); setScriptError(null); }}
-              onBlurValidate={checkScript}
-              placeholder="/path/to/script.sh"
-              mono
-              invalid={Boolean(scriptError)}
-              error={checkingScript ? null : scriptError}
+          <Field label={t("schedulers.type")}>
+            <Select
+              value={entryKindOptions[entryKind === "prompt" ? 1 : 0]}
+              onChange={(v) => {
+                const idx = entryKindOptions.indexOf(v);
+                if (idx >= 0) setEntryKind(idx === 1 ? "prompt" : "script");
+              }}
+              options={entryKindOptions}
             />
           </Field>
-          {checkingScript && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -8 }}>
-              <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
-              {t("schedulers.checkingScript")}
-            </span>
-          )}
 
-          <Field label={t("schedulers.args")}>
-            <TextInput value={args} onChange={setArgs} placeholder="--flag value" mono />
-          </Field>
+          {entryKind === "script" ? (
+            <>
+              <Field label={t("schedulers.script")} required hint={t("schedulers.scriptHint")}>
+                <TextInput
+                  value={script}
+                  onChange={(v) => { setScript(v); setScriptError(null); }}
+                  onBlurValidate={checkScript}
+                  placeholder="/path/to/script.sh"
+                  mono
+                  invalid={Boolean(scriptError)}
+                  error={checkingScript ? null : scriptError}
+                />
+              </Field>
+              {checkingScript && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: -8 }}>
+                  <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
+                  {t("schedulers.checkingScript")}
+                </span>
+              )}
+
+              <Field label={t("schedulers.args")}>
+                <TextInput value={args} onChange={setArgs} placeholder="--flag value" mono />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label={t("schedulers.instructions")} required hint={t("schedulers.instructionsHint")}>
+                <Textarea
+                  value={prompt}
+                  onChange={(v) => { setPrompt(v); if (promptError) setPromptError(null); }}
+                  placeholder={t("schedulers.instructionsPlaceholder")}
+                  rows={5}
+                  invalid={Boolean(promptError)}
+                  error={promptError}
+                />
+              </Field>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Field label={t("schedulers.provider")}>
+                    <Select
+                      value={provider}
+                      onChange={(v) => { setProvider(v); setModelId(""); }}
+                      options={providerOptions}
+                      placeholder={t("schedulers.providerPlaceholder")}
+                      disabled={modelsLoading}
+                    />
+                  </Field>
+                </div>
+                <div style={{ flex: 1.4, minWidth: 0 }}>
+                  <Field label={t("schedulers.model")}>
+                    <Select
+                      value={modelId}
+                      onChange={setModelId}
+                      options={modelOptions}
+                      placeholder={t("schedulers.chooseModel")}
+                      disabled={modelsLoading}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Check label={t("schedulers.noSession")} checked={noSession} onChange={setNoSession} />
+                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: 20, lineHeight: 1.4 }}>
+                    {t("schedulers.noSessionDesc")}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Check
+                    label={t("schedulers.clearContext")}
+                    checked={clearContext}
+                    onChange={(v) => { setClearContext(v); if (v) setCompactContext(false); }}
+                  />
+                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: 20, lineHeight: 1.4 }}>
+                    {t("schedulers.clearContextDesc")}
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Check
+                    label={t("schedulers.compactContext")}
+                    checked={compactContext}
+                    onChange={(v) => { setCompactContext(v); if (v) setClearContext(false); }}
+                    disabled={clearContext}
+                  />
+                  <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: 20, lineHeight: 1.4 }}>
+                    {t("schedulers.compactContextDesc")}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
 
           <Field label={t("schedulers.schedule")} required>
             <Select

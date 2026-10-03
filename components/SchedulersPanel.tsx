@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Eraser, LoaderCircle, Pencil, Play, Power, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Eraser, LoaderCircle, MessageSquareText, Pencil, Play, Power, Plus, SquareTerminal, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "./ui/toast";
@@ -115,6 +115,7 @@ export function SchedulersPanel({
   resize,
   headerRef,
   anyDragging,
+  onOpenSession,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
@@ -127,6 +128,8 @@ export function SchedulersPanel({
   };
   headerRef: RefObject<HTMLDivElement | null>;
   anyDragging: boolean;
+  /** Opens a session by id (used by prompt-run session links). */
+  onOpenSession?: (id: string) => void;
 }) {
   const { t } = useI18n();
   const [schedulers, setSchedulers] = useState<SchedulerWithState[] | null>(null);
@@ -136,6 +139,9 @@ export function SchedulersPanel({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SchedulerWithState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SchedulerWithState | null>(null);
+  /** Active tab: "scripts" (the original script schedulers) or "prompts"
+   * (prompt-type automations). In-memory only; defaults to scripts. */
+  const [tab, setTab] = useState<"scripts" | "prompts">("scripts");
   const [deleting, setDeleting] = useState(false);
   const [runBusyId, setRunBusyId] = useState<string | null>(null);
   const [toggleBusyId, setToggleBusyId] = useState<string | null>(null);
@@ -279,8 +285,9 @@ export function SchedulersPanel({
   }, []);
 
   const now = Date.now();
-  const list = (schedulers ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
-  const anyRunning = list.some((s) => s.running || s.id === manualRunningId);
+  const all = (schedulers ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const list = all.filter((s) => (s.kind ?? "script") === (tab === "scripts" ? "script" : "prompt"));
+  const anyRunning = all.some((s) => s.running || s.id === manualRunningId);
   // The error dot reflects recent activity only: a failure recorded before this
   // server process started (stale, from the previous lifecycle) must not keep
   // lighting the indicator after a fresh start. Runs from the current
@@ -295,9 +302,11 @@ export function SchedulersPanel({
     }
     return true;
   };
-  const anyFailed = list.some(recentFailed);
-  const runningCount = list.filter((s) => s.running || s.id === manualRunningId).length;
-  const failedCount = list.filter(recentFailed).length;
+  const anyFailed = all.some(recentFailed);
+  const runningCount = all.filter((s) => s.running || s.id === manualRunningId).length;
+  const failedCount = all.filter(recentFailed).length;
+  const scriptCount = all.filter((s) => (s.kind ?? "script") === "script").length;
+  const promptCount = all.filter((s) => (s.kind ?? "script") === "prompt").length;
   // The expanded detail is bounded to the section's usable height so its
   // content scrolls internally and the control buttons stay pinned (visible)
   const detailMaxHeight = Math.max(120, height - 90);
@@ -394,9 +403,42 @@ export function SchedulersPanel({
       </div>
 
       {open && (
+        <>
+        <div role="tablist" aria-label={t("sessionSidebar.schedulers")} style={{ display: "flex", gap: 6, padding: "0 12px 6px", flexShrink: 0 }}>
+          {([
+            { key: "scripts" as const, icon: <SquareTerminal size={12} aria-hidden="true" />, count: scriptCount },
+            { key: "prompts" as const, icon: <MessageSquareText size={12} aria-hidden="true" />, count: promptCount },
+          ]).map(({ key, icon, count }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 24,
+                padding: "0 10px",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+                fontWeight: 500,
+                borderRadius: "var(--radius-control)",
+                border: `1px solid ${tab === key ? "color-mix(in srgb, var(--accent) 45%, var(--border))" : "var(--border)"}`,
+                background: tab === key ? "color-mix(in srgb, var(--accent) 12%, var(--bg-panel))" : "transparent",
+                color: tab === key ? "var(--accent-strong)" : "var(--text-muted)",
+                cursor: "pointer",
+              }}
+            >
+              {icon}
+              {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
+              {count > 0 && <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>{count}</span>}
+            </button>
+          ))}
+        </div>
         <div
           className="animate-slide-down"
-          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "8px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
         >
           {loadError && (
             <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>{t("schedulers.loadError")}</span>
@@ -486,12 +528,21 @@ export function SchedulersPanel({
 
                 {expanded && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 9px 9px", borderTop: "1px solid var(--border)", maxHeight: detailMaxHeight, overflow: "hidden" }}>
-                    <Tooltip content={s.script}>
-                      <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {s.script}
-                      {s.args.length > 0 && ` ${s.args.join(" ")}`}
-                    </span>
-                    </Tooltip>
+                    {s.kind === "prompt" ? (
+                      <Tooltip content={s.prompt ?? ""}>
+                        <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {s.prompt}
+                          {(s.provider || s.modelId) && ` · ${[s.provider, s.modelId].filter(Boolean).join("/")}`}
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip content={s.script}>
+                        <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {s.script}
+                          {s.args.length > 0 && ` ${s.args.join(" ")}`}
+                        </span>
+                      </Tooltip>
+                    )}
                     <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 6 }}>
                     {s.id === manualRunningId ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--accent)" }}>
@@ -499,6 +550,7 @@ export function SchedulersPanel({
                         {t("schedulers.status.running")}…
                       </span>
                     ) : last ? (
+                    <>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 500, color: statusColor(last.status) }}>
                           {t(`schedulers.status.${last.status}`)}
@@ -513,6 +565,31 @@ export function SchedulersPanel({
                           <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>exit {last.exitCode}</span>
                         )}
                       </div>
+                    {s.kind === "prompt" && s.id !== manualRunningId && last?.sessionId && onOpenSession && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", minWidth: 0 }}>
+                        <Clock size={11} aria-hidden="true" style={{ flexShrink: 0 }} />
+                        <span style={{ flexShrink: 0 }}>{t("schedulers.promptSession")}:</span>
+                        <button
+                          type="button"
+                          onClick={() => onOpenSession(last.sessionId!)}
+                          style={{
+                            padding: 0,
+                            border: "none",
+                            background: "none",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
+                            color: "var(--accent)",
+                            cursor: "pointer",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {last.sessionId.slice(0, 8)}
+                        </button>
+                      </span>
+                    )}
+                    </>
                     ) : (
                       <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("schedulers.neverRun")}</span>
                     )}
@@ -537,7 +614,7 @@ export function SchedulersPanel({
                         {last.stderr}
                       </pre>
                     )}
-                    {!last?.stderr && last?.stdout && (
+                    {!last?.stderr && last?.stdout && s.kind !== "prompt" && (
                       <pre
                         style={{
                           margin: 0,
@@ -606,6 +683,7 @@ export function SchedulersPanel({
             );
           })}
         </div>
+      </>
       )}
     </div>
 

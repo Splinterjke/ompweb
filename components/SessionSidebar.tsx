@@ -16,10 +16,10 @@ import { copyText } from "@/lib/clipboard";
 import { transcriptToMarkdown } from "@/lib/transcript";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { clearLastOpenSession, getLastOpenSession, setLastOpenSession, workspaceKeyOf } from "@/lib/workspace-memory";
+import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -169,7 +169,13 @@ function saveUnreadSessionIds(ids: Set<string>): void {
   }
 }
 
-const EXPANDED_PROJECTS_STORAGE_KEY = "omp-web:expanded-projects";
+ const EXPANDED_PROJECTS_STORAGE_KEY = "omp-web:expanded-projects";
+
+/** Per-workspace "Show N more" toggle key (normalized path so worktrees and
+ *  case/casing variants share one entry). */
+ function showAllStorageKey(projectPath: string): string {
+   return `omp-web:show-all-sessions:${comparableProjectPath(projectPath)}`;
+ }
 
 /** Shared empty set for the no-stored-expansion default (never mutated). */
 const EMPTY_PROJECT_SET: ReadonlySet<string> = new Set();
@@ -598,6 +604,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
   const [explorerHeight, setExplorerHeight] = useState<number>(() => readStoredSectionHeight(EXPLORER_HEIGHT_KEY));
   const explorerHeaderRef = useRef<HTMLDivElement>(null);
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
+  /** Optimistic session renames (id -> new name): shown in the list the
+   *  moment the user commits a rename, before the (slow) PATCH round-trip
+   *  completes. Cleared when the server-authoritative name matches, or when
+   *  the rename fails. */
+  const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
   const [schedOpen, setSchedOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -1201,8 +1212,37 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
         if (!runningSessionIds.has(key) || known.has(key)) placeholderTsRef.current.delete(key);
       }
     }
-    return placeholders.length ? [...base, ...placeholders] : base;
-  }, [allSessions, optimisticSession, optimisticProjectRoot, runningSessionIds, selectedCwd]);
+    const withRenames = (list: SessionInfo[]) =>
+      Object.keys(pendingRenames).length === 0
+        ? list
+        : list.map((s) => (s.id in pendingRenames ? { ...s, name: pendingRenames[s.id] } : s));
+    const raw = placeholders.length ? [...base, ...placeholders] : base;
+    return withRenames(raw);
+  }, [allSessions, optimisticSession, optimisticProjectRoot, runningSessionIds, selectedCwd, pendingRenames]);
+  // Once the server-authoritative list reflects a pending rename, the
+  // optimistic override is no longer needed.
+  useEffect(() => {
+    const settled = Object.keys(pendingRenames).filter((id) => {
+      const s = allSessions.find((x) => x.id === id);
+      return s?.name === pendingRenames[id];
+    });
+    if (settled.length === 0) return;
+    setPendingRenames((prev) => {
+      const next = { ...prev };
+      for (const id of settled) delete next[id];
+      return next;
+    });
+  }, [allSessions, pendingRenames]);
+  /** Show a rename in the list immediately (id + new name), or clear it
+   *  (id + null) when the rename request fails so the server name wins. */
+  const handleOptimisticRename = useCallback((id: string, name: string | null) => {
+    setPendingRenames((prev) => {
+      const next = { ...prev };
+      if (name === null) delete next[id];
+      else next[id] = name;
+      return next;
+    });
+  }, []);
   const visibleProjects = useMemo(() => {
     let base = projects;
     const hasOpt = optimisticProjectRoot ? base.some((p) => comparableProjectPath(p.path) === comparableProjectPath(optimisticProjectRoot)) : false;
@@ -1345,7 +1385,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     const defaultWorkspace = sortedProjects.find((project) =>
       allSessions.some((session) => comparableProjectPath(workspaceKeyOf(session)) === comparableProjectPath(project.path)),
     )?.path ?? sortedProjects[0]?.path ?? null;
-    const rememberedSessionId = initialSessionId || (defaultWorkspace ? getLastOpenSession(defaultWorkspace) : null);
+    const rememberedSessionId = initialSessionId || getLastOpenSessionGlobal() || (defaultWorkspace ? getLastOpenSession(defaultWorkspace) : null);
     const rememberedTargetExists = Boolean(rememberedSessionId && allSessions.some((session) => session.id === rememberedSessionId));
 
     if (rememberedSessionId) {
@@ -1372,33 +1412,30 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
         }, INITIAL_RESTORE_RETRY_MS);
         return;
       }
-      if (!initialSessionId && defaultWorkspace) clearLastOpenSession(defaultWorkspace);
+      if (!initialSessionId) {
+        clearLastOpenSessionGlobal(rememberedSessionId ?? undefined);
+        if (defaultWorkspace) clearLastOpenSession(defaultWorkspace);
+      }
       // A stale remembered id must fall through to the workspace fallback;
       // otherwise the app incorrectly exposes the empty “开始使用” state.
       restoreRetryRef.current = 0;
     }
     if (!rememberedSessionId || !rememberedTargetExists) {
-      // A fresh desktop install (or cleared localStorage) still has a useful
-      // session list. Leaving the main pane on the empty "开始使用" screen
-      // while the first project already contains sessions makes startup look
-      // broken. Restore the most recent session in the default workspace as a
-      // deterministic fallback; explicit URL/remembered-session choices above
-      // still take precedence.
-      const fallback = defaultWorkspace ? mostRecentSessionForWorkspace(allSessions, defaultWorkspace) : undefined;
-      if (fallback) {
-        restoredRef.current = true;
-        setSelectedCwd(fallback.cwd);
-        expandProject(workspaceKeyOf(fallback));
-        onSelectSession(fallback, true);
-        return;
+      // A URL deep-link to a missing session should land on the Welcome
+      // (new-session) screen, not silently open an unrelated session.
+      // A stale *remembered* session (no URL param) still falls back to the
+      // most-recent session in the default workspace.
+      const isUrlSessionMissing = Boolean(initialSessionId && !rememberedTargetExists);
+      if (!isUrlSessionMissing) {
+        const fallback = defaultWorkspace ? mostRecentSessionForWorkspace(allSessions, defaultWorkspace) : undefined;
+        if (fallback) {
+          restoredRef.current = true;
+          setSelectedCwd(fallback.cwd);
+          expandProject(workspaceKeyOf(fallback));
+          onSelectSession(fallback, true);
+          return;
+        }
       }
-      restoredRef.current = true;
-      onInitialRestoreDone?.();
-    }
-    // A stale deep link should not strand the app on a blank pane. Once the
-    // bounded restore retries are exhausted, the workspace fallback above is
-    // safer and more useful than an empty screen.
-    if (initialSessionId && rememberedSessionId && !rememberedTargetExists) {
       restoredRef.current = true;
       onInitialRestoreDone?.();
     }
@@ -1632,6 +1669,12 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     onSelectSession(s);
   }, [onSelectSession, expandProject]);
 
+  // Automation (prompt) runs link back to the session they created.
+  const handleOpenSessionById = useCallback((id: string) => {
+    const s = allSessions.find((x) => x.id === id);
+    if (s) handleSelectSessionFromList(s);
+  }, [allSessions, handleSelectSessionFromList]);
+
   const handleNewSession = useCallback(() => {
     if (!selectedCwd) return;
     // Generate a temporary UUID client-side — no backend call needed.
@@ -1718,14 +1761,20 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
   // on every parent state change.
   const handleSessionDeleted = useCallback((id: string) => {
     const deleted = allSessions.find((session) => session.id === id);
-    if (deleted) clearLastOpenSession(workspaceKeyOf(deleted));
+    if (deleted) {
+      clearLastOpenSession(workspaceKeyOf(deleted));
+      clearLastOpenSessionGlobal(id);
+    }
     onSessionDeleted?.(id);
     loadSessions();
   }, [allSessions, onSessionDeleted, loadSessions]);
 
   useEffect(() => {
     const selected = allSessions.find((session) => session.id === selectedSessionId);
-    if (selected) setLastOpenSession(workspaceKeyOf(selected), selected.id);
+    if (selected) {
+      setLastOpenSession(workspaceKeyOf(selected), selected.id);
+      setLastOpenSessionGlobal(selected.id);
+    }
   }, [allSessions, selectedSessionId]);
 
   // row. Non-Git projects intentionally render no Git affordance at all. The
@@ -2046,6 +2095,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 removeBusy={removeProjectPath === project.path}
                 onSelectSession={handleSelectSessionFromList}
                 onRenamed={loadSessions}
+                onOptimisticRename={handleOptimisticRename}
                 onSessionDeleted={handleSessionDeleted}
                 activeWorktreeSwitcher={isActive ? activeProjectSwitcher : null}
                 worktreeBranch={projectBranch}
@@ -2222,6 +2272,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
         resize={schedResize}
         headerRef={schedHeaderRef}
         anyDragging={anyDragging}
+        onOpenSession={handleOpenSessionById}
       />
       <EventActionsPanel
         open={eventActionsOpen}
@@ -2361,6 +2412,7 @@ interface ProjectRowProps {
   removeBusy: boolean;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
+  onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
   activeWorktreeSwitcher?: ReactNode;
   /** Active worktree/branch label shown inline beside the workspace name. */
@@ -2406,6 +2458,7 @@ function ProjectRow({
   removeBusy,
   onSelectSession,
   onRenamed,
+  onOptimisticRename,
   onSessionDeleted,
   activeWorktreeSwitcher,
   worktreeBranch,
@@ -2428,7 +2481,14 @@ function ProjectRow({
     return t("sessionSidebar.gitStats", { files: s.files, added: s.diffAdded, deleted: s.diffDeleted });
   }, [gitStats, project.path, t]);
   const [focusWithin, setFocusWithin] = useState(false);
-  const [showAllSessions, setShowAllSessions] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(showAllStorageKey(project.path)) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [confirmHideOpen, setConfirmHideOpen] = useState(false);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
@@ -2496,7 +2556,7 @@ function ProjectRow({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontFamily: "var(--font-mono)",
+    fontFamily: "var(--app-font-family)",
     fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
     lineHeight: 1,
     color: "var(--text-dim)",
@@ -2577,7 +2637,7 @@ function ProjectRow({
                   setAliasEditing(false);
                 }
               }}
-              style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--font-mono)", fontWeight: 600 }}
+              style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--app-font-family)", fontWeight: 600 }}
             />
           </div>
         ) : (
@@ -2622,7 +2682,7 @@ function ProjectRow({
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
-                  fontFamily: "var(--font-mono)",
+                  fontFamily: "var(--app-font-family)",
                   fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   letterSpacing: "-0.01em",
@@ -2666,7 +2726,7 @@ function ProjectRow({
               background: worktreeOpen ? "var(--bg-selected)" : "none",
               color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
               cursor: "pointer",
-              fontFamily: "var(--font-mono)",
+              fontFamily: "var(--app-font-family)",
               fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
               lineHeight: 1,
               transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
@@ -2845,13 +2905,22 @@ function ProjectRow({
                   relativeTimeNow={relativeTimeNow}
                   onSelectSession={onSelectSession}
                   onRenamed={onRenamed}
+                  onOptimisticRename={onOptimisticRename}
                   onSessionDeleted={onSessionDeleted}
                   depth={0}
                 />
               ))}
               {hiddenCount > 0 && (
                 <button
-                  onClick={() => setShowAllSessions((v) => !v)}
+                  onClick={() => setShowAllSessions((v) => {
+                    const next = !v;
+                    try {
+                      window.localStorage.setItem(showAllStorageKey(project.path), next ? "1" : "0");
+                    } catch {
+                      /* ignore storage quota / privacy-mode errors */
+                    }
+                    return next;
+                  })}
                   aria-expanded={showAllSessions}
                   style={{
                     display: "flex",
@@ -2995,7 +3064,7 @@ function ProjectWorktreeSwitcher({
                       cursor: "pointer",
                       textAlign: "left",
                       fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                      fontFamily: "var(--font-mono)",
+                      fontFamily: "var(--app-font-family)",
                     }}
                   >
                     {isCurrent ? (
@@ -3083,7 +3152,7 @@ function ProjectWorktreeSwitcher({
                 style={{
                   width: "100%",
                   fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                  fontFamily: "var(--font-mono)",
+                  fontFamily: "var(--app-font-family)",
                   padding: "5px 8px",
                   border: "1px solid var(--accent)",
                   borderRadius: "var(--radius-control)",
@@ -3171,6 +3240,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   relativeTimeNow,
   onSelectSession,
   onRenamed,
+  onOptimisticRename,
   onSessionDeleted,
   depth,
 }: {
@@ -3182,6 +3252,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   relativeTimeNow: number;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
+  onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
   depth: number;
 }) {
@@ -3230,6 +3301,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
           relativeTimeNow={relativeTimeNow}
           onClick={handleClick}
           onRenamed={onRenamed}
+          onOptimisticRename={onOptimisticRename}
           onDeleted={handleDeleted}
           depth={depth}
           hasChildren={hasChildren}
@@ -3250,6 +3322,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
               relativeTimeNow={relativeTimeNow}
               onSelectSession={onSelectSession}
               onRenamed={onRenamed}
+              onOptimisticRename={onOptimisticRename}
               onSessionDeleted={onSessionDeleted}
               depth={depth + 1}
             />
@@ -3281,6 +3354,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   }
   if (prev.onSelectSession !== next.onSelectSession
     || prev.onRenamed !== next.onRenamed
+    || prev.onOptimisticRename !== next.onOptimisticRename
     || prev.onSessionDeleted !== next.onSessionDeleted) return false;
   return true;
 });
@@ -3371,6 +3445,7 @@ const SessionItem = memo(function SessionItem({
   exited,
   onClick,
   onRenamed,
+  onOptimisticRename,
   onDeleted,
   depth = 0,
   hasChildren = false,
@@ -3385,6 +3460,7 @@ const SessionItem = memo(function SessionItem({
   exited?: ExitedRpcSession;
   onClick: () => void;
   onRenamed?: () => void;
+  onOptimisticRename?: (id: string, name: string | null) => void;
   onDeleted?: (id: string) => void;
   depth?: number;
   hasChildren?: boolean;
@@ -3430,6 +3506,12 @@ const SessionItem = memo(function SessionItem({
     const name = renameValue.trim();
     setRenaming(false);
     if (name === (session.name ?? "")) return;
+    // Optimistic: the row shows the new name immediately, before the PATCH
+    // round-trip completes (it can be slow right after session start — the
+    // server serially awaits the omp set_session_name RPC, which queues
+    // behind the first turn, plus the host rename). The sidebar overlay
+    // persists across list re-fetches until the server name matches.
+    onOptimisticRename?.(session.id, name);
     try {
       const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
         method: "PATCH",
@@ -3439,9 +3521,11 @@ const SessionItem = memo(function SessionItem({
       if (!response.ok) throw new Error("Session rename failed");
       onRenamed?.();
     } catch {
-      // The next refresh remains authoritative if the rename fails.
+      // Revert: drop the optimistic name so the server-authoritative title
+      // (or the id-prefix fallback) shows again.
+      onOptimisticRename?.(session.id, null);
     }
-  }, [renameValue, session.id, session.name, onRenamed]);
+  }, [renameValue, session.id, session.name, onRenamed, onOptimisticRename]);
 
  const handleArchive = useCallback(async () => {
  setConfirmArchive(false);
@@ -3573,9 +3657,14 @@ const SessionItem = memo(function SessionItem({
       ) : (
         <>
           {depth > 0 && <GitBranch size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />}
+          {session.automation && (
+            <Tooltip content={t("sessionSidebar.automationSessionNamed", { name: session.automation })}>
+              <Clock size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />
+            </Tooltip>
+          )}
           <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", flex: 1, minWidth: 0 }}>
             <Tooltip content={title}>
-              <span style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: isSelected ? 600 : 500, lineHeight: 1.35, letterSpacing: "-0.005em" }}>
+              <span style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: "var(--session-name-weight, 500)", lineHeight: 1.35, letterSpacing: "-0.005em" }}>
               {title}
             </span>
             </Tooltip>

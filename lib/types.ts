@@ -450,6 +450,8 @@ export interface SessionInfo {
   projectKey?: string;
   /** Branch name when cwd is a linked git worktree (not the main checkout) */
   worktreeBranch?: string;
+  /** Name of the automation (prompt) task that created this session, if any. */
+  automation?: string;
 }
 
 /** Metadata for a gzip-compressed session in OMP's archive tree. */

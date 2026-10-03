@@ -6,6 +6,10 @@
 import type { ScheduleSpec } from "./schedule";
 export type SchedulerStatus = "ok" | "error" | "timeout" | "missed" | "skipped";
 
+/** "script" (default, backward compatible) runs a script path; "prompt"
+ * runs `omp -p <instructions>` against a model. */
+export type SchedulerKind = "script" | "prompt";
+
 export interface RunRecord {
   id: string;
   /** The scheduled slot time (for scheduled runs) or the manual trigger time. */
@@ -18,16 +22,41 @@ export interface RunRecord {
   late?: boolean;
   /** True for runs triggered by the user instead of the schedule. */
   manual?: boolean;
-  /** Bounded tails of the child output (last OUTPUT_TAIL_MAX chars each). */
+  /** Bounded tails of the child output (last OUTPUT_TAIL_MAX chars each).
+   *  Prompt-type runs capture only a small tail (model output is not
+   *  stored for display). */
   stdout?: string;
   stderr?: string;
+  /** Session created by this run (prompt-type, session mode). Lets the UI
+   *  link from the run log to the session and the sidebar mark it. */
+  sessionId?: string;
 }
 
 export interface SchedulerEntry {
   id: string;
   name: string;
-  script: string;
+  /** Entry kind. Absent on entries written before prompts existed —
+   *  treated as "script". */
+  kind: SchedulerKind;
+  /** Script path (required when kind is "script"; absent for prompts). */
+  script?: string;
   args: string[];
+  /** Prompt type: instructions text sent on every run. */
+  prompt?: string;
+  /** Prompt type: provider for the model (undefined = default). */
+  provider?: string;
+  /** Prompt type: model id (undefined = default). */
+  modelId?: string;
+  /** Session mode: the persistent session this automation resumes. Set after
+   *  the first successful run; cleared runs create a new one each time. */
+  sessionId?: string;
+  /** Prompt type: run in OMP no-session mode (ephemeral, no session file). */
+  noSession?: boolean;
+  /** Prompt type: clear the session context before the prompt is sent. */
+  clearContext?: boolean;
+  /** Prompt type: compact the session context before the prompt is sent.
+   *  Mutually exclusive with clearContext (UI + validation). */
+  compactContext?: boolean;
   schedule: ScheduleSpec;
   enabled: boolean;
   timeoutMs: number;

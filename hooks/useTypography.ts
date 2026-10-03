@@ -45,6 +45,9 @@ export interface TypographyConfig {
    *  the app's UI font sizes (NOT the chat content, which is driven by
    *  --chat-font-size). */
   uiFontScaleSm: number;
+  /** Font weight for session names in the sidebar Workspaces section
+   *  (300..800 in steps of 100). 500 = default. */
+  sessionNameWeight: number;
 }
 
 const STORAGE_KEY = "omp-typography-config";
@@ -60,6 +63,7 @@ const DEFAULT_CONFIG: TypographyConfig = {
   chatFontSize: 14,
   uiFontScaleLg: 1,
   uiFontScaleSm: 1,
+  sessionNameWeight: 500,
 };
 
 /** Migrate a single legacy `uiFontScale` value (pre-split) to a per-scale
@@ -90,6 +94,10 @@ function getClientSnapshot(): TypographyConfig {
             typeof parsed.uiFontScaleSm === "number" && parsed.uiFontScaleSm > 0
               ? parsed.uiFontScaleSm
               : parseLegacyScale(parsed.uiFontScale),
+          sessionNameWeight:
+            typeof parsed.sessionNameWeight === "number" && parsed.sessionNameWeight >= 300 && parsed.sessionNameWeight <= 800
+              ? parsed.sessionNameWeight
+              : 500,
         };
       }
     } catch {}
@@ -111,6 +119,7 @@ function applyTypographyToDom(config: TypographyConfig) {
   root.style.setProperty("--chat-line-height", `${Math.round(config.chatFontSize * 1.65)}px`);
   root.style.setProperty("--ui-font-scale-lg", String(config.uiFontScaleLg));
   root.style.setProperty("--ui-font-scale-sm", String(config.uiFontScaleSm));
+  root.style.setProperty("--session-name-weight", String(config.sessionNameWeight));
   root.setAttribute("data-font-preset", config.fontPreset);
 }
 
@@ -146,16 +155,22 @@ export function useTypography() {
     updateTypography({ uiFontScaleSm: scale });
   }, [updateTypography]);
 
+  const setSessionNameWeight = useCallback((weight: number) => {
+    updateTypography({ sessionNameWeight: weight });
+  }, [updateTypography]);
+
   return {
     config,
     fontPreset: config.fontPreset,
     chatFontSize: config.chatFontSize,
     uiFontScaleLg: config.uiFontScaleLg,
     uiFontScaleSm: config.uiFontScaleSm,
+    sessionNameWeight: config.sessionNameWeight,
     setFontPreset,
     setChatFontSize,
     setUiFontScaleLg,
     setUiFontScaleSm,
+    setSessionNameWeight,
     updateTypography,
   };
 }

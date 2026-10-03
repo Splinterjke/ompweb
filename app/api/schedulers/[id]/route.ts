@@ -35,7 +35,8 @@ export async function GET(
 }
 
 // PATCH /api/schedulers/[id]
-// body: { name?, script?, args?, schedule?, enabled?, timeoutMs? }
+// body: { name?, kind?, script?, args?, prompt?, provider?, modelId?,
+//         noSession?, clearContext?, compactContext?, schedule?, enabled?, timeoutMs? }
 // Any subset; schedule/script are re-validated. Changing the schedule resets
 // nextRunAt to the next slot. Toggling enabled off clears nextRunAt.
 export async function PATCH(
@@ -47,8 +48,15 @@ export async function PATCH(
   try {
     const body = await parseJsonWithinLimit<{
       name?: unknown;
+      kind?: unknown;
       script?: unknown;
       args?: unknown;
+      prompt?: unknown;
+      provider?: unknown;
+      modelId?: unknown;
+      noSession?: unknown;
+      clearContext?: unknown;
+      compactContext?: unknown;
       schedule?: unknown;
       enabled?: unknown;
       timeoutMs?: unknown;
@@ -78,8 +86,15 @@ export async function PATCH(
       id,
       {
         name: typeof body.name === "string" ? body.name : undefined,
+        kind: body.kind === "prompt" ? "prompt" : body.kind === "script" ? "script" : undefined,
         script: typeof body.script === "string" ? body.script : undefined,
         args: Array.isArray(body.args) ? body.args.filter((a): a is string => typeof a === "string") : undefined,
+        prompt: typeof body.prompt === "string" ? body.prompt : undefined,
+        provider: typeof body.provider === "string" ? body.provider : undefined,
+        modelId: typeof body.modelId === "string" ? body.modelId : undefined,
+        noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
+        clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,
+        compactContext: typeof body.compactContext === "boolean" ? body.compactContext : undefined,
         schedule,
         enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
         timeoutMs: typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,

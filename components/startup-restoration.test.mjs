@@ -23,7 +23,7 @@ test("boot skeleton stays React-owned while routes request dismissal", () => {
 
 test("sidebar restores the remembered session before choosing an empty workspace", () => {
   assert.match(sidebar, /getLastOpenSession/);
-  assert.match(sidebar, /const rememberedSessionId = initialSessionId \|\| \(defaultWorkspace \? getLastOpenSession\(defaultWorkspace\) : null\)/);
+  assert.match(sidebar, /const rememberedSessionId = initialSessionId \|\| getLastOpenSessionGlobal\(\) \|\| \(defaultWorkspace \? getLastOpenSession\(defaultWorkspace\) : null\)/);
   assert.match(sidebar, /if \(restoredRef\.current \|\| loading \|\| !projectsLoadedRef\.current\) return;/);
   assert.match(sidebar, /stale remembered id must fall through/);
   assert.match(sidebar, /mostRecentSessionForWorkspace/);

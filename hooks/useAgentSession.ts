@@ -714,8 +714,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [entryIds, setEntryIds] = useState<string[]>([]);
   const [showPreCompactionHistory, setShowPreCompactionHistory] = useState(false);
+  const [historyToggling, setHistoryToggling] = useState(false);
   const [streamState, dispatch] = useReducer(streamReducer, { isStreaming: false, streamingMessage: null });
   const [agentRunning, setAgentRunning] = useState(false);
+  /** True from prompt dispatch until the turn visibly starts (agent_start / first stream frame). */
+  const [turnStarting, setTurnStarting] = useState(false);
   const [bashRunning, setBashRunning] = useState(false);
   const [pendingBash, setPendingBash] = useState<{ command: string; excludeFromContext: boolean } | null>(null);
   // False once this hook instance unmounts: background loops (prompt/bash
@@ -1357,11 +1360,16 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, []);
 
-  const togglePreCompactionHistory = useCallback(() => {
+  const togglePreCompactionHistory = useCallback(async () => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
-    void loadContext(sid, activeLeafId, !showPreCompactionHistory);
-  }, [activeLeafId, loadContext, showPreCompactionHistory]);
+    if (!sid || historyToggling) return;
+    setHistoryToggling(true);
+    try {
+      await loadContext(sid, activeLeafId, !showPreCompactionHistory);
+    } finally {
+      setHistoryToggling(false);
+    }
+  }, [activeLeafId, loadContext, showPreCompactionHistory, historyToggling]);
 
   const promoteNewSession = useCallback((messageCount = 0, firstMessage?: string) => {
     firstMessage ??= translate("agentSession.noMessages");
@@ -1983,8 +1991,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (!agentRunningRef.current) return;
       agentRunningRef.current = false;
       setAgentRunning(false);
+      setTurnStarting(false);
       setAgentPhase(null);
-      clearLiveToolResults();
       setRetryInfo(null);
       setSubagents([]);
       setAdvisorActiveAt(0);
@@ -2324,6 +2332,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         interruptReplyPendingRef.current = false;
         agentRunningRef.current = true;
         setAgentRunning(true);
+        setTurnStarting(false);
         setAgentPhase({ kind: "waiting_model" });
         clearLiveToolResults();
         dispatch({ type: "start" });
@@ -2348,6 +2357,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         const endedRunId = promptRunIdRef.current;
         agentRunningRef.current = false;
         setAgentRunning(false);
+        setTurnStarting(false);
         setAgentPhase(null);
         clearLiveToolResults();
         // 运行在自动重试进行中结束（重试耗尽或中止）——正常完成路径会先收
@@ -2403,6 +2413,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // no agent_start/agent_end pair will follow.
         if (event.agentInvoked !== false) break;
         if (!agentRunningRef.current) break;
+        setTurnStarting(false);
         // Fence with the current run id like agent_end does: the reload below
         // is async, and a prompt that starts while it is in flight must not be
         // overwritten by this finished run's snapshot.
@@ -2499,6 +2510,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // (e.g. SSE data buffered while the tab was frozen, flushed after
         // reconcile) — they would resurrect a ghost streaming bubble.
         if (!agentRunningRef.current) break;
+        setTurnStarting(false);
         const msg = event.message as Partial<AgentMessage> | undefined;
         if (msg?.role === "user") {
           break;
@@ -2561,6 +2573,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         break;
       }
       case "tool_execution_start": {
+        setTurnStarting(false);
         const id = event.toolCallId as string;
         const name = event.toolName as string;
         // Seed the live entry immediately: the row must show a running tool
@@ -2827,8 +2840,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     agentRunningRef.current = true;
     clearLiveToolResults();
     setAgentRunning(true);
+    setTurnStarting(true);
     setAgentPhase(isSlashCommandPrompt ? { kind: "running_command" } : { kind: "waiting_model" });
-    setAdvisorActiveAt(0);
     dispatch({ type: "start" });
     pendingScrollToUserRef.current = true;
     completionScrollAllowedRef.current = true;
@@ -2938,8 +2951,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       optimisticUserMessageKeyRef.current = null;
       agentRunningRef.current = false;
       setAgentRunning(false);
+      setTurnStarting(false);
       setAgentPhase(null);
-      clearLiveToolResults();
       dispatch({ type: "end" });
       return false;
     }
@@ -3915,7 +3928,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   return {
     // State
     data, loading, error, activeLeafId, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
+    agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
     liveModelMeta,
     retryInfo, contextUsage, systemPrompt, forkingEntryId, modelSwitching,
     isCompacting, compactError, compactResult, tokensPerSecond, currentModel, displayModel, isAutoModelSelection: !displayModel, sessionStats, agentPhase,

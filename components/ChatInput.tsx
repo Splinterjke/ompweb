@@ -66,6 +66,10 @@ interface Props {
   onFollowUp?: (message: string, images?: AttachedImage[]) => void;
   onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void;
   isStreaming: boolean;
+  /** True while a prompt is in flight but the turn has not visibly started
+   *  yet (session spawn / first stream frame) — shows the loading state
+   *  between Send and Stop. */
+  sendPending?: boolean;
   modelSwitching?: boolean;
   model?: { provider: string; modelId: string } | null;
   isAutoModelSelection?: boolean;
@@ -427,7 +431,7 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
 }
 
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
-  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, fastModeSupported, onFastModeChange,
+  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, fastModeSupported, onFastModeChange,
   onAbortCompaction, isCompacting, compactResult,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap, modelNameOverride,
   retryInfo, queuedMessages, inputHistory = [], onAbortRetry,
@@ -3242,6 +3246,29 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               >
                 <ListChecks size={13} strokeWidth={2} aria-hidden="true" />
                 {t("chatInput.queue")}
+              </button>
+              </Tooltip>
+            ) : sendPending ? (
+              <Tooltip content={t("chatInput.stopAgent")}>
+                <button
+                type="button"
+                onClick={onAbort}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  height: 28,
+                  padding: "0 14px",
+                  background: "var(--accent-strong)",
+                  border: "none",
+                  borderRadius: 8,
+                  color: "var(--on-accent)",
+                  cursor: "pointer",
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                  fontWeight: 600,
+                  transition: "background var(--dur-fast) var(--ease-out-warm)",
+                }}
+              >
+                <Loader2 size={12} strokeWidth={2} className="animate-spin" aria-hidden="true" />
+                {t("chatInput.sending")}
               </button>
               </Tooltip>
             ) : isStreaming ? (

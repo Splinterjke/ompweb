@@ -4,7 +4,7 @@ import { sendAgentCommand } from "@/lib/agent-client";
 import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ChevronDown } from "lucide-react";
+import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
@@ -614,7 +614,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, bashRunning, pendingBash, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive,
+    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, liveToolResults,
     modelSwitching,
@@ -1198,6 +1198,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onFollowUp={agentRunning ? handleFollowUp : undefined}
       onPromptWithStreamingBehavior={agentRunning ? handlePromptWithStreamingBehavior : undefined}
       isStreaming={sessionBusy}
+      sendPending={turnStarting}
       modelSwitching={modelSwitching}
       model={displayModelValue}
       isAutoModelSelection={isAutoModelSelection}
@@ -1381,11 +1382,15 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 <button
                   type="button"
                   onClick={togglePreCompactionHistory}
+                  disabled={historyToggling}
                   style={{
                     flexShrink: 0, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)",
-                    background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                    background: "var(--bg)", color: "var(--text)", cursor: historyToggling ? "wait" : "pointer",
+                    fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                    display: "inline-flex", alignItems: "center", gap: 6,
                   }}
                 >
+                  {historyToggling && <Loader2 size={12} strokeWidth={2} className="icon-spin" aria-hidden="true" />}
                   {showPreCompactionHistory ? t("chatWindow.returnToCompactHistory") : t("chatWindow.viewPreCompactionHistory")}
                 </button>
               </div>

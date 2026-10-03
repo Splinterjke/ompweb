@@ -241,6 +241,54 @@ export function TextInput({
   );
 }
 
+/* ─── Textarea ─── */
+
+interface TextareaProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+  invalid?: boolean;
+  error?: string | null;
+  disabled?: boolean;
+  id?: string;
+}
+
+export function Textarea({
+  value,
+  onChange,
+  placeholder,
+  rows = 4,
+  invalid,
+  error,
+  disabled,
+  id,
+}: TextareaProps) {
+  const [focused, setFocused] = useState(false);
+  const isInvalid = Boolean(invalid || error);
+  return (
+    <textarea
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      disabled={disabled}
+      aria-invalid={isInvalid || undefined}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        ...inputShellStyle({ invalid: isInvalid }),
+        ...focusGlowStyle(focused, isInvalid),
+        resize: "vertical",
+        minHeight: 48,
+        lineHeight: 1.5,
+        opacity: disabled ? 0.6 : 1,
+      }}
+    />
+  );
+}
+
 /* ─── Number input ─── */
 
 interface NumInputProps {
@@ -381,10 +429,12 @@ export function SecretInput({
 
 /* ─── Select ─── */
 
+type SelectOption = string | { value: string; label: string };
+
 interface SelectProps {
   value: string;
   onChange: (v: string) => void;
-  options: readonly string[];
+  options: readonly SelectOption[];
   required?: boolean;
   placeholder?: string;
   invalid?: boolean;
@@ -427,11 +477,14 @@ export function Select({
       }}
     >
       {!required && <option value="">{placeholder ?? ""}</option>}
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
+      {options.map((o) => {
+        const opt = typeof o === "string" ? { value: o, label: o } : o;
+        return (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        );
+      })}
     </select>
     <svg
       width="10"

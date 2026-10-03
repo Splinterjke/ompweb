@@ -141,8 +141,15 @@ export interface NativeSettingsClient {
 /** Create/update input for a scheduler entry (subset of the entry fields). */
 export interface SchedulerInput {
   name?: string;
-  script: string;
+  kind?: "script" | "prompt";
+  script?: string;
   args?: string[];
+  prompt?: string;
+  provider?: string;
+  modelId?: string;
+  noSession?: boolean;
+  clearContext?: boolean;
+  compactContext?: boolean;
   schedule: ScheduleSpec;
   enabled?: boolean;
   timeoutMs?: number;
@@ -150,8 +157,15 @@ export interface SchedulerInput {
 /** Partial update for PATCH /api/schedulers/[id] — any subset of the fields. */
 export interface SchedulerPatch {
   name?: string;
+  kind?: "script" | "prompt";
   script?: string;
   args?: string[];
+  prompt?: string;
+  provider?: string;
+  modelId?: string;
+  noSession?: boolean;
+  clearContext?: boolean;
+  compactContext?: boolean;
   schedule?: ScheduleSpec;
   enabled?: boolean;
   timeoutMs?: number;

@@ -43,6 +43,7 @@ import type { SubagentInfo } from "@/hooks/useAgentSession";
 import { runHostTool } from "@/hooks/useAgentSession";
 import { sendAgentCommand } from "@/lib/agent-client";
 import type { SettingsTab } from "./SettingsTabs";
+import { SETTINGS_CATEGORIES, getNormalizedActive } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
 import { ArchiveBrowser } from "./ArchiveBrowser";
 import { GitGraphModal } from "./GitGraphModal";
@@ -110,6 +111,20 @@ function loadSidebarWidth(): number {
   } catch {
     return SIDEBAR_DEFAULT_WIDTH;
   }
+}
+
+const SETTINGS_TAB_STORAGE_KEY = "omp-web:settings-tab";
+/** Last active Settings tab (persisted so Settings reopens on the tab the
+ *  user left it on). Falls back to "general" when nothing is stored. */
+function loadPersistedSettingsTab(): SettingsTab {
+  if (typeof window === "undefined") return "general";
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_TAB_STORAGE_KEY);
+    if (raw && SETTINGS_CATEGORIES.some((c) => c.id === raw)) return raw as SettingsTab;
+  } catch {
+    /* ignore storage quota / privacy-mode errors */
+  }
+  return "general";
 }
 const CommandPalette = dynamic(() => import("./CommandPalette").then((m) => m.CommandPalette), {
   ssr: false,
@@ -181,6 +196,16 @@ export function AppShell() {
   const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
   const [explorerRefreshing, setExplorerRefreshing] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
+  // Persist the active Settings tab so Settings reopens on the tab the user
+  // left it on. Only the non-null (open) value is stored.
+  useEffect(() => {
+    if (settingsTab === null) return;
+    try {
+      window.localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, getNormalizedActive(settingsTab));
+    } catch {
+      /* ignore storage quota / privacy-mode errors */
+    }
+  }, [settingsTab]);
   const [archiveBrowserOpen, setArchiveBrowserOpen] = useState(false);
   const [modelsRefreshKey, setModelsRefreshKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -1709,7 +1734,7 @@ export function AppShell() {
         onServerRestarted={handleServerRestarted}
         onUiUpdated={handleUiUpdated}
         onChatEventAction={handleChatEventAction}
-        onOpenSettings={() => setSettingsTab("general")}
+        onOpenSettings={() => setSettingsTab(loadPersistedSettingsTab())}
         onOpenGitGraph={handleOpenGitGraph}
         onOpenRemote={() => setSettingsTab("remote")}
         onOpenArchive={() => setArchiveBrowserOpen(true)}

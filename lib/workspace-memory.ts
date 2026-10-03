@@ -1,6 +1,10 @@
 import type { SessionInfo } from "./types";
 
 const STORAGE_KEY = "omp-web:last-open-by-project";
+/** Globally most-recently-opened session (across all workspaces), so a
+ *  refresh reopens the session the user was actually looking at, not just
+ *  the remembered one of the default workspace. */
+const GLOBAL_KEY = "omp-web:last-open-session";
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -72,5 +76,39 @@ export function clearLastOpenSession(workspace: string, storage: StorageLike | n
     else storage.setItem(STORAGE_KEY, JSON.stringify(entries));
   } catch {
     // Workspace restoration is a best-effort convenience.
+  }
+}
+
+/** Globally most-recently-opened session id (across workspaces). Written on
+ *  every selection; consulted first on restore so a refresh reopens the
+ *  session the user was actually looking at, in whatever workspace it lives. */
+export function setLastOpenSessionGlobal(sessionId: string, storage: StorageLike | null = browserStorage()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(GLOBAL_KEY, sessionId);
+  } catch {
+    // Best-effort convenience.
+  }
+}
+
+export function getLastOpenSessionGlobal(storage: StorageLike | null = browserStorage()): string | null {
+  if (!storage) return null;
+  try {
+    const id = storage.getItem(GLOBAL_KEY);
+    return id && id.length > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Delete the global pointer; with `staleId`, only when it still holds that
+ *  id (a newer selection in the meantime must not be clobbered). */
+export function clearLastOpenSessionGlobal(staleId?: string, storage: StorageLike | null = browserStorage()): void {
+  if (!storage) return;
+  try {
+    const current = storage.getItem(GLOBAL_KEY);
+    if (staleId === undefined || current === staleId) storage.removeItem(GLOBAL_KEY);
+  } catch {
+    // Best-effort convenience.
   }
 }

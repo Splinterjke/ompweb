@@ -21,24 +21,40 @@ export async function GET() {
 }
 
 // POST /api/schedulers
-// body: { name?, script, args?, schedule, enabled?, timeoutMs? }
-// Validates the schedule and the script path (exists + regular file; .sh via
-// bash, others must be executable), then creates the entry. 400 on any
-// validation failure with a stable `code`.
+// body (script): { name?, script, args?, schedule, enabled?, timeoutMs? }
+// body (prompt): { name?, kind: "prompt", prompt, provider?, modelId?,
+//                  noSession?, clearContext?, compactContext?, schedule, enabled?, timeoutMs? }
+// Script entries validate the script path (exists + regular file; .sh via
+// bash, others must be executable). Prompt entries validate the prompt text
+// (non-empty) and the clear/compact mutual exclusion. 400 on any validation
+// failure with a stable `code`.
 export async function POST(req: Request) {
   try {
     const body = await parseJsonWithinLimit<{
       name?: unknown;
+      kind?: unknown;
       script?: unknown;
       args?: unknown;
+      prompt?: unknown;
+      provider?: unknown;
+      modelId?: unknown;
+      noSession?: unknown;
+      clearContext?: unknown;
+      compactContext?: unknown;
       schedule?: unknown;
       enabled?: unknown;
       timeoutMs?: unknown;
     }>(req, MAX_REQUEST_BYTES);
 
-    const scriptCheck = validateScriptPath(typeof body.script === "string" ? body.script : "");
-    if (!scriptCheck.ok) {
-      return NextResponse.json({ error: scriptCheck.error, code: scriptCheck.error }, { status: 400 });
+    const kind = body.kind === "prompt" ? "prompt" : "script";
+
+    let scriptPath: string | undefined;
+    if (kind === "script") {
+      const scriptCheck = validateScriptPath(typeof body.script === "string" ? body.script : "");
+      if (!scriptCheck.ok) {
+        return NextResponse.json({ error: scriptCheck.error, code: scriptCheck.error }, { status: 400 });
+      }
+      scriptPath = scriptCheck.path;
     }
 
     let schedule;
@@ -51,11 +67,18 @@ export async function POST(req: Request) {
       throw err;
     }
 
-    const args = Array.isArray(body.args) ? body.args.filter((a): a is string => typeof a === "string") : [];
+    const args = kind === "script" && Array.isArray(body.args) ? body.args.filter((a): a is string => typeof a === "string") : [];
     const { file, entry } = createSchedulerEntry({
       name: typeof body.name === "string" ? body.name : undefined,
-      script: scriptCheck.path,
+      kind,
+      script: scriptPath,
       args,
+      prompt: typeof body.prompt === "string" ? body.prompt : undefined,
+      provider: typeof body.provider === "string" && body.provider ? body.provider : undefined,
+      modelId: typeof body.modelId === "string" && body.modelId ? body.modelId : undefined,
+      noSession: typeof body.noSession === "boolean" ? body.noSession : undefined,
+      clearContext: typeof body.clearContext === "boolean" ? body.clearContext : undefined,
+      compactContext: typeof body.compactContext === "boolean" ? body.compactContext : undefined,
       schedule,
       enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
       timeoutMs: typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,

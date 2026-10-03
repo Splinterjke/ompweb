@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-02T15:59:10.260Z",
+  "generatedAt": "2026-10-03T02:00:13.119Z",
   "totals": {
-    "files": 36,
-    "calls": 169,
-    "http": 159,
+    "files": 37,
+    "calls": 170,
+    "http": 160,
     "sse": 10,
-    "read": 82,
+    "read": 83,
     "write": 87
   },
   "domains": {
@@ -30,7 +30,7 @@
     "web-auth": 1,
     "mcp": 5,
     "models-config": 4,
-    "models": 2,
+    "models": 3,
     "auth": 6,
     "providers": 1,
     "proxy": 2,
@@ -114,7 +114,7 @@
       "file": "components/AppShell.tsx",
       "calls": [
         {
-          "line": 214,
+          "line": 240,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -123,7 +123,7 @@
           "stream": false
         },
         {
-          "line": 626,
+          "line": 668,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -132,7 +132,7 @@
           "stream": false
         },
         {
-          "line": 650,
+          "line": 693,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-version",
@@ -141,7 +141,7 @@
           "stream": false
         },
         {
-          "line": 663,
+          "line": 706,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/app-update",
@@ -150,7 +150,7 @@
           "stream": false
         },
         {
-          "line": 1046,
+          "line": 1089,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/cwd/validate",
@@ -159,7 +159,7 @@
           "stream": false
         },
         {
-          "line": 1129,
+          "line": 1172,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions",
@@ -168,7 +168,7 @@
           "stream": false
         },
         {
-          "line": 1175,
+          "line": 1218,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}",
@@ -177,7 +177,7 @@
           "stream": false
         },
         {
-          "line": 1260,
+          "line": 1303,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}",
@@ -186,7 +186,7 @@
           "stream": false
         },
         {
-          "line": 1285,
+          "line": 1328,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/sessions/{param}/auto-name",
@@ -195,7 +195,7 @@
           "stream": false
         },
         {
-          "line": 1359,
+          "line": 1402,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions",
@@ -204,7 +204,7 @@
           "stream": false
         },
         {
-          "line": 1450,
+          "line": 1493,
           "kind": "sse",
           "method": "GET",
           "endpoint": "/api/agent/host-tools/events",
@@ -213,7 +213,7 @@
           "stream": true
         },
         {
-          "line": 1477,
+          "line": 1520,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/plan",
@@ -222,7 +222,7 @@
           "stream": false
         },
         {
-          "line": 1557,
+          "line": 1623,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/git/status",
@@ -231,7 +231,7 @@
           "stream": false
         },
         {
-          "line": 1598,
+          "line": 1664,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/app-update",
@@ -381,7 +381,7 @@
       "file": "components/ChatInput.tsx",
       "calls": [
         {
-          "line": 478,
+          "line": 484,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/pair/devices",
@@ -390,7 +390,7 @@
           "stream": false
         },
         {
-          "line": 962,
+          "line": 968,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/skills",
@@ -399,7 +399,7 @@
           "stream": false
         },
         {
-          "line": 1075,
+          "line": 1081,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/file-index",
@@ -408,7 +408,7 @@
           "stream": false
         },
         {
-          "line": 1135,
+          "line": 1141,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/file-index",
@@ -422,7 +422,7 @@
       "file": "components/ChatWindow.tsx",
       "calls": [
         {
-          "line": 1185,
+          "line": 1153,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/model-roles",
@@ -1030,10 +1030,24 @@
       ]
     },
     {
+      "file": "components/SchedulerModal.tsx",
+      "calls": [
+        {
+          "line": 141,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/models",
+          "domain": "models",
+          "rw": "read",
+          "stream": false
+        }
+      ]
+    },
+    {
       "file": "components/SessionSidebar.tsx",
       "calls": [
         {
-          "line": 776,
+          "line": 787,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions",
@@ -1042,7 +1056,7 @@
           "stream": false
         },
         {
-          "line": 818,
+          "line": 829,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/projects",
@@ -1051,7 +1065,7 @@
           "stream": false
         },
         {
-          "line": 892,
+          "line": 903,
           "kind": "sse",
           "method": "GET",
           "endpoint": "/api/agent/running/events",
@@ -1060,7 +1074,7 @@
           "stream": true
         },
         {
-          "line": 996,
+          "line": 1007,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/home",
@@ -1069,7 +1083,7 @@
           "stream": false
         },
         {
-          "line": 1110,
+          "line": 1121,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/worktrees",
@@ -1078,7 +1092,7 @@
           "stream": false
         },
         {
-          "line": 1433,
+          "line": 1470,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/projects",
@@ -1087,7 +1101,7 @@
           "stream": false
         },
         {
-          "line": 1457,
+          "line": 1494,
           "kind": "http",
           "method": "PATCH",
           "endpoint": "/api/projects",
@@ -1096,7 +1110,7 @@
           "stream": false
         },
         {
-          "line": 1469,
+          "line": 1506,
           "kind": "http",
           "method": "PATCH",
           "endpoint": "/api/projects",
@@ -1105,7 +1119,7 @@
           "stream": false
         },
         {
-          "line": 1511,
+          "line": 1548,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/projects",
@@ -1114,7 +1128,7 @@
           "stream": false
         },
         {
-          "line": 1546,
+          "line": 1583,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/worktrees",
@@ -1123,7 +1137,7 @@
           "stream": false
         },
         {
-          "line": 1588,
+          "line": 1625,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/worktrees",
@@ -1132,7 +1146,7 @@
           "stream": false
         },
         {
-          "line": 1661,
+          "line": 1704,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/sessions/import",
@@ -1141,7 +1155,7 @@
           "stream": false
         },
         {
-          "line": 2444,
+          "line": 2504,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/git/status",
@@ -1150,7 +1164,7 @@
           "stream": false
         },
         {
-          "line": 2474,
+          "line": 2534,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/reveal",
@@ -1159,7 +1173,7 @@
           "stream": false
         },
         {
-          "line": 3434,
+          "line": 3516,
           "kind": "http",
           "method": "PATCH",
           "endpoint": "/api/sessions/{param}",
@@ -1168,7 +1182,7 @@
           "stream": false
         },
         {
-          "line": 3450,
+          "line": 3534,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/sessions/{param}/archive",
@@ -1177,7 +1191,7 @@
           "stream": false
         },
         {
-          "line": 3463,
+          "line": 3547,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/sessions/{param}",
@@ -1186,7 +1200,7 @@
           "stream": false
         },
         {
-          "line": 3477,
+          "line": 3561,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}",
@@ -1200,7 +1214,7 @@
       "file": "components/SettingsConfig.tsx",
       "calls": [
         {
-          "line": 445,
+          "line": 446,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1209,7 +1223,7 @@
           "stream": false
         },
         {
-          "line": 455,
+          "line": 456,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1218,7 +1232,7 @@
           "stream": false
         },
         {
-          "line": 690,
+          "line": 692,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -1227,7 +1241,7 @@
           "stream": false
         },
         {
-          "line": 713,
+          "line": 715,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -1236,7 +1250,7 @@
           "stream": false
         },
         {
-          "line": 765,
+          "line": 767,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1245,7 +1259,7 @@
           "stream": false
         },
         {
-          "line": 814,
+          "line": 816,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1254,7 +1268,7 @@
           "stream": false
         },
         {
-          "line": 833,
+          "line": 835,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1483,7 +1497,7 @@
       "file": "hooks/useAgentSession.ts",
       "calls": [
         {
-          "line": 1009,
+          "line": 1012,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}/advisor",
@@ -1492,7 +1506,7 @@
           "stream": false
         },
         {
-          "line": 1025,
+          "line": 1028,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/agent/{param}/advisor",
@@ -1501,7 +1515,7 @@
           "stream": false
         },
         {
-          "line": 1067,
+          "line": 1070,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/plan",
@@ -1510,7 +1524,7 @@
           "stream": false
         },
         {
-          "line": 1085,
+          "line": 1088,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/subagents",
@@ -1519,7 +1533,7 @@
           "stream": false
         },
         {
-          "line": 1192,
+          "line": 1195,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/state",
@@ -1528,7 +1542,7 @@
           "stream": false
         },
         {
-          "line": 1229,
+          "line": 1232,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}",
@@ -1537,7 +1551,7 @@
           "stream": false
         },
         {
-          "line": 1281,
+          "line": 1284,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/state",
@@ -1546,7 +1560,7 @@
           "stream": false
         },
         {
-          "line": 1392,
+          "line": 1400,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/agent/new",
@@ -1555,7 +1569,7 @@
           "stream": false
         },
         {
-          "line": 1487,
+          "line": 1495,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/state",
@@ -1564,7 +1578,7 @@
           "stream": false
         },
         {
-          "line": 2017,
+          "line": 2025,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1573,7 +1587,7 @@
           "stream": false
         },
         {
-          "line": 2044,
+          "line": 2052,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1582,7 +1596,7 @@
           "stream": false
         },
         {
-          "line": 2074,
+          "line": 2082,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1591,7 +1605,7 @@
           "stream": false
         },
         {
-          "line": 2167,
+          "line": 2175,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1600,7 +1614,7 @@
           "stream": false
         },
         {
-          "line": 2188,
+          "line": 2196,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1609,7 +1623,7 @@
           "stream": false
         },
         {
-          "line": 2374,
+          "line": 2384,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1618,7 +1632,7 @@
           "stream": false
         },
         {
-          "line": 2464,
+          "line": 2475,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/agent/{param}",
@@ -1627,7 +1641,7 @@
           "stream": false
         },
         {
-          "line": 2897,
+          "line": 2910,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1636,7 +1650,7 @@
           "stream": false
         },
         {
-          "line": 3631,
+          "line": 3644,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/sessions/{param}/state",

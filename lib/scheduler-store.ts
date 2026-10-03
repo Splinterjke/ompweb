@@ -3,10 +3,10 @@ import { homedir } from "os";
 import path from "path";
 import { getAgentDir } from "./omp/paths";
 import { humanizeSchedule, nextRunAfter, validateSchedule, type ScheduleSpec } from "./schedule";
-import type { SchedulerEntry, SchedulerFile, RunRecord, SchedulerStatus } from "./scheduler-types";
+import type { SchedulerEntry, SchedulerFile, RunRecord, SchedulerStatus, SchedulerKind } from "./scheduler-types";
 
 // Re-exported so existing server-side imports keep working.
-export type { SchedulerEntry, SchedulerFile, RunRecord, SchedulerStatus } from "./scheduler-types";
+export type { SchedulerEntry, SchedulerFile, RunRecord, SchedulerStatus, SchedulerKind } from "./scheduler-types";
 
 export const MIN_TIMEOUT_MS = 5_000;
 export const OUTPUT_TAIL_MAX = 262_144;
@@ -68,7 +68,9 @@ function normalizeEntry(item: unknown): SchedulerEntry | null {
   const e = item as Record<string, unknown>;
   if (typeof e.id !== "string" || !ID_RE.test(e.id)) return null;
   if (typeof e.name !== "string" || !e.name.trim()) return null;
-  if (typeof e.script !== "string" || !e.script.trim()) return null;
+  const kind: SchedulerKind = e.kind === "prompt" ? "prompt" : "script";
+  if (kind === "script" && (typeof e.script !== "string" || !e.script.trim())) return null;
+  if (kind === "prompt" && (typeof e.prompt !== "string" || !e.prompt.trim())) return null;
   try {
     const schedule = validateSchedule(e.schedule);
     const args = Array.isArray(e.args) ? e.args.filter((a): a is string => typeof a === "string") : [];
@@ -83,8 +85,16 @@ function normalizeEntry(item: unknown): SchedulerEntry | null {
     return {
       id: e.id,
       name: e.name,
-      script: e.script,
+      kind,
+      script: kind === "script" ? (e.script as string) : undefined,
       args,
+      prompt: kind === "prompt" ? (e.prompt as string) : undefined,
+      provider: typeof e.provider === "string" && e.provider ? e.provider : undefined,
+      modelId: typeof e.modelId === "string" && e.modelId ? e.modelId : undefined,
+      noSession: kind === "prompt" && typeof e.noSession === "boolean" ? e.noSession : undefined,
+      clearContext: kind === "prompt" && typeof e.clearContext === "boolean" ? e.clearContext : undefined,
+      compactContext: kind === "prompt" && typeof e.compactContext === "boolean" && !e.clearContext ? e.compactContext : undefined,
+      sessionId: kind === "prompt" && !e.noSession && typeof e.sessionId === "string" && e.sessionId ? e.sessionId : undefined,
       schedule,
       enabled,
       timeoutMs,
@@ -116,6 +126,7 @@ function normalizeRun(item: unknown): RunRecord | null {
     manual: typeof r.manual === "boolean" ? r.manual : undefined,
     stdout: typeof r.stdout === "string" ? r.stdout.slice(-OUTPUT_TAIL_MAX) : undefined,
     stderr: typeof r.stderr === "string" ? r.stderr.slice(-OUTPUT_TAIL_MAX) : undefined,
+    sessionId: typeof r.sessionId === "string" && r.sessionId ? r.sessionId : undefined,
   };
 }
 
@@ -143,8 +154,16 @@ export function saveSchedulerFile(file: SchedulerFile): void {
 
 export interface CreateSchedulerInput {
   name?: string;
-  script: string;
+  /** "prompt" entries run `omp -p <prompt>`; "script" (default) runs a script path. */
+  kind?: SchedulerKind;
+  script?: string;
   args?: string[];
+  prompt?: string;
+  provider?: string;
+  modelId?: string;
+  noSession?: boolean;
+  clearContext?: boolean;
+  compactContext?: boolean;
   schedule: ScheduleSpec;
   enabled?: boolean;
   timeoutMs?: number;
@@ -153,10 +172,23 @@ export interface CreateSchedulerInput {
   now?: Date;
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 export function createSchedulerEntry(input: CreateSchedulerInput): { file: SchedulerFile; entry: SchedulerEntry } {
   const now = input.now ?? new Date();
   const file = loadSchedulerFile();
-  const name = (input.name ?? "").trim() || path.basename(input.script);
+  const kind: SchedulerKind = input.kind === "prompt" ? "prompt" : "script";
+  if (kind === "prompt" && !(input.prompt ?? "").trim()) throw schedulerError("instructions_required");
+  if (kind === "script" && !(input.script ?? "").trim()) throw schedulerError("script_required");
+  if (input.clearContext && input.compactContext) throw schedulerError("context_mode_conflict");
+  const name = (input.name ?? "").trim()
+    || (kind === "prompt" ? (input.prompt ?? "").trim().split(/\s+/).slice(0, 4).join(" ") : path.basename(input.script!));
   const schedule = validateSchedule(input.schedule);
   const enabled = input.enabled ?? true;
   const timeoutMs = clampTimeout(input.timeoutMs);
@@ -165,8 +197,15 @@ export function createSchedulerEntry(input: CreateSchedulerInput): { file: Sched
   const entry: SchedulerEntry = {
     id: newId(),
     name,
-    script: input.script,
-    args,
+    kind,
+    script: kind === "script" ? input.script!.trim() : undefined,
+    args: kind === "script" ? args : [],
+    prompt: kind === "prompt" ? input.prompt!.trim() : undefined,
+    provider: kind === "prompt" ? optionalString(input.provider) : undefined,
+    modelId: kind === "prompt" ? optionalString(input.modelId) : undefined,
+    noSession: kind === "prompt" ? optionalBoolean(input.noSession) : undefined,
+    clearContext: kind === "prompt" ? optionalBoolean(input.clearContext) : undefined,
+    compactContext: kind === "prompt" && !input.clearContext ? optionalBoolean(input.compactContext) : undefined,
     schedule,
     enabled,
     timeoutMs,
@@ -181,22 +220,51 @@ export function createSchedulerEntry(input: CreateSchedulerInput): { file: Sched
 
 export function updateSchedulerEntry(
   id: string,
-  patch: { name?: string; script?: string; args?: string[]; schedule?: ScheduleSpec; enabled?: boolean; timeoutMs?: number },
+  patch: {
+    name?: string;
+    kind?: SchedulerKind;
+    script?: string;
+    args?: string[];
+    prompt?: string;
+    provider?: string;
+    modelId?: string;
+    noSession?: boolean;
+    clearContext?: boolean;
+    compactContext?: boolean;
+    schedule?: ScheduleSpec;
+    enabled?: boolean;
+    timeoutMs?: number;
+  },
   now = new Date(),
 ): { file: SchedulerFile; entry: SchedulerEntry } {
   const file = loadSchedulerFile();
   const idx = file.schedulers.findIndex((e) => e.id === id);
   if (idx < 0) throw schedulerError("scheduler_not_found");
   const prev = file.schedulers[idx];
+  const kind: SchedulerKind = patch.kind ?? prev.kind ?? "script";
   const schedule = patch.schedule !== undefined ? validateSchedule(patch.schedule) : prev.schedule;
-  const script = (patch.script ?? prev.script).trim();
-  if (!script) throw schedulerError("script_required");
+  const script = kind === "script" ? (patch.script ?? prev.script ?? "").trim() : undefined;
+  if (kind === "script" && !script) throw schedulerError("script_required");
+  const prompt = kind === "prompt" ? (patch.prompt ?? prev.prompt ?? "").trim() : undefined;
+  if (kind === "prompt" && !prompt) throw schedulerError("instructions_required");
+  const clearContext = kind === "prompt" ? optionalBoolean(patch.clearContext ?? prev.clearContext) : undefined;
+  const compactContext = kind === "prompt" && !clearContext ? optionalBoolean(patch.compactContext ?? prev.compactContext) : undefined;
+  if (clearContext && compactContext) throw schedulerError("context_mode_conflict");
   const enabled = patch.enabled ?? prev.enabled;
   const entry: SchedulerEntry = {
     ...prev,
-    name: (patch.name ?? prev.name).trim() || path.basename(script),
+    name: (patch.name ?? prev.name).trim() || (kind === "prompt" ? prompt!.split(/\s+/).slice(0, 4).join(" ") : path.basename(script!)),
+    kind,
     script,
-    args: patch.args !== undefined ? patch.args.filter((a) => typeof a === "string" && a.length > 0).slice(0, 32) : prev.args,
+    args: kind === "script"
+      ? (patch.args !== undefined ? patch.args.filter((a) => typeof a === "string" && a.length > 0).slice(0, 32) : prev.args)
+      : [],
+    prompt,
+    provider: kind === "prompt" ? optionalString(patch.provider ?? prev.provider) : undefined,
+    modelId: kind === "prompt" ? optionalString(patch.modelId ?? prev.modelId) : undefined,
+    noSession: kind === "prompt" ? optionalBoolean(patch.noSession ?? prev.noSession) : undefined,
+    clearContext,
+    compactContext,
     schedule,
     enabled,
     timeoutMs: patch.timeoutMs !== undefined ? clampTimeout(patch.timeoutMs) : prev.timeoutMs,
@@ -296,6 +364,18 @@ export function setNextRunAt(id: string, nextRunAt: string | null): SchedulerFil
   return { version: 1, schedulers };
 }
 
+/** Set only the persistent session id for a prompt-type entry (the engine
+ *  updates it after each successful session-mode run). No-op when the id is
+ *  gone so a late-finished run cannot resurrect a deleted entry. */
+export function setSchedulerSessionId(id: string, sessionId: string | null): SchedulerFile {
+  const file = loadSchedulerFile();
+  const idx = file.schedulers.findIndex((e) => e.id === id);
+  if (idx < 0) return file;
+  const schedulers = [...file.schedulers];
+  schedulers[idx] = { ...schedulers[idx], sessionId: sessionId ?? undefined };
+  return { version: 1, schedulers };
+}
+
 /** Empty a scheduler's run history. Throws when the id is gone. */
 export function clearRuns(id: string): SchedulerFile {
   const file = loadSchedulerFile();
@@ -304,6 +384,20 @@ export function clearRuns(id: string): SchedulerFile {
   const schedulers = [...file.schedulers];
   schedulers[idx] = { ...schedulers[idx], runs: [] };
   return { version: 1, schedulers };
+}
+
+/** Sessions created by prompt-type automation runs, keyed by session id →
+ *  scheduler name. The /api/sessions route uses this to mark those sessions
+ *  (clock icon in the sidebar). */
+export function getAutomationSessions(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const entry of loadSchedulerFile().schedulers) {
+    if (entry.kind !== "prompt") continue;
+    for (const run of entry.runs) {
+      if (run.sessionId) map[run.sessionId] = entry.name;
+    }
+  }
+  return map;
 }
 
 function clampTimeout(timeoutMs?: number): number {

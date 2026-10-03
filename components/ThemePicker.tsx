@@ -19,7 +19,7 @@ import { useI18n } from "@/lib/i18n";
 export function ThemePicker() {
   const { preference, setTheme } = useTheme();
   const { motionPrefs, setMotionPrefs } = useMotionPrefs();
-  const { fontPreset, chatFontSize, uiFontScaleLg, uiFontScaleSm, setFontPreset, setChatFontSize, setUiFontScaleLg, setUiFontScaleSm } = useTypography();
+  const { fontPreset, chatFontSize, uiFontScaleLg, uiFontScaleSm, sessionNameWeight, setFontPreset, setChatFontSize, setUiFontScaleLg, setUiFontScaleSm, setSessionNameWeight } = useTypography();
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -947,6 +947,56 @@ export function ThemePicker() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Session name weight — Workspaces section session names */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--text-muted)" }}>
+                    {t("typography.sessionNameWeight")}
+                  </span>
+                  <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>
+                    {sessionNameWeight}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSessionNameWeight(Math.max(300, sessionNameWeight - 100))}
+                    disabled={sessionNameWeight <= 300}
+                    className="shell-toolbar-btn ui-focus-ring"
+                    style={{ width: 26, height: 26, borderRadius: 6 }}
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <input
+                    type="range"
+                    min={300}
+                    max={800}
+                    step={100}
+                    value={sessionNameWeight}
+                    onChange={(e) => setSessionNameWeight(Number(e.target.value))}
+                    style={{
+                      flex: 1,
+                      accentColor: "var(--accent)",
+                      cursor: "pointer",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSessionNameWeight(Math.min(800, sessionNameWeight + 100))}
+                    disabled={sessionNameWeight >= 800}
+                    className="shell-toolbar-btn ui-focus-ring"
+                    style={{ width: 26, height: 26, borderRadius: 6 }}
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
+                  <span>Light (300)</span>
+                  <span>Medium (500)</span>
+                  <span>Bold (800)</span>
                 </div>
               </div>
 

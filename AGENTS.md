@@ -639,18 +639,66 @@ handled or safely ignored.
 - The Models panel reads and writes `models.yml` in the omp agent directory (`~/.omp/agent/models.yml`, `.yaml` fallback).
 - API-key status endpoints must never return the raw key.
 
-### Script schedulers — default seed (`lib/scheduler-store.ts`, `instrumentation.ts`)
-- On boot, `ensureSeedSchedulers()` adds the repo's `ompweb-rebuild-restart.sh`
-  to `~/.omp/agent/schedulers.json` as a **Manual launch** scheduler
-  (`schedule: { kind: "manual" }`, 20 min timeout) if it isn't already there.
-  This makes the rebuild workflow reachable from the "Script schedulers" panel
-  without hand-entry. It's idempotent (skips when the entry or the script file
-  is missing) and best-effort (a packaged install without the script is a no-op).
-- Manual schedulers have `nextRunAt: null` — they never fire on the tick; the
-  user triggers them via `POST /api/schedulers/[id]/run` (the panel's run button).
-- `ensureSeedSchedulers` resolves the script from `process.cwd()` (the dev repo
-  root or the `/opt/ompweb` install root), so it matches where the engine's
-  `spawn` sets `cwd: path.dirname(script)`.
+### Automation tasks — script + prompt schedulers (`lib/scheduler-store.ts`, `lib/scheduler-engine.ts`, `/api/schedulers`)
+- The sidebar "Automation tasks" panel (renamed from "Script schedulers") has two
+  tabs: **Scheduled scripts** (terminal icon) and **Scheduled prompts** (chat icon).
+  Entries share one store, `~/.omp/agent/schedulers.json`, and are distinguished by
+  `kind: "script" | "prompt"` (absent = script, backward compatible).
+- **Script entries** (unchanged behavior): `{ name, kind, script, args[], schedule,
+  enabled, timeoutMs }` — runs the script via bash (`.sh/.bash/.zsh`) or directly
+  (executable bit required).
+- **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?,
+  noSession?, clearContext?, compactContext?, schedule, enabled, timeoutMs }`.
+  The engine runs `omp -p <prompt>` with cwd `~/omp-cwd-YYYYMMDD` (same dated
+  default-cwd dir the UI uses for workspace-less sessions) and keeps only a bounded
+  1 kB output tail in the run log — the model answer is not stored, only errors.
+  - **Context handling** (session mode, i.e. `noSession` off): the entry persists
+    `sessionId` and resumes it (`--resume`) on every run, so context accumulates
+    across runs. `clearContext: true` skips the resume (fresh session each run —
+    the print-mode equivalent of /clear). `compactContext: true` (mutually
+    exclusive with `clearContext`; enforced in store + UI) additionally passes
+    `--config <agent-dir>/scheduler-compaction/compact.yml` (`compaction.thresholdTokens: 1`)
+    to force-compaction the resumed context before the prompt. After each
+    successful run the engine updates `entry.sessionId` to the session the run
+    used/created (`setSchedulerSessionId`), so the next run resumes from there.
+  - `provider`/`modelId` map to `--model=<provider>/<modelId>` (or
+    `--model=<modelId>` / `--provider=<provider>` alone). The modal dropdowns are
+    populated from `/api/models` (`modelList`).
+- **Session marking**: `getAutomationSessions()` maps session id → scheduler name
+  from prompt run records (`run.sessionId`); `GET /api/sessions` annotates matching
+  sessions with `automation: <name>` and `SessionItem` renders a clock icon with a
+  "Created by automation task …" tooltip. The run log links the session id
+  (panel `onOpenSession` → opens the session in the chat).
+- **Default seed** (`ensureSeedSchedulers`, `instrumentation.ts`): the repo's
+  `ompweb-rebuild-restart.sh` is added at boot as a **Manual launch** scheduler
+  (`schedule: { kind: "manual" }`, 20 min timeout) if not already present —
+  idempotent and best-effort (a packaged install without the script is a no-op).
+  Manual schedulers have `nextRunAt: null` — they never fire on the tick; the user
+  triggers them via `POST /api/schedulers/[id]/run` (the panel's run button).
+  `ensureSeedSchedulers` resolves the script from `process.cwd()` (the dev repo
+  root or the `/opt/ompweb` install root), matching the engine's
+  `spawn` cwd (`path.dirname(script)`).
+- **API** (JSON; 400 with a stable `code` on validation failure — `instructions_required`,
+  `context_mode_conflict`, `script_required`, `invalid_schedule`, …):
+  - `POST /api/schedulers` — create. Prompt example:
+    `{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","provider":"anthropic","modelId":"claude-opus-4","schedule":{"kind":"daily","hour":9,"minute":0},"timeoutMs":600000}`.
+    `schedule` uses the same spec as scripts (`manual | interval | daily | weekdays | weekly | cron`).
+  - `PATCH /api/schedulers/[id]` — any subset of the entry fields.
+  - `GET /api/schedulers` — `{ schedulers: [...], engineStartedAt }`; entries carry
+    `kind`, the prompt fields, `sessionId` (persistent session) and `runs[]`
+    (each run has `status`, `sessionId` for prompt runs, stdout/stderr tails).
+  - `POST /api/schedulers/[id]/run` — immediate manual run (409 while one is active).
+  - `POST /api/schedulers/[id]/clear-runs` — empty the run history.
+  - `DELETE /api/schedulers/[id]`; `POST /api/schedulers/preview` (human + nextRunAt
+    for a spec); `POST /api/schedulers/validate` (script path check).
+- **Creating a prompt automation from an agent session** (loopback, no password gate):
+  ```bash
+  curl -s -X POST -H 'Content-Type: application/json' \
+    -d '{"kind":"prompt","name":"Daily commit review","prompt":"Review commits from the last 24 hours and summarize likely bugs and fixes","schedule":{"kind":"daily","hour":9,"minute":0}}' \
+    http://127.0.0.1:30178/api/schedulers
+  ```
+  With the `OMP_WEB_PASSWORD` gate enabled, log in via `POST /api/web-auth/session`
+  first and pass the `omp_web_session` cookie (see "Web password gate" above).
 
 ### Chat event actions (`lib/chat-event-action*.ts`, `/api/chat-event-actions`)
 - Named actions fired on 10 chat lifecycle events (`conversation_completed`,

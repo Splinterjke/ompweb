@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { spawn, type ChildProcess } from "child_process";
+import { mkdirSync, readdirSync, statSync, writeFileSync } from "fs";
+import { homedir } from "os";
 import path from "path";
 import {
   loadSchedulerFile,
@@ -7,10 +9,12 @@ import {
   recordRun,
   saveSchedulerFile,
   setNextRunAt,
+  setSchedulerSessionId,
   type RunRecord,
   type SchedulerEntry,
 } from "./scheduler-store";
-import { repairedChildPath } from "./omp/omp-cli";
+import { repairedChildPath, resolveOmpBin } from "./omp/omp-cli";
+import { getAgentDir, getSessionDirNameForCwd, getSessionsDir } from "./omp/paths";
 import { nextRunAfter } from "./schedule";
 
 // ============================================================================
@@ -39,6 +43,87 @@ const LATE_MS = 90_000;
 const MAX_CATCHUP_MS = 2 * 60_000;
 const KILL_GRACE_MS = 5_000;
 
+/** Prompt-type runs: the model answer is not shown in the run log, so keep
+ *  only a short tail of child output (errors still surface). */
+const PROMPT_OUTPUT_TAIL_MAX = 1_000;
+
+/** Cwd for prompt-type runs: the same dated default-cwd directory the UI
+ *  uses for workspace-less sessions, so automation sessions group there. */
+function promptCwd(): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const dir = path.join(homedir(), `omp-cwd-${date}`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch {
+    return homedir();
+  }
+}
+
+/** Config overlay that forces compaction of any non-empty resumed context
+ *  (thresholdTokens: 1). Written once per engine process into the agent dir;
+ *  passed via --config when "compact context" is set on a prompt entry. */
+let compactConfigPathCache: string | null = null;
+function compactConfigPath(): string {
+  if (compactConfigPathCache) return compactConfigPathCache;
+  const dir = path.join(getAgentDir(), "scheduler-compaction");
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "compact.yml");
+  writeFileSync(file, "compaction:\n  thresholdTokens: 1\n");
+  compactConfigPathCache = file;
+  return file;
+}
+
+/** Build the `omp -p …` argv for a prompt-type entry.
+ *
+ * Context handling (only in session mode, i.e. noSession is off):
+ *  - default: resume the entry's persistent session so context accumulates
+ *    across runs;
+ *  - clearContext: skip the resume, so each run starts a fresh (cleared)
+ *    session — the print-mode equivalent of /clear;
+ *  - compactContext: resume AND force-compaction the prior context via the
+ *    --config overlay before this prompt is processed.
+ */
+/** Exported for unit tests (argv construction is the contract with the omp CLI). */
+export function promptSpawnArgs(entry: SchedulerEntry): string[] {
+  const args = ["-p"];
+  if (entry.modelId) {
+    args.push(`--model=${entry.provider ? `${entry.provider}/${entry.modelId}` : entry.modelId}`);
+  } else if (entry.provider) {
+    args.push(`--provider=${entry.provider}`);
+  }
+  const sessionMode = !entry.noSession;
+  const resumeId = sessionMode && !entry.clearContext ? entry.sessionId : undefined;
+  if (resumeId) args.push("--resume", resumeId);
+  if (sessionMode && entry.compactContext && resumeId) args.push("--config", compactConfigPath());
+  if (entry.noSession) args.push("--no-session");
+  args.push(entry.prompt ?? "");
+  return args;
+}
+
+/** After a successful session-mode prompt run, find the session file omp
+ *  just created (newest `.jsonl` in the cwd's session dir, mtime ≥ start). */
+function findPromptSessionId(cwd: string, since: Date): string | undefined {
+  try {
+    const dir = path.join(getSessionsDir(), getSessionDirNameForCwd(cwd));
+    const entries = readdirSync(dir);
+    let best: { id: string; mtimeMs: number } | undefined;
+    const sinceMs = since.getTime() - 1_000;
+    for (const name of entries) {
+      if (!name.endsWith(".jsonl")) continue;
+      const st = statSync(path.join(dir, name));
+      if (st.mtimeMs < sinceMs) continue;
+      if (!best || st.mtimeMs > best.mtimeMs) {
+        const sep = name.lastIndexOf("_");
+        best = { id: name.slice(sep + 1, name.length - ".jsonl".length), mtimeMs: st.mtimeMs };
+      }
+    }
+    return best?.id;
+  } catch {
+    return undefined;
+  }
+}
+
 interface ActiveRun {
   child: ChildProcess;
   startedAt: Date;
@@ -48,6 +133,12 @@ interface ActiveRun {
   timedOut: boolean;
   out: string;
   err: string;
+  /** Tail cap for this run's captured output (smaller for prompt runs). */
+  cap: number;
+  /** Set for prompt-type runs: the cwd the session file lands in. */
+  promptCwd?: string;
+  /** Session id passed via --resume (so the run reuses a persistent session). */
+  resumedId?: string;
   timeoutHandle: NodeJS.Timeout | undefined;
   killGrace: NodeJS.Timeout | undefined;
   finalized: boolean;
@@ -158,17 +249,33 @@ interface StartOptions {
 
 function startRun(entry: SchedulerEntry, opts: StartOptions): void {
   const state = getEngineState();
+  const isPrompt = entry.kind === "prompt";
   let child: ChildProcess;
-  const shell = /\.(sh|bash|zsh)$/i.test(path.basename(entry.script)) ? "bash" : "exec";
+  let cwd: string;
+  let cap = OUTPUT_TAIL_MAX;
   try {
-    child = shell === "bash"
-      ? spawn("bash", [entry.script, ...entry.args], spawnOptions(entry.script))
-      : spawn(entry.script, entry.args, spawnOptions(entry.script));
+    if (isPrompt) {
+      const bin = resolveOmpBin();
+      if (!bin) {
+        persistRun(entry.id, spawnErrorRun(entry.id, opts, new Error("omp binary not found")));
+        return;
+      }
+      cwd = promptCwd();
+      cap = PROMPT_OUTPUT_TAIL_MAX;
+      child = spawn(bin, promptSpawnArgs(entry), spawnOptions(cwd));
+    } else {
+      const shell = /\.(sh|bash|zsh)$/i.test(path.basename(entry.script!)) ? "bash" : "exec";
+      cwd = path.dirname(entry.script!);
+      child = shell === "bash"
+        ? spawn("bash", [entry.script!, ...entry.args], spawnOptions(cwd))
+        : spawn(entry.script!, entry.args, spawnOptions(cwd));
+    }
   } catch (err) {
     persistRun(entry.id, spawnErrorRun(entry.id, opts, err));
     return;
   }
 
+  const resumedId = isPrompt && !entry.noSession && !entry.clearContext ? entry.sessionId : undefined;
   const active: ActiveRun = {
     child,
     startedAt: opts.now,
@@ -178,6 +285,10 @@ function startRun(entry: SchedulerEntry, opts: StartOptions): void {
     timedOut: false,
     out: "",
     err: "",
+    cap,
+    /** Session cwd for prompt runs (used to locate the created session file). */
+    promptCwd: isPrompt ? cwd : undefined,
+    resumedId,
     timeoutHandle: entry.timeoutMs > 0 ? setTimeout(() => {
       active.timedOut = true;
       try {
@@ -199,25 +310,42 @@ function startRun(entry: SchedulerEntry, opts: StartOptions): void {
   state.running.set(entry.id, active);
 
   child.stdout?.on("data", (chunk: Buffer) => {
-    active.out = capTail(active.out + chunk.toString("utf8"));
+    active.out = capTail(active.out + chunk.toString("utf8"), active.cap);
   });
   child.stderr?.on("data", (chunk: Buffer) => {
-    active.err = capTail(active.err + chunk.toString("utf8"));
+    active.err = capTail(active.err + chunk.toString("utf8"), active.cap);
   });
   child.on("error", (err: NodeJS.ErrnoException) => {
     // Spawn-level failure (ENOENT, EACCES...): `close` may never fire, so
     // finalize from here.
-    active.err = capTail(active.err + (err.message || String(err)));
+    active.err = capTail(active.err + (err.message || String(err)), active.cap);
     finalizeRun(entry.id, active, 1);
   });
   child.on("close", (code) => {
-    finalizeRun(entry.id, active, typeof code === "number" ? code : 1);
+    const exitCode = typeof code === "number" ? code : 1;
+    // Session-mode prompt runs either resume the persistent session or create
+    // a fresh `.jsonl` (first run / "clear context"). Locate the session so
+    // the run log can link it and the sidebar marks it (clock icon).
+    const sessionId = isPrompt && !entry.noSession && exitCode === 0
+      ? (active.resumedId
+          ?? (active.promptCwd ? findPromptSessionId(active.promptCwd, active.startedAt) : undefined))
+      : undefined;
+    finalizeRun(entry.id, active, exitCode, sessionId);
+    // Keep the entry's persistent session in sync so the next run resumes
+    // (or clears) from the right place.
+    if (isPrompt && !entry.noSession && exitCode === 0 && sessionId) {
+      try {
+        saveSchedulerFile(setSchedulerSessionId(entry.id, sessionId));
+      } catch (err) {
+        console.error("[scheduler] failed to persist session id:", err);
+      }
+    }
   });
 }
 
-function spawnOptions(script: string) {
+function spawnOptions(cwd: string) {
   return {
-    cwd: path.dirname(script),
+    cwd,
     // The server's own PATH is minimal (container/GUI launchers omit tool
     // dirs like /opt/node24/bin); repair it so scripts can find npm/npx.
     env: { ...process.env, PATH: repairedChildPath(process.env.PATH) },
@@ -239,7 +367,7 @@ function spawnErrorRun(entryId: string, opts: StartOptions, err: unknown): RunRe
   };
 }
 
-function finalizeRun(entryId: string, active: ActiveRun, code: number): void {
+function finalizeRun(entryId: string, active: ActiveRun, code: number, sessionId?: string): void {
   if (active.finalized) return;
   active.finalized = true;
   clearTimeout(active.timeoutHandle);
@@ -255,6 +383,7 @@ function finalizeRun(entryId: string, active: ActiveRun, code: number): void {
     manual: active.manual,
     stdout: active.out || undefined,
     stderr: active.err || undefined,
+    sessionId,
   });
 }
 
@@ -266,9 +395,9 @@ function persistRun(entryId: string, run: RunRecord): void {
   }
 }
 
-/** Keep only the last OUTPUT_TAIL_MAX chars of a growing output buffer. */
-function capTail(buf: string): string {
-  return buf.length > OUTPUT_TAIL_MAX * 2 ? buf.slice(-OUTPUT_TAIL_MAX) : buf;
+/** Keep only the last `cap` chars of a growing output buffer. */
+function capTail(buf: string, cap: number): string {
+  return buf.length > cap * 2 ? buf.slice(-cap) : buf;
 }
 
 /* ─────────────────────────── state queries ─────────────────────────── */
