@@ -161,6 +161,8 @@
   "branchNavigator.roleAssistant": "A",
   "branchNavigator.roleUser": "U",
   "chatInput.attachFile": "ファイルを添付",
+  "chatInput.pasteImage": "画像を貼り付け",
+  "chatInput.clipboardImageFailed": "画像を貼り付けられませんでした。画像をコピーしてクリップボードへのアクセスを許可するか、代わりにファイルを添付してください。",
   "chatInput.plusMenu": "その他の操作",
   "chatInput.plusOn": "オン",
   "chatInput.plusOff": "オフ",

@@ -161,6 +161,8 @@
   "branchNavigator.roleAssistant": "A",
   "branchNavigator.roleUser": "U",
   "chatInput.attachFile": "Attach files",
+  "chatInput.pasteImage": "Paste image",
+  "chatInput.clipboardImageFailed": "No image could be pasted. Copy an image and allow clipboard access, or attach a file instead.",
   "chatInput.plusMenu": "More actions",
   "chatInput.plusOn": "On",
   "chatInput.plusOff": "Off",

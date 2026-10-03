@@ -161,6 +161,8 @@
   "branchNavigator.roleAssistant": "A",
   "branchNavigator.roleUser": "U",
   "chatInput.attachFile": "附加文件",
+  "chatInput.pasteImage": "粘贴图片",
+  "chatInput.clipboardImageFailed": "无法粘贴图片。请复制图片并允许访问剪贴板，或改为附加文件。",
   "chatInput.plusMenu": "更多操作",
   "chatInput.plusOn": "开",
   "chatInput.plusOff": "关",
