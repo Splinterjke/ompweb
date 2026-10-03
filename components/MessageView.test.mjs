@@ -1,9 +1,16 @@
+import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import { readFile } from "node:fs/promises";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { createJiti } from "jiti";
+
+// React ships `act` only in its development build; force NODE_ENV before any
+// React module loads so these tests work regardless of the environment's
+// default (production builds throw "act(...) is not supported").
+process.env.NODE_ENV = "test";
+const React = (await import("react")).default;
+const { act, cleanup, fireEvent, render } = await import("@testing-library/react/pure.js");
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { createJiti } = await import("jiti");
 
 const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
@@ -13,6 +20,7 @@ const messageViewSource = await readFile(new URL("./MessageView.tsx", import.met
 const { MessageView, SafeMarkdownBody, isInterruptedMessage } = await jiti.import("./MessageView.tsx");
 const { CodeBlock } = await jiti.import("./MermaidBlock.tsx");
 const { AgentLinkContext } = await jiti.import("../lib/agent-links.ts");
+afterEach(cleanup);
 
 test("large message content avoids the markdown pipeline until requested", () => {
   const largeMessage = "x".repeat(100_001);
@@ -578,4 +586,48 @@ test("read of an agent:// handle renders a link when a chat provider is present"
     })));
   assert.match(html, /role="link"/);
   assert.match(html, /agent:\/\/Scout/);
+});
+
+const FORK_LABEL = "Fork a new session from this point";
+
+test("agent replies offer copy and fork at their resolved target", async (t) => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  t.after(() => {
+    if (originalMatchMedia) window.matchMedia = originalMatchMedia;
+    else delete window.matchMedia;
+  });
+  const forked = [];
+  const view = render(React.createElement(MessageView, {
+    message: { role: "assistant", model: "test", provider: "test", content: [{ type: "text", text: "Done." }] },
+    entryId: "assistant-1",
+    // Resolved by resolveForkTargets: the newest reply falls back to its own
+    // turn's prompt with edit-and-resend.
+    forkEntryId: "user-1",
+    forkEditsPrompt: true,
+    onFork: (entryId, editPrompt) => forked.push([entryId, editPrompt]),
+  }));
+  assert.ok(view.getByRole("button", { name: "Copy message" }));
+  await act(async () => { fireEvent.click(view.getByRole("button", { name: FORK_LABEL })); });
+  assert.deepEqual(forked, [["user-1", true]]);
+  view.unmount();
+});
+
+test("user messages fork at their own entry and edit the prompt", async (t) => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  t.after(() => {
+    if (originalMatchMedia) window.matchMedia = originalMatchMedia;
+    else delete window.matchMedia;
+  });
+  const forked = [];
+  const view = render(React.createElement(MessageView, {
+    message: { role: "user", content: "Keep this forkable." },
+    entryId: "user-7",
+    forkEntryId: "user-7",
+    onFork: (entryId, editPrompt) => forked.push([entryId, editPrompt]),
+  }));
+  await act(async () => { fireEvent.click(view.getByRole("button", { name: FORK_LABEL })); });
+  assert.deepEqual(forked, [["user-7", true]]);
+  view.unmount();
 });

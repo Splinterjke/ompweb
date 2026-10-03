@@ -71,6 +71,8 @@ export interface UserMessage {
   role: "user";
   content: string | (TextContent | ImageContent)[];
   timestamp?: number;
+  /** Rendered from a `branch_summary` entry, not a real prompt: omp cannot branch at it. */
+  branchSummary?: true;
 }
 
 export interface AssistantMessage {

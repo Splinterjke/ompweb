@@ -115,10 +115,13 @@ interface Props {
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
-  /** Entry omp's `branch` command accepts for this message (a user entry). */
+  /** Branch point omp's `branch` command accepts for this message (a user entry; see lib/chat-fork.ts). */
   forkEntryId?: string;
-  onFork?: (entryId: string) => void;
+  /** Forking puts the branched prompt back into the composer (edit-and-resend). */
+  forkEditsPrompt?: boolean;
+  onFork?: (entryId: string, editPrompt: boolean) => void;
   forking?: boolean;
+  forkDisabled?: boolean;
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (content: string) => void;
@@ -196,12 +199,12 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, forkEditsPrompt, onFork, forking, forkDisabled, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
   if (message.role === "user") {
-    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
+    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} forkDisabled={forkDisabled} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "assistant") {
-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} onFork={onFork} forking={forking} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} hideThinking={hideThinking} sourceBlockIndices={sourceBlockIndices} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} forkEditsPrompt={forkEditsPrompt} onFork={onFork} forking={forking} forkDisabled={forkDisabled} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} hideThinking={hideThinking} sourceBlockIndices={sourceBlockIndices} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "toolResult") {
     // Rendered inline under its toolCall — skip standalone rendering if paired
@@ -240,8 +243,10 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.onOpenFile === next.onOpenFile
     && prev.entryId === next.entryId
     && prev.forkEntryId === next.forkEntryId
+    && prev.forkEditsPrompt === next.forkEditsPrompt
     && prev.onFork === next.onFork
     && prev.forking === next.forking
+    && prev.forkDisabled === next.forkDisabled
     && prev.onNavigate === next.onNavigate
     && prev.prevAssistantEntryId === next.prevAssistantEntryId
     && prev.onEditContent === next.onEditContent
@@ -264,20 +269,23 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
  *
  * omp's `branch` command accepts a user-message entry only (an assistant entry
  * answers "Invalid entry ID for branching"), so `entryId` is the branch point
- * resolved by `resolveForkEntryIds` — for an assistant reply, the user prompt
- * that started its turn.
+ * resolved by `resolveForkTargets` — for an assistant reply, the next user
+ * prompt, so the reply stays in the fork's history.
  */
-function ForkSessionButton({ entryId, onFork, forking }: {
+function ForkSessionButton({ entryId, editPrompt, onFork, forking, forkDisabled }: {
   entryId: string;
-  onFork: (entryId: string) => void;
+  editPrompt: boolean;
+  onFork: (entryId: string, editPrompt: boolean) => void;
   forking?: boolean;
+  forkDisabled?: boolean;
 }) {
   const { t } = useI18n();
+  const blocked = forkDisabled || forking;
   return (
     <Tooltip content={forking ? t("messageView.creatingSession") : t("messageView.newSessionTitle")}>
       <button
-        onClick={() => { onFork(entryId); }}
-        disabled={forking}
+        onClick={() => { onFork(entryId, editPrompt); }}
+        disabled={blocked}
         aria-label={forking ? t("messageView.creatingSession") : t("messageView.newSessionTitle")}
         style={{
           display: "flex", alignItems: "center", gap: 4,
@@ -285,13 +293,13 @@ function ForkSessionButton({ entryId, onFork, forking }: {
           background: "none", border: "none",
           borderRadius: 5,
           color: forking ? "var(--accent)" : "var(--text-dim)",
-          cursor: forking ? "not-allowed" : "pointer",
+          cursor: blocked ? "not-allowed" : "pointer",
           fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 400,
           whiteSpace: "nowrap",
           transition: "color var(--dur-fast) var(--ease-out-warm)",
         }}
-        onMouseEnter={(e) => { if (!forking) e.currentTarget.style.color = "var(--accent)"; }}
-        onMouseLeave={(e) => { if (!forking) e.currentTarget.style.color = "var(--text-dim)"; }}
+        onMouseEnter={(e) => { if (!blocked) e.currentTarget.style.color = "var(--accent)"; }}
+        onMouseLeave={(e) => { if (!blocked) e.currentTarget.style.color = "var(--text-dim)"; }}
       >
         <GitFork size={11} strokeWidth={1.8} />
         {forking ? t("messageView.creating") : t("messageView.newSession")}
@@ -300,12 +308,13 @@ function ForkSessionButton({ entryId, onFork, forking }: {
   );
 }
 
-function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, messageActionsVisible = true, timeFormat = "24h" }: {  message: UserMessage;
+function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, forkDisabled, onNavigate, prevAssistantEntryId, onEditContent, messageActionsVisible = true, timeFormat = "24h" }: {  message: UserMessage;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
-  onFork?: (entryId: string) => void;
+  onFork?: (entryId: string, editPrompt: boolean) => void;
   forking?: boolean;
+  forkDisabled?: boolean;
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (content: string) => void;
@@ -463,7 +472,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                     </Tooltip>
                   )}
                   {canFork && (
-                    <ForkSessionButton entryId={entryId!} onFork={onFork!} forking={forking} />
+                    <ForkSessionButton entryId={entryId!} editPrompt onFork={onFork!} forking={forking} forkDisabled={forkDisabled} />
                   )}
                 </div>
               )}
@@ -487,8 +496,10 @@ function AssistantMessageView({
   sessionId,
   entryId,
   forkEntryId,
+  forkEditsPrompt = false,
   onFork,
   forking,
+  forkDisabled,
   toolCallsDefaultCollapsed,
   thinkingDisplayMode = "auto",
   thinkingAutoFollow = true,
@@ -509,10 +520,12 @@ function AssistantMessageView({
   prevTimestamp?: number;
   sessionId?: string;
   entryId?: string;
-  /** User entry omp's `branch` command accepts for this reply. */
+  /** User entry omp's `branch` command accepts for this reply (see lib/chat-fork.ts). */
   forkEntryId?: string;
-  onFork?: (entryId: string) => void;
+  forkEditsPrompt?: boolean;
+  onFork?: (entryId: string, editPrompt: boolean) => void;
   forking?: boolean;
+  forkDisabled?: boolean;
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
@@ -557,7 +570,7 @@ function AssistantMessageView({
         {messageActionsVisible && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
             <MessageCopyActions texts={texts} bodyRef={bodyRef} />
-            {canFork && <ForkSessionButton entryId={forkEntryId!} onFork={onFork!} forking={forking} />}
+            {canFork && <ForkSessionButton entryId={forkEntryId!} editPrompt={forkEditsPrompt} onFork={onFork!} forking={forking} forkDisabled={forkDisabled} />}
           </div>
         )}
         {time && <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>}

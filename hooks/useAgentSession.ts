@@ -16,6 +16,7 @@ import type {
 import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
 import { sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
+import { setDraft } from "@/lib/draft-store";
 import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "@/lib/client";
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
 import { toast } from "@/components/ui/toast";
@@ -835,6 +836,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const queueMutatedAtRef = useRef(0);
   const agentRunningRef = useRef(false);
   const bashRunningRef = useRef(false);
+  const forkInFlightRef = useRef(false);
   // True while this session is being written by a terminal `omp` / harness:
   // sends are rejected with a notice (attaching an RPC process would fight
   // the external writer) and the transcript updates come from the watcher.
@@ -3060,23 +3062,28 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [rejectIfExternallyRunning]);
 
-  const handleFork = useCallback(async (entryId: string) => {
-    if (bashRunningRef.current) return;
+  // editPrompt: omp's `branch` drops the chosen user prompt from the fork and
+  // returns its text — put it in the fork's composer (edit-and-resend).
+  const handleFork = useCallback(async (entryId: string, editPrompt: boolean) => {
+    if (bashRunningRef.current || forkInFlightRef.current) return;
     const sid = sessionIdRef.current;
     if (!sid) return;
+    forkInFlightRef.current = true;
     setForkingEntryId(entryId);
     try {
-      const result = await sendAgentCommand<{ cancelled?: boolean; newSessionId?: string }>(sid, {
+      const result = await sendAgentCommand<{ cancelled?: boolean; newSessionId?: string; text?: string }>(sid, {
         type: "fork",
         entryId,
       });
-      const { cancelled, newSessionId } = result ?? {};
+      const { cancelled, newSessionId, text } = result ?? {};
       if (!cancelled && newSessionId) {
+        if (editPrompt && text) setDraft(newSessionId, { value: text, images: [] });
         onSessionForked?.(newSessionId);
       }
     } catch (e) {
       console.error("Fork failed:", e);
     } finally {
+      forkInFlightRef.current = false;
       setForkingEntryId(null);
     }
   }, [onSessionForked]);

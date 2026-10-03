@@ -832,6 +832,7 @@ export function entryToUiMessage(
         role: "user",
         content: `*The conversation briefly explored another branch and returned with this summary:*\n\n${entry.summary}`,
         timestamp: parseEntryTimestamp(entry.timestamp),
+        branchSummary: true,
       };
     case "custom_message":
       return {

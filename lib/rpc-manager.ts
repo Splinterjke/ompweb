@@ -1430,7 +1430,8 @@ export class AgentSessionWrapper {
         });
         if (result.cancelled) return { cancelled: true };
         const newSessionId = await this.refreshIdentityAfterSessionChange();
-        return { cancelled: false, newSessionId };
+        // `text` is the branched prompt omp hands back for edit-and-resend.
+        return { cancelled: false, newSessionId, text: result.text };
       }
 
       case "new_session":
