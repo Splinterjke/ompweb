@@ -85,7 +85,15 @@ export function ExtensionDialog({
     const frame = window.requestAnimationFrame(() => {
       const panel = panelRef.current;
       if (!panel) return;
-      const target = panel.querySelector<HTMLElement>("input, textarea, button:not([disabled])");
+      // The frame runs after paint, by which time the user may already have
+      // focused something inside the panel. Never yank focus back.
+      if (panel.contains(document.activeElement)) return;
+      // Never land on a radio or checkbox: a stray Space on a focused radio
+      // selects that option, which silently overwrites what the user typed in
+      // "Other". Prefer the first text entry, then any button.
+      const target = panel.querySelector<HTMLElement>(
+        "input:not([type=radio]):not([type=checkbox]), textarea, button:not([disabled])",
+      );
       (target ?? panel).focus();
     });
     return () => window.cancelAnimationFrame(frame);
