@@ -19,7 +19,8 @@ ompweb 为你的本地 omp 运行时提供一个浏览器工作区：会话浏�
 
 | | |
 | :---: | :---: |
-| 主工作区<br>![](screenshots/screenshot-main-workspace.png) | 紧凑枢纽栏（行布局）<br>![](screenshots/compact-hub-bars.png) |
+| 主工作区<br>![](screenshots/screenshot-main-workspace.png) | 自动化任务（定时提示）<br>![](screenshots/automation-tasks-prompt-type-list.png) |
+| 自动化任务编辑对话框（提示）<br>![](screenshots/automation-tasks-prompt-type-modal.png) | 紧凑枢纽栏（行布局）<br>![](screenshots/compact-hub-bars.png) |
 | 新会话编辑器<br>![](screenshots/new-session-composer.png) | 展开的处理详情（工具调用）<br>![](screenshots/chat-expanded-details.png) |
 | 编辑器任务面板<br>![](screenshots/composer-tasks-expanded.png) | 斜杠命令菜单<br>![](screenshots/slash-command-popover.png) |
 | 会话信息 / 上下文弹窗<br>![](screenshots/session-info-popover.png) | 命令面板<br>![](screenshots/command-palette.png) |
@@ -40,7 +41,8 @@ ompweb 为你的本地 omp 运行时提供一个浏览器工作区：会话浏�
 | 设置 — 扩展与工具<br>![](screenshots/settings-extensions-tools.png) | 设置 — OMP 原生<br>![](screenshots/settings-omp-native.png) |
 | 设置 — 远程访问<br>![](screenshots/settings-remote-access.png) | 设置 — 技能中心<br>![](screenshots/settings-skill-hub.png) |
 | 设置 — 系统与更新<br>![](screenshots/settings-system-updates.png) | 设置 — 搜索<br>![](screenshots/settings-search.png) |
-| 设置 — 诊断与恢复<br>![](screenshots/settings-diagnostics.png) | 主题：Light（暖纸）<br>![](screenshots/screenshot-theme-light.png) |
+| 设置 — 诊断与恢复<br>![](screenshots/settings-diagnostics.png) | 主题：深度求索（Deep Seek）<br>![](screenshots/screenshot-theme-deep-seek-dark.png) |
+| 主题：通义千问（Qwen Chat）<br>![](screenshots/screenshot-theme-qwen-dark.png) | 主题：Light（暖纸）<br>![](screenshots/screenshot-theme-light.png) |
 | 主题：omp 午夜<br>![](screenshots/screenshot-theme-omp-midnight.png) | 主题：燕麦拿铁<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
 | 主题：Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | 主题：Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
 | 主题：Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | 主题：单色（Codex）<br>![](screenshots/screenshot-theme-monochrome-codex.png) |

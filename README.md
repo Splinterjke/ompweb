@@ -19,7 +19,8 @@ ompweb provides a browser workspace for your local omp runtime: session browsing
 
 | | |
 | :---: | :---: |
-| Main workspace<br>![](screenshots/screenshot-main-workspace.png) | Compact hub bars (row layout)<br>![](screenshots/compact-hub-bars.png) |
+| Main workspace<br>![](screenshots/screenshot-main-workspace.png) | Automation tasks (scheduled prompts)<br>![](screenshots/automation-tasks-prompt-type-list.png) |
+| Automation task edit dialog (prompt)<br>![](screenshots/automation-tasks-prompt-type-modal.png) | Compact hub bars (row layout)<br>![](screenshots/compact-hub-bars.png) |
 | New-session composer<br>![](screenshots/new-session-composer.png) | Expanded process details (tool calls)<br>![](screenshots/chat-expanded-details.png) |
 | Composer task panel<br>![](screenshots/composer-tasks-expanded.png) | Slash-command menu<br>![](screenshots/slash-command-popover.png) |
 | Session-info / context popover<br>![](screenshots/session-info-popover.png) | Command palette<br>![](screenshots/command-palette.png) |
@@ -40,7 +41,8 @@ ompweb provides a browser workspace for your local omp runtime: session browsing
 | Settings — Extensions & Tools<br>![](screenshots/settings-extensions-tools.png) | Settings — OMP Native<br>![](screenshots/settings-omp-native.png) |
 | Settings — Remote Access<br>![](screenshots/settings-remote-access.png) | Settings — Skill Hub<br>![](screenshots/settings-skill-hub.png) |
 | Settings — System & Updates<br>![](screenshots/settings-system-updates.png) | Settings — search<br>![](screenshots/settings-search.png) |
-| Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) | Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
+| Settings — Diagnostics & Recovery<br>![](screenshots/settings-diagnostics.png) | Theme: Deep Seek<br>![](screenshots/screenshot-theme-deep-seek-dark.png) |
+| Theme: Qwen Chat<br>![](screenshots/screenshot-theme-qwen-dark.png) | Theme: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
 | Theme: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | Theme: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
 | Theme: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | Theme: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
 | Theme: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | Theme: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |

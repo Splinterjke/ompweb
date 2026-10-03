@@ -19,7 +19,8 @@ ompweb はローカル omp ランタイム用のブラウザワークスペー�
 
 | | |
 | :---: | :---: |
-| メインワークスペース<br>![](screenshots/screenshot-main-workspace.png) | コンパクトなハブバー（行レイアウト）<br>![](screenshots/compact-hub-bars.png) |
+| メインワークスペース<br>![](screenshots/screenshot-main-workspace.png) | オートメーションタスク（スケジュールプロンプト）<br>![](screenshots/automation-tasks-prompt-type-list.png) |
+| オートメーションタスク編集ダイアログ（プロンプト）<br>![](screenshots/automation-tasks-prompt-type-modal.png) | コンパクトなハブバー（行レイアウト）<br>![](screenshots/compact-hub-bars.png) |
 | セッション作成コンポーザー<br>![](screenshots/new-session-composer.png) | 展開された処理詳細（ツール呼び出し）<br>![](screenshots/chat-expanded-details.png) |
 | コンポーザーのタスクパネル<br>![](screenshots/composer-tasks-expanded.png) | スラッシュコマンドメニュー<br>![](screenshots/slash-command-popover.png) |
 | セッション情報 / コンテキストポップオーバー<br>![](screenshots/session-info-popover.png) | コマンドパレット<br>![](screenshots/command-palette.png) |
@@ -40,7 +41,8 @@ ompweb はローカル omp ランタイム用のブラウザワークスペー�
 | 設定 — 拡張機能とツール<br>![](screenshots/settings-extensions-tools.png) | 設定 — OMP ネイティブ<br>![](screenshots/settings-omp-native.png) |
 | 設定 — リモートアクセス<br>![](screenshots/settings-remote-access.png) | 設定 — スキルハブ<br>![](screenshots/settings-skill-hub.png) |
 | 設定 — システムと更新<br>![](screenshots/settings-system-updates.png) | 設定 — 検索<br>![](screenshots/settings-search.png) |
-| 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) | テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) |
+| 設定 — 診断と復旧<br>![](screenshots/settings-diagnostics.png) | テーマ: ディープシーク<br>![](screenshots/screenshot-theme-deep-seek-dark.png) |
+| テーマ: Qwen Chat<br>![](screenshots/screenshot-theme-qwen-dark.png) | テーマ: Light（Warm Paper）<br>![](screenshots/screenshot-theme-light.png) |
 | テーマ: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | テーマ: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
 | テーマ: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | テーマ: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
 | テーマ: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | テーマ: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |

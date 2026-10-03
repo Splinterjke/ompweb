@@ -19,7 +19,8 @@ ompweb предоставляет браузерное рабочее прост
 
 | | |
 | :---: | :---: |
-| Основная рабочая область<br>![](screenshots/screenshot-main-workspace.png) | Компактные хабы композера (в ряд)<br>![](screenshots/compact-hub-bars.png) |
+| Основная рабочая область<br>![](screenshots/screenshot-main-workspace.png) | Автоматизации (задачи-промпты)<br>![](screenshots/automation-tasks-prompt-type-list.png) |
+| Диалог редактирования автоматизации (промпт)<br>![](screenshots/automation-tasks-prompt-type-modal.png) | Компактные хабы композера (в ряд)<br>![](screenshots/compact-hub-bars.png) |
 | Композер новой сессии<br>![](screenshots/new-session-composer.png) | Развёрнутые детали обработки (вызовы инструментов)<br>![](screenshots/chat-expanded-details.png) |
 | Панель задач композера<br>![](screenshots/composer-tasks-expanded.png) | Меню слэш-команд<br>![](screenshots/slash-command-popover.png) |
 | Попап информации о сессии / контекста<br>![](screenshots/session-info-popover.png) | Палитра команд<br>![](screenshots/command-palette.png) |
@@ -40,7 +41,8 @@ ompweb предоставляет браузерное рабочее прост
 | Настройки — расширения и инструменты<br>![](screenshots/settings-extensions-tools.png) | Настройки — нативные настройки OMP<br>![](screenshots/settings-omp-native.png) |
 | Настройки — удалённый доступ<br>![](screenshots/settings-remote-access.png) | Настройки — центр навыков<br>![](screenshots/settings-skill-hub.png) |
 | Настройки — система и обновления<br>![](screenshots/settings-system-updates.png) | Настройки — поиск<br>![](screenshots/settings-search.png) |
-| Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) | Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
+| Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) | Тема: Deep Seek<br>![](screenshots/screenshot-theme-deep-seek-dark.png) |
+| Тема: Qwen Chat<br>![](screenshots/screenshot-theme-qwen-dark.png) | Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
 | Тема: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | Тема: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
 | Тема: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | Тема: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
 | Тема: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | Тема: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |
