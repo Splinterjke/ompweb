@@ -503,3 +503,68 @@ test("ISSUE #187 the context ring fills mid-run while the agent is still streami
   assert.deepEqual(w.latest.contextUsage, { percent: 42, contextWindow: 200000, tokens: 84000 });
   assert.equal(w.latest.agentRunning, true, "applying usage must not finish a busy run");
 });
+
+// The merged goal bar is ONE surface: a live native goal and the web /goal
+// marker share the themed row, so dropping the native goal must also clear
+// the marker — otherwise the row falls back to the plain "Goal active" line
+// and the goal appears undroppable.
+test("dropping a native goal clears the web /goal marker for that session", async () => {
+  resetWorld();
+  const sid = "goal-drop";
+  primeSession(sid, [userMsg("u1", "question")]);
+  const marker = JSON.stringify({ objective: "Ship the fix", startedAt: Date.now() - 60_000 });
+  sessionStorage.setItem(`omp-web:goal:${sid}`, marker);
+  sessionStorage.setItem("omp-web:goal:other-session", JSON.stringify({ objective: "Another goal", startedAt: Date.now() }));
+
+  const w = await mountSession(sid);
+  assert.ok(w.latest.activeGoal, "the marker must hydrate the web goal on mount");
+
+  await act(async () => {
+    await w.latest.sendGoalCommand("drop");
+  });
+  const dropCall = callsTo("POST", "/api/agent/").find((c) => c.body?.type === "goal" && c.body?.op === "drop");
+  assert.ok(dropCall, "the drop command must reach the wrapper");
+  assert.equal(sessionStorage.getItem(`omp-web:goal:${sid}`), null, "the marker must be cleared with the native goal");
+  assert.equal(w.latest.activeGoal, null, "the row must not linger on the dropped goal");
+  assert.ok(sessionStorage.getItem("omp-web:goal:other-session"), "only the dropped session's marker may be cleared");
+});
+// Web /goal stays PASSIVE: sending it must never arm the native tracker —
+// an implicit create armed omp's continuation loop silently, which burned
+// ~10k tokens in seconds on a passive "wait for a trigger word" rule. The
+// native create goes out only when the user presses the marker row's
+// explicit "Track natively" control (trackGoal).
+test("web /goal stays passive; only trackGoal arms the native tracker", async () => {
+  resetWorld();
+  const sid = "goal-passive";
+  primeSession(sid, [userMsg("u1", "start")]);
+  const w = await mountSession(sid);
+
+  // Same handshake as startRun: the send waits for the stream to connect,
+  // which only settles when the fake EventSource is opened.
+  let builtinPromise;
+  await act(async () => {
+    builtinPromise = w.latest.handleBuiltinSlashCommand("/goal answer ok to ко");
+    await sleep(30); // let the pre-connect get_state POST settle
+  });
+  await act(async () => {
+    lastEs()?.open(); // connect settles → prompt POST fires
+    const result = await builtinPromise;
+    assert.equal(result.handled, true);
+  });
+  assert.equal(w.latest.activeGoal?.objective, "answer ok to ко", "the web marker must be set");
+  const promptCall = callsTo("POST", "/api/agent/").find((c) => c.body?.type === "prompt");
+  assert.ok(promptCall, "the /goal prompt must be sent");
+  assert.ok(promptCall.body.message.includes("answer ok to ко"), "the objective must reach the prompt");
+  assert.equal(
+    callsTo("POST", "/api/agent/").some((c) => c.body?.type === "goal" && c.body?.op === "create"),
+    false,
+    "sending /goal must not arm the tracker — no implicit create (the mount read is fine)",
+  );
+
+  await act(async () => {
+    await w.latest.trackGoal();
+  });
+  const createCall = callsTo("POST", "/api/agent/").find((c) => c.body?.type === "goal" && c.body?.op === "create");
+  assert.ok(createCall, "the explicit track action must send goal create");
+  assert.equal(createCall.body.objective, "answer ok to ко", "the tracked objective is the marker objective");
+});

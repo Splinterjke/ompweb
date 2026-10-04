@@ -564,6 +564,66 @@ export function Check({ label, checked, onChange, disabled }: CheckProps) {
     </label>
   );
 }
+/* ─── Switch (role="switch", the settings-tab toggle) ─── */
+
+export function ToggleSwitch({
+  checked,
+  onChange,
+  disabled,
+  id,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-describedby": ariaDescribedBy,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+}) {
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="ui-focus-ring"
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        width: 40,
+        height: 24,
+        borderRadius: 12,
+        border: "none",
+        background: checked ? "var(--accent)" : "var(--border)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "background var(--dur-fast)",
+        padding: 2,
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 10,
+          background: "#fff",
+          transform: checked ? "translateX(16px)" : "translateX(0px)",
+          transition: "transform var(--dur-fast)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        }}
+      />
+    </button>
+  );
+}
 
 /* ──────────────────── Convenience hooks ──────────────────── */
 

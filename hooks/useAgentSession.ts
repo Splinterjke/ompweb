@@ -794,6 +794,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // snapshots apply only while it is unchanged — a frame that arrived
   // mid-request is newer and must not be clobbered by the snapshot.
   const goalGenerationRef = useRef(0);
+  // A background goal read can hit the no-spawn path while the child is
+  // still cold-booting and answer "no goal". Retry a null read a bounded
+  // number of times per session so a live goal surfaces after boot.
+  const goalRetryTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const goalRetryCountRef = useRef(0);
+  const goalRetrySidRef = useRef<string | null>(null);
+  useEffect(() => () => clearTimeout(goalRetryTimerRef.current), []);
   const [todoPhases, setTodoPhases] = useState<TodoPhase[]>([]);
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
@@ -1105,10 +1112,27 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (externalRunningRef.current) return;
     const generation = goalGenerationRef.current;
     const sidAt = sessionIdRef.current;
+    if (goalRetrySidRef.current !== sid) {
+      goalRetrySidRef.current = sid;
+      goalRetryCountRef.current = 0;
+    }
     try {
       const result = await sendAgentCommand<unknown>(sid, { type: "goal", op: "get" });
       if (sessionIdRef.current !== sidAt || goalGenerationRef.current !== generation) return;
-      applyGoal(parseGoalResult(result));
+      const parsed = parseGoalResult(result);
+      applyGoal(parsed);
+      if (parsed.goal) {
+        goalRetryCountRef.current = 0;
+      } else if (goalRetryCountRef.current < 2) {
+        // The child may have been cold (the route answers goal/get without
+        // spawning); bounded re-reads until the goal surfaces, never a loop.
+        goalRetryCountRef.current += 1;
+        clearTimeout(goalRetryTimerRef.current);
+        goalRetryTimerRef.current = setTimeout(() => {
+          goalRetryTimerRef.current = undefined;
+          if (sidAt && sessionIdRef.current === sidAt) void refreshGoal(sidAt);
+        }, 4000);
+      }
     } catch {
       // An older omp without the goal command: the bar simply stays hidden.
     }
@@ -1121,7 +1145,41 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // Errors bubble to the caller (the goal bar toasts them).
     const result = await sendAgentCommand<unknown>(sid, command);
     applyGoal(parseGoalResult(result));
+    if (op === "drop") {
+      // The web /goal marker mirrors the same objective in sessionStorage;
+      // dropping the native goal must drop the marker too, or the bar keeps
+      // showing the plain "Goal active" line after the drop.
+      sessionStorage.removeItem(`omp-web:goal:${sid}`);
+      setActiveGoal(null);
+    }
   }, [applyGoal]);
+  // Opt-in native tracking for the web /goal marker: promotes the passive
+  // marker objective to a native tracked goal (continuation loop + budget).
+  // The marker row offers this explicitly; /goal itself never arms the
+  // tracker implicitly (that silently consumed ~10k tokens for a passive
+  // "wait for a trigger word" rule before it was split out).
+  const trackGoal = useCallback(async () => {
+    const objective = activeGoal?.objective;
+    if (!objective) return;
+    await sendGoalCommand("create", objective);
+  }, [activeGoal, sendGoalCommand]);
+
+  // Goal-mode background refresh: the per-session SSE stream is only open
+  // while a run is in flight, so a goal created/changed by the server side
+  // (curl, TUI, the agent itself between turns) never reaches an idle page
+  // as a goal_updated frame. Poll the (no-spawn, silent) goal read while the
+  // tab is visible so the bar converges within one tick. Externally-running
+  // sessions are skipped inside refreshGoal itself.
+  useEffect(() => {
+    if (!session) return;
+    const sid = session.id;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (sessionIdRef.current === sid) void refreshGoal(sid);
+    };
+    const timer = setInterval(tick, 15_000);
+    return () => clearInterval(timer);
+  }, [session, refreshGoal]);
   const refreshSubagentRoster = useCallback(async (sid: string) => {
     // Externally-running sessions have no web-owned process to query: the
     // get_subagents POST would spawn a stray idle omp (or fail with "already
@@ -3674,21 +3732,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             setActiveGoal(goal);
             const activeSessionId = sessionIdRef.current;
             if (activeSessionId) sessionStorage.setItem(`omp-web:goal:${activeSessionId}`, JSON.stringify(goal));
-            // Also create the NATIVE goal (omp >= 18.4.11): it drives the
-            // goal bar and the agent-side continuations. The web marker
-            // above remains the only record on an omp without the command
-            // or while another goal is active (the failure is silent).
-            if (activeSessionId) {
-              try {
-                applyGoal(parseGoalResult(await sendAgentCommand<unknown>(activeSessionId, {
-                  type: "goal",
-                  op: "create",
-                  objective: args,
-                })));
-              } catch {
-                // Older omp or an active goal: web marker only, no notice.
-              }
-            }
+            // Web /goal stays PASSIVE (a marker + the prefixed instruction in
+            // the first prompt): it costs no tokens and the model follows it
+            // on its own. The native tracked goal (continuation loop, budget,
+            // tracker) is opt-in via the row's "Track natively" control —
+            // never armed implicitly behind the user's back.
           }
           return { handled: true };
         }
@@ -3952,6 +4000,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (mountedSessionLoadRef.current === session.id) return;
       mountedSessionLoadRef.current = session.id;
       sessionIdRef.current = session.id;
+      // Silent goal read: a live wrapper answers with the restored goal
+      // (omp re-hydrates it on --resume); with no child the route replies
+      // {goal:null} without spawning, so opening an idle session never
+      // pays a child for the bar.
+      void refreshGoal(session.id);
       loadSession(session.id, true, true).then((agentState) => {
         if (agentState?.exited) {
           const exitKey = `${agentState.exited.id}:${agentState.exited.at}`;
@@ -4018,7 +4071,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       subagentVersionFlushRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSubagentRoster, registerHostTools, registerHostUriSchemes, enterExternalMode]);
+  }, [refreshGoal, refreshSubagentRoster, registerHostTools, registerHostUriSchemes, enterExternalMode]);
 
   useEffect(() => {
     onSystemPromptChange?.(systemPrompt);
@@ -4148,7 +4201,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     advisorActive: advisorActiveAt > 0, advisorEnabled, handleAdvisorChange,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
-    goal, goalMode, sendGoalCommand,
+    goal, goalMode, sendGoalCommand, trackGoal,
     activeGoal, activePlan, planInfo,
     isNew,
     // Refs

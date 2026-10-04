@@ -38,7 +38,7 @@ tools:
   - yield
   - git
   - bash
-thinkingLevel: medium
+thinkingLevel: low
 ---
 
 Investigate the codebase rapidly. Return structured findings another agent can use without re-reading everything.

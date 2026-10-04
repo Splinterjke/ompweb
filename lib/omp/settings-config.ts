@@ -44,7 +44,7 @@ export type NativeSettings = {
     handoffSaveToDisk?: boolean;
     experimentalContextManagement?: boolean;
   };
-  goal?: { enabled?: boolean; statusInFooter?: boolean; continuationModes?: string[] };
+  goal?: { continuationModes?: string[] };
   branchSummary?: { enabled?: boolean; reserveTokens?: number };
   memory?: { backend?: "off" | "local" | "mnemopi" | "hindsight" };
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
@@ -66,7 +66,6 @@ export type NativeSettings = {
   dev?: { autoqaConsent?: string | null };
   task?: { speculativeLaunch?: boolean };
   telemetry?: { otlpExportEnabled?: boolean };
-  display?: { subagentLivePreview?: boolean };
   symbolPreset?: string | null;
 };
 
@@ -192,7 +191,6 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const goal = isRecord(data.goal) ? data.goal : {};
   const task = isRecord(data.task) ? data.task : {};
   const telemetry = isRecord(data.telemetry) ? data.telemetry : {};
-  const display = isRecord(data.display) ? data.display : {};
   const registryHasScopedEntries = [data.enabledModels, data.disabledProviders, data.modelProviderOrder]
     .some((value) => Array.isArray(value) && !value.every((item) => typeof item === "string"));
   return {
@@ -251,8 +249,6 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof compaction.handoffSaveToDisk === "boolean" ? { handoffSaveToDisk: compaction.handoffSaveToDisk } : {}),
       } } : {}),
       ...(Object.keys(goal).length ? { goal: {
-        ...(typeof goal.enabled === "boolean" ? { enabled: goal.enabled } : {}),
-        ...(typeof goal.statusInFooter === "boolean" ? { statusInFooter: goal.statusInFooter } : {}),
         ...(goalContinuationModes(goal.continuationModes) ? { continuationModes: goalContinuationModes(goal.continuationModes)! } : {}),
       } } : {}),
       ...(Object.keys(branchSummary).length ? { branchSummary: {
@@ -300,7 +296,6 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
       ...(Object.keys(dev).length && typeof dev.autoqaConsent === "string" && dev.autoqaConsent ? { dev: { autoqaConsent: dev.autoqaConsent } } : {}),
       ...(Object.keys(task).length ? { task: { ...(typeof task.speculativeLaunch === "boolean" ? { speculativeLaunch: task.speculativeLaunch } : {}) } } : {}),
       ...(Object.keys(telemetry).length ? { telemetry: { ...(typeof telemetry.otlpExportEnabled === "boolean" ? { otlpExportEnabled: telemetry.otlpExportEnabled } : {}) } } : {}),
-      ...(Object.keys(display).length ? { display: { ...(typeof display.subagentLivePreview === "boolean" ? { subagentLivePreview: display.subagentLivePreview } : {}) } } : {}),
       ...(typeof data.symbolPreset === "string" && data.symbolPreset ? { symbolPreset: data.symbolPreset } : {}),
     },
   };
@@ -345,7 +340,6 @@ export function writeNativeSettings(settings: NativeSettings): void {
   assertOptionalRecord(settings.goal, "goal");
   assertOptionalRecord(settings.task, "task");
   assertOptionalRecord(settings.telemetry, "telemetry");
-  assertOptionalRecord(settings.display, "display");
   for (const [name, value] of Object.entries({
     hideThinkingBlock: settings.hideThinkingBlock,
     externalThinking: settings.externalThinking,
@@ -383,11 +377,8 @@ export function writeNativeSettings(settings: NativeSettings): void {
     "colorBlindMode": settings.colorBlindMode,
     "contextPromotion.enabled": settings.contextPromotion?.enabled,
     "snapcompact.toolResults": settings.snapcompact?.toolResults,
-    "goal.enabled": settings.goal?.enabled,
-    "goal.statusInFooter": settings.goal?.statusInFooter,
     "task.speculativeLaunch": settings.task?.speculativeLaunch,
     "telemetry.otlpExportEnabled": settings.telemetry?.otlpExportEnabled,
-    "display.subagentLivePreview": settings.display?.subagentLivePreview,
   })) assertOptionalBoolean(value, name);
   if (settings.modelRoles !== undefined) {
     for (const [role, model] of Object.entries(settings.modelRoles)) {
@@ -481,10 +472,9 @@ export function writeNativeSettings(settings: NativeSettings): void {
   for (const [key, value] of Object.entries(settings.autolearn ?? {})) doc.setIn(["autolearn", key], value);
   for (const [key, value] of Object.entries(settings.mnemopi ?? {})) doc.setIn(["mnemopi", key], value);
   for (const [key, value] of Object.entries(settings.mcp ?? {})) doc.setIn(["mcp", key], value);
-  for (const [key, value] of Object.entries(settings.goal ?? {})) doc.setIn(["goal", key], value);
+  if (settings.goal?.continuationModes) doc.setIn(["goal", "continuationModes"], settings.goal.continuationModes);
   for (const [key, value] of Object.entries(settings.task ?? {})) doc.setIn(["task", key], value);
   for (const [key, value] of Object.entries(settings.telemetry ?? {})) doc.setIn(["telemetry", key], value);
-  for (const [key, value] of Object.entries(settings.display ?? {})) doc.setIn(["display", key], value);
   if (settings.modelRoles !== undefined) doc.set("modelRoles", settings.modelRoles);
   if (settings.generateImage?.enabled !== undefined) doc.setIn(["generate_image", "enabled"], settings.generateImage.enabled);
   if (settings.computer?.enabled !== undefined) doc.setIn(["computer", "enabled"], settings.computer.enabled);

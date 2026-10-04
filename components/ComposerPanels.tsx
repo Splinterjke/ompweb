@@ -6,14 +6,12 @@ import { Check, Copy } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import type { TodoPhase, SessionStatsInfo, GenerationSpeedInfo } from "@/lib/pi-types";
 import type { SubagentActivityEvent, SubagentInfo } from "@/lib/subagent-types";
-import type { GoalInfo } from "@/lib/goal";
 import { formatCost } from "@/lib/subagent-format";
 import { formatCompactNumber, formatPercent, getCacheHitRate } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 import { GitChangesBar } from "./GitChangesBar";
 import { TodoList } from "./TodoList";
 import { SubagentHub } from "./SubagentHub";
-import { GoalBar } from "./GoalBar";
 import { BtwPanel, type BtwPanelProps } from "./BtwPanel";
 import type { HubBarLayout } from "./AppShell";
 
@@ -37,9 +35,6 @@ export function ComposerPanels({
   subagentEvents,
   onSelectSubagent,
   sessionId,
-  goal,
-  goalMode,
-  onGoalCommand,
   btw = null,
   layout = "stack",
   showGit = true,
@@ -59,12 +54,6 @@ export function ComposerPanels({
   subagentEvents?: Record<string, SubagentActivityEvent[]>;
   /** Session backing the subagent hub's cancel/steer controls. */
   sessionId?: string;
-  /** Session's live goal (omp goal mode); renders the goal bar when set. */
-  goal?: GoalInfo | null;
-  /** "exiting" while a completed goal unwinds. */
-  goalMode?: "active" | "exiting";
-  /** Sends a pause/resume/drop `goal` op; rejection toasts in the bar. */
-  onGoalCommand?: (op: "pause" | "resume" | "drop") => Promise<void>;
   /** Open a subagent in the right-hand Agents panel. */
   onSelectSubagent?: (subagent: SubagentInfo) => void;
   /** Active `/btw` side question, pinned above the hub bars. */
@@ -128,15 +117,12 @@ export function ComposerPanels({
     />
   ) : null;
   const btwBar = btw ? <BtwPanel key={btw.record.id} {...btw} /> : null;
-  const goalBar = goal ? (
-    <GoalBar goal={goal} mode={goalMode} onCommand={onGoalCommand ?? (async () => {})} />
-  ) : null;
 
   // The git bar reports its renderable content (repo with changes) via
   // onPresenceChange; it stays mounted while enabled so its polling keeps
   // running, but contributes nothing visually until content exists.
   const gitVisible = showGit && gitPresent;
-  const anyVisible = gitVisible || todoBar !== null || subagentBar !== null || btwBar !== null || goalBar !== null;
+  const anyVisible = gitVisible || todoBar !== null || subagentBar !== null || btwBar !== null;
 
   // With the git bar disabled and no other bars there is nothing to show.
   if (!showGit && !anyVisible) return null;
@@ -158,7 +144,6 @@ export function ComposerPanels({
     return (
       <>
         {btwBar}
-        {goalBar}
         <div className="hub-bars hub-bars--row" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
           {gitBar && <div key="git" style={slotStyle(gitVisible, gitExpanded)}>{gitBar}</div>}
           {todoBar && <div key="tasks" style={slotStyle(true, !todoCollapsed)}>{todoBar}</div>}
@@ -172,7 +157,6 @@ export function ComposerPanels({
   return (
     <div className="hub-bars" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
       {btwBar}
-      {goalBar}
       {gitBar}
       {todoBar}
       {subagentBar}

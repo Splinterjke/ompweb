@@ -869,19 +869,32 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   was delivered; the browser renders it via `AppShell` → `showBrowserNotification` and
   clicking selects the originating session.
 
-### Goal mode (`lib/goal.ts`, `components/GoalBar.tsx`)
+### Goal mode (`lib/goal.ts`, `ComposerModeStatus` in `components/ChatInput.tsx`)
 - omp ≥ 18.4.11 goal mode: the `goal` RPC (`{type:"goal", op:"get"|"create"|"resume"|"pause"|"drop", objective?}`
   → `GoalResult {goal, state}`) plus the `goal_updated` frame (same payload; fired by the host
-  command or the agent's `goal` tool). The composer's `GoalBar` renders the live goal
-  (objective, status, tokens vs budget, elapsed time) with pause/resume/drop actions.
+  command or the agent's `goal` tool). The single goal surface is the themed composer
+  status row (`ComposerModeStatus`): a live native goal takes it over — tracked status,
+  omp's elapsed time, optional token readout (Interface & Behavior → "Show token budget
+  in goal bar", localStorage `omp-web:goal-token-budget`, default off) and pause/resume/drop
+  controls; without a native goal the row keeps the plain web `/goal` marker rendering.
+  A drop also clears the sessionStorage marker (the row must not keep showing
+  "Goal active" after the native goal is gone).
 - Hydration rides `refreshSubagentRoster`'s refresh points (SSE open, mount, send, reconcile,
   restart) and the first `agent_start`; `POST /api/agent/[id]` answers `goal` + `op:"get"`
   with `{goal:null}` when no child exists (`NO_SPAWN_REPLIES.goal_get`) so background reads
   never spawn a process — mutating goal ops must NEVER join that map (a fake success would
   silently no-op). A `goalGenerationRef` keeps a stale snapshot from clobbering a newer
   `goal_updated` frame applied mid-request.
-- Web `/goal <objective>` keeps its sessionStorage marker (survives everywhere) AND, after the
-  prompt sends, creates the native goal best-effort; the bar appears when omp honors it.
+- Background poll: the per-session SSE stream is only open while a run is in flight, so
+  server-side goal changes (the agent's `goal` tool between turns, curl, a TUI on the same
+  session) never reach an idle page as `goal_updated` frames. The hook polls the no-spawn
+  `goal`/`get` read every 15 s while the tab is visible (`useAgentSession`, keyed on the
+  open session) — that poll, not the frames, is what converges the bar on an idle session.
+- Web `/goal <objective>` is PASSIVE by design: it sets the sessionStorage marker and sends
+  the prefixed instruction — never an implicit native create. The tracker (continuation loop,
+  budget) is armed only by the marker row's explicit "Track natively" control (`trackGoal`,
+  `onTrackGoal`); an implicit create silently burned ~10k tokens/minutes on a passive
+  wait-for-a-word rule before this split (regression test in `useAgentSession.rpc.test.mjs`).
 - Native goal ≠ `activeGoal` (`lib/web-mode-state.ts`): the web marker tracks "this session
   was started with /goal" for the composer hint; the bar shows omp's authoritative tracked goal.
 

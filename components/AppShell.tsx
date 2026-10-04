@@ -63,6 +63,7 @@ const FileViewer = dynamic(() => import("./FileViewer").then((m) => m.FileViewer
 // --sidebar-width CSS variable (globals.css) and persisted between sessions.
 const SIDEBAR_WIDTH_STORAGE_KEY = "omp-web:sidebar-width";
 const TOOL_CALLS_COLLAPSED_STORAGE_KEY = "omp-web:tool-calls-collapsed";
+const GOAL_TOKEN_BUDGET_STORAGE_KEY = "omp-web:goal-token-budget";
 const OPEN_URL_AUTOMATICALLY_STORAGE_KEY = "omp-web:open-url-automatically";
 const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
 const EXTENDED_THINKING_BLOCK_STORAGE_KEY = "omp-web:extended-thinking-block";
@@ -229,6 +230,7 @@ export function AppShell() {
     return GIT_GRAPH_SIZE_PRESETS.includes(clamped) ? clamped : GIT_GRAPH_DEFAULT_SIZE;
   });
   const [toolCallsDefaultCollapsed, setToolCallsDefaultCollapsed] = useState(true);
+  const [showGoalTokenBudget, setShowGoalTokenBudget] = useState(false);
   const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
   const [thinkingDisplayMode, setThinkingDisplayMode] = useState<ThinkingDisplayMode>("auto");
   const [extendedThinkingBlock, setExtendedThinkingBlock] = useState(false);
@@ -422,6 +424,7 @@ export function AppShell() {
     (window as { ompWebDesktop?: { startupStage?: (stage: string) => void } }).ompWebDesktop?.startupStage?.("shell_mounted");
     try {
       setToolCallsDefaultCollapsed(window.localStorage.getItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY) !== "false");
+      setShowGoalTokenBudget(window.localStorage.getItem(GOAL_TOKEN_BUDGET_STORAGE_KEY) === "true");
     } catch {
       // Keep the compact default when storage is unavailable.
     }
@@ -460,6 +463,14 @@ export function AppShell() {
     setToolCallsDefaultCollapsed(collapsed);
     try {
       window.localStorage.setItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY, String(collapsed));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleShowGoalTokenBudgetChange = useCallback((show: boolean) => {
+    setShowGoalTokenBudget(show);
+    try {
+      window.localStorage.setItem(GOAL_TOKEN_BUDGET_STORAGE_KEY, String(show));
     } catch {
       // The preference still applies for this page load.
     }
@@ -2324,6 +2335,7 @@ export function AppShell() {
               onOpenGitTab={handleOpenGitTab}
               onSubagentsChange={setSubagents}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+              showGoalTokenBudget={showGoalTokenBudget}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollowEnabled}
               hideThinkingBlock={hideThinkingBlock}
@@ -2524,6 +2536,8 @@ export function AppShell() {
         activeTab={settingsTab}
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
         onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange}
+        showGoalTokenBudget={showGoalTokenBudget}
+        onShowGoalTokenBudgetChange={handleShowGoalTokenBudgetChange}
         thinkingDisplayMode={thinkingDisplayMode}
         onThinkingDisplayModeChange={handleThinkingDisplayModeChange}
         extendedThinkingBlock={extendedThinkingBlock}

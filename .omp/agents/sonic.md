@@ -1,9 +1,9 @@
 ---
 name: sonic
 description: Low-reasoning agent for strictly mechanical updates or data collection only
-model: 
+model:
   - "@smol"
-thinkingLevel: medium
+thinkingLevel: low
 ---
 
 Worker agent: delegated tasks.

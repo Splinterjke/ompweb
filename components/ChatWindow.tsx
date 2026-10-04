@@ -45,6 +45,8 @@ interface Props {
   /** Workspace picker rendered above the new-session composer (owns the destination cwd). */
   newSessionWorkspace?: ReactNode;
   toolCallsDefaultCollapsed?: boolean;
+  /** Interface & Behavior pref forwarded to the goal bar's token readout. */
+  showGoalTokenBudget?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
   /** omp `hideThinkingBlock`: omit thinking blocks from the transcript. */
@@ -586,7 +588,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -622,7 +624,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     isAutoModelSelection,
     agentPhase, activeGoal, activePlan, planInfo,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
-    goal, goalMode, sendGoalCommand,
+    goal, sendGoalCommand, trackGoal,
     isNew,
     sessionIdRef, messagesEndRef, scrollContainerRef,
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession, scrollToBottom,
@@ -1232,6 +1234,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       modelNameOverride={liveModelMeta?.name ?? null}
       retryInfo={retryInfo}
       activeGoal={activeGoal}
+      goalInfo={goal}
+      onGoalCommand={sendGoalCommand}
+      onTrackGoal={trackGoal}
+      showGoalTokenBudget={showGoalTokenBudget}
       activePlan={activePlan ?? (planInfo?.planModeActive ? { objective: t("chatWindow.planDocument") } : null)}
       advisorEnabled={advisorEnabled}
       toolPreset={toolPreset}
@@ -1565,9 +1571,6 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               subagentEvents={subagentEvents}
               onSelectSubagent={onSelectSubagent}
               sessionId={session?.id}
-              goal={goal}
-              goalMode={goalMode}
-              onGoalCommand={sendGoalCommand}
               btw={btwPanel}
               layout={hubBarLayout}
               showGit={hubBarsVisible.git}

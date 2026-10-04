@@ -1,5 +1,6 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
+import { ToggleSwitch } from "./ui/field";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, cloneElement, isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { getSubmitDuringRunBehavior, getWordCompletionMode, setSubmitDuringRunBehavior, setWordCompletionMode, type SubmitDuringRunBehavior, type WordCompletionMode } from "@/lib/composer-prefs";
@@ -382,65 +383,6 @@ function SearchResultsList({ results, query, onSelect }: { results: SearchResult
   );
 }
 
-function ToggleSwitch({
-  checked,
-  onChange,
-  disabled,
-  id,
-  "aria-label": ariaLabel,
-  "aria-labelledby": ariaLabelledBy,
-  "aria-describedby": ariaDescribedBy,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-  id?: string;
-  "aria-label"?: string;
-  "aria-labelledby"?: string;
-  "aria-describedby"?: string;
-}) {
-  return (
-    <button
-      id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      aria-labelledby={ariaLabelledBy}
-      aria-describedby={ariaDescribedBy}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className="ui-focus-ring"
-      style={{
-        position: "relative",
-        display: "inline-flex",
-        alignItems: "center",
-        width: 40,
-        height: 24,
-        borderRadius: 12,
-        border: "none",
-        background: checked ? "var(--accent)" : "var(--border)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        transition: "background var(--dur-fast)",
-        padding: 2,
-        flexShrink: 0,
-      }}
-    >
-      <span
-        style={{
-          width: 20,
-          height: 20,
-          borderRadius: 10,
-          background: "#fff",
-          transform: checked ? "translateX(16px)" : "translateX(0px)",
-          transition: "transform var(--dur-fast)",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-        }}
-      />
-    </button>
-  );
-}
-
 /** Server-side omp-web setting (lib/web-settings.ts), loaded on mount. */
 function AutoResumeSessionsSetting() {
   const { t } = useI18n();
@@ -672,10 +614,13 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
+  /** Show the goal token budget in the composer goal bar (default off). */
+  showGoalTokenBudget?: boolean;
+  onShowGoalTokenBudgetChange?: (show: boolean) => void;
   /** Git graph modal size as a percentage of the viewport (40-95). */
   gitGraphModalSize: number;
   onGitGraphModalSizeChange: (size: number) => void;
@@ -812,6 +757,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   const [restarting, setRestarting] = useState(false);
   const [nativeSettings, setNativeSettings] = useState<NativeSettings | null>(null);
   const [nativeSettingsError, setNativeSettingsError] = useState<string | null>(null);
+  const [nativeSettingsLoading, setNativeSettingsLoading] = useState(true);
   const [nativeSavesInFlight, setNativeSavesInFlight] = useState(0);
   const [isPending, startTransition] = useTransition();
   const latestNativeSettingsRef = useRef<NativeSettings | null>(null);
@@ -824,7 +770,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
       .then((data: { settings?: NativeSettings }) => {
         if (!nativeSettingsMutatedRef.current) setNativeSettings(data.settings ?? {});
       })
-      .catch((error) => setNativeSettingsError(error instanceof Error ? error.message : String(error)));
+      .catch((error) => setNativeSettingsError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setNativeSettingsLoading(false));
   }, []);
 
   const saveNativeSettings = useCallback((next: NativeSettings) => {
@@ -1166,6 +1113,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
                     <ToggleSwitch checked={toolCallsDefaultCollapsed} onChange={onToolCallsDefaultCollapsedChange} />
+                  </NativeSetting>
+                  <NativeSetting searchId="show-goal-token-budget" label={t("settingsConfig.showGoalTokenBudget")} description={t("settingsConfig.showGoalTokenBudgetDesc")} scope="UI">
+                    <ToggleSwitch checked={showGoalTokenBudget} onChange={(v) => onShowGoalTokenBudgetChange?.(v)} />
                   </NativeSetting>
                   <NativeSetting searchId="thinking-blocks" label={t("settingsConfig.thinkingBlocks")} description={t("settingsConfig.thinkingBlocksDesc")} scope="Native OMP">
                     <ToggleSwitch
@@ -1778,14 +1728,14 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </div>
                 </section>
 
-                {/* OMP internal settings: model roles, feature toggles, advanced */}
-                {nativeSettings && (
-                  <NativeExtrasSetting
-                    settings={nativeSettings}
-                    onPatch={(patch) => patchSettings(patch)}
-                    onPatchSection={(key, patch) => patchSection(key as never, patch as never)}
-                  />
-                )}
+                {/* OMP internal settings: feature toggles, goal knob, advanced */}
+                <NativeExtrasSetting
+                  settings={nativeSettings ?? {}}
+                  loading={nativeSettingsLoading}
+                  error={nativeSettingsError}
+                  onPatch={(patch) => patchSettings(patch)}
+                  onPatchSection={(key, patch) => patchSection(key as never, patch as never)}
+                />
               </div>
             )}
 

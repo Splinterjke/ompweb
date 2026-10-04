@@ -306,3 +306,49 @@ test("renders multiple queued prompts with count and expand action", () => {
   assert.match(html, />(Show all queued prompts|Show all|chatInput\.expandQueued)</);
   assert.match(html, /First task/);
 });
+
+// The merged composer row is the single goal surface: a live native goal
+// (omp >= 18.4.11) takes the themed row over — omp's status drives which
+// controls appear, the token readout honors the Interface & Behavior pref,
+// and the web /goal marker must not leak a second line under it.
+test("native goal takes the composer row over with status-driven controls", () => {
+  const goal = { id: "g1", objective: "Verify the merged goal row", status: "active", tokensUsed: 1500, timeUsedSeconds: 95 };
+  const html = renderToStaticMarkup(
+    React.createElement(ChatInput, {
+      onSend() {},
+      onAbort() {},
+      goalInfo: goal,
+      activeGoal: { objective: "Verify the merged goal row", startedAt: 0 },
+      onGoalCommand: async () => {},
+    }),
+  );
+  assert.match(html, /Verify the merged goal row/);
+  assert.match(html, /(Active|goal\.status\.active)/);
+  assert.match(html, /aria-label="(Pause goal|goal\.pause)"/);
+  assert.doesNotMatch(html, /aria-label="(Resume goal|goal\.resume)"/);
+  assert.match(html, /aria-label="(Drop goal|goal\.drop)"/);
+  // No token readout without the preference; no marker line under a native goal.
+  assert.doesNotMatch(html, /1\.5k/);
+  assert.doesNotMatch(html, /Goal active|chatInput\.goalActive/);
+});
+
+test("paused native goal shows Resume, active goal never does", () => {
+  const base = { id: "g1", objective: "Paused goal", tokensUsed: 0, timeUsedSeconds: 10 };
+  const paused = renderToStaticMarkup(
+    React.createElement(ChatInput, { onSend() {}, onAbort() {}, goalInfo: { ...base, status: "paused" }, onGoalCommand: async () => {} }),
+  );
+  assert.match(paused, /aria-label="(Resume goal|goal\.resume)"/);
+  assert.doesNotMatch(paused, /aria-label="(Pause goal|goal\.pause)"/);
+});
+
+test("token readout renders only with the goal-token-budget preference", () => {
+  const goal = { id: "g1", objective: "Budgeted goal", status: "active", tokensUsed: 59425, tokenBudget: 50000, timeUsedSeconds: 60 };
+  const on = renderToStaticMarkup(
+    React.createElement(ChatInput, { onSend() {}, onAbort() {}, goalInfo: goal, onGoalCommand: async () => {}, showGoalTokenBudget: true }),
+  );
+  assert.match(on, /59k \/ 50k/);
+  const off = renderToStaticMarkup(
+    React.createElement(ChatInput, { onSend() {}, onAbort() {}, goalInfo: goal, onGoalCommand: async () => {}, showGoalTokenBudget: false }),
+  );
+  assert.doesNotMatch(off, /59k/);
+});

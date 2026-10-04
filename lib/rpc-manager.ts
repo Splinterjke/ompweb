@@ -119,6 +119,15 @@ export class WebRpcError extends Error {
 // newly-attached SSE listeners so dialogs survive reconnects).
 const PENDING_UI_METHODS = new Set(["select", "confirm", "input", "editor", "ask", "open_url"]);
 
+/** Reads `.goal.status` from a goal_updated frame or a `goal` command reply,
+ *  runtime-narrowing the wire shape (external data). */
+function readGoalStatus(source: unknown): string | null {
+  if (!source || typeof source !== "object" || !("goal" in source)) return null;
+  const goal = source.goal;
+  if (!goal || typeof goal !== "object" || !("status" in goal)) return null;
+  return typeof goal.status === "string" ? goal.status : null;
+}
+
 /** Shape check for an ask-dialog `answers` payload; omp validates the content. */
 function isAskAnswers(value: unknown): boolean {
   return Array.isArray(value) && value.every((answer: unknown) =>
@@ -332,6 +341,14 @@ export class AgentSessionWrapper {
    *  `session_settled` frame — or, if that never arrives, the next
    *  agent_start, so the event fires late but is never lost. */
   private _completionDeferred = false;
+  /** Last goal status seen from the child (goal_updated frames and `goal`
+   *  command replies). Drives whether a pause/drop must also stop a running
+   *  goal-driven turn. */
+  private _goalStatus: string | null = null;
+  /** True while the active run was started by a host (web) prompt; false for
+   *  child-initiated runs (goal continuation, async wake). A host goal
+   *  pause/drop interrupts only non-host runs — never the user's own prompt. */
+  private _hostRun = false;
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
@@ -586,6 +603,9 @@ export class AgentSessionWrapper {
   private handleFrame(frame: RpcFrame): void {
     this.resetIdleTimer();
     const event = frame as AgentEvent;
+    if (event.type === "goal_updated") {
+      this._goalStatus = readGoalStatus(event);
+    }
     let refreshSessionList = false;
 
     switch (event.type) {
@@ -603,6 +623,9 @@ export class AgentSessionWrapper {
         break;
       }
       case "agent_start":
+        // Record the run's origin before promptRunning is set: a goal wake or
+        // an async resume starts with no host prompt awaiting its start.
+        this._hostRun = this.awaitingAgentStart || this.promptDispatchPendingCount > 0;
         this.promptRunning = true;
         this.streaming = true;
         this.awaitingAgentStart = false;
@@ -1592,6 +1615,29 @@ export class AgentSessionWrapper {
         // Chat event action: conversation_interrupted (command accepted by omp).
         dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
         return null;
+
+      case "goal": {
+        // A goal pause/drop must also stop the child's own run: while the
+        // goal was ACTIVE and is driving an in-flight continuation turn, the
+        // status change alone only prevents FUTURE wakes — the agent keeps
+        // working on the objective and the pause/drop reads as "not working".
+        // Host-prompt runs belong to the user's prompt and are stopped only
+        // by Stop (the web never interrupts a user-prompted turn here).
+        const op = command.op as string;
+        const goalWasActive = this._goalStatus === "active";
+        const result = await this.proc.sendCommand(command as { type: string });
+        this._goalStatus = readGoalStatus(result);
+        if ((op === "pause" || op === "drop") && goalWasActive && this.streaming && !this._hostRun) {
+          this._interruptEndPending = true;
+          await this.withFinalRunningNotification(async () => {
+            await this.proc.sendCommand({ type: "abort" });
+            this.promptRunning = false;
+            this.continuationPending = false;
+          });
+          dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
+        }
+        return result ?? null;
+      }
 
       case "get_state": {
         try {

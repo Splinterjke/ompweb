@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
-import { ChevronDown, ClipboardPaste, ListChecks, Loader2, Mic, Paperclip, Plus, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
+import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
@@ -17,6 +17,8 @@ import { acceptGhost } from "@/lib/word-prediction";
 import { GhostMirror } from "./GhostMirror";
 import type { ActiveGoal, ActivePlan } from "@/lib/web-mode-state";
 import { formatGoalElapsed } from "@/lib/web-mode-state";
+import type { GoalInfo } from "@/lib/goal";
+import { formatDuration, formatTokens } from "@/lib/subagent-format";
 import { toast } from "@/components/ui/toast";
 import { useDictation } from "@/hooks/useDictation";
 import { toastBtwError } from "@/hooks/useBtw";
@@ -172,6 +174,16 @@ interface Props {
   /** Session working directory — enables the @ file autocomplete menu */
   cwd?: string | null;
   activeGoal?: ActiveGoal | null;
+  /** Live native goal (omp >= 18.4.11); replaces the web-marker row's plain
+   *  status with the tracked state, elapsed time, tokens and controls. */
+  goalInfo?: GoalInfo | null;
+  /** Sends a pause/resume/drop `goal` op; failures toast in the bar. */
+  onGoalCommand?: (op: "pause" | "resume" | "drop") => Promise<void>;
+  /** Promote the passive web /goal marker to a native tracked goal (opt-in;
+   *  arms omp's continuation loop). Absent when no marker is set. */
+  onTrackGoal?: () => Promise<void>;
+  /** Interface & Behavior pref: show tokensUsed (and budget) in the bar. */
+  showGoalTokenBudget?: boolean;
   activePlan?: ActivePlan | null;
   /** Open the session's plan document in the right sidebar panel. */
   onOpenPlan?: () => void;
@@ -420,47 +432,166 @@ export function ModelErrorBanner({ error }: { error?: string | null }) {
   );
 }
 
-function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | null; plan?: ActivePlan | null; onOpenPlan?: () => void }) {
+const GOAL_STATUS_KEYS: Record<GoalInfo["status"], string> = {
+  active: "goal.status.active",
+  paused: "goal.status.paused",
+  "budget-limited": "goal.status.budgetLimited",
+  complete: "goal.status.complete",
+  dropped: "goal.status.dropped",
+};
+
+type GoalControl = "pause" | "resume" | "drop";
+
+/**
+ * Composer status rows. The goal row is the single goal surface: the web
+ * /goal marker renders its plain line, and a live native goal (omp
+ * >= 18.4.11) takes the same themed row over — tracked status, omp's own
+ * elapsed time, optional token budget, and pause/resume/drop controls.
+ */
+function ComposerModeStatus({ goal, goalInfo, onGoalCommand, onTrackGoal, showGoalTokenBudget, plan, onOpenPlan }: { goal?: ActiveGoal | null; goalInfo?: GoalInfo | null; onGoalCommand?: (op: GoalControl) => Promise<void>; onTrackGoal?: () => Promise<void>; showGoalTokenBudget?: boolean; plan?: ActivePlan | null; onOpenPlan?: () => void }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState<GoalControl | "track" | null>(null);
+  const native = goalInfo && goalInfo.status !== "dropped" ? goalInfo : null;
+  const nativeObjective = native?.objective;
 
   useEffect(() => {
-    if (!goal) return;
+    if (!goal && !nativeObjective) return;
     setExpanded(false);
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
-  }, [goal]);
+  }, [goal, nativeObjective]);
 
-  if (!goal && !plan) return null;
+  const run = async (op: GoalControl) => {
+    if (!onGoalCommand || busy) return;
+    setBusy(op);
+    try {
+      await onGoalCommand(op);
+    } catch (error) {
+      toast.error(t("goal.actionFailed"), error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const runTrack = async () => {
+    if (!onTrackGoal || busy) return;
+    setBusy("track");
+    try {
+      await onTrackGoal();
+    } catch (error) {
+      toast.error(t("goal.actionFailed"), error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!goal && !native && !plan) return null;
+  const statusLabel = native ? t(GOAL_STATUS_KEYS[native.status]) : t("chatInput.goalActive");
+  const elapsed = native ? formatDuration(native.timeUsedSeconds * 1000) : formatGoalElapsed(now - (goal ? goal.startedAt : now));
+  const tokens = native && showGoalTokenBudget
+    ? native.tokenBudget
+      ? `${formatTokens(native.tokensUsed) ?? "0"} / ${formatTokens(native.tokenBudget)}`
+      : formatTokens(native.tokensUsed)
+    : null;
+  const controls: Array<{ op: GoalControl; icon: typeof Play; label: string; visible: boolean }> = native && onGoalCommand
+    ? [
+      { op: "resume", icon: Play, label: t("goal.resume"), visible: native.status === "paused" || native.status === "budget-limited" },
+      { op: "pause", icon: Pause, label: t("goal.pause"), visible: native.status === "active" },
+      { op: "drop", icon: Ban, label: t("goal.drop"), visible: true },
+    ]
+    : [];
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
-      {goal && (
-        <Tooltip content={expanded ? t("chatInput.collapseGoal") : t("chatInput.expandGoal")}>
-          <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
+      {(goal || native) && (
+        <div
           style={{
-            display: "flex", alignItems: expanded ? "flex-start" : "center", gap: 8,
+            display: "flex", alignItems: "center", gap: 8,
             width: "100%", padding: "6px 9px",
             border: "1px solid color-mix(in srgb, var(--accent) 32%, var(--border))",
             borderRadius: "var(--radius-control)",
             background: "color-mix(in srgb, var(--accent) 7%, var(--bg-panel))",
-            color: "var(--text)", cursor: "pointer", textAlign: "left",
-            transition: "background var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
+            color: "var(--text)",
           }}
         >
-          <Target size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: expanded ? 1 : 0, color: "var(--accent)" }} aria-hidden="true" />
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            {t("chatInput.goalActive")} · {formatGoalElapsed(now - goal.startedAt)}
-          </span>
-          <span style={{ minWidth: 0, flex: 1, overflow: expanded ? "visible" : "hidden", textOverflow: expanded ? undefined : "ellipsis", whiteSpace: expanded ? "pre-wrap" : "nowrap", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.4 }}>
-            {goal.objective}
-          </span>
-        </button>
-        </Tooltip>
+          <Tooltip content={expanded ? t("chatInput.collapseGoal") : t("chatInput.expandGoal")}>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((value) => !value)}
+              style={{
+                display: "flex", alignItems: expanded ? "flex-start" : "center", gap: 8,
+                minWidth: 0, flex: 1, padding: 0, border: "none", background: "transparent",
+                color: "inherit", cursor: "pointer", textAlign: "left",
+              }}
+            >
+              <Target size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: expanded ? 1 : 0, color: "var(--accent)" }} aria-hidden="true" />
+              <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                {statusLabel} · {elapsed}
+              </span>
+              <span style={{ minWidth: 0, flex: 1, overflow: expanded ? "visible" : "hidden", textOverflow: expanded ? undefined : "ellipsis", whiteSpace: expanded ? "pre-wrap" : "nowrap", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.4 }}>
+                {native ? native.objective : goal?.objective}
+              </span>
+            </button>
+          </Tooltip>
+          {tokens && (
+            <span style={{ flexShrink: 0, color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>
+              {tokens}
+            </span>
+          )}
+          {goal && !native && onTrackGoal && (
+            <Tooltip content={t("goal.track")}>
+              <button
+                type="button"
+                className="ui-focus-ring"
+                aria-label={t("goal.track")}
+                disabled={busy !== null}
+                onClick={() => void runTrack()}
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 24, height: 24, flexShrink: 0,
+                  border: "thin solid var(--border)",
+                  borderRadius: "var(--radius-control)",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  cursor: busy === null ? "pointer" : "default",
+                  opacity: busy === "track" ? 0.55 : 1,
+                }}
+              >
+                <Radar size={12} strokeWidth={1.8} aria-hidden />
+              </button>
+            </Tooltip>
+          )}
+          {controls.length > 0 && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+              {controls.filter((control) => control.visible).map(({ op, icon: Icon, label }) => (
+                <Tooltip key={op} content={label}>
+                  <button
+                    type="button"
+                    className="ui-focus-ring"
+                    aria-label={label}
+                    disabled={busy !== null}
+                    onClick={() => void run(op)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 24, height: 24,
+                      border: "thin solid var(--border)",
+                      borderRadius: "var(--radius-control)",
+                      background: "transparent",
+                      color: "var(--text-muted)",
+                      cursor: busy === null ? "pointer" : "default",
+                      opacity: busy !== null && busy === op ? 0.55 : 1,
+                    }}
+                  >
+                    <Icon size={12} strokeWidth={1.8} aria-hidden />
+                  </button>
+                </Tooltip>
+              ))}
+            </span>
+          )}
+        </div>
       )}
       {plan && (
         <Tooltip content={t("chatInput.openPlanSidebar")}>
@@ -523,6 +654,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   activeGoal,
   activePlan,
   onOpenPlan,
+  goalInfo,
+  onGoalCommand,
+  onTrackGoal,
+  showGoalTokenBudget,
   advisorEnabled,
   onAdvisorChange,
   /**
@@ -1992,7 +2127,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       />
       <div style={{ maxWidth: CHAT_COLUMN_MAX_WIDTH, margin: "0 auto" }}>
         <ModelErrorBanner error={modelError} />
-        <ComposerModeStatus goal={activeGoal} plan={activePlan} onOpenPlan={onOpenPlan} />
+        <ComposerModeStatus goal={activeGoal} goalInfo={goalInfo} onGoalCommand={onGoalCommand} onTrackGoal={onTrackGoal} showGoalTokenBudget={showGoalTokenBudget} plan={activePlan} onOpenPlan={onOpenPlan} />
         {/* Retry banner */}
         {retryInfo && (
           <div style={{
