@@ -10,7 +10,8 @@ const execFileAsync = promisify(execFile);
 
 /**
  * Schema-driven FULL native settings surface (5.1): `omp config list --json`
- * exposes every OMP setting (481 keys) with type/description/redacted and the
+ * exposes every OMP setting (530 keys in omp 18.6.0; version-dependent) with
+ * type/description/redacted and the
  * configured value where one exists. The web UI renders this as a dynamic
  * form (NativeSettingsPanel) and writes through `omp config set/reset` — the
  * OMP CLI stays the single authority, so comment-preserving YAML edits and

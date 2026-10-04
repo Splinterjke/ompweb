@@ -55,42 +55,73 @@ export function NativeExtrasSetting({ settings, onPatch, onPatchSection }: Props
         <Check checked={settings.contextPromotion?.enabled ?? false} onChange={(v) => onPatchSection("contextPromotion", { enabled: v })} label={t("settingsConfig.contextPromotionEnabled")} />
         <Check checked={settings.snapcompact?.toolResults ?? false} onChange={(v) => onPatchSection("snapcompact", { toolResults: v })} label={t("settingsConfig.snapcompactToolResults")} />
         <Check checked={settings.bash?.autoBackground?.enabled ?? true} onChange={(v) => onPatchSection("bash", { autoBackground: { enabled: v } })} label={t("settingsConfig.bashAutoBackgroundEnabled")} />
+        <Check checked={settings.task?.speculativeLaunch ?? true} onChange={(v) => onPatchSection("task", { speculativeLaunch: v })} label={t("settingsConfig.speculativeLaunch")} />
+        <Check checked={settings.display?.subagentLivePreview ?? false} onChange={(v) => onPatchSection("display", { subagentLivePreview: v })} label={t("settingsConfig.subagentLivePreview")} />
+        <Check checked={settings.telemetry?.otlpExportEnabled ?? true} onChange={(v) => onPatchSection("telemetry", { otlpExportEnabled: v })} label={t("settingsConfig.otlpExportEnabled")} />
         <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{t("settingsConfig.skillCompat")}</span>
         <Check checked={settings.skills?.enableCodexUser ?? false} onChange={(v) => onPatchSection("skills", { enableCodexUser: v })} label={t("settingsConfig.enableCodexUser")} />
         <Check checked={settings.skills?.enableAgentsUser ?? false} onChange={(v) => onPatchSection("skills", { enableAgentsUser: v })} label={t("settingsConfig.enableAgentsUser")} />
         <Check checked={settings.skills?.enableClaudeUser ?? false} onChange={(v) => onPatchSection("skills", { enableClaudeUser: v })} label={t("settingsConfig.enableClaudeUser")} />
         <Check checked={settings.skills?.enableClaudeProject ?? false} onChange={(v) => onPatchSection("skills", { enableClaudeProject: v })} label={t("settingsConfig.enableClaudeProject")} />
       </div>
+      {/* Goal mode: drives the composer goal bar and native goal continuations */}
+      <div style={cardStyle}>
+        <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.goalSection")}</span>
+        <Check checked={settings.goal?.enabled ?? false} onChange={(v) => onPatchSection("goal", { enabled: v })} label={t("settingsConfig.goalEnabled")} />
+        <Check checked={settings.goal?.statusInFooter ?? false} onChange={(v) => onPatchSection("goal", { statusInFooter: v })} label={t("settingsConfig.goalStatusInFooter")} />
+        <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{t("settingsConfig.goalContinuationModes")}</span>
+        {(["interactive", "rpc"] as const).map((mode) => {
+          const modes = settings.goal?.continuationModes ?? ["interactive"];
+          return (
+            <Check
+              key={mode}
+              checked={modes.includes(mode)}
+              onChange={(v) => {
+                const next = v ? Array.from(new Set([...modes, mode])) : modes.filter((m) => m !== mode);
+                onPatchSection("goal", { continuationModes: next.length > 0 ? next : ["interactive"] });
+              }}
+              label={mode === "interactive" ? t("settingsConfig.goalContinuationInteractive") : t("settingsConfig.goalContinuationRpc")}
+            />
+          );
+        })}
+      </div>
 
       {/* Advanced strings */}
       <div style={cardStyle}>
         <span style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.advancedStrings")}</span>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
-          {t("settingsConfig.memoryModel")}
+          {t("settingsConfig.artifactMaxBytes")}
           <input
-            type="text"
-            defaultValue={settings.providers?.memoryModel ?? ""}
-            placeholder="qwen3-1.7b"
+            type="number"
+            min={0}
+            max={1024}
+            step={1}
+            defaultValue={settings.tools?.artifactMaxBytes ?? ""}
+            placeholder="16"
             onBlur={(e) => {
-              const value = e.target.value.trim();
-              if (value !== (settings.providers?.memoryModel ?? "")) onPatchSection("providers", { memoryModel: value || null });
+              const raw = e.target.value.trim();
+              const current = settings.tools?.artifactMaxBytes;
+              if (raw === "") {
+                if (current !== undefined) onPatchSection("tools", { artifactMaxBytes: 16 });
+                return;
+              }
+              const value = Number(raw);
+              if (Number.isInteger(value) && value >= 0 && value <= 1024 && value !== current) onPatchSection("tools", { artifactMaxBytes: value });
             }}
             style={inputStyle}
           />
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
-          {t("settingsConfig.webSearchOrder")}
-          <input
-            type="text"
-            defaultValue={(settings.providers?.webSearchOrder ?? []).join(", ")}
-            placeholder="searxng, bing"
-            onBlur={(e) => {
-              const value = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-              const current = settings.providers?.webSearchOrder ?? [];
-              if (JSON.stringify(value) !== JSON.stringify(current)) onPatchSection("providers", { webSearchOrder: value });
-            }}
+          {t("settingsConfig.cacheWarming")}
+          <select
+            value={settings.providers?.cacheWarming ?? "idle"}
+            onChange={(e) => onPatchSection("providers", { cacheWarming: e.target.value as "off" | "streaming" | "idle" })}
             style={inputStyle}
-          />
+          >
+            <option value="off">{t("settingsConfig.cacheWarmingOff")}</option>
+            <option value="streaming">{t("settingsConfig.cacheWarmingStreaming")}</option>
+            <option value="idle">{t("settingsConfig.cacheWarmingIdle")}</option>
+          </select>
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
           {t("settingsConfig.editMode")}

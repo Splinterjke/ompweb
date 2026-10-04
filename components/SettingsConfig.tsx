@@ -52,8 +52,8 @@ type NativeSettings = {
   externalThinking?: boolean;
   textVerbosity?: "low" | "medium" | "high";
   personality?: "default" | "friendly" | "pragmatic" | "none";
-  advisor?: { enabled?: boolean; subagents?: boolean; syncBacklog?: "off" | "1" | "3" | "5"; immuneTurns?: number };
-  tools?: { approvalMode?: "always-ask" | "write" | "yolo"; approval?: { bash?: "allow" | "prompt" | "deny"; extension?: "allow" | "prompt" } };
+  advisor?: { enabled?: boolean; syncBacklog?: "off" | "1" | "3" | "5"; immuneTurns?: number };
+  tools?: { approvalMode?: "always-ask" | "write" | "yolo"; approval?: { bash?: "allow" | "prompt" | "deny"; extension?: "allow" | "prompt" }; artifactMaxBytes?: number };
   compaction?: {
     enabled?: boolean;
     midTurnEnabled?: boolean;
@@ -73,6 +73,7 @@ type NativeSettings = {
     supersedeReads?: boolean;
     dropUseless?: boolean;
     handoffSaveToDisk?: boolean;
+    experimentalContextManagement?: boolean;
   };
   branchSummary?: { enabled?: boolean; reserveTokens?: number };
   memory?: { backend?: "off" | "local" | "mnemopi" | "hindsight" };
@@ -1563,6 +1564,12 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <ToggleSwitch
                         checked={nativeSettings?.compaction?.dropUseless ?? true}
                         onChange={(checked) => patchSection("compaction", { dropUseless: checked })}
+                      />
+                    </NativeSetting>
+                    <NativeSetting searchId="experimental-context-management" label={t("settingsConfig.experimentalContextManagement")} description={t("settingsConfig.experimentalContextManagementDesc")} scope="Native OMP">
+                      <ToggleSwitch
+                        checked={nativeSettings?.compaction?.experimentalContextManagement ?? false}
+                        onChange={(checked) => patchSection("compaction", { experimentalContextManagement: checked })}
                       />
                     </NativeSetting>
                     <NativeSetting searchId="remote-compaction-v2" label={t("settingsConfig.remoteCompactionV2")} description={t("settingsConfig.remoteCompactionV2Desc")} scope="Native OMP">

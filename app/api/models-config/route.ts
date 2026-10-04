@@ -53,7 +53,7 @@ export async function PUT(req: Request) {
       throw error;
     }
     // A provider removal must also drop config.yml entries that referenced it
-    // (model roles, fallback chains, webSearchOrder) — otherwise omp keeps
+    // (model roles, fallback chains) — otherwise omp keeps
     // resolving the deleted provider to a random/unusable model, which reads
     // as "the CLI did not sync the deletion".
     pruneConfigProviderRefs(Object.keys(body.providers ?? {}));

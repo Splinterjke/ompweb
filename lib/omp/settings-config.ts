@@ -10,8 +10,8 @@ export type NativeSettings = {
   externalThinking?: boolean;
   textVerbosity?: "low" | "medium" | "high";
   personality?: "default" | "friendly" | "pragmatic" | "none";
-  advisor?: { enabled?: boolean; subagents?: boolean; syncBacklog?: "off" | "1" | "3" | "5"; immuneTurns?: number };
-  tools?: { approvalMode?: "always-ask" | "write" | "yolo"; approval?: { bash?: "allow" | "prompt" | "deny"; extension?: "allow" | "prompt" } };
+  advisor?: { enabled?: boolean; syncBacklog?: "off" | "1" | "3" | "5"; immuneTurns?: number };
+  tools?: { approvalMode?: "always-ask" | "write" | "yolo"; approval?: { bash?: "allow" | "prompt" | "deny"; extension?: "allow" | "prompt" }; artifactMaxBytes?: number };
   enabledModels?: string[];
   disabledProviders?: string[];
   modelProviderOrder?: string[];
@@ -42,7 +42,9 @@ export type NativeSettings = {
     supersedeReads?: boolean;
     dropUseless?: boolean;
     handoffSaveToDisk?: boolean;
+    experimentalContextManagement?: boolean;
   };
+  goal?: { enabled?: boolean; statusInFooter?: boolean; continuationModes?: string[] };
   branchSummary?: { enabled?: boolean; reserveTokens?: number };
   memory?: { backend?: "off" | "local" | "mnemopi" | "hindsight" };
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
@@ -53,7 +55,7 @@ export type NativeSettings = {
   computer?: { enabled?: boolean };
   skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean };
   bash?: { autoBackground?: { enabled?: boolean } };
-  providers?: { memoryModel?: string | null; webSearchOrder?: string[] };
+  providers?: { cacheWarming?: "off" | "streaming" | "idle" };
   security?: { enabled?: boolean };
   github?: { enabled?: boolean };
   colorBlindMode?: boolean;
@@ -62,6 +64,9 @@ export type NativeSettings = {
   edit?: { mode?: string | null };
   composer?: { shape?: string | null };
   dev?: { autoqaConsent?: string | null };
+  task?: { speculativeLaunch?: boolean };
+  telemetry?: { otlpExportEnabled?: boolean };
+  display?: { subagentLivePreview?: boolean };
   symbolPreset?: string | null;
 };
 
@@ -76,6 +81,8 @@ const COMPACTION_METHOD_ORDER = ["remote", "snapcompact", "handoff", "soft", "sh
 export type CompactionMethod = (typeof COMPACTION_METHOD_ORDER)[number];
 const MEMORY_BACKENDS = new Set(["off", "local", "mnemopi", "hindsight"]);
 const MEMORY_SCOPES = new Set(["global", "per-project", "per-project-tagged"]);
+const CACHE_WARMING_MODES: Record<string, true> = { off: true, streaming: true, idle: true };
+const GOAL_CONTINUATION_MODES: Record<string, true> = { interactive: true, rpc: true };
 
 function configPath(): string {
   return getSettingsPath();
@@ -116,6 +123,18 @@ function isThresholdPercent(value: unknown): boolean {
 
 function isSeconds(value: unknown): boolean {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 86_400;
+}
+
+/** Upper bound for tools.artifactMaxBytes (MiB); 0 means unlimited. */
+function isArtifactMb(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 1024;
+}
+
+/** Valid deduplicated subset of goal.continuationModes; undefined unless every entry is a known mode. */
+function goalContinuationModes(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const kept = value.filter((item): item is string => typeof item === "string" && item in GOAL_CONTINUATION_MODES);
+  return kept.length === value.length ? Array.from(new Set(kept)) : undefined;
 }
 
 /** Strips values that cannot exist in a freshly created document (undefined,
@@ -170,6 +189,10 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const edit = isRecord(data.edit) ? data.edit : {};
   const composer = isRecord(data.composer) ? data.composer : {};
   const dev = isRecord(data.dev) ? data.dev : {};
+  const goal = isRecord(data.goal) ? data.goal : {};
+  const task = isRecord(data.task) ? data.task : {};
+  const telemetry = isRecord(data.telemetry) ? data.telemetry : {};
+  const display = isRecord(data.display) ? data.display : {};
   const registryHasScopedEntries = [data.enabledModels, data.disabledProviders, data.modelProviderOrder]
     .some((value) => Array.isArray(value) && !value.every((item) => typeof item === "string"));
   return {
@@ -183,7 +206,6 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
       ...(Object.keys(advisor).length ? {
         advisor: {
           ...(typeof advisor.enabled === "boolean" ? { enabled: advisor.enabled } : {}),
-          ...(typeof advisor.subagents === "boolean" ? { subagents: advisor.subagents } : {}),
           ...(BACKLOGS.has(advisor.syncBacklog as string) ? { syncBacklog: advisor.syncBacklog as "off" | "1" | "3" | "5" } : {}),
           ...(typeof advisor.immuneTurns === "number" && Number.isInteger(advisor.immuneTurns) ? { immuneTurns: advisor.immuneTurns } : {}),
         },
@@ -194,6 +216,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
           ...(APPROVAL_POLICIES.has(approval.bash as string) ? { bash: approval.bash as "allow" | "prompt" | "deny" } : {}),
           ...(approval.extension === "allow" || approval.extension === "prompt" ? { extension: approval.extension } : {}),
         } } : {}),
+        ...(isArtifactMb(tools.artifactMaxBytes) ? { artifactMaxBytes: tools.artifactMaxBytes as number } : {}),
       } } : {}),
       ...(stringArray(data.enabledModels) ? { enabledModels: stringArray(data.enabledModels) } : {}),
       ...(stringArray(data.disabledProviders) ? { disabledProviders: stringArray(data.disabledProviders) } : {}),
@@ -209,6 +232,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
       ...(Object.keys(compaction).length ? { compaction: {
         ...(typeof compaction.enabled === "boolean" ? { enabled: compaction.enabled } : {}),
         ...(typeof compaction.midTurnEnabled === "boolean" ? { midTurnEnabled: compaction.midTurnEnabled } : {}),
+        ...(typeof compaction.experimentalContextManagement === "boolean" ? { experimentalContextManagement: compaction.experimentalContextManagement } : {}),
         ...(methodOrderArray(compaction.methodOrder) ? { methodOrder: methodOrderArray(compaction.methodOrder)! } : {}),
         ...(isThresholdPercent(compaction.thresholdPercent) ? { thresholdPercent: compaction.thresholdPercent as number } : {}),
         ...(isTokenBudget(compaction.thresholdTokens) ? { thresholdTokens: compaction.thresholdTokens as number } : {}),
@@ -225,6 +249,11 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof compaction.supersedeReads === "boolean" ? { supersedeReads: compaction.supersedeReads } : {}),
         ...(typeof compaction.dropUseless === "boolean" ? { dropUseless: compaction.dropUseless } : {}),
         ...(typeof compaction.handoffSaveToDisk === "boolean" ? { handoffSaveToDisk: compaction.handoffSaveToDisk } : {}),
+      } } : {}),
+      ...(Object.keys(goal).length ? { goal: {
+        ...(typeof goal.enabled === "boolean" ? { enabled: goal.enabled } : {}),
+        ...(typeof goal.statusInFooter === "boolean" ? { statusInFooter: goal.statusInFooter } : {}),
+        ...(goalContinuationModes(goal.continuationModes) ? { continuationModes: goalContinuationModes(goal.continuationModes)! } : {}),
       } } : {}),
       ...(Object.keys(branchSummary).length ? { branchSummary: {
         ...(typeof branchSummary.enabled === "boolean" ? { enabled: branchSummary.enabled } : {}),
@@ -259,8 +288,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
       } } : {}),
       ...(Object.keys(bash).length ? { bash: { ...(Object.keys(bashAutoBackground).length ? { autoBackground: { ...(typeof bashAutoBackground.enabled === "boolean" ? { enabled: bashAutoBackground.enabled } : {}) } } : {}) } } : {}),
       ...(Object.keys(providers).length ? { providers: {
-        ...(typeof providers.memoryModel === "string" && providers.memoryModel ? { memoryModel: providers.memoryModel } : {}),
-        ...(stringArray(providers.webSearchOrder) ? { webSearchOrder: stringArray(providers.webSearchOrder) } : {}),
+        ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
       } } : {}),
       ...(Object.keys(security).length ? { security: { ...(typeof security.enabled === "boolean" ? { enabled: security.enabled } : {}) } } : {}),
       ...(Object.keys(github).length ? { github: { ...(typeof github.enabled === "boolean" ? { enabled: github.enabled } : {}) } } : {}),
@@ -270,6 +298,9 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
       ...(Object.keys(edit).length && typeof edit.mode === "string" && edit.mode ? { edit: { mode: edit.mode } } : {}),
       ...(Object.keys(composer).length && typeof composer.shape === "string" && composer.shape ? { composer: { shape: composer.shape } } : {}),
       ...(Object.keys(dev).length && typeof dev.autoqaConsent === "string" && dev.autoqaConsent ? { dev: { autoqaConsent: dev.autoqaConsent } } : {}),
+      ...(Object.keys(task).length ? { task: { ...(typeof task.speculativeLaunch === "boolean" ? { speculativeLaunch: task.speculativeLaunch } : {}) } } : {}),
+      ...(Object.keys(telemetry).length ? { telemetry: { ...(typeof telemetry.otlpExportEnabled === "boolean" ? { otlpExportEnabled: telemetry.otlpExportEnabled } : {}) } } : {}),
+      ...(Object.keys(display).length ? { display: { ...(typeof display.subagentLivePreview === "boolean" ? { subagentLivePreview: display.subagentLivePreview } : {}) } } : {}),
       ...(typeof data.symbolPreset === "string" && data.symbolPreset ? { symbolPreset: data.symbolPreset } : {}),
     },
   };
@@ -311,11 +342,14 @@ export function writeNativeSettings(settings: NativeSettings): void {
   assertOptionalRecord(settings.edit, "edit");
   assertOptionalRecord(settings.composer, "composer");
   assertOptionalRecord(settings.dev, "dev");
+  assertOptionalRecord(settings.goal, "goal");
+  assertOptionalRecord(settings.task, "task");
+  assertOptionalRecord(settings.telemetry, "telemetry");
+  assertOptionalRecord(settings.display, "display");
   for (const [name, value] of Object.entries({
     hideThinkingBlock: settings.hideThinkingBlock,
     externalThinking: settings.externalThinking,
     "advisor.enabled": settings.advisor?.enabled,
-    "advisor.subagents": settings.advisor?.subagents,
     "retry.enabled": settings.retry?.enabled,
     "retry.modelFallback": settings.retry?.modelFallback,
     "compaction.enabled": settings.compaction?.enabled,
@@ -327,6 +361,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
     "compaction.supersedeReads": settings.compaction?.supersedeReads,
     "compaction.dropUseless": settings.compaction?.dropUseless,
     "compaction.handoffSaveToDisk": settings.compaction?.handoffSaveToDisk,
+    "compaction.experimentalContextManagement": settings.compaction?.experimentalContextManagement,
     "branchSummary.enabled": settings.branchSummary?.enabled,
     "autolearn.enabled": settings.autolearn?.enabled,
     "autolearn.autoContinue": settings.autolearn?.autoContinue,
@@ -348,16 +383,20 @@ export function writeNativeSettings(settings: NativeSettings): void {
     "colorBlindMode": settings.colorBlindMode,
     "contextPromotion.enabled": settings.contextPromotion?.enabled,
     "snapcompact.toolResults": settings.snapcompact?.toolResults,
+    "goal.enabled": settings.goal?.enabled,
+    "goal.statusInFooter": settings.goal?.statusInFooter,
+    "task.speculativeLaunch": settings.task?.speculativeLaunch,
+    "telemetry.otlpExportEnabled": settings.telemetry?.otlpExportEnabled,
+    "display.subagentLivePreview": settings.display?.subagentLivePreview,
   })) assertOptionalBoolean(value, name);
   if (settings.modelRoles !== undefined) {
     for (const [role, model] of Object.entries(settings.modelRoles)) {
       if (!role.trim() || typeof model !== "string" || !model.trim()) throw new Error("Model roles require non-empty role and model values");
     }
   }
-  if (settings.providers?.webSearchOrder !== undefined && (!Array.isArray(settings.providers.webSearchOrder) || settings.providers.webSearchOrder.some((value) => typeof value !== "string"))) {
-    throw new Error("providers.webSearchOrder must be an array of strings");
-  }
-  if (settings.providers?.memoryModel !== undefined && settings.providers.memoryModel !== null && typeof settings.providers.memoryModel !== "string") throw new Error("providers.memoryModel must be a string");
+  if (settings.providers?.cacheWarming !== undefined && !(settings.providers.cacheWarming in CACHE_WARMING_MODES)) throw new Error("providers.cacheWarming must be one of: off, streaming, idle");
+  if (settings.goal?.continuationModes !== undefined && goalContinuationModes(settings.goal.continuationModes) === undefined) throw new Error("goal.continuationModes must be a non-empty array of: interactive, rpc");
+  if (settings.tools?.artifactMaxBytes !== undefined && !isArtifactMb(settings.tools.artifactMaxBytes)) throw new Error("tools.artifactMaxBytes must be an integer between 0 and 1024 (MiB; 0 = unlimited)");
   for (const [key, value] of Object.entries({ "edit.mode": settings.edit?.mode, "composer.shape": settings.composer?.shape, "dev.autoqaConsent": settings.dev?.autoqaConsent, symbolPreset: settings.symbolPreset, "compaction.remoteEndpoint": settings.compaction?.remoteEndpoint })) {
     if (value === null) continue;
     if (value !== undefined && (typeof value !== "string" || !value.trim())) throw new Error(`${key} must be a non-empty string`);
@@ -442,17 +481,17 @@ export function writeNativeSettings(settings: NativeSettings): void {
   for (const [key, value] of Object.entries(settings.autolearn ?? {})) doc.setIn(["autolearn", key], value);
   for (const [key, value] of Object.entries(settings.mnemopi ?? {})) doc.setIn(["mnemopi", key], value);
   for (const [key, value] of Object.entries(settings.mcp ?? {})) doc.setIn(["mcp", key], value);
+  for (const [key, value] of Object.entries(settings.goal ?? {})) doc.setIn(["goal", key], value);
+  for (const [key, value] of Object.entries(settings.task ?? {})) doc.setIn(["task", key], value);
+  for (const [key, value] of Object.entries(settings.telemetry ?? {})) doc.setIn(["telemetry", key], value);
+  for (const [key, value] of Object.entries(settings.display ?? {})) doc.setIn(["display", key], value);
   if (settings.modelRoles !== undefined) doc.set("modelRoles", settings.modelRoles);
   if (settings.generateImage?.enabled !== undefined) doc.setIn(["generate_image", "enabled"], settings.generateImage.enabled);
   if (settings.computer?.enabled !== undefined) doc.setIn(["computer", "enabled"], settings.computer.enabled);
   for (const [key, value] of Object.entries(settings.skills ?? {})) doc.setIn(["skills", key], value);
   if (settings.bash?.autoBackground?.enabled !== undefined) doc.setIn(["bash", "autoBackground", "enabled"], settings.bash.autoBackground.enabled);
-  // null deletes the key (used when the UI clears a field); undefined leaves it untouched.
-  if (settings.providers?.memoryModel !== undefined) {
-    if (settings.providers.memoryModel === null) doc.deleteIn(["providers", "memoryModel"]);
-    else doc.setIn(["providers", "memoryModel"], settings.providers.memoryModel);
-  }
-  if (settings.providers?.webSearchOrder !== undefined) doc.setIn(["providers", "webSearchOrder"], settings.providers.webSearchOrder);
+  if (settings.tools?.artifactMaxBytes !== undefined) doc.setIn(["tools", "artifactMaxBytes"], settings.tools.artifactMaxBytes);
+  if (settings.providers?.cacheWarming !== undefined) doc.setIn(["providers", "cacheWarming"], settings.providers.cacheWarming);
   if (settings.security?.enabled !== undefined) doc.setIn(["security", "enabled"], settings.security.enabled);
   if (settings.github?.enabled !== undefined) doc.setIn(["github", "enabled"], settings.github.enabled);
   if (settings.colorBlindMode !== undefined) doc.set("colorBlindMode", settings.colorBlindMode);

@@ -58,7 +58,7 @@ export function readDisabledProviders(): Set<string> {
  * Deleting a provider from models.yml leaves the runtime list clean (the
  * models PUT invalidates the cache and recycles the utility process), but
  * config.yml can keep pointing at it: `modelRoles.*` role selectors,
- * `retry.fallbackChains.*` model selectors and `providers.webSearchOrder`
+ * `retry.fallbackChains.*` model selectors, and (legacy) `providers.webSearchOrder`
  * entries. omp resolves a role selector by fuzzy-matching provider/model
  * names, so a dangling entry does not hard-fail — it silently resolves to an
  * unrelated model (or an unusable one) instead of the deleted provider's
