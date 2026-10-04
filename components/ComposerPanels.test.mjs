@@ -251,3 +251,20 @@ test("zero context tokens never print a null gauge", () => {
   assert.match(html, /read/);
 });
 
+
+test("a side question keeps Copy for the earlier answer when its follow-up ended without text", () => {
+  const record = {
+    id: "b1", leafId: null, question: "what is 2+2", answer: "It is 4.", status: "complete", createdAt: 1, updatedAt: 2,
+    followUps: [{ question: "and 3+3?", answer: "", status: "cancelled", createdAt: 3, updatedAt: 4 }],
+  };
+  const html = renderToStaticMarkup(React.createElement(ComposerPanels, {
+    todoPhases: [],
+    subagents: [],
+    onSelectSubagent: noop,
+    showGit: false,
+    btw: { record, onCancel: noop, onFollowUp: async () => true, onClose: noop },
+  }));
+  assert.match(html, /It is 4\./);
+  assert.match(html, /Cancelled/);
+  assert.match(html, />Copy answer</);
+});

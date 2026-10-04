@@ -13,6 +13,7 @@ import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccent
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
+import { BtwHistoryDialog, type BtwPanelProps } from "./BtwPanel";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
 import { WorkspaceState } from "./WorkspaceState";
@@ -628,6 +629,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     toolPreset, handleToolPresetChange,
     removeQueuedMessage, promoteQueuedToSteer,
     handleBuiltinSlashCommand, togglePreCompactionHistory,
+    btw, askBtw,
     handleThinkingLevelChange, handleFastModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
     session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
@@ -1124,6 +1126,15 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !sessionBusy;
   const messageCwd = session?.cwd ?? newSessionCwd ?? undefined;
+  const activeBtwRecord = btw.records.find((record) => record.id === btw.activeId);
+  const btwPanel: BtwPanelProps | null = activeBtwRecord ? {
+    record: activeBtwRecord,
+    onCancel: () => void btw.cancel(activeBtwRecord.id),
+    onFollowUp: (question) => askBtw(question, activeBtwRecord.id),
+    onClose: () => btw.setActiveId(null),
+    cwd: messageCwd,
+    onOpenFile,
+  } : null;
 
   const availableThinkingLevels = displayModelValue
     ? resolveAvailableThinkingLevels(
@@ -1551,6 +1562,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               subagents={subagents ?? []}
               subagentEvents={subagentEvents}
               onSelectSubagent={onSelectSubagent}
+              btw={btwPanel}
               layout={hubBarLayout}
               showGit={hubBarsVisible.git}
               showTasks={hubBarsVisible.tasks}
@@ -1579,6 +1591,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
         )}
       </>
       )}
+      <BtwHistoryDialog
+        open={btw.historyOpen}
+        onOpenChange={btw.setHistoryOpen}
+        records={btw.records}
+        onFollowUp={(recordId) => { btw.setActiveId(recordId); btw.setHistoryOpen(false); }}
+        cwd={messageCwd}
+        onOpenFile={onOpenFile}
+      />
     </div>
     </AgentLinkContext.Provider>
   );

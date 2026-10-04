@@ -12,6 +12,7 @@ import { copyText } from "@/lib/clipboard";
 import { GitChangesBar } from "./GitChangesBar";
 import { TodoList } from "./TodoList";
 import { SubagentHub } from "./SubagentHub";
+import { BtwPanel, type BtwPanelProps } from "./BtwPanel";
 import type { HubBarLayout } from "./AppShell";
 
 /**
@@ -33,6 +34,7 @@ export function ComposerPanels({
   subagents = [],
   subagentEvents,
   onSelectSubagent,
+  btw = null,
   layout = "stack",
   showGit = true,
   showTasks = true,
@@ -51,6 +53,8 @@ export function ComposerPanels({
   subagentEvents?: Record<string, SubagentActivityEvent[]>;
   /** Open a subagent in the right-hand Agents panel. */
   onSelectSubagent?: (subagent: SubagentInfo) => void;
+  /** Active `/btw` side question, pinned above the hub bars. */
+  btw?: BtwPanelProps | null;
   /** "stack" (vertical column, default) or "row" (horizontal, compact). */
   layout?: HubBarLayout;
   /** Show the git changes bar (Interface & Behavior). */
@@ -108,12 +112,13 @@ export function ComposerPanels({
       onCollapsedChange={setSubagentCollapsed}
     />
   ) : null;
+  const btwBar = btw ? <BtwPanel key={btw.record.id} {...btw} /> : null;
 
   // The git bar reports its renderable content (repo with changes) via
   // onPresenceChange; it stays mounted while enabled so its polling keeps
   // running, but contributes nothing visually until content exists.
   const gitVisible = showGit && gitPresent;
-  const anyVisible = gitVisible || todoBar !== null || subagentBar !== null;
+  const anyVisible = gitVisible || todoBar !== null || subagentBar !== null || btwBar !== null;
 
   // With the git bar disabled and no other bars there is nothing to show.
   if (!showGit && !anyVisible) return null;
@@ -133,17 +138,21 @@ export function ComposerPanels({
           : { flex: "1 1 0", minWidth: 0, order: 0 };
 
     return (
-      <div className="hub-bars hub-bars--row" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
-        {gitBar && <div key="git" style={slotStyle(gitVisible, gitExpanded)}>{gitBar}</div>}
-        {todoBar && <div key="tasks" style={slotStyle(true, !todoCollapsed)}>{todoBar}</div>}
-        {subagentBar && <div key="subagents" style={slotStyle(true, !subagentCollapsed)}>{subagentBar}</div>}
-      </div>
+      <>
+        {btwBar}
+        <div className="hub-bars hub-bars--row" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
+          {gitBar && <div key="git" style={slotStyle(gitVisible, gitExpanded)}>{gitBar}</div>}
+          {todoBar && <div key="tasks" style={slotStyle(true, !todoCollapsed)}>{todoBar}</div>}
+          {subagentBar && <div key="subagents" style={slotStyle(true, !subagentCollapsed)}>{subagentBar}</div>}
+        </div>
+      </>
     );
   }
 
   // Default: vertical column (previous behavior).
   return (
     <div className="hub-bars" style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: anyVisible ? 8 : 0 }}>
+      {btwBar}
       {gitBar}
       {todoBar}
       {subagentBar}

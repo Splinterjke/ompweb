@@ -18,6 +18,7 @@ import type { ActiveGoal, ActivePlan } from "@/lib/web-mode-state";
 import { formatGoalElapsed } from "@/lib/web-mode-state";
 import { toast } from "@/components/ui/toast";
 import { useDictation } from "@/hooks/useDictation";
+import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
 import { clearDraft, getDraft, recoverDraftText, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
@@ -208,6 +209,7 @@ const BUILTIN_SLASH_COMMAND_DEFS: { name: string; descriptionKey: string; argume
     descriptionKey: command.descriptionKey,
     argumentHintKey: command.argumentHintKey,
   })),
+  { name: "btw", descriptionKey: "chatInput.cmdBtw", argumentHintKey: "chatInput.cmdBtwArg" },
   { name: "compact", descriptionKey: "chatInput.cmdCompact" },
   { name: "reload", descriptionKey: "chatInput.cmdReload" },
   { name: "name", descriptionKey: "chatInput.cmdName" },
@@ -969,11 +971,42 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /** Run a client builtin. True once handled; the composer is cleared only on
+   * success and only if it still holds what was sent (the user may have
+   * started typing while the command ran). */
+  const runBuiltinCommand = useCallback(async (msg: string, overrideText?: string): Promise<boolean> => {
+    if (!onBuiltinCommand) return false;
+    const sentValue = overrideText ?? valueRef.current;
+    setIsSubmitting(true);
+    try {
+      const result = await onBuiltinCommand(msg);
+      if (!result.handled) return false;
+      if (!result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
+      return true;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [onBuiltinCommand, clearInput]);
+
+  /** `/btw` asks a side question beside any run: never a prompt, never
+   * queued. Attachments cannot ride along, so refuse and keep the draft
+   * rather than drop them. False when `msg` is not `/btw`. */
+  const sendSideQuestion = useCallback((msg: string, overrideText?: string): boolean => {
+    if (!/^\/btw(\s|$)/.test(msg) || !onBuiltinCommand) return false;
+    if (attachedImagesRef.current.length) {
+      toast.error(t("btw.attachmentsUnsupported"));
+      return true;
+    }
+    runBuiltinCommand(msg, overrideText).catch(toastBtwError);
+    return true;
+  }, [onBuiltinCommand, runBuiltinCommand, t]);
+
   const handleSend = useCallback(async (overrideText?: string) => {
     const raw = overrideText ?? value;
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     onAudioUnlock?.();
+    if (sendSideQuestion(msg, overrideText)) return;
     if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
       const expansion = expandWebSlashCommand(msg);
       const validationError = validateOutgoingPrompt(expansion.kind === "expand" ? expansion.prompt : msg, attachedImages);
@@ -981,19 +1014,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         setAttachError(validationError);
         return;
       }
-      setIsSubmitting(true);
-      try {
-        const sentValue = overrideText ?? value;
-        const result = await onBuiltinCommand(msg);
-        if (result.handled) {
-          // The user may have started typing while the command ran; only clear
-          // if the composer still holds what was sent.
-          if (!result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
-          return;
-        }
-      } finally {
-        setIsSubmitting(false);
-      }
+      if (await runBuiltinCommand(msg, overrideText)) return;
     }
     const validationError = validateOutgoingPrompt(msg, attachedImages);
     if (validationError) {
@@ -1003,7 +1024,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     setAttachError(null);
     onSend(msg, attachedImages.length ? attachedImages : undefined);
     clearInput();
-  }, [value, attachedImages, isStreaming, isSubmitting, onBuiltinCommand, onSend, clearInput, onAudioUnlock]);
+  }, [value, attachedImages, isStreaming, isSubmitting, onBuiltinCommand, onSend, clearInput, onAudioUnlock, runBuiltinCommand, sendSideQuestion]);
 
   // Slash token follows the caret, not the input start: typing a slash after
   // real text must still open the palette (see extractSlashQuery).
@@ -1309,6 +1330,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const raw = overrideText ?? value;
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
+    if (sendSideQuestion(msg, overrideText)) return;
     if (attachedImages.length) return;
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
@@ -1365,7 +1387,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     }
     setAttachError(null);
     clearInput();
-  }, [value, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, t, advisorEnabled]);
+  }, [value, attachedImages, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, t, advisorEnabled, sendSideQuestion]);
   // Stop must stay reachable WHILE a run is active: the primary button is
   // always Stop when streaming (queued follow-ups are still submitted via
   // Enter / the queued-follow-up bar). Previously a typed message replaced

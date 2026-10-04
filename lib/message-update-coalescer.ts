@@ -24,8 +24,9 @@ export interface MessageUpdateCoalescer {
 }
 
 // requestAnimationFrame matches display rate but stalls in hidden tabs, so
-// fall back to a trailing 50ms timer there (and outside the browser).
-function defaultScheduler(flush: () => void): () => void {
+// fall back to a trailing 50ms timer there (and outside the browser). Shared
+// with other display-rate batching (hooks/useBtw.ts).
+export function scheduleAtDisplayRate(flush: () => void): () => void {
   if (
     typeof document !== "undefined"
     && !document.hidden
@@ -40,7 +41,7 @@ function defaultScheduler(flush: () => void): () => void {
 
 export function createMessageUpdateCoalescer(
   dispatch: (event: CoalescableEvent) => void,
-  schedule: FlushScheduler = defaultScheduler,
+  schedule: FlushScheduler = scheduleAtDisplayRate,
 ): MessageUpdateCoalescer {
   let pending: CoalescableEvent | null = null;
   // Latest snapshot per in-flight tool. Map preserves insertion order, so

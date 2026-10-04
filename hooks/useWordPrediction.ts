@@ -8,8 +8,8 @@ export type PredictWordFeedback = (text: string, cursor: number, suggestion: str
 const DEBOUNCE_MS = 60;
 /** omp's prose gate answers nothing past this draft length, so don't ship bigger drafts per keystroke. */
 const MAX_DRAFT_LENGTH = 20_000;
-/** After an omp without predict_word, check again this much later (it may have been updated and restarted). */
-const UNSUPPORTED_RETRY_MS = 60_000;
+/** After an omp without a command (predict_word, btw), check again this much later (it may have been updated and restarted). */
+export const UNSUPPORTED_RETRY_MS = 60_000;
 
 /**
  * Ghost-text state lives outside React state on purpose: the composer is a

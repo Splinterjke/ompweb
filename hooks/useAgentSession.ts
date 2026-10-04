@@ -21,6 +21,7 @@ import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
 import { toast } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
 import { getToolNamesForPreset, type ToolPreset } from "@/lib/tool-presets";
@@ -826,6 +827,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const eventSourceConnectRef = useRef<Promise<EventStreamConnectionResult> | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string | null>(session?.id ?? null);
+  const btw = useBtw(sessionIdRef);
+  const { applyEvent: applyBtwFrame, refreshHistory: refreshBtwHistory, reconcile: reconcileBtw, openHistory: openBtwHistory, ask: sendBtw } = btw;
+  // A btw ask can wait seconds on spawn + SSE attach: a second Enter must not send it twice.
+  const btwAskPendingRef = useRef(false);
   // Guards stale branch/leaf context responses: two rapid navigate clicks must
   // not let the older response overwrite the newer branch's messages.
   const contextRequestSeqRef = useRef(0);
@@ -1576,12 +1581,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const subscription = client.agent.subscribeSessionEvents(sid, {
       // The stream is live as soon as the response headers land, whether or
       // not the server also sends an explicit `connected` frame.
-      onOpen: () => settle("connected"),
+      onOpen: () => { settle("connected"); void refreshBtwHistory(sid); },
       onConnected: (frame) => {
         settle("connected");
         eventCoalescer.push(frame as unknown as AgentEvent);
       },
       onEvent: (frame) => {
+        // Side-question frames never touch the transcript and useBtw batches
+        // them itself; through the coalescer each would flush the pending
+        // message_update and defeat display-rate coalescing of the main run.
+        if (frame.type === "btw_delta" || frame.type === "btw_record") {
+          applyBtwFrame(frame);
+          return;
+        }
         // message_update frames arrive at network rate (often 30-100+/s);
         // the coalescer buffers the latest one and dispatches at display
         // rate, flushing synchronously before any other event type.
@@ -1626,7 +1638,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     eventSourceSessionIdRef.current = sid;
     eventSourceConnectRef.current = promise;
     return promise;
-  }, [client, eventCoalescer]);
+  }, [client, eventCoalescer, refreshBtwHistory]);
 
   const respondToExtensionUi = useCallback(async (
     request: ExtensionUiDialogRequest,
@@ -2146,7 +2158,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       // Read the ref on every tick: for brand-new sessions the id is
       // assigned only after ensure_session returns.
       const sid = sessionIdRef.current;
-      if (sid) void reconcileAgentState(sid);
+      if (sid) {
+        void reconcileAgentState(sid);
+        // A running side question has the same half-open-SSE exposure.
+        reconcileBtw(sid);
+      }
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") reconcile();
@@ -2159,7 +2175,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", reconcile);
     };
-  }, [agentRunning, reconcileAgentState]);
+  }, [agentRunning, reconcileAgentState, reconcileBtw]);
 
   // Sample omp's get_state (tokensPerSecond + contextUsage) at an adaptive
   // cadence while a run is active. This is the live source for the composer
@@ -3361,6 +3377,44 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [isNew, newSessionCwd, session?.cwd]);
 
+  /** Ask a side question, or a follow-up in `recordId`'s topic. It runs beside
+   * any main turn and never enters the transcript. False = refused (toasted),
+   * or the chat was left meanwhile: its composer must not clear a draft that
+   * now belongs to wherever the user went (e.g. the shared new-chat key). */
+  const askBtw = useCallback(async (question: string, recordId?: string): Promise<boolean> => {
+    if (btwAskPendingRef.current) return false;
+    btwAskPendingRef.current = true;
+    try {
+      const sid = sessionIdRef.current ?? await ensureNewSession();
+      if (!sid) {
+        toast.error(translate("agentSession.noActiveSession"));
+        return false;
+      }
+      // Spawning a fresh chat takes seconds: the user may have left it. The
+      // question is still asked (omp keeps the answer in the session's BTW
+      // history), but an unmounted chat must not attach a stream (its cleanup
+      // already ran, so it would leak) nor promote itself — as in handleSend.
+      const ownerGone = !hookAliveRef.current;
+      // The event route is observer-only: start the wrapper and attach before
+      // asking, so the first deltas are not missed.
+      if (!ownerGone && eventSourceRef.current?.isOpen !== true) {
+        await sendAgentCommand(sid, { type: "get_state" });
+        await ensureEventsConnected(sid);
+      }
+      const accepted = await sendBtw(sid, question, recordId);
+      const ownerCurrent = hookAliveRef.current && sessionIdRef.current === sid;
+      // omp wrote the session to disk to ask: leave the unsaved new-chat view
+      // (URL, sidebar) like a first prompt does. No-op for existing sessions.
+      if (accepted && ownerCurrent) promoteNewSession();
+      return ownerCurrent;
+    } catch (error) {
+      toastBtwError(error);
+      return false;
+    } finally {
+      btwAskPendingRef.current = false;
+    }
+  }, [ensureEventsConnected, ensureNewSession, promoteNewSession, sendBtw]);
+
   const handleBuiltinSlashCommand = useCallback(async (text: string): Promise<BuiltinSlashCommandResult> => {
     if (!text.startsWith("/")) return { handled: false };
     const match = text.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);
@@ -3368,7 +3422,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
     const [, commandName, rawArgs = ""] = match;
     const args = rawArgs.trim();
-    const sid = sessionIdRef.current ?? await ensureNewSession();
     const complete = (result: BuiltinSlashCommandResult): BuiltinSlashCommandResult => {
       if (!result.handled) return result;
       if (result.error) {
@@ -3380,6 +3433,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     };
 
     try {
+      const sid = sessionIdRef.current ?? await ensureNewSession();
       switch (commandName) {
         case "compact": {
           if (!sid || isCompactingRef.current || isCompacting) return complete({ handled: true, error: translate("agentSession.noSessionToCompact") });
@@ -3430,6 +3484,16 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           opts.chatInputRef?.current?.openSessionInfo();
           return complete({ handled: true, action: "openSessionStats" });
+        }
+
+        case "btw": {
+          // `/btw` alone opens the history; with a question it asks one.
+          if (!args) {
+            if (!sid) return complete({ handled: true, error: translate("agentSession.noActiveSession") });
+            void openBtwHistory(sid);
+            return { handled: true };
+          }
+          return await askBtw(args) ? { handled: true } : { handled: true, retainInput: true };
         }
 
         case "copy": {
@@ -3487,7 +3551,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setIsCompacting(false);
       }
     }
-  }, [addNotice, advisorEnabled, ensureNewSession, handleSend, isCompacting, loadModels, loadSession, loadSlashCommands, promoteNewSession, opts.chatInputRef]);
+  }, [addNotice, advisorEnabled, askBtw, ensureNewSession, handleSend, isCompacting, loadModels, loadSession, loadSlashCommands, openBtwHistory, promoteNewSession, opts.chatInputRef]);
 
   // Queued (undelivered) messages live in the queue panel only; the chat gets
   // the real user message when pi delivers it (user message_end event). An
@@ -3983,6 +4047,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleBuiltinSlashCommand, togglePreCompactionHistory,
     handleToolPresetChange, handleThinkingLevelChange, loadSlashCommands, setActiveLeafId, setData, setMessages,
     dispatch, setAgentRunning, setForkingEntryId,
+    btw, askBtw,
     scrollToBottom,
     bashRunning, pendingBash,
     liveToolResults,

@@ -8,6 +8,19 @@ import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 import { getSessionAdvisorEnabled, setSessionAdvisorEnabled } from "@/lib/session-preferences";
 import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
 
+// Commands that ride whatever child is alive and never spawn or replace one:
+// keystroke predictions (NOTE: stock omp 18.3.x has no predict_word RPC; see
+// lib/word-prediction.ts), and the side-question reads/cancel omp-web sends in
+// the background (SSE connect, reconcile). Without a live process there is no
+// ghost text, no running side question and nothing to cancel, so the reply is
+// known without omp. Asking (`btw`) and opening the history start omp first.
+const NO_SPAWN_REPLIES: Record<string, unknown> = {
+  predict_word: { suffix: null },
+  predict_word_feedback: null,
+  get_btw_history: { records: [] },
+  btw_cancel: { cancelled: false },
+};
+
 /** omp-web's own failures carry a stable code the client can localize; omp's
  * errors stay opaque English text. */
 function commandErrorResponse(error: unknown) {
@@ -50,21 +63,15 @@ export async function POST(
     // flag must replace an idle child to take effect; busy children keep
     // running and pick the flag up at the next natural respawn.
     const existing = getRpcSession(id);
-    // Keystroke predictions ride whatever child is alive and never spawn or
-    // replace one: without a live process there is simply no ghost text.
-    // NOTE: stock omp (18.3.x) has no predict_word RPC, so this path resolves
-    // to a null suffix; see lib/word-prediction.ts for provenance.
-    const prediction = body.type === "predict_word" || body.type === "predict_word_feedback";
+    const noSpawn = Object.hasOwn(NO_SPAWN_REPLIES, body.type);
     if (existing?.isAlive()) {
-      if (prediction || existing.advisorSpawned === advisor || existing.isRunning()) {
+      if (noSpawn || existing.advisorSpawned === advisor || existing.isRunning()) {
         const result = await existing.send(body);
         return NextResponse.json({ success: true, data: result });
       }
       await existing.destroyAndWait();
     }
-    if (prediction) {
-      return NextResponse.json({ success: true, data: body.type === "predict_word" ? { suffix: null } : null });
-    }
+    if (noSpawn) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[body.type] });
 
     const resolved = await resolveSessionPathOr404(id);
     if ("response" in resolved) return resolved.response;
