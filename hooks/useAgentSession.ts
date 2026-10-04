@@ -23,6 +23,7 @@ import { toast } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
+import { looksLikeRunningTurn } from "@/lib/chat-segments";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
 import { getToolNamesForPreset, type ToolPreset } from "@/lib/tool-presets";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
@@ -3799,9 +3800,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // and clear the running state. Silence alone is not proof of completion,
     // though: an external omp goes quiet while the model thinks or a long
     // tool (build, test suite) runs without writing to the file. Reclaim as
-    // soon as the committed tail says the turn is over (a final assistant
-    // message with no pending tool call); otherwise hold until the file has
-    // been silent long enough to presume the run died.
+    // soon as the committed tail no longer looks mid-run (#136: a toolResult
+    // or an assistant awaiting its tool call is in flight; a stopped, aborted
+    // or errored tail is finished); otherwise hold until the file has been
+    // silent long enough to presume the run died.
     lastFileChangeAtRef.current = Date.now();
     clearInterval(externalPollRef.current);
     externalPollRef.current = setInterval(() => {
@@ -3809,11 +3811,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         .then((res) => (res.ok ? res.json() as Promise<{ external?: boolean; state?: unknown }> : null))
         .then((st) => {
           if (!st) return;
-          const tail = messagesRef.current[messagesRef.current.length - 1];
-          const tailIsFinal =
-            !!tail &&
-            tail.role === "assistant" &&
-            !tail.content.some((block) => block.type === "toolCall");
+          const tailRunning = looksLikeRunningTurn(messagesRef.current);
           const silentMs = lastFileChangeAtRef.current > 0
             ? Date.now() - lastFileChangeAtRef.current
             : EXTERNAL_ACTIVITY_LAPSE_MS;
@@ -3827,7 +3825,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             // they land, so a genuinely long tool only flickers idle for a
             // moment before the next write resumes the running UI.
             if (silentMs < EXTERNAL_RUN_END_SILENCE_MS) return;
-          } else if (!tailIsFinal && silentMs < EXTERNAL_RUN_END_SILENCE_MS) {
+          } else if (tailRunning && silentMs < EXTERNAL_RUN_END_SILENCE_MS) {
             return;
           }
           clearInterval(externalPollRef.current);
