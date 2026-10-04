@@ -4548,3 +4548,11 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   transition: transform var(--dur-fast) var(--ease-out-warm);
 }
 .skip-link:focus { transform: translateY(0); }
+
+/* Settings tabpanels keep their natural height inside the scrollable content
+   column: only the content column owns the scroll (#56). Without flex-shrink:0
+   a tall panel would shrink to the viewport as a flex item, its overflow:hidden
+   sections would clip instead of overflowing, and nothing would scroll. */
+.settings-panel-inner {
+  flex-shrink: 0;
+}

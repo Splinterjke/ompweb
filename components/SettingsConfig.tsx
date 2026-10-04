@@ -1157,7 +1157,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* GENERAL & UI TAB */}
             {currentTab === "general" && (
-              <div role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.interfaceBehavior")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.interfaceBehaviorDesc")}</p>
@@ -1391,7 +1391,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* SAFETY & APPROVALS TAB */}
             {currentTab === "safety" && (
-              <div role="tabpanel" id="settings-panel-safety" aria-labelledby="settings-tab-safety" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-safety" aria-labelledby="settings-tab-safety" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.toolSafetyApprovals")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.toolSafetyApprovalsDesc")}</p>
@@ -1435,7 +1435,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* AI MODEL DEFAULTS TAB */}
             {currentTab === "models" && (
-              <div role="tabpanel" id="settings-panel-models" aria-labelledby="settings-tab-models" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-models" aria-labelledby="settings-tab-models" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.modelDefaults")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.modelDefaultsDesc")}</p>
@@ -1487,14 +1487,14 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* API KEYS & PROVIDERS TAB */}
             {currentTab === "providers" && (
-              <div role="tabpanel" id="settings-panel-providers" aria-labelledby="settings-tab-providers" style={{ display: currentTab === "providers" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column" }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-providers" aria-labelledby="settings-tab-providers" style={{ display: currentTab === "providers" ? "flex" : "none", flexDirection: "column" }}>
                 <ModelsConfig embedded onClose={onClose} onSaved={onModelsSaved} />
               </div>
             )}
 
             {/* AGENT INTELLIGENCE TAB */}
             {currentTab === "intelligence" && (
-              <div role="tabpanel" id="settings-panel-intelligence" aria-labelledby="settings-tab-intelligence" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-intelligence" aria-labelledby="settings-tab-intelligence" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
                 {/* Context Compaction Section */}
                 <section style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
                   <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.contextCompaction")}</div>
@@ -1784,7 +1784,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* EXTENSIONS & TOOLS TAB (MCP, SKILLS, PLUGINS) */}
             {currentTab === "mcp" && (
-              <div role="tabpanel" id="settings-panel-mcp" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "mcp" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column", overflowY: "auto", padding: 20, gap: 16 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-mcp" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "mcp" ? "flex" : "none", flexDirection: "column", padding: 20, gap: 16 }}>
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
@@ -1817,21 +1817,21 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* SKILLS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "skills" && (
-              <div role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-skills" style={{ display: currentTab === "skills" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column" }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-skills" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
                 <SkillsConfig embedded cwd={cwd} onClose={onClose} />
               </div>
             )}
 
             {/* PLUGINS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "plugins" && (
-              <div role="tabpanel" id="settings-panel-plugins" aria-labelledby="settings-tab-plugins" style={{ display: currentTab === "plugins" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column" }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-plugins" aria-labelledby="settings-tab-plugins" style={{ display: currentTab === "plugins" ? "flex" : "none", flexDirection: "column" }}>
                 <PluginsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onPluginsReloaded} />
               </div>
             )}
 
             {/* SKILL HUB TAB */}
             {currentTab === "skill-hub" && (
-              <div
+              <div className="settings-panel-inner"
                 role="tabpanel"
                 id="settings-panel-skill-hub"
                 aria-labelledby="settings-tab-skill-hub"
@@ -1852,16 +1852,13 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* AGENTS TAB */}
             {currentTab === "agents" && (
-              <div
+              <div className="settings-panel-inner"
                 role="tabpanel"
                 id="settings-panel-agents"
                 aria-labelledby="settings-tab-agents"
                 style={{
                   display: currentTab === "agents" ? "flex" : "none",
-                  height: "100%",
-                  minHeight: 0,
                   flexDirection: "column",
-                  overflowY: "auto",
                   padding: 20,
                   gap: 16,
                   ...(highlightId && ["agent-roster", "agent-model", "agent-tools"].includes(highlightId)
@@ -1881,7 +1878,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* OMP NATIVE SETTINGS TAB (schema-driven, via omp CLI) */}
             {currentTab === "native" && (
-              <div role="tabpanel" id="settings-panel-native" aria-labelledby="settings-tab-native" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-native" aria-labelledby="settings-tab-native" style={{ display: "flex", flexDirection: "column" }}>
                 <NativeSettingsPanel onOpenStandalone={() => setNativeWindowOpen(true)} />
                 {nativeWindowOpen && <NativeSettingsPanel standalone onClose={() => setNativeWindowOpen(false)} />}
               </div>
@@ -1889,7 +1886,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* SYSTEM & UPDATES TAB */}
             {currentTab === "system" && (
-              <div role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.systemUpdates")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.systemUpdatesDescription")}</p>
@@ -1978,7 +1975,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* DIAGNOSTICS & RECOVERY TAB */}
             {currentTab === "diagnostics" && (
-              <div
+              <div className="settings-panel-inner"
                 role="tabpanel"
                 id="settings-panel-diagnostics"
                 aria-labelledby="settings-tab-diagnostics"
@@ -1987,7 +1984,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   display: "flex",
                   flexDirection: "column",
                   gap: 16,
-                  overflowY: "auto",
                   width: "100%",
                 }}
               >
@@ -2006,7 +2002,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* REMOTE ACCESS TAB */}
             {currentTab === "remote" && (
-              <div role="tabpanel" id="settings-panel-remote" aria-labelledby="settings-tab-remote" style={{ display: currentTab === "remote" ? "flex" : "none", height: "100%", minHeight: 0, flexDirection: "column", overflowY: "auto", padding: 20, gap: 16 }}>
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-remote" aria-labelledby="settings-tab-remote" style={{ display: currentTab === "remote" ? "flex" : "none", flexDirection: "column", padding: 20, gap: 16 }}>
                 <RemoteAccessSetting />
               </div>
             )}
