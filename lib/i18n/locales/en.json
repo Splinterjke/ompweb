@@ -178,6 +178,7 @@
   "chatInput.dictationPermissionDenied": "Microphone access denied",
   "chatInput.dictationTimedOut": "Transcription timed out",
   "chatInput.dictationSuccess": "Transcribed",
+  "chatInput.dictationKeptWithAttachments": "Transcribed into the composer: a message with attachments can't be queued or steered",
   "chatInput.dictationRecording": "Recording",
   "chatInput.pauseDictation": "Pause recording",
   "chatInput.resumeDictation": "Resume recording",
