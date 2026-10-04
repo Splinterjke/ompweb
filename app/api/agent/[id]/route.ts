@@ -19,6 +19,12 @@ const NO_SPAWN_REPLIES: Record<string, unknown> = {
   predict_word_feedback: null,
   get_btw_history: { records: [] },
   btw_cancel: { cancelled: false },
+  // Goal reads are silent background refreshes (SSE open, reconcile poll).
+  // With no live child the session has no web-visible goal: a goal restored
+  // from disk surfaces on the first run (the wrapper is then alive for the
+  // next refresh). Mutating goal ops must NEVER be here — they would return
+  // a fake success without touching any session.
+  goal_get: { goal: null },
 };
 
 /** omp-web's own failures carry a stable code the client can localize; omp's
@@ -63,15 +69,17 @@ export async function POST(
     // flag must replace an idle child to take effect; busy children keep
     // running and pick the flag up at the next natural respawn.
     const existing = getRpcSession(id);
-    const noSpawn = Object.hasOwn(NO_SPAWN_REPLIES, body.type);
+    const noSpawnKey = body.type === "goal"
+      ? (body.op === "get" ? "goal_get" : undefined)
+      : (Object.hasOwn(NO_SPAWN_REPLIES, body.type) ? body.type : undefined);
     if (existing?.isAlive()) {
-      if (noSpawn || existing.advisorSpawned === advisor || existing.isRunning()) {
+      if (noSpawnKey || existing.advisorSpawned === advisor || existing.isRunning()) {
         const result = await existing.send(body);
         return NextResponse.json({ success: true, data: result });
       }
       await existing.destroyAndWait();
     }
-    if (noSpawn) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[body.type] });
+    if (noSpawnKey) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
 
     const resolved = await resolveSessionPathOr404(id);
     if ("response" in resolved) return resolved.response;

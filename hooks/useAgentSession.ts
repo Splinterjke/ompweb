@@ -46,6 +46,11 @@ import {
   type SubagentProgress,
   type SubagentSnapshotLike,
 } from "@/lib/subagent-types";
+import {
+  parseGoalResult,
+  type GoalInfo,
+  type GoalOp,
+} from "@/lib/goal";
 
 // SubagentInfo lives in lib/subagent-types (shared with the server-side
 // history module); keep the export path stable for components.
@@ -781,6 +786,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [subagents, setSubagents] = useState<SubagentInfo[]>([]);
   const [subagentEvents, setSubagentEvents] = useState<Record<string, SubagentActivityEvent[]>>({});
   const [subagentTranscriptVersions, setSubagentTranscriptVersions] = useState<Record<string, number>>({});
+  // Goal mode (omp >= 18.4.11): the live goal from `goal_updated` frames and
+  // `goal` RPC responses; `mode` is "exiting" while a completed goal unwinds.
+  const [goal, setGoal] = useState<GoalInfo | null>(null);
+  const [goalMode, setGoalMode] = useState<"active" | "exiting" | undefined>(undefined);
+  // Bumped on every direct write (frame or RPC response). Background refresh
+  // snapshots apply only while it is unchanged — a frame that arrived
+  // mid-request is newer and must not be clobbered by the snapshot.
+  const goalGenerationRef = useRef(0);
   const [todoPhases, setTodoPhases] = useState<TodoPhase[]>([]);
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
@@ -1081,12 +1094,43 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // Hydrate the LIVE roster from get_subagents. The registry only holds
   // currently-running subagents, so this fills gaps after an SSE reconnect or
   // a missed lifecycle frame; it never reports finished runs.
+  const applyGoal = useCallback((parsed: { goal: GoalInfo | null; mode?: "active" | "exiting" }) => {
+    goalGenerationRef.current += 1;
+    setGoal(parsed.goal);
+    setGoalMode(parsed.mode);
+  }, []);
+  const refreshGoal = useCallback(async (sid: string) => {
+    // Externally-held sessions have no web RPC channel; skip (the route's
+    // no-spawn reply would only echo "no goal" anyway).
+    if (externalRunningRef.current) return;
+    const generation = goalGenerationRef.current;
+    const sidAt = sessionIdRef.current;
+    try {
+      const result = await sendAgentCommand<unknown>(sid, { type: "goal", op: "get" });
+      if (sessionIdRef.current !== sidAt || goalGenerationRef.current !== generation) return;
+      applyGoal(parseGoalResult(result));
+    } catch {
+      // An older omp without the goal command: the bar simply stays hidden.
+    }
+  }, [applyGoal]);
+  const sendGoalCommand = useCallback(async (op: GoalOp, objective?: string) => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const command: Record<string, unknown> = { type: "goal", op };
+    if (objective) command.objective = objective;
+    // Errors bubble to the caller (the goal bar toasts them).
+    const result = await sendAgentCommand<unknown>(sid, command);
+    applyGoal(parseGoalResult(result));
+  }, [applyGoal]);
   const refreshSubagentRoster = useCallback(async (sid: string) => {
     // Externally-running sessions have no web-owned process to query: the
     // get_subagents POST would spawn a stray idle omp (or fail with "already
     // in use" and leave a crash record in the sidebar). The on-disk history
     // already covers finished runs, so skip the live roster here.
     if (externalRunningRef.current) return;
+    // Goal rides the same background refresh points as the roster (SSE
+    // open, mount, send, reconcile, restart): one cheap silent read.
+    void refreshGoal(sid);
     const requestedAt = Date.now();
     const runId = promptRunIdRef.current;
     const generation = subagentRosterGenerationRef.current;
@@ -1121,7 +1165,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } catch {
       // Best effort: subagent_lifecycle/progress frames are the primary source.
     }
-  }, [mergeSubagents, refreshSubagentHistory]);
+  }, [applyGoal, mergeSubagents, refreshGoal, refreshSubagentHistory]);
 
   // Clear per-run activity state at run end. MUST also cancel the pending
   // version-flush rAF: a queued subagent_event flush would otherwise repopulate
@@ -1208,6 +1252,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         clearInterval(externalPollRef.current);
         externalPollRef.current = undefined;
         externalRunningRef.current = false;
+        // The goal belongs to the previous session; the new session's goal
+        // is re-read below (silent `goal get`, no spawn).
+        goalGenerationRef.current += 1;
+        setGoal(null);
+        setGoalMode(undefined);
       }
       const params = new URLSearchParams({ deferThinking: "1", deferMedia: "1" });
       const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}?${params}`);
@@ -2351,6 +2400,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         }
         break;
       }
+      case "goal_updated":
+        // Goal mode changed (host `goal` command or the agent's goal tool);
+        // the payload carries the same goal/state pair as the RPC response.
+        applyGoal(parseGoalResult(event));
+        break;
       case "agent_start":
         interruptReplyPendingRef.current = false;
         agentRunningRef.current = true;
@@ -2358,6 +2412,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setTurnStarting(false);
         setAgentPhase({ kind: "waiting_model" });
         clearLiveToolResults();
+        // A goal restored from disk by --resume surfaces here: the wrapper is
+        // alive at run start, so the first read after attach succeeds even
+        // when no goal_updated frame has fired yet.
+        if (sessionIdRef.current) void refreshGoal(sessionIdRef.current);
         dispatch({ type: "start" });
         break;
       case "agent_end":
@@ -2825,7 +2883,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         handleExtensionUiRequest(event as unknown as IncomingExtensionUiRequest);
         break;
     }
-  }, [addNotice, clearLiveToolResults, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, mergeSubagents, onAgentEnd, reconcileAgentState, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, beginAuthoritativeModelSync, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
+  }, [addNotice, applyGoal, beginAuthoritativeModelSync, clearLiveToolResults, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
   handleAgentEventRef.current = handleAgentEvent;
 
   const handleSend = useCallback(async (message: string, images?: AttachedImage[]): Promise<boolean> => {
@@ -3616,6 +3674,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             setActiveGoal(goal);
             const activeSessionId = sessionIdRef.current;
             if (activeSessionId) sessionStorage.setItem(`omp-web:goal:${activeSessionId}`, JSON.stringify(goal));
+            // Also create the NATIVE goal (omp >= 18.4.11): it drives the
+            // goal bar and the agent-side continuations. The web marker
+            // above remains the only record on an omp without the command
+            // or while another goal is active (the failure is silent).
+            if (activeSessionId) {
+              try {
+                applyGoal(parseGoalResult(await sendAgentCommand<unknown>(activeSessionId, {
+                  type: "goal",
+                  op: "create",
+                  objective: args,
+                })));
+              } catch {
+                // Older omp or an active goal: web marker only, no notice.
+              }
+            }
           }
           return { handled: true };
         }
@@ -3628,7 +3701,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setIsCompacting(false);
       }
     }
-  }, [addNotice, advisorEnabled, askBtw, ensureNewSession, handleSend, isCompacting, loadModels, loadSession, loadSlashCommands, openBtwHistory, promoteNewSession, opts.chatInputRef]);
+  }, [addNotice, advisorEnabled, applyGoal, askBtw, ensureNewSession, handleSend, isCompacting, loadModels, loadSession, loadSlashCommands, openBtwHistory, promoteNewSession, opts.chatInputRef]);
 
   // Queued (undelivered) messages live in the queue panel only; the chat gets
   // the real user message when pi delivers it (user message_end event). An
@@ -4075,6 +4148,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     advisorActive: advisorActiveAt > 0, advisorEnabled, handleAdvisorChange,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
+    goal, goalMode, sendGoalCommand,
     activeGoal, activePlan, planInfo,
     isNew,
     // Refs

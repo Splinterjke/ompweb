@@ -622,6 +622,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     isAutoModelSelection,
     agentPhase, activeGoal, activePlan, planInfo,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
+    goal, goalMode, sendGoalCommand,
     isNew,
     sessionIdRef, messagesEndRef, scrollContainerRef,
     handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession, scrollToBottom,
@@ -1564,6 +1565,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               subagentEvents={subagentEvents}
               onSelectSubagent={onSelectSubagent}
               sessionId={session?.id}
+              goal={goal}
+              goalMode={goalMode}
+              onGoalCommand={sendGoalCommand}
               btw={btwPanel}
               layout={hubBarLayout}
               showGit={hubBarsVisible.git}

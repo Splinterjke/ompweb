@@ -859,6 +859,22 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   was delivered; the browser renders it via `AppShell` → `showBrowserNotification` and
   clicking selects the originating session.
 
+### Goal mode (`lib/goal.ts`, `components/GoalBar.tsx`)
+- omp ≥ 18.4.11 goal mode: the `goal` RPC (`{type:"goal", op:"get"|"create"|"resume"|"pause"|"drop", objective?}`
+  → `GoalResult {goal, state}`) plus the `goal_updated` frame (same payload; fired by the host
+  command or the agent's `goal` tool). The composer's `GoalBar` renders the live goal
+  (objective, status, tokens vs budget, elapsed time) with pause/resume/drop actions.
+- Hydration rides `refreshSubagentRoster`'s refresh points (SSE open, mount, send, reconcile,
+  restart) and the first `agent_start`; `POST /api/agent/[id]` answers `goal` + `op:"get"`
+  with `{goal:null}` when no child exists (`NO_SPAWN_REPLIES.goal_get`) so background reads
+  never spawn a process — mutating goal ops must NEVER join that map (a fake success would
+  silently no-op). A `goalGenerationRef` keeps a stale snapshot from clobbering a newer
+  `goal_updated` frame applied mid-request.
+- Web `/goal <objective>` keeps its sessionStorage marker (survives everywhere) AND, after the
+  prompt sends, creates the native goal best-effort; the bar appears when omp honors it.
+- Native goal ≠ `activeGoal` (`lib/web-mode-state.ts`): the web marker tracks "this session
+  was started with /goal" for the composer hint; the bar shows omp's authoritative tracked goal.
+
 ### Voice transcription jobs (`lib/stt-jobs.ts`, `/api/stt`, `hooks/useDictation.ts`)
 - The browser never waits on the STT endpoint: `POST /api/stt` keeps the
   recording in memory and starts a job; the hook polls `GET /api/stt/[jobId]`
