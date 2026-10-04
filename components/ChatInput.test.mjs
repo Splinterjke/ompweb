@@ -51,6 +51,96 @@ test("does not render an empty model error", () => {
   assert.equal(renderToStaticMarkup(React.createElement(ModelErrorBanner, { error: null })), "");
 });
 
+test("formats structured Claude low-priority state in the browser locale", () => {
+  const resetsAtSec = Math.floor(Date.now() / 1000) + 3_600;
+  const time = new Date(resetsAtSec * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const html = renderToStaticMarkup(
+    React.createElement(ChatInput, {
+      onSend() {},
+      onAbort() {},
+      isStreaming: false,
+      anthropicSlowMode: { stage: "low_priority", resetsAtSec, allowanceLeftPercent: 62 },
+    }),
+  );
+  assert.match(html, new RegExp(`low priority until ${time.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} · 62% left`));
+});
+
+test("formats every Claude usage-limit stage", () => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const shortReset = nowSec + 3_600;
+  const longReset = nowSec + 86_400;
+  const shortTime = new Date(shortReset * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const longTime = new Date(longReset * 1000).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  const rows = [
+    [{ stage: "low_priority", resetsAtSec: shortReset }, `low priority until ${shortTime}`],
+    [{ stage: "wrap_up", extraUsage: false }, "limit reached · wrapping up"],
+    [{ stage: "wrap_up", resetsAtSec: shortReset, extraUsage: false }, `limit reached · wrapping up · resets ${shortTime}`],
+    [{ stage: "wrap_up", extraUsage: true }, "limit reached · wrap-up, then extra usage"],
+    [{ stage: "low_priority", resetsAtSec: longReset }, `low priority until ${longTime}`],
+  ];
+  for (const [anthropicSlowMode, label] of rows) {
+    const html = renderToStaticMarkup(
+      React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, anthropicSlowMode }),
+    );
+    assert.ok(html.includes(label), `${JSON.stringify(anthropicSlowMode)} should render ${label}`);
+  }
+});
+
+test("never renders a null percentage, an invalid date, or a past reset clock", () => {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const pastSec = nowSec - 3_600;
+  const rows = [
+    { stage: "low_priority", resetsAtSec: nowSec + 3_600, allowanceLeftPercent: null },
+    { stage: "low_priority", resetsAtSec: nowSec + 3_600, allowanceLeftPercent: Number.NaN },
+    { stage: "low_priority", resetsAtSec: null, allowanceLeftPercent: 62 },
+    { stage: "low_priority", resetsAtSec: undefined, allowanceLeftPercent: 62 },
+    { stage: "low_priority", resetsAtSec: null },
+    { stage: "low_priority", resetsAtSec: pastSec, allowanceLeftPercent: 62 },
+    { stage: "wrap_up", resetsAtSec: null, extraUsage: false },
+    { stage: "wrap_up", resetsAtSec: pastSec, extraUsage: false },
+  ];
+  for (const anthropicSlowMode of rows) {
+    const html = renderToStaticMarkup(
+      React.createElement(ChatInput, { onSend() {}, onAbort() {}, isStreaming: false, anthropicSlowMode }),
+    );
+    const label = `${JSON.stringify(anthropicSlowMode)} -> ${html}`;
+    // "null" / "NaN" / "Invalid Date" reaching the label is the bug this pins:
+    // every one of them is a value the user would plan their session around.
+    assert.ok(!html.includes("Invalid Date"), `invalid date rendered: ${label}`);
+    assert.ok(!html.includes("null%"), `null percentage rendered: ${label}`);
+    assert.ok(!html.includes("NaN%"), `NaN percentage rendered: ${label}`);
+    // A reset already in the past must not render a plausible wrong clock.
+    if (anthropicSlowMode.resetsAtSec === pastSec) {
+      assert.ok(!html.includes(new Date(pastSec * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })),
+        `past reset clock rendered: ${label}`);
+    }
+  }
+  // The allowance is still worth showing when the reset time is unusable.
+  assert.match(
+    renderToStaticMarkup(
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        isStreaming: false,
+        anthropicSlowMode: { stage: "low_priority", resetsAtSec: null, allowanceLeftPercent: 62 },
+      }),
+    ),
+    /low priority · 62% left/,
+  );
+  // ...and something is still shown when neither is usable.
+  assert.match(
+    renderToStaticMarkup(
+      React.createElement(ChatInput, {
+        onSend() {},
+        onAbort() {},
+        isStreaming: false,
+        anthropicSlowMode: { stage: "low_priority", resetsAtSec: null },
+      }),
+    ),
+    /class="composer-slow-mode-badge"[^>]*>low priority</,
+  );
+});
+
 test("keeps the model selector visible when a model error leaves no options", () => {
   const html = renderToStaticMarkup(
     React.createElement(ChatInput, {

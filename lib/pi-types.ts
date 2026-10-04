@@ -8,6 +8,10 @@ export interface ContextUsage {
   tokens: number | null;
 }
 
+export type AnthropicSlowModeState =
+  | { stage: "low_priority"; resetsAtSec: number; allowanceLeftPercent?: number }
+  | { stage: "wrap_up"; resetsAtSec?: number; extraUsage: boolean };
+
 export interface ModelLike {
   id: string;
   provider: string;
@@ -79,6 +83,8 @@ export interface RpcSessionState {
   fastMode?: boolean;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
+  /** Structured Claude usage-limit state; absent outside wrap-up and low priority. */
+  anthropicSlowMode?: AnthropicSlowModeState;
   /** omp's reported output throughput; null/undefined when not generating. */
   tokensPerSecond?: number | null;
 }
@@ -108,6 +114,7 @@ export interface WebSessionState {
   thinkingLevel: string;
   fastModeEnabled: boolean;
   fastModeActive?: boolean;
+  anthropicSlowMode?: AnthropicSlowModeState;
   autoRetryEnabled?: boolean;
   tokensPerSecond?: number | null;
   todoPhases: TodoPhase[];

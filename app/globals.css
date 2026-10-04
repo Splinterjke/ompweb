@@ -2573,6 +2573,22 @@ svg.lucide:not([class*="-spin"]) {
   color: var(--text) !important;
   transform: none;
 }
+.composer-slow-mode-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 260px;
+  height: var(--control-height-sm);
+  line-height: var(--control-height-sm);
+  padding: 0 8px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+  color: var(--status-warning);
+  font-size: calc(12px * var(--ui-font-scale-lg, 1));
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (min-width: 641px) {
   .composer-control-shelf {
     max-width: min(100%, 760px);
@@ -2596,6 +2612,8 @@ svg.lucide:not([class*="-spin"]) {
   .file-viewer-meta {
     display: none;
   }
+  /* Own row above the controls, so it never squeezes the model picker. */
+  .composer-slow-mode-badge { order: -1; flex-basis: 100%; max-width: none; }
 }
 
 @media (max-width: 380px) {

@@ -7,7 +7,7 @@ import { ChevronDown, ClipboardPaste, ListChecks, Loader2, Mic, Paperclip, Plus,
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
 import type { ComposerAccentBg } from "./AppShell";
- import type { GenerationSpeedInfo, SessionStatsInfo } from "@/lib/pi-types";
+ import type { AnthropicSlowModeState, GenerationSpeedInfo, SessionStatsInfo } from "@/lib/pi-types";
 import { formatCompactNumber, formatPercent } from "@/lib/format";
 import { getSubmitDuringRunBehavior, isWordCompletionEnabled } from "@/lib/composer-prefs";
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
@@ -38,6 +38,59 @@ import { FolderIcon, getFileIcon } from "./FileIcons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/lib/i18n";
 import { selectableThinkingLevels } from "@/lib/thinking-levels";
+
+const SLOW_MODE_SAME_DAY_MS = 20 * 3_600_000;
+
+function formatSlowModeResetClock(resetsAtSec: number, now: number): string {
+  const date = new Date(resetsAtSec * 1000);
+  return resetsAtSec * 1000 - now > SLOW_MODE_SAME_DAY_MS
+    ? date.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** A reset time we can actually put on screen, or null when omp gave us none.
+ *  omp may omit the field or send a non-number, and a reset already in the
+ *  past would render a plausible but wrong clock — both are worse than saying
+ *  no time at all, because the user would plan around them. */
+function usableSlowModeResetTime(
+  resetsAtSec: number | null | undefined,
+  now: number,
+): string | null {
+  if (typeof resetsAtSec !== "number" || !Number.isFinite(resetsAtSec)) return null;
+  if (resetsAtSec * 1000 <= now) return null;
+  return formatSlowModeResetClock(resetsAtSec, now);
+}
+
+function slowModeAllowancePercent(
+  allowanceLeftPercent: number | null | undefined,
+): number | null {
+  return typeof allowanceLeftPercent === "number" && Number.isFinite(allowanceLeftPercent)
+    ? allowanceLeftPercent
+    : null;
+}
+
+function formatAnthropicSlowModeLabel(
+  state: AnthropicSlowModeState,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  now = Date.now(),
+): string {
+  const time = usableSlowModeResetTime(state.resetsAtSec, now);
+  if (state.stage === "low_priority") {
+    // Read inside the narrowing: allowanceLeftPercent is not on the wrap_up arm.
+    const percent = slowModeAllowancePercent(state.allowanceLeftPercent);
+    if (time === null) {
+      return percent === null
+        ? t("chatInput.slowMode.lowPriorityNoReset")
+        : t("chatInput.slowMode.lowPriorityAllowanceOnly", { percent });
+    }
+    return percent === null
+      ? t("chatInput.slowMode.lowPriority", { time })
+      : t("chatInput.slowMode.lowPriorityAllowance", { time, percent });
+  }
+  if (state.extraUsage) return t("chatInput.slowMode.wrapUpExtraUsage");
+  if (time === null) return t("chatInput.slowMode.wrapUp");
+  return t("chatInput.slowMode.wrapUpReset", { time });
+}
 
 const TOOL_PRESET_OPTIONS: Array<{ value: ToolPreset; descriptionKey: string }> = [
   { value: "none", descriptionKey: "chatInput.toolPresetNone" },
@@ -81,6 +134,8 @@ interface Props {
   onModelChange?: (provider: string, modelId: string) => void;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
+  /** omp's structured Claude usage-limit state, shown as a warning chip. */
+  anthropicSlowMode?: AnthropicSlowModeState;
   fastModeSupported?: boolean;
   onFastModeChange?: (enabled: boolean) => void;
   onAbortCompaction?: () => void;
@@ -433,7 +488,7 @@ function ComposerModeStatus({ goal, plan, onOpenPlan }: { goal?: ActiveGoal | nu
 }
 
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
-  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, fastModeSupported, onFastModeChange,
+  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, anthropicSlowMode, fastModeSupported, onFastModeChange,
   onAbortCompaction, isCompacting, compactResult,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap, modelNameOverride,
   retryInfo, queuedMessages, inputHistory = [], onAbortRetry,
@@ -494,6 +549,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     return () => { cancelled = true; };
   }, []);
   const { t, tn, locale } = useI18n();
+  const anthropicSlowModeLabel = anthropicSlowMode
+    ? formatAnthropicSlowModeLabel(anthropicSlowMode, t)
+    : undefined;
   const modelCollator = React.useMemo(
     () => new Intl.Collator(locale, { numeric: true, sensitivity: "base" }),
     [locale],
@@ -3120,6 +3178,16 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 {t("chatInput.fastLabel")}
               </button>
               </Tooltip>
+            )}
+
+            {/* Claude usage-limit stage (wrap-up allowance or /slow low
+                priority), warning-colored like the TUI status line so
+                past-the-limit service is never mistaken for normal.
+                Layout lives in globals.css (own row on mobile). */}
+            {anthropicSlowModeLabel && (
+              <div className="composer-slow-mode-badge" role="status" aria-live="polite" title={anthropicSlowModeLabel}>
+                {anthropicSlowModeLabel}
+              </div>
             )}
 
             <div style={{ flex: 1 }} />

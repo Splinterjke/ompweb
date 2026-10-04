@@ -612,7 +612,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive,
+    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, anthropicSlowMode,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, liveToolResults,
     modelSwitching,
@@ -1222,6 +1222,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
       fastModeEnabled={fastModeEnabled}
       fastModeActive={fastModeActive}
+      anthropicSlowMode={anthropicSlowMode}
       fastModeSupported={Boolean(displayModelValue && modelList.some((entry) => entry.provider === displayModelValue.provider && entry.id === displayModelValue.modelId && entry.supportsFastMode))}
       onFastModeChange={session || isNew ? handleFastModeChange : undefined}
       onAbortRetry={session ? handleAbortRetry : undefined}
