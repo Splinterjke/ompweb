@@ -13,6 +13,7 @@ import { cacheSessionPath, invalidateSessionListCache, readSessionHeader, resolv
 import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { taskCompletedDiff } from "./todo-completion";
+import { createMessageUpdateCoalescer } from "./message-update-coalescer";
 import { PRESET_FULL } from "./tool-presets";
 import type {
   BashResultInfo,
@@ -1067,7 +1068,22 @@ export class AgentSessionWrapper {
     this.pendingHostUris.clear();
   }
 
+  /**
+   * Forward frames to subscribers through the same display-rate coalescer
+   * the browser uses, applied one hop earlier: omp emits message_update /
+   * tool_execution_update at network rate (30-100+/s) each carrying the
+   * FULL accumulated partial, so a long reply would otherwise push every
+   * intermediate snapshot over the SSE connection. Folding here sends the
+   * latest frame per display window (~20/s) and flushes the fold before
+   * any other frame, so the client-visible order is unchanged.
+   */
+  private readonly frameCoalescer = createMessageUpdateCoalescer((event) => this.dispatchToListeners(event));
+
   private emit(event: AgentEvent): void {
+    this.frameCoalescer.push(event);
+  }
+
+  private dispatchToListeners(event: AgentEvent): void {
     for (const l of this.listeners) {
       try {
         l(event);
@@ -1399,6 +1415,7 @@ export class AgentSessionWrapper {
       this.awaitingAgentStartDeadline = 0;
       this.continuationPending = false;
       this.bashRunning = false;
+      this.frameCoalescer.reset();
       this.streaming = false;
       this.compacting = false;
       this._interruptEndPending = false;
@@ -1844,6 +1861,7 @@ export class AgentSessionWrapper {
     this.pendingHostUris.clear();
     this.hostUriSchemes.clear();
     this.emit({ type: "session_destroyed" });
+    this.frameCoalescer.reset();
     notifyRunningChange();
     await disposed;
     // Keep this registry entry discoverable until the underlying child has

@@ -354,6 +354,16 @@ wait for that commit:
   `lib/message-update-coalescer.ts` (chatty commands emit ~10-100+ frames/s).
   `message_end` drops the pending `message_update` (the committed message
   supersedes it) but must NOT drop buffered tool updates.
+- The same fold runs SERVER-SIDE in `rpc-manager.ts` (`frameCoalescer`, the
+  shared `lib/message-update-coalescer.ts`): `emit` pushes every frame
+  through it, so subscribers — SSE and internal alike — receive at most one
+  `message_update` / `tool_execution_update` per display window (~20/s
+  instead of 100+), each still a FULL partial. Order is unchanged (any other
+  frame flushes the fold first); `restart` and `destroyAndWait` reset it.
+  omp's `set_event_filter` delta mode is deliberately NOT used: it drops the
+  accumulated snapshots, which would break latest-wins folding and force the
+  wrapper to re-accumulate provider deltas — the stdio hop it saves is local
+  and already the cheap one.
 - Live entries are cleared on `agent_start`, terminal `agent_end`, prompt
   send/settlement failure — a tool must never leak into the next run.
 
