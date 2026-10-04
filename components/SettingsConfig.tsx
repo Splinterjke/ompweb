@@ -5,6 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getSubmitDuringRunBehavior, getWordCompletionMode, setSubmitDuringRunBehavior, setWordCompletionMode, type SubmitDuringRunBehavior, type WordCompletionMode } from "@/lib/composer-prefs";
 import dynamic from "next/dynamic";
 import { Copy, ExternalLink, PanelLeftClose, PanelLeftOpen, RefreshCw, RotateCcw, Search, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { formatAgentEnvText, parseAgentEnvText, type AgentEnvErrorLabels } from "@/lib/omp/agent-env-policy";
+import { isRecord } from "@/lib/type-guards";
 import { toast } from "@/components/ui/toast";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMotionPrefs } from "@/hooks/useMotionPrefs";
@@ -326,6 +328,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "mcp-resource-updates", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.mcpResourceUpdates", descKey: "settingsConfig.mcpResourceUpdatesDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "MCP Resource Updates", fallbackDesc: "Inject server resource updates into conversation.", scope: "Native OMP" },
   // System & Updates
   { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System & Updates", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
+  { id: "agent-env", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentEnv", descKey: "settingsConfig.agentEnvDesc", fallbackSection: "System & Updates", fallbackLabel: "Agent environment variables", fallbackDesc: "Extra environment variables passed to the omp process, one KEY=VALUE per line. Applied to sessions started after saving.", scope: "UI" },
 ];
 
 function SearchResultsList({ results, query, onSelect }: { results: SearchResult[]; query: string; onSelect: (result: SearchResult) => void }) {
@@ -471,6 +474,132 @@ function AutoResumeSessionsSetting() {
   );
 }
 
+/** Server-side omp-web setting (issue #104): KEY=VALUE text injected into the
+ * `omp` child process. Parsing/validation lives in lib/omp/agent-env-policy.ts;
+ * this only feeds it localized messages and renders the result. */
+function AgentEnvSetting() {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const errorLabels = useMemo<AgentEnvErrorLabels>(
+    () => ({
+      missingSeparator: (line) => t("settingsConfig.agentEnvErrMissingSeparator", { line }),
+      emptyName: (line) => t("settingsConfig.agentEnvErrEmptyName", { line }),
+      invalidName: (line, name) => t("settingsConfig.agentEnvErrInvalidName", { line, name }),
+      deniedName: (line, name) => t("settingsConfig.agentEnvErrDenied", { line, name }),
+    }),
+    [t],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/web-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { agentEnv?: Record<string, string> } | null) => {
+        if (!alive) return;
+        setText(formatAgentEnvText(isRecord(data?.agentEnv) ? data.agentEnv : {}));
+        setLoaded(true);
+      })
+      .catch(() => { if (alive) setLoaded(true); });
+    return () => { alive = false; };
+  }, []);
+
+  const { errors } = useMemo(() => parseAgentEnvText(text, errorLabels), [text, errorLabels]);
+
+  const save = async () => {
+    if (errors.length > 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/web-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentEnv: text }),
+      });
+      const data = (await res.json().catch(() => null)) as { agentEnv?: Record<string, string>; errors?: string[] } | null;
+      if (!res.ok) {
+        throw new Error(
+          data?.errors?.length
+            ? data.errors.join("\n")
+            : data && typeof data === "object" && "error" in data && typeof data.error === "string"
+              ? data.error
+              : `HTTP ${res.status}`,
+        );
+      }
+      // Re-render from the server's canonical form so the textarea matches what is stored.
+      setText(formatAgentEnvText(isRecord(data?.agentEnv) ? data.agentEnv : {}));
+      toast.success(t("settingsConfig.agentEnvSaved"));
+    } catch (error) {
+      toast.error(t("settingsConfig.agentEnvSaveFailed"), error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <NativeSetting searchId="agent-env" scope="UI" label={t("settingsConfig.agentEnv")} description={t("settingsConfig.agentEnvDesc")}>
+      <div className="settings-card-block" style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", minWidth: 0 }}>
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          spellCheck={false}
+          rows={5}
+          disabled={!loaded}
+          placeholder={t("settingsConfig.agentEnvPlaceholder")}
+          aria-label={t("settingsConfig.agentEnv")}
+          aria-invalid={errors.length > 0 || undefined}
+          aria-describedby="agent-env-note"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "7px 9px",
+            border: `1px solid ${errors.length > 0 ? "var(--status-error)" : "var(--border)"}`,
+            borderRadius: "var(--radius-control)",
+            background: "var(--bg)",
+            color: "var(--text)",
+            fontFamily: "var(--font-mono)",
+            fontSize: 12,
+            lineHeight: 1.45,
+            minHeight: 96,
+            fieldSizing: "content",
+            resize: "vertical",
+            outline: "none",
+          }}
+        />
+        {errors.length > 0 && (
+          <ul role="alert" aria-label={t("settingsConfig.agentEnvErrors")} style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+            {errors.map((error) => (
+              <li key={error} style={{ fontSize: 11, color: "var(--status-error)", lineHeight: 1.4, overflowWrap: "anywhere" }}>{error}</li>
+            ))}
+          </ul>
+        )}
+        <p id="agent-env-note" style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.45 }}>{t("settingsConfig.agentEnvNote")}</p>
+        <div>
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={saving || !loaded || errors.length > 0}
+            style={{
+              padding: "6px 14px",
+              border: "1px solid var(--accent-strong)",
+              borderRadius: "var(--radius-control)",
+              background: "var(--accent-strong)",
+              color: "var(--on-accent)",
+              cursor: saving || errors.length > 0 ? "not-allowed" : "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              opacity: saving || !loaded || errors.length > 0 ? 0.6 : 1,
+            }}
+          >
+            {saving ? t("settingsConfig.agentEnvSaving") : t("settingsConfig.agentEnvSave")}
+          </button>
+        </div>
+      </div>
+    </NativeSetting>
+  );
+}
+
 function NativeSetting({ label, description, scope, searchId, children, controlStyle, containerStyle }: { label: string; description: string; scope?: "UI" | "Native OMP" | "Workspace"; searchId?: string; children: ReactNode; controlStyle?: CSSProperties; containerStyle?: CSSProperties }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
@@ -523,7 +652,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
         ...containerStyle,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+      <div className="settings-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
           {/* flexShrink 0 keeps CJK labels from collapsing to one glyph per
               line ("vertical text"); flexWrap above moves the control below
@@ -1768,6 +1897,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
 
                 <AutoResumeSessionsSetting />
+
+                <AgentEnvSetting />
 
                 {/* OMP runtime update card */}
                 <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 10 }}>

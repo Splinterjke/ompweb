@@ -5,6 +5,7 @@ import { validateAgentImages } from "./image-attachments";
 import { invalidateModelsCache } from "./models-cache";
 import { RpcCommandError, RpcCommandTimeoutError, type RpcFrame } from "./omp/rpc-process";
 import { createRpcProcess, type RpcProcessLike } from "./omp/rust-rpc-process";
+import { getAgentEnvOverrides } from "./omp/agent-env";
 import { readNativeSettings } from "./omp/settings-config";
 import { scanSessionInfo } from "./omp/session-files";
 import { sanitizeSessionTitle } from "./session-title";
@@ -1366,6 +1367,9 @@ export class AgentSessionWrapper {
         proc = await createRpcProcess({
           cwd: this.cwd,
           sessionId: this.sessionId,
+          // Re-read per spawn so a restart picks up environment values the user
+          // added in Settings after this session was created (#104).
+          env: getAgentEnvOverrides(),
           extraArgs: buildSessionSpawnArgs(resumable ? sessionFile : ""),
           onExit: (info) => {
             if (this.proc === proc) this.handleProcessExit(info, proc);
@@ -2031,6 +2035,8 @@ export async function startRpcSession(
       proc = await createRpcProcess({
         cwd,
         sessionId: sessionId ?? `session-${Math.random().toString(36).slice(2, 10)}`,
+        // User-configured variables for MCP servers and generated configs (#104).
+        env: getAgentEnvOverrides(),
         extraArgs: buildSessionSpawnArgs(sessionFile, toolNames, advisor === true),
         onExit: (info) => holder.wrapper?.handleProcessExit(info, proc),
       });

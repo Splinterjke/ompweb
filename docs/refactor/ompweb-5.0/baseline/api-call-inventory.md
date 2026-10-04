@@ -1,6 +1,6 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-10-04T01:01:20.128Z · totals: 177 calls / 37 files · http 167 (read 86 / write 91) · sse 10
+Generated: 2026-10-04T01:42:22.890Z · totals: 179 calls / 37 files · http 169 (read 86 / write 93) · sse 10
 
 | domain | calls |
 |---|---|
@@ -20,6 +20,7 @@ Generated: 2026-10-04T01:01:20.128Z · totals: 177 calls / 37 files · http 167 
 | mcp | 5 |
 | diagnostics | 4 |
 | models-config | 4 |
+| web-settings | 4 |
 | reveal | 3 |
 | model-roles | 3 |
 | models | 3 |
@@ -30,7 +31,6 @@ Generated: 2026-10-04T01:01:20.128Z · totals: 177 calls / 37 files · http 167 
 | cwd | 2 |
 | file-index | 2 |
 | proxy | 2 |
-| web-settings | 2 |
 | schedulers | 2 |
 | omp-version | 1 |
 | ui | 1 |

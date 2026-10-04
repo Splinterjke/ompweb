@@ -3100,6 +3100,19 @@ html.dark .dropdown-surface :is(select, option) {
   max-width: 50%;
 }
 
+/* Full-width controls (multi-line editors) sit below the title and description. */
+.settings-card:has(> .settings-card-control > .settings-card-block) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+/* The local settings card row centers its children via an inline style, which
+   outranks the rule above; stretch each child on the cross axis so the editor
+   and the label group both follow the page width. */
+.settings-card:has(> .settings-card-control > .settings-card-block) > * {
+  align-self: stretch;
+}
+
 /* Conversational motion: new turns settle into place while an active turn
    gets a quiet accent pulse on the unboxed message. These classes only
    animate on mount, so streamed token updates do not restart the entrance

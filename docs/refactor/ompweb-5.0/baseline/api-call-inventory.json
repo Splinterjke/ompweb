@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-10-04T01:01:20.128Z",
+  "generatedAt": "2026-10-04T01:42:22.890Z",
   "totals": {
     "files": 37,
-    "calls": 177,
-    "http": 167,
+    "calls": 179,
+    "http": 169,
     "sse": 10,
     "read": 86,
-    "write": 91
+    "write": 93
   },
   "domains": {
     "pair": 9,
@@ -37,7 +37,7 @@
     "plugins": 3,
     "home": 1,
     "worktrees": 3,
-    "web-settings": 2,
+    "web-settings": 4,
     "terminal": 6,
     "usage-summary": 1,
     "provider-usage": 1,
@@ -1223,7 +1223,7 @@
       "file": "components/SettingsConfig.tsx",
       "calls": [
         {
-          "line": 446,
+          "line": 449,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1232,7 +1232,7 @@
           "stream": false
         },
         {
-          "line": 456,
+          "line": 459,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1241,7 +1241,25 @@
           "stream": false
         },
         {
-          "line": 692,
+          "line": 498,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/web-settings",
+          "domain": "web-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 515,
+          "kind": "http",
+          "method": "PUT",
+          "endpoint": "/api/web-settings",
+          "domain": "web-settings",
+          "rw": "write",
+          "stream": false
+        },
+        {
+          "line": 821,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -1250,7 +1268,7 @@
           "stream": false
         },
         {
-          "line": 715,
+          "line": 844,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -1259,7 +1277,7 @@
           "stream": false
         },
         {
-          "line": 767,
+          "line": 896,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1268,7 +1286,7 @@
           "stream": false
         },
         {
-          "line": 816,
+          "line": 945,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1277,7 +1295,7 @@
           "stream": false
         },
         {
-          "line": 835,
+          "line": 964,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",

@@ -17,6 +17,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createConnection, type Socket } from "node:net";
 import { join } from "node:path";
 import { getAgentDir } from "./paths";
+import { getAgentEnvOverrides } from "./agent-env";
 import { assertHostAvailable, resolveHostBin, resolveModuleDir } from "./host-bin";
 import { RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
 import { RpcCommandError, RpcCommandTimeoutError } from "./rpc-process";
@@ -85,6 +86,9 @@ export interface RustRpcProcessOptions {
   sessionId: string;
   extraArgs?: string[];
   onExit?: (info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) => void;
+  /** Passed to the Node RpcProcess (OMPWEB_BACKEND=node). The Rust backend
+   * ignores it per-session: host-spawned omp children inherit the host's
+   * environment, which merges the same stored values at host spawn. */
   env?: Record<string, string>;
 }
 
@@ -213,7 +217,19 @@ export class RustHostManager {
       const child = this.spawnHost(hostResolution.path, ["--ipc"], {
         stdio: ["ignore", "pipe", "ignore"],
         windowsHide: true,
-        env: { ...process.env, OMPWEB_RUNTIME_DB: process.env.OMPWEB_RUNTIME_DB || join(getAgentDir(), "ompweb", "runtime.db") },
+        env: {
+          ...process.env,
+          // User-configured variables for MCP servers and generated configs
+          // (#104). The deny list is enforced inside getAgentEnvOverrides()
+          // before merging, and OMPWEB_RUNTIME_DB below stays authoritative.
+          // omp children are spawned by the host and inherit THIS environment,
+          // so the documented limitation is: env changes take effect for
+          // Node-spawn sessions immediately (per-spawn env in rpc-manager),
+          // for host-spawned children at the host's next idle teardown/restart
+          // (or a server restart).
+          ...getAgentEnvOverrides(),
+          OMPWEB_RUNTIME_DB: process.env.OMPWEB_RUNTIME_DB || join(getAgentDir(), "ompweb", "runtime.db"),
+        },
       });
       // The host is a workhorse for this process: it must never keep the
       // process alive (tests, short-lived scripts). shutdown() owns its final
@@ -857,6 +873,7 @@ export async function createRpcProcess(options: {
   cwd: string;
   sessionId: string;
   extraArgs?: string[];
+  env?: Record<string, string>;
   onExit?: (info: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string }) => void;
 }): Promise<RpcProcessLike> {
   // R8.7: Rust is the primary backend; OMPWEB_BACKEND=node is the explicit
