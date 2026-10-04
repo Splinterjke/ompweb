@@ -2126,9 +2126,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       applyQueueStateSnapshot(queueRevision, state?.queuedMessages);
       const busy = data.running && state
         && (state.isStreaming || state.isPromptRunning || state.isCompacting);
+      // Mid-run, not after it: context usage grows with every token and the
+      // ring has no other live source. A run that continues an old
+      // conversation starts with none at all, so waiting for the idle branch
+      // below left the ring blank for the whole generation and let it fill
+      // in only when the run ended (#187).
+      if (state?.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
       if (busy || !agentRunningRef.current) return;
       if (state) {
-        if (state.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
         if (state.systemPrompt !== undefined) setSystemPrompt(state.systemPrompt ?? null);
         if (state.extensionStatuses !== undefined) setExtensionStatuses(state.extensionStatuses ?? []);
         if (state.extensionWidgets !== undefined) setExtensionWidgets(state.extensionWidgets ?? []);
