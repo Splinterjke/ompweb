@@ -27,6 +27,7 @@
     { "type": "auto_compaction_start", "payload": { "tokensBefore": 180000 } },
     { "type": "auto_compaction_end", "payload": { "tokensBefore": 180000, "tokensAfter": 42000 } },
     { "type": "subagent_lifecycle", "payload": { "id": "sub_1", "phase": "started" } },
+    { "type": "goal_updated", "payload": { "goal": { "id": "g_1", "objective": "Ship the release", "status": "active", "tokensUsed": 1200, "timeUsedSeconds": 45 }, "state": { "mode": "active" } } },
     { "type": "host_tool_call", "payload": { "callId": "hc_1", "toolName": "browser" } },
     { "type": "host_uri_request", "payload": { "requestId": "ur_1", "uri": "file:///tmp/x" } },
     { "type": "subagent_progress", "payload": { "id": "sub_1", "currentTool": "grep", "tokens": 4210, "cost": 0.02 } },
