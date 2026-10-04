@@ -19,6 +19,7 @@ export const SSE_FRAME_CLASSES: Readonly<Record<string, EventClass>> = Object.fr
   agent_end: "reliable",
   prompt_result: "reliable",
   prompt_error: "reliable",
+  queue_update: "coalesced",
   notice: "reliable",
   command_output: "reliable",
   thinking_level_changed: "reliable",

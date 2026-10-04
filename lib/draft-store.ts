@@ -8,13 +8,27 @@ export interface ChatDraft {
   images: ChatDraftImage[];
 }
 
+/** Text to put back in a composer. `replace` merges a later recovery with an
+ *  earlier one in order: while the draft still starts with `lead` (the earlier
+ *  block), it becomes `text`; otherwise only `fallback` is prepended. */
+export interface DraftRecovery {
+  text: string;
+  replace?: { lead: string; fallback: string };
+}
+
+export function mergeRecoveredText(current: string, { text, replace }: DraftRecovery): string {
+  if (replace && current.startsWith(replace.lead)) return text + current.slice(replace.lead.length);
+  const lead = replace ? replace.fallback : text;
+  return current ? `${lead}\n\n${current}` : lead;
+}
+
 const drafts = new Map<string, ChatDraft>();
 
 const listeners = new Set<() => void>();
 
 // Replays text recovered from a dismissed/edited control back into the
 // composer that owns the draft key, without clobbering pending edits.
-const recoveryListeners = new Set<(key: string, text: string) => void>();
+const recoveryListeners = new Set<(key: string, recovery: DraftRecovery) => void>();
 
 /** Whether any unsent draft exists — used to guard the PWA Back button. */
 export function hasUnsentDrafts(): boolean {
@@ -60,7 +74,7 @@ export function clearDraft(key: string): void {
 
 /** Subscribe to draft text recovery (question answers / edited queued
  *  messages returned to the composer); returns an unsubscribe. */
-export function subscribeDraftRecovery(listener: (key: string, text: string) => void): () => void {
+export function subscribeDraftRecovery(listener: (key: string, recovery: DraftRecovery) => void): () => void {
   recoveryListeners.add(listener);
   return () => { recoveryListeners.delete(listener); };
 }
@@ -68,13 +82,14 @@ export function subscribeDraftRecovery(listener: (key: string, text: string) => 
 /** Merge recovered text in front of the stored draft for `key` and notify
  *  recovery subscribers so the mounted composer can merge it into its live
  *  value (which may have newer edits than the store). */
-export function recoverDraftText(key: string, text: string): void {
+export function recoverDraftText(key: string, text: string, replace?: DraftRecovery["replace"]): void {
   if (!key || !text) return;
+  const recovery = { text, replace };
   const draft = getDraft(key) ?? { value: "", images: [] };
-  setDraft(key, { ...draft, value: draft.value ? `${text}\n\n${draft.value}` : text });
+  setDraft(key, { ...draft, value: mergeRecoveredText(draft.value, recovery) });
   for (const listener of recoveryListeners) {
     try {
-      listener(key, text);
+      listener(key, recovery);
     } catch {
       // A failing subscriber must not stop the others.
     }

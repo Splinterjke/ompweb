@@ -50,6 +50,11 @@ export interface TodoPhase {
   tasks: TodoItem[];
 }
 
+export interface QueuedMessages {
+  steering: string[];
+  followUp: string[];
+}
+
 /** Mirror of omp's RpcSessionState (the raw `get_state` payload). */
 export interface RpcSessionState {
   model?: OmpModel;
@@ -66,6 +71,8 @@ export interface RpcSessionState {
   autoRetryEnabled?: boolean;
   messageCount: number;
   queuedMessageCount: number;
+  /** Displayable queue-chip texts (omp ≥ 18.4.4); mirrored live by `queue_update`. */
+  queuedMessages?: QueuedMessages;
   todoPhases: TodoPhase[];
   systemPrompt?: string[];
   contextUsage?: { tokens: number; contextWindow: number; percent: number };
@@ -95,6 +102,7 @@ export interface WebSessionState {
   model?: ModelLike & { name?: string; reasoning?: boolean; thinking?: { efforts?: string[] } };
   messageCount: number;
   queuedMessageCount: number;
+  queuedMessages: QueuedMessages;
   contextUsage: ContextUsage | null;
   systemPrompt: string;
   thinkingLevel: string;

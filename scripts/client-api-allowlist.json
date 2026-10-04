@@ -33,7 +33,7 @@
     "components/panels/RightWorkbench.tsx": 1,
     "components/usage/UsageDashboardModal.tsx": 2,
     "components/usage/UsageTabLogs.tsx": 1,
-    "hooks/useAgentSession.ts": 18,
+    "hooks/useAgentSession.ts": 19,
     "hooks/useDictation.ts": 1,
     "lib/agent-client.ts": 1,
     "lib/client/http-sse-adapter.ts": 5,

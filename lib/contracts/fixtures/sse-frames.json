@@ -6,6 +6,7 @@
     { "type": "agent_start", "payload": {} },
     { "type": "agent_end", "payload": { "isTerminal": true } },
     { "type": "prompt_result", "payload": { "agentInvoked": true } },
+    { "type": "queue_update", "payload": { "steering": ["ship it after this step"], "followUp": [] } },
     { "type": "prompt_error", "payload": { "error": "upstream request failed" } },
     { "type": "notice", "payload": { "message": "Session file changed on disk", "severity": "info" } },
     { "type": "command_output", "payload": { "output": "/compact completed" } },

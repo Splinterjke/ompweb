@@ -21,7 +21,7 @@ import { useDictation } from "@/hooks/useDictation";
 import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
-import { clearDraft, getDraft, recoverDraftText, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
+import { clearDraft, getDraft, mergeRecoveredText, recoverDraftText, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import {
@@ -950,9 +950,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // Recover text returned from a dismissed question-answer dialog or an
   // edited queued message: the recovery payload may target this composer's
   // key even if a newer local value exists, so merge it in front.
-  useLayoutEffect(() => subscribeDraftRecovery((key, text) => {
+  useLayoutEffect(() => subscribeDraftRecovery((key, recovery) => {
+    const { text } = recovery;
     if (draftKeyRef.current !== key || !text) return;
-    setValue((prev) => (prev ? `${text}\n\n${prev}` : text));
+    setValue((prev) => mergeRecoveredText(prev, recovery));
   }), []);
   useLayoutEffect(() => {
     if (value === lastMeasuredValueRef.current) return;

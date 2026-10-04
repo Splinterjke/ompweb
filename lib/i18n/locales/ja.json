@@ -25,6 +25,7 @@
   "agentSession.shellSessionFailed": "シェルコマンド用のセッションを作成できませんでした",
   "agentSession.queuedPromotionUnavailable": "このキューされたフォローアップは、もうステアとして送信できません。",
   "agentSession.queuedRemovalUnavailable": "このメッセージはキューに待機しておらず、キャンセルできませんでした。",
+  "agentSession.queueDiscardFailed": "実行は停止しましたが、キュー内の一部のメッセージを取り戻せませんでした。エージェントがそれらを配信する可能性があります。",
   "agentSession.startingAgent": "omp を起動しています… セッションの初回起動には時間がかかる場合があります。",
   "agentSession.toolPresetNotice": "ツールプリセットはセッション開始時に適用されます。このセッションは現在のツールを維持します。",
   "agentSession.unknownSlashCommand": "/{name} はこのセッションが実行できるコマンドではないため、通常のテキストとして送信されました。TUI 専用のコマンド（例: /guided-goal）は omp のターミナルでのみ動作します。",

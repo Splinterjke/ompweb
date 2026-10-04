@@ -355,12 +355,31 @@ wait for that commit:
   send/settlement failure — a tool must never leak into the next run.
 
 ### Event protocol differences vs pi
-omp emits no `prompt_done` / `prompt_error` / `queue_update` /
-`compaction_start` / `compaction_end` events. Completion is `agent_end`
-(`isTerminal !== false`), errors surface as failed RPC responses plus `notice`
-events, and the queue length comes from `get_state.queuedMessageCount`.
+omp emits no `prompt_done` / `prompt_error` / `compaction_start` /
+`compaction_end` events. Completion is `agent_end` (`isTerminal !== false`),
+errors surface as failed RPC responses plus `notice` events.
 New frame types (`turn_start/end`, `notice`, `todo_reminder`, ...) must be
 handled or safely ignored.
+
+### Queued messages are omp-owned
+The queue panel renders omp's snapshot only: `get_state.queuedMessages` on
+load/reconcile/stream open and live `queue_update` frames. Never track chips
+client-side — every client viewing the session must show the same queue.
+One sequence (`queueSeqRef`) orders every source: a get_state snapshot takes
+a number when requested and applies only if no newer snapshot or
+`queue_update` was applied (HTTP and SSE can reorder). Edit/Delete use
+`remove_queued_message` (act only on `removed: true`), Steer uses
+`promote_queued_message`; the chip changes when omp's next snapshot arrives.
+`handleAbort` coalesces overlapping Stops, then withdraws pending messages BEFORE sending `abort` (bounded by
+`WITHDRAW_BEFORE_ABORT_MS`), like the TUI's Esc: omp runs a queued steer as
+soon as an abort lands. Withdrawn text goes to the session draft via
+`recoverDraftText`, saved as each removal confirms. A follow-up that answers
+`removed: false` is retried on `steering` (a concurrent promotion moved it);
+never the reverse. The abort is fenced to the prompt run id captured at Stop,
+so it cannot kill a prompt started during the wait. Known gap: input taken by
+live steering answers `removed: false`, and RPC `abort` does not call
+`withdrawLiveSteering` (the TUI's `clearQueue({ forInterrupt: true })` does),
+so omp requeues it on abort and runs it next; omp-web cannot prevent that.
 
 ### Skill-invoked first prompt (`customType: "skill-prompt"`)
 - When a session is started with a skill mention (`/skill:name …`), omp stores the
