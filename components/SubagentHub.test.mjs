@@ -238,3 +238,29 @@ test("Korean hub copy resolves through the component i18n hook", () => {
   );
   assert.doesNotMatch(text, /chatWindow\./);
 });
+
+test("cancel/steer actions render only for running rows with a session id", () => {
+  const cancelLabel = translate("chatWindow.subagentHub.cancelTooltip", undefined, "en");
+  const steerLabel = translate("chatWindow.subagentHub.steerTooltip", undefined, "en");
+  const buttonLabels = (tree) =>
+    findHostElements(tree, (type, props) => type === "button" && typeof props["aria-label"] === "string")
+      .map((element) => element.props["aria-label"]);
+
+  const withSession = withResolvedHooks("en", () => resolveElementTree(React.createElement(SubagentHub, {
+    subagents: mixedRoster,
+    onSelectSubagent: noop,
+    sessionId: "session-1",
+    defaultExpanded: true,
+  })));
+  // Only the single started row is controllable; terminal rows never are.
+  assert.equal(buttonLabels(withSession).filter((label) => label === cancelLabel).length, 1);
+  assert.equal(buttonLabels(withSession).filter((label) => label === steerLabel).length, 1);
+
+  const withoutSession = withResolvedHooks("en", () => resolveElementTree(React.createElement(SubagentHub, {
+    subagents: mixedRoster,
+    onSelectSubagent: noop,
+    defaultExpanded: true,
+  })));
+  assert.equal(buttonLabels(withoutSession).includes(cancelLabel), false);
+  assert.equal(buttonLabels(withoutSession).includes(steerLabel), false);
+});

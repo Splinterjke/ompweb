@@ -1563,6 +1563,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               subagents={subagents ?? []}
               subagentEvents={subagentEvents}
               onSelectSubagent={onSelectSubagent}
+              sessionId={session?.id}
               btw={btwPanel}
               layout={hubBarLayout}
               showGit={hubBarsVisible.git}

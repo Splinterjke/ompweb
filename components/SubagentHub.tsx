@@ -4,6 +4,7 @@ import { Tooltip } from "./ui/primitives";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
+  Ban,
   Bot,
   ChevronDown,
   CircleDollarSign,
@@ -12,7 +13,9 @@ import {
   Gauge,
   GitBranch,
   Network,
+  MessageSquareText,
   RefreshCw,
+  Send,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +29,8 @@ import {
   shortModel,
 } from "@/lib/subagent-format";
 import { SubagentStatusIcon } from "./SubagentStatusIcon";
+import { toast } from "./ui/toast";
+import { sendAgentCommand } from "@/lib/agent-client";
 
 const SUBAGENT_STATE_KEYS: Record<SubagentInfo["status"], string> = {
   started: "chatWindow.subagentState.started",
@@ -38,6 +43,9 @@ type SubagentHubProps = {
   subagents: SubagentInfo[];
   subagentEvents?: Record<string, SubagentActivityEvent[]>;
   onSelectSubagent: (subagent: SubagentInfo) => void;
+  /** Session used to send `cancel_subagent` / `steer_subagent`; row actions
+   *  are hidden when absent (e.g. the new-session layout). */
+  sessionId?: string;
   /** Initial expansion (default: collapsed so the composer remains compact). */
   defaultExpanded?: boolean;
   /** Controlled collapsed state (parent owns the value). When omitted the
@@ -194,10 +202,12 @@ function SubagentRow({
   subagent,
   events,
   onSelectSubagent,
+  sessionId,
 }: {
   subagent: SubagentInfo;
   events: SubagentActivityEvent[] | undefined;
   onSelectSubagent: (subagent: SubagentInfo) => void;
+  sessionId?: string;
 }) {
   const { t } = useI18n();
   const live = subagent.source !== "history";
@@ -205,78 +215,207 @@ function SubagentRow({
   const task = subagent.task ?? subagent.description ?? subagent.assignment ?? t("chatWindow.subagentHub.noTask");
   const historyLabel = subagent.source === "history" ? t("chatWindow.subagentHub.history") : null;
   const rowLabel = [subagent.agent, task, stateLabel, historyLabel].filter(Boolean).join(" · ");
+  // omp can hard-kill or steer a subagent only while it runs; the actions
+  // ride the session's RPC channel, so they need a live session id.
+  const canControl = live && subagent.status === "started" && Boolean(sessionId);
+  const [steerOpen, setSteerOpen] = useState(false);
+  const [steerText, setSteerText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const runControl = async (fn: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = () => runControl(async () => {
+    try {
+      const result = await sendAgentCommand<{ cancelled?: boolean }>(sessionId ?? "", {
+        type: "cancel_subagent",
+        subagentId: subagent.id,
+      });
+      // A finished subagent answers `cancelled: false`; the state change
+      // itself arrives on the subagent_lifecycle frame.
+      if (!result?.cancelled) toast.info(t("chatWindow.subagentHub.cancelNoop"));
+    } catch (error) {
+      toast.error(t("chatWindow.subagentHub.cancelFailed"), error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  const steer = () => {
+    const message = steerText.trim();
+    if (!message) return;
+    void runControl(async () => {
+      try {
+        await sendAgentCommand(sessionId ?? "", { type: "steer_subagent", subagentId: subagent.id, message });
+        setSteerText("");
+        setSteerOpen(false);
+        toast.success(t("chatWindow.subagentHub.steerSent"));
+      } catch (error) {
+        toast.error(t("chatWindow.subagentHub.steerFailed"), error instanceof Error ? error.message : String(error));
+      }
+    });
+  };
+
+  const iconButtonStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 26,
+    height: 26,
+    flexShrink: 0,
+    border: "thin solid var(--border)",
+    borderRadius: "var(--radius-control)",
+    background: "transparent",
+    color: "var(--text-muted)",
+    cursor: busy ? "default" : "pointer",
+    opacity: busy ? 0.55 : 1,
+  } as const;
 
   return (
-    <Tooltip content={rowLabel}>
-      <button
-      type="button"
-      className="ui-focus-ring"
-      onClick={() => onSelectSubagent(subagent)}
-      aria-label={rowLabel}
-      style={{
-        display: "flex",
-        width: "100%",
-        minWidth: 0,
-        minHeight: 40,
-        flexDirection: "column",
-        alignItems: "stretch",
-        justifyContent: "center",
-        gap: 4,
-        padding: "8px 12px",
-        border: "thin solid var(--border)",
-        borderRadius: "var(--radius-control)",
-        background: live ? "var(--bg)" : "var(--bg-panel)",
-        color: live ? "var(--text)" : "var(--text-dim)",
-        opacity: live ? 1 : 0.72,
-        fontFamily: "inherit",
-        fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-        textAlign: "left",
-        cursor: "pointer",
-        wordBreak: "keep-all",
-        transition: "border-color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)",
-      }}
-      onMouseEnter={(event) => {
-        event.currentTarget.style.borderColor = "color-mix(in srgb, var(--accent) 40%, var(--border))";
-        event.currentTarget.style.background = "var(--bg-hover)";
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.borderColor = "var(--border)";
-        event.currentTarget.style.background = live ? "var(--bg)" : "var(--bg-panel)";
-      }}
-    >
-      <span style={{ display: "flex", minWidth: 0, alignItems: "center", gap: 6 }}>
-        <SubagentStatusIcon status={subagent.status} live={live} size={14} strokeWidth={1.8} />
-        <span style={{ flexShrink: 0, color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
-          {subagent.agent}
-        </span>
-        <Tooltip content={task}>
-          <span
-          style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "inherit" }}
+    <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "stretch", gap: 6, minWidth: 0 }}>
+        <Tooltip content={rowLabel}>
+          <button
+          type="button"
+          className="ui-focus-ring"
+          onClick={() => onSelectSubagent(subagent)}
+          aria-label={rowLabel}
+          style={{
+            display: "flex",
+            flex: 1,
+            minWidth: 0,
+            minHeight: 40,
+            flexDirection: "column",
+            alignItems: "stretch",
+            justifyContent: "center",
+            gap: 4,
+            padding: "8px 12px",
+            border: "thin solid var(--border)",
+            borderRadius: "var(--radius-control)",
+            background: live ? "var(--bg)" : "var(--bg-panel)",
+            color: live ? "var(--text)" : "var(--text-dim)",
+            opacity: live ? 1 : 0.72,
+            fontFamily: "inherit",
+            fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+            textAlign: "left",
+            cursor: "pointer",
+            wordBreak: "keep-all",
+            transition: "border-color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)",
+          }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.borderColor = "color-mix(in srgb, var(--accent) 40%, var(--border))";
+            event.currentTarget.style.background = "var(--bg-hover)";
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.borderColor = "var(--border)";
+            event.currentTarget.style.background = live ? "var(--bg)" : "var(--bg-panel)";
+          }}
         >
-          {task}
-        </span>
+          <span style={{ display: "flex", minWidth: 0, alignItems: "center", gap: 6 }}>
+            <SubagentStatusIcon status={subagent.status} live={live} size={14} strokeWidth={1.8} />
+            <span style={{ flexShrink: 0, color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650 }}>
+              {subagent.agent}
+            </span>
+            <Tooltip content={task}>
+              <span
+              style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "inherit" }}
+            >
+              {task}
+            </span>
+            </Tooltip>
+            <span style={{ flexShrink: 0, color: live ? "var(--text-muted)" : "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+              {stateLabel}
+            </span>
+            {historyLabel && (
+              <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                {historyLabel}
+              </span>
+            )}
+            {subagent.detached && (
+              <span
+                aria-hidden
+                style={{ flexShrink: 0, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
+              >
+                ⤴
+              </span>
+            )}
+          </span>
+          <ActivityLine subagent={subagent} />
+          <ActivityPreview events={events} />
+          </button>
         </Tooltip>
-        <span style={{ flexShrink: 0, color: live ? "var(--text-muted)" : "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-          {stateLabel}
-        </span>
-        {historyLabel && (
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-            {historyLabel}
+        {canControl && (
+          <span style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
+            <Tooltip content={t("chatWindow.subagentHub.steerTooltip")}>
+              <button
+                type="button"
+                className="ui-focus-ring"
+                aria-label={t("chatWindow.subagentHub.steerTooltip")}
+                disabled={busy}
+                onClick={() => { setSteerOpen((v) => !v); }}
+                style={iconButtonStyle}
+              >
+                <MessageSquareText size={13} strokeWidth={1.8} aria-hidden />
+              </button>
+            </Tooltip>
+            <Tooltip content={t("chatWindow.subagentHub.cancelTooltip")}>
+              <button
+                type="button"
+                className="ui-focus-ring"
+                aria-label={t("chatWindow.subagentHub.cancelTooltip")}
+                disabled={busy}
+                onClick={() => void cancel()}
+                style={iconButtonStyle}
+              >
+                <Ban size={13} strokeWidth={1.8} aria-hidden />
+              </button>
+            </Tooltip>
           </span>
         )}
-        {subagent.detached && (
-          <span
-            aria-hidden
-            style={{ flexShrink: 0, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
-          >
-            ⤴
-          </span>
-        )}
-      </span>
-      <ActivityLine subagent={subagent} />
-      <ActivityPreview events={events} />
-    </button>
-    </Tooltip>
+      </div>
+      {steerOpen && (
+        <div style={{ display: "flex", gap: 6, paddingLeft: 12 }}>
+          <input
+            autoFocus
+            value={steerText}
+            onChange={(event) => setSteerText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") steer();
+              if (event.key === "Escape") setSteerOpen(false);
+            }}
+            placeholder={t("chatWindow.subagentHub.steerPlaceholder")}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "6px 10px",
+              border: "thin solid var(--border)",
+              borderRadius: "var(--radius-control)",
+              background: "var(--bg)",
+              color: "var(--text)",
+              fontFamily: "inherit",
+              fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+            }}
+          />
+          <Tooltip content={t("chatWindow.subagentHub.steerSend")}>
+            <button
+              type="button"
+              className="ui-focus-ring"
+              aria-label={t("chatWindow.subagentHub.steerSend")}
+              disabled={busy || !steerText.trim()}
+              onClick={steer}
+              style={iconButtonStyle}
+            >
+              <Send size={13} strokeWidth={1.8} aria-hidden />
+            </button>
+          </Tooltip>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -356,6 +495,7 @@ export function SubagentHub({
   subagents,
   subagentEvents = {},
   onSelectSubagent,
+  sessionId,
   defaultExpanded = false,
   collapsed: collapsedProp,
   onCollapsedChange,
@@ -403,6 +543,7 @@ export function SubagentHub({
             subagent={item.subagent}
             events={subagentEvents[item.subagent.id]}
             onSelectSubagent={onSelectSubagent}
+            sessionId={sessionId}
           />
         </div>
       );

@@ -34,6 +34,7 @@ export function ComposerPanels({
   subagents = [],
   subagentEvents,
   onSelectSubagent,
+  sessionId,
   btw = null,
   layout = "stack",
   showGit = true,
@@ -51,6 +52,8 @@ export function ComposerPanels({
   subagents?: SubagentInfo[];
   /** Per-subagent live activity feed for the hub's recent-event preview. */
   subagentEvents?: Record<string, SubagentActivityEvent[]>;
+  /** Session backing the subagent hub's cancel/steer controls. */
+  sessionId?: string;
   /** Open a subagent in the right-hand Agents panel. */
   onSelectSubagent?: (subagent: SubagentInfo) => void;
   /** Active `/btw` side question, pinned above the hub bars. */
@@ -107,6 +110,7 @@ export function ComposerPanels({
       subagents={subagents}
       subagentEvents={subagentEvents}
       onSelectSubagent={onSelectSubagent ?? (() => {})}
+      sessionId={sessionId}
       defaultExpanded={defaultExpanded}
       collapsed={subagentCollapsed}
       onCollapsedChange={setSubagentCollapsed}
