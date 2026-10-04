@@ -2,7 +2,12 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import { createJiti } from "jiti";
-import { act, cleanup, renderHook } from "@testing-library/react/pure.js";
+
+// React ships `act` only in its development build; force NODE_ENV before any
+// React module loads so these tests work regardless of the environment's
+// default (production builds throw "act(...) is not supported").
+process.env.NODE_ENV = "test";
+const { act, cleanup, renderHook } = await import("@testing-library/react/pure.js");
 
 // hooks/useBtw.ts had no test at all: lib/btw.test.mjs covers the pure merges,
 // but the ordering decisions the hook itself makes live only here. The one that
