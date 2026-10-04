@@ -166,6 +166,12 @@ const PASSTHROUGH_COMMANDS = new Set([
   "btw",
   "btw_cancel",
   "get_btw_history",
+  // Goal mode (omp ≥18.4.11) and subagent controls (omp ≥18.4.9): raw
+  // commands the composer bar / subagent hub send; omp answers, the
+  // wrapper only forwards.
+  "goal",
+  "cancel_subagent",
+  "steer_subagent",
 ]);
 
 // Outlasts omp's cold prediction-daemon start (up to 3 × 30 s start rounds plus a
