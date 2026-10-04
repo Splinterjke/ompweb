@@ -1210,17 +1210,41 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
       const params = new URLSearchParams({ deferThinking: "1", deferMedia: "1" });
       const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}?${params}`);
+      let d: SessionData | null = null;
       if (res.status === 404) {
-        if (showLoading) {
-          setData(null);
-          setActiveLeafId(null);
-          setMessages([]);
-          setError(null);
+        // Port of upstream 2152c67e (#183), adapted to this hook: the local
+        // send path never pre-reads the session file, so the read that 404s
+        // for a session with no transcript yet is this hydration. A session
+        // whose prompts so far were all local slash commands (skill
+        // activation, …) never started an agent run, so omp wrote no session
+        // file — and an existing but unreadable file 404s the same way —
+        // while the live RPC wrapper answers /api/agent/<id> normally.
+        // Let the live world vouch for the session before treating it as
+        // gone: hydrate an empty-transcript baseline and continue into the
+        // live-state read below, so mount restores a live run and send
+        // dispatches instead of a frozen, empty idle view. A genuine 404 —
+        // nothing answers — keeps the existing bail.
+        const live = await fetch(`/api/agent/${encodeURIComponent(sid)}`)
+          .then((r) => (r.ok ? (r.json() as Promise<{ running?: boolean }>) : null))
+          .catch(() => null);
+        if (!live) {
+          if (showLoading) {
+            setData(null);
+            setActiveLeafId(null);
+            setMessages([]);
+            setError(null);
+          }
+          return null;
         }
-        return null;
+        d = {
+          sessionId: sid, filePath: "", tree: [], leafId: null,
+          context: { messages: [], entryIds: [], thinkingLevel: "off", model: null, todoPhases: [] },
+        };
+      } else if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      } else {
+        d = await res.json() as SessionData;
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json() as SessionData;
       if (sessionIdRef.current !== sid) return null;
       // A terminal reload for a finished run must not overwrite the messages
       // of a run that started while this fetch was in flight (it would delete
