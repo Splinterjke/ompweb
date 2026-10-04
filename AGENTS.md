@@ -842,6 +842,14 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   Neither flag may leak into a later user-prompted turn: both are cleared on
   `agent_start` (interrupt flag) / restart, and each is consumed by exactly one
   terminal `agent_end`.
+  The dispatch itself moved off `agent_end` to the `prompt_result` frame that
+  follows it (omp emits both; `agent_end` only arms `_completionPending`):
+  when the prompt reports `sessionSettled: false` (omp ≥ 18.5 — background
+  work like async subagents or deliveries can still wake the session), the
+  completion is held (`_completionDeferred`) until the `session_settled`
+  frame, so "conversation completed" never fires while the session can still
+  continue. A held completion is flushed by the next `agent_start` if the
+  settle never arrives — late, never lost.
 - Executors (`chat-event-actions-executors.ts`) never throw — every failure is recorded
   as a `lastRun` (`ok:false` + detail) so the UI can surface it. `scheduled` records
   `"scheduler busy"` when the target manual run is already running (not an error).

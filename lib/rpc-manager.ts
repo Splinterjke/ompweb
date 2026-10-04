@@ -314,6 +314,17 @@ export class AgentSessionWrapper {
    *  user-prompt completion, so its terminal agent_end does not fire
    *  conversation_completed. */
   private _continuationRun = false;
+  /** A terminal agent_end completed a user-prompted turn; the completion
+   *  dispatch waits one frame for the `prompt_result` that follows it (omp
+   *  emits both, the result via setImmediate) so the settle flag decides
+   *  when `conversation_completed` fires. */
+  private _completionPending = false;
+  /** The prompt did not settle (`prompt_result.sessionSettled:false`, omp
+   *  >= 18.5): background work (async subagents, jobs, deliveries) can
+   *  still wake the session, so `conversation_completed` is held until the
+   *  `session_settled` frame — or, if that never arrives, the next
+   *  agent_start, so the event fires late but is never lost. */
+  private _completionDeferred = false;
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
@@ -594,6 +605,13 @@ export class AgentSessionWrapper {
         // fresh user-prompt completion.
         this._continuationRun = this.continuationPending;
         this.continuationPending = false;
+        // A completion still held back from the previous run fires now
+        // rather than being dropped: its `session_settled` never arrived.
+        if (this._completionPending || this._completionDeferred) {
+          this._completionPending = false;
+          this._completionDeferred = false;
+          dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "session_settled", settled: true }));
+        }
         // A new run starting means the interrupted turn's end has either
         // been consumed already or was a no-op abort (nothing to interrupt).
         this._interruptEndPending = false;
@@ -636,9 +654,9 @@ export class AgentSessionWrapper {
           const wasContinuation = this._continuationRun;
           this._continuationRun = false;
           if (!wasInterrupted && !wasContinuation) {
-            // Chat event action: conversation_completed (the same signal the
-            // built-in completion notification uses).
-            dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "agent_end", isTerminal: true }));
+            // The decision moves to the `prompt_result` frame that follows
+            // (next tick): it carries whether the session has settled.
+            this._completionPending = true;
           }
         } else {
           // The turn is paused for an async continuation (e.g. a
@@ -647,10 +665,34 @@ export class AgentSessionWrapper {
         }
         break;
       case "prompt_result":
+        // Terminal per-prompt outcome (omp >= 18.3.1; also sent for
+        // local-only slash commands with agentInvoked:false). For agent
+        // runs this decides the completion held at agent_end:
+        // `sessionSettled:false` (omp >= 18.5) means background work can
+        // still wake the session, so the dispatch waits for the
+        // `session_settled` frame instead.
+        if (event.agentInvoked === true) {
+          const wasPending = this._completionPending;
+          this._completionPending = false;
+          if (wasPending && event.status !== "aborted") {
+            if (event.sessionSettled === false) this._completionDeferred = true;
+            // Chat event action: conversation_completed (the same signal the
+            // built-in completion notification uses).
+            else dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "prompt_result", settled: true }));
+          }
+        }
         // Local-only prompt (builtin/extension slash command) — no agent run.
         this.promptRunning = false;
         this.awaitingAgentStart = false;
         this.awaitingAgentStartDeadline = 0;
+        break;
+      case "session_settled":
+        // The session went quiet: nothing can wake it anymore (omp >= 18.5).
+        // Releases a completion held back by an unsettled prompt_result.
+        if (this._completionDeferred) {
+          this._completionDeferred = false;
+          dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "session_settled", settled: true }));
+        }
         break;
       case "auto_compaction_start":
         this.compacting = true;
@@ -1361,6 +1403,8 @@ export class AgentSessionWrapper {
       this.compacting = false;
       this._interruptEndPending = false;
       this._continuationRun = false;
+      this._completionPending = false;
+      this._completionDeferred = false;
 
       let proc: RpcProcessLike;
       try {
