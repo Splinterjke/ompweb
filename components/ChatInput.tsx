@@ -744,6 +744,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const [plusExpanded, setPlusExpanded] = useState<"tools" | "advisor" | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
 
+  // Desktop context popover height cap: the room above its trigger, so it only
+  // scrolls when the window is genuinely too short for it.
+  const [contextMaxHeight, setContextMaxHeight] = useState<number>();
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownPanelRef = useRef<HTMLDivElement>(null);
@@ -2045,6 +2049,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   useEffect(() => {
     if (isStreaming) setThinkingDropdownOpen(false);
   }, [isStreaming]);
+
+  useLayoutEffect(() => {
+    const wrap = contextWrapRef.current;
+    if (!contextOpen || !wrap) return;
+    // --ui-scale zooms <html>: the rect is in painted pixels, styles are not.
+    const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale")) || 1;
+    setContextMaxHeight(Math.max(160, wrap.getBoundingClientRect().top / scale - 16));
+  }, [contextOpen]);
 
   useEffect(() => {
     if (!modelDropdownOpen) {
@@ -3428,14 +3440,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       boxShadow: "var(--shadow-pop)",
                       zIndex: 60,
                       padding: 0,
-                      maxHeight: isMobile ? "calc(100dvh - 32px)" : "min(50vh, 380px)",
+                      maxHeight: isMobile ? "calc(100dvh - 32px)" : contextMaxHeight,
                       overflow: "hidden",
                     }}
                   >
                     {/* One-shot background glare: plays once on open (element
                         remounts each time the popover opens). */}
                     <div className="popover-glare" aria-hidden="true" />
-                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - 32px)" : "min(50vh, 380px)", padding: 12 }}>
+                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - 32px)" : contextMaxHeight, padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (
