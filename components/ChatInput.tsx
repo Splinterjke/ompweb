@@ -2,6 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
@@ -223,6 +224,8 @@ interface Props {
   generationSpeed?: GenerationSpeedInfo | null;
   /** Render the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
+  /** Mobile top-bar mount point for the session information control. */
+  sessionInfoContainer?: HTMLDivElement | null;
   /** Composer shell background secondary color (Interface & Behavior select):
    *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
   composerAccentBg?: ComposerAccentBg;
@@ -659,6 +662,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   modelCapacity,
   generationSpeed,
   sessionInfoButtonVisible = true,
+  sessionInfoContainer,
   composerAccentBg = "off",
   onRemoveQueuedMessage,
   onPromoteQueuedToSteer,
@@ -744,6 +748,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusExpanded, setPlusExpanded] = useState<"tools" | "advisor" | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
+  // Mobile renders the ring into the AppShell top-bar mount; the composer
+  // keeps its own container on desktop.
+  const [composerContextContainer, setComposerContextContainer] = useState<HTMLDivElement | null>(null);
+  const contextContainer = isMobile ? sessionInfoContainer : composerContextContainer;
 
   // Desktop context popover height cap: the room above its trigger, so it only
   // scrolls when the window is genuinely too short for it.
@@ -758,6 +766,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const contextWrapRef = useRef<HTMLDivElement>(null);
+  const contextReturnFocusRef = useRef<HTMLElement | null>(null);
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
   const slashCommandsRequestedRef = useRef(false);
@@ -925,7 +934,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       processFiles(files);
     },
     openSessionInfo() {
-      if (!sessionInfoButtonVisible) return;
       setContextOpen(true);
     },
   }));
@@ -2061,6 +2069,45 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     // --ui-scale zooms <html>: the rect is in painted pixels, styles are not.
     const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale")) || 1;
     setContextMaxHeight(Math.max(160, wrap.getBoundingClientRect().top / scale - 16));
+  }, [contextOpen]);
+  // Focus management for the context popover (it can live in the top bar):
+  // move focus into the dialog on open and back to the opener on close, so
+  // keyboard users are not stranded on the removed trigger.
+  useLayoutEffect(() => {
+    const panel = contextWrapRef.current?.querySelector<HTMLElement>('[role="dialog"]');
+    if (contextOpen && panel) {
+      const active = document.activeElement;
+      contextReturnFocusRef.current ??= active instanceof HTMLElement ? active : null;
+      panel.focus();
+    } else if (!contextOpen) {
+      const previous = contextReturnFocusRef.current;
+      contextReturnFocusRef.current = null;
+      const active = document.activeElement;
+      if (previous?.isConnected && (active === document.body || contextWrapRef.current?.contains(active))) {
+        previous.focus();
+      }
+    }
+  }, [contextOpen, contextContainer]);
+  // Escape closes the popover before the composer (or the global shortcut
+  // layer) can consume it and stop the running agent turn.
+  useEffect(() => {
+    if (!contextOpen) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+      const panel = contextWrapRef.current?.querySelector<HTMLElement>('[role="dialog"]');
+      if (!panel?.getClientRects().length) return;
+      const popup = event.target instanceof Element
+        ? event.target.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')
+        : null;
+      if (popup && !contextWrapRef.current?.contains(popup)) return;
+      // Capture-phase: fires before the composer's bubble keydown and the
+      // window-level abort handler, so Stop keeps working.
+      event.preventDefault();
+      event.stopPropagation();
+      setContextOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [contextOpen]);
 
   useEffect(() => {
@@ -3403,8 +3450,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </Tooltip>
             )}
 
-            {/* Context ring: usage gauge opening the session context popover */}
+            {/* Desktop keeps the control in the composer; mobile uses the header mount. */}
             {onCompact && (
+              <div ref={setComposerContextContainer} style={{ display: isMobile ? "none" : undefined, flexShrink: 0 }} />
+            )}
+            {onCompact && contextContainer && createPortal(
               <div ref={contextWrapRef} style={{ position: "relative", flexShrink: 0 }}>
                 <Tooltip content={ringTitle}>
                   <button
@@ -3413,9 +3463,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   aria-label={t("composerContext.title")}
                   aria-expanded={contextOpen}
                   aria-haspopup="dialog"
+                  className="ui-focus-ring"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    width: 28, height: 28, padding: 0,
+                    width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, padding: 0,
                     background: contextOpen ? "var(--bg-hover)" : "none", border: "none",
                     borderRadius: 7,
                     color: isCompacting ? "var(--accent)" : "var(--text-muted)",
@@ -3460,27 +3511,27 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <div
                     role="dialog"
                     aria-label={t("composerContext.title")}
+                    tabIndex={-1}
                     className="picker-panel"
                     style={{
                       position: isMobile ? "fixed" : "absolute",
-                      bottom: isMobile ? 8 : "calc(100% + 8px)",
                       ...(isMobile
-                        ? { left: 8, right: 8 }
-                        : { right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
+                        ? { top: "calc(var(--shell-topbar-height) + 8px)", left: 8, right: 8 }
+                        : { bottom: "calc(100% + 8px)", right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
                       background: "var(--bg-panel)",
                       border: "1px solid var(--border)",
                       borderRadius: "var(--radius-card)",
                       boxShadow: "var(--shadow-pop)",
                       zIndex: 60,
                       padding: 0,
-                      maxHeight: isMobile ? "calc(100dvh - 32px)" : contextMaxHeight,
+                      maxHeight: isMobile ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight,
                       overflow: "hidden",
                     }}
                   >
                     {/* One-shot background glare: plays once on open (element
                         remounts each time the popover opens). */}
                     <div className="popover-glare" aria-hidden="true" />
-                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - 32px)" : contextMaxHeight, padding: 12 }}>
+                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight, padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (
@@ -3528,7 +3579,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     </div>
                   </div>
                 )}
-              </div>
+              </div>,
+              contextContainer,
             )}
 
             {/* Dictation */}

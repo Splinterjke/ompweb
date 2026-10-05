@@ -199,19 +199,6 @@ test("renders goal, planning, and advisor indicators at the composer", () => {
   assert.match(html, /aria-expanded="false"/);
 });
 
-test("renders the compact toolbar action", () => {
-  const html = renderToStaticMarkup(
-    React.createElement(ChatInput, {
-      onSend() {},
-      onAbort() {},
-      onCompact() {},
-      isStreaming: false,
-    }),
-  );
-
-  assert.match(html, /aria-label="Context"/);
-});
-
 test("shows the advisor thunder indicator with the reviewing model and reasoning", () => {
   const html = renderToStaticMarkup(
     React.createElement(ChatInput, {

@@ -747,6 +747,9 @@ export function AppShell() {
   }, []);
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
+  // Mobile top-bar slot the session information ring portals into (ChatInput
+  // renders the control here when the chat is open on a phone).
+  const [sessionInfoContainer, setSessionInfoContainer] = useState<HTMLDivElement | null>(null);
 
   // Branch navigator state — populated by ChatWindow via onBranchDataChange
   const [branchTree, setBranchTree] = useState<SessionTreeNode[]>([]);
@@ -2359,6 +2362,26 @@ export function AppShell() {
               </div>
             );
           })()}
+          {/* Session info mount (port of upstream 193047f1 chain): the
+              context ring moves from the composer toolbar to the header on
+              phones. It sits inside the right `--topbar-side` band the
+              centered title pill already reserves, so it cannot collide with
+              the pill; the bar's height token sizes it (44px on phones, no
+              extra safe-area inset — the PWA viewport carries it). */}
+          {isMobile && showChat && (
+            <div
+              ref={setSessionInfoContainer}
+              className="shell-session-info"
+              style={{
+                position: "absolute",
+                right: "calc(4px + env(safe-area-inset-right, 0px))",
+                top: 0,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+              }}
+            />
+          )}
           {/* Top panel dropdown — shared, only one active at a time. The
               branch panel renders inside BranchNavigator itself; never mount
               an empty fixed layer for it (it would sit over the top-bar
@@ -2454,6 +2477,7 @@ export function AppShell() {
               onSystemPromptLoaderChange={handleSystemPromptLoaderChange}
               onSessionStatsChange={handleSessionStatsChange}
               sessionInfoButtonVisible={sessionInfoButtonVisible}
+              sessionInfoContainer={sessionInfoContainer}
               showJumpToBottomButton={showJumpToBottomButton}
               onOpenGitTab={handleOpenGitTab}
               onSubagentsChange={setSubagents}
