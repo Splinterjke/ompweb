@@ -19,7 +19,7 @@ export interface ThinkingModelMeta {
   thinking?: { efforts?: string[] };
 }
 
-const DEFAULT_THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const DEFAULT_THINKING_LEVELS: readonly string[] = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /** Keep familiar levels ordered while preserving provider-defined additions. */
 export function selectableThinkingLevels(available: readonly string[] | null | undefined): string[] {

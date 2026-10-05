@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
-import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
+import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
@@ -40,9 +40,21 @@ import {
 import { FolderIcon, getFileIcon } from "./FileIcons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/lib/i18n";
-import { selectableThinkingLevels } from "@/lib/thinking-levels";
+import { selectableThinkingLevels, DEFAULT_THINKING_LEVELS } from "@/lib/thinking-levels";
 
 const SLOW_MODE_SAME_DAY_MS = 20 * 3_600_000;
+
+/** TUI-style effort icon drawn in CSS (see .composer-thinking-glyph).
+ *  Provider-defined levels have no shape and render no icon; the label
+ *  carries them. */
+function ThinkingGlyph({ level }: { level: string }) {
+  if (!DEFAULT_THINKING_LEVELS.includes(level)) return null;
+  return (
+    <span className="composer-thinking-glyph" data-level={level} aria-hidden="true">
+      {level === "auto" ? <RotateCw strokeWidth={2} /> : null}
+    </span>
+  );
+}
 
 function formatSlowModeResetClock(resetsAtSec: number, now: number): string {
   const date = new Date(resetsAtSec * 1000);
@@ -3206,7 +3218,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
             {/* Thinking selector — compact, expressive, and consistent with models */}
             {onThinkingLevelChange && (
-              <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
+              <div ref={thinkingDropdownRef} className="composer-thinking-control" style={{ position: "relative", minWidth: 0 }}>
                 <Tooltip content={t("chatInput.changeReasoningTitle", { level: thinkingDisplayLabel })}>
                   <button
                   onClick={() => setThinkingDropdownOpen((v) => !v)}
@@ -3224,11 +3236,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   onMouseEnter={(e) => { if (!isStreaming) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text)"; } }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = thinkingDropdownOpen ? "var(--bg-hover)" : "none"; e.currentTarget.style.color = "var(--text-muted)"; }}
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
-                    <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.7.78 3.21 2 4.21V14a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-2.29c1.22-1 2-2.51 2-4.21A5.5 5.5 0 0 0 9.5 2z" />
-                    <line x1="7" y1="18" x2="12" y2="18" /><line x1="8" y1="21" x2="11" y2="21" />
-                  </svg>
-                  <span style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}>{thinkingDisplayLabel}</span>
+                  {/* TUI-style level icon; the name stays next to it on wide toolbars and
+                      in title/aria always. Provider-defined levels show just the name. */}
+                  <ThinkingGlyph level={thinkingLevel ?? "auto"} />
+                  <span className="composer-thinking-label" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{thinkingDisplayLabel}</span>
                   <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: thinkingDropdownOpen ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} aria-hidden="true" />
                 </button>
                 </Tooltip>
@@ -3266,6 +3277,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             <span className="picker-check">
                               {isActive && <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5 5 4 7.5 8.5 2.5" /></svg>}
                             </span>
+                            <ThinkingGlyph level={lvl} />
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{displayLabel}</span>
                           </button>
                         );

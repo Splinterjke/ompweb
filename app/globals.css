@@ -2614,6 +2614,17 @@ svg.lucide:not([class*="-spin"]) {
   }
   /* Own row above the controls, so it never squeezes the model picker. */
   .composer-slow-mode-badge { order: -1; flex-basis: 100%; max-width: none; }
+
+  /* Glyph-only reasoning trigger on phones; provider-defined levels keep
+     their name (no glyph element -> the label sibling never matches). */
+  .composer-thinking-control { max-width: 28px; }
+  .composer-thinking-control > button > svg,
+  .composer-thinking-glyph[data-level] + .composer-thinking-label {
+    display: none;
+  }
+  .composer-thinking-control > button > .composer-thinking-glyph {
+    font-size: 18px;
+  }
 }
 
 @media (max-width: 380px) {
@@ -2982,6 +2993,41 @@ span.token.table {
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.composer-thinking-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  font-size: 14px;
+  line-height: 1;
+}
+/* Draw the TUI shapes instead of relying on unequal font fallback metrics.
+   Match Auto's visible diameter, not the surrounding font's em square. */
+.composer-thinking-glyph[data-level] { width: 1em; height: 1em; }
+.composer-thinking-glyph > svg { width: .8em; height: .8em; }
+.composer-thinking-glyph[data-level]:not([data-level="auto"])::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: .65em;
+  height: .65em;
+  border: .075em solid currentColor;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.composer-thinking-glyph[data-level="low"]::before { background: conic-gradient(currentColor 90deg, transparent 90deg); }
+.composer-thinking-glyph[data-level="medium"]::before { background: conic-gradient(currentColor 180deg, transparent 180deg); }
+.composer-thinking-glyph[data-level="high"]::before { background: conic-gradient(from 90deg, currentColor 180deg, transparent 180deg); }
+.composer-thinking-glyph[data-level="xhigh"]::before { background: conic-gradient(currentColor 270deg, transparent 270deg); }
+.composer-thinking-glyph:is([data-level="off"], [data-level="max"])::after { content: ""; position: absolute; background: currentColor; }
+.composer-thinking-glyph[data-level="off"]::after { width: .65em; height: .075em; transform: rotate(-45deg); }
+.composer-thinking-glyph[data-level="max"]::after { width: .35em; height: .35em; border-radius: 50%; }
+@media (forced-colors: active) {
+  .composer-thinking-glyph { forced-color-adjust: none; color: ButtonText; }
 }
 .picker-thinking-cards {
   display: flex;
