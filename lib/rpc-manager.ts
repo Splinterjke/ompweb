@@ -1600,21 +1600,26 @@ export class AgentSessionWrapper {
         return result ?? null;
       }
 
+      // abort_and_restore_queue is omp's Esc: it takes queued user input back
+      // atomically, then aborts, and returns the withdrawn messages.
       case "abort":
+      case "abort_and_restore_queue": {
         // Mark the interrupted turn's upcoming terminal agent_end so it does
         // not dispatch conversation_completed (see agent_end handler).
         this._interruptEndPending = true;
-        await this.withFinalRunningNotification(async () => {
-          await this.proc.sendCommand({ type: "abort" });
+        const result = await this.withFinalRunningNotification(async () => {
+          const response: unknown = await this.proc.sendCommand({ type });
           // If the prompt was aborted before the agent loop started, no
           // agent_end will arrive to clear the flag; the streaming flag still
           // tracks a live turn that ends with its own agent_end.
           this.promptRunning = false;
           this.continuationPending = false;
+          return response;
         });
         // Chat event action: conversation_interrupted (command accepted by omp).
         dispatchChatEvent("conversation_interrupted", this.chatEventPayload());
-        return null;
+        return type === "abort" ? null : result ?? null;
+      }
 
       case "goal": {
         // A goal pause/drop must also stop the child's own run: while the
