@@ -16,7 +16,7 @@ import type {
 import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
 import { sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
-import { recoverDraftText, setDraft } from "@/lib/draft-store";
+import { recoverDraft, setDraft, toDraftImages, type ChatDraftImage } from "@/lib/draft-store";
 import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "@/lib/client";
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
 import { toast } from "@/components/ui/toast";
@@ -2398,18 +2398,20 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [agentRunning]);
 
   /** Cancel one pending message in omp. The chip itself leaves through omp's
-   *  queue snapshot; resolves true only when omp confirms the removal. */
-  const removeQueuedMessage = useCallback(async (text: string, queue: keyof QueuedMessages): Promise<boolean> => {
+   *  queue snapshot; resolves to the removed message's images (empty when it
+   *  had none or omp does not return them) only when omp confirms the
+   *  removal, else false. */
+  const removeQueuedMessage = useCallback(async (text: string, queue: keyof QueuedMessages): Promise<ChatDraftImage[] | false> => {
     const sid = sessionIdRef.current;
     if (!hookAliveRef.current || !sid || !text) return false;
     if (queuedRemovalRef.current?.sessionId === sid) return false;
     const removal = { sessionId: sid };
     queuedRemovalRef.current = removal;
     try {
-      const result = await sendAgentCommand<{ removed: boolean }>(sid, {
+      const result = await sendAgentCommand<{ removed: boolean; images?: unknown }>(sid, {
         type: "remove_queued_message", message: text, queue,
       });
-      if (result?.removed === true) return true;
+      if (result?.removed === true) return toDraftImages(result.images);
       if (hookAliveRef.current && sessionIdRef.current === sid) {
         addNotice({ type: "warning", message: translate("agentSession.queuedRemovalUnavailable") });
       }
@@ -3200,10 +3202,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // aborts, in one step: it also catches a steer this client's queue
     // snapshot does not list yet, or one the run already claimed but never
     // recorded, which a removal by text cannot reach and which omp would
-    // otherwise run as a new turn right after the abort. The texts return to
-    // this session's draft (attached images are dropped). Known window: the
-    // texts exist only in the response until the abort finishes, so a reload
-    // during a slow abort loses them.
+    // otherwise run as a new turn right after the abort. The texts and images
+    // return to this session's draft (omp drops the images from a response
+    // over its transport limit). Known window: they exist only in the
+    // response until the abort finishes, so a reload during a slow abort
+    // loses them.
     type RestoredQueue = { steering?: Array<{ text?: unknown; images?: unknown[] }>; followUp?: Array<{ text?: unknown; images?: unknown[] }> };
     let restoredQueue: RestoredQueue | null | undefined;
     let unsupported = false;
@@ -3227,13 +3230,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (!unsupported) {
       const steering = Array.isArray(restoredQueue?.steering) ? restoredQueue.steering : [];
       const followUp = Array.isArray(restoredQueue?.followUp) ? restoredQueue.followUp : [];
-      const texts = [...steering, ...followUp]
-        // An image-only message comes back as omp's "[Image]" chip label; the
-        // images themselves are not restored, so neither is the label.
-        .filter((entry) => !(entry.text === "[Image]" && Array.isArray(entry.images) && entry.images.length > 0))
+      const entries = [...steering, ...followUp];
+      const texts = entries
+        // An image-only message comes back as omp's "[Image]" chip label,
+        // which is not text to put back.
         .map((entry) => entry.text)
-        .filter((text): text is string => typeof text === "string" && text.length > 0);
-      if (texts.length > 0) recoverDraftText(sid, texts.join("\n\n"));
+        .filter((text): text is string => typeof text === "string" && text.length > 0 && text !== "[Image]");
+      const images = entries.flatMap((entry) => toDraftImages(entry.images));
+      if (texts.length > 0 || images.length > 0) recoverDraft(sid, { text: texts.join("\n\n"), images });
       // A failed attempt may have withdrawn messages whose texts were in the
       // lost response; say so unless the retry brought texts back.
       if (failures > 0 && texts.length === 0 && hookAliveRef.current && sessionIdRef.current === sid) {
@@ -3262,7 +3266,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (fresh.length === 0) return;
       entries.forEach((_, i) => { if (removed[i]) restored[i] = true; });
       const block = entries.filter((_, i) => restored[i]).map((entry) => entry.text).join("\n\n");
-      recoverDraftText(sid, block, recoveredBlock ? { lead: recoveredBlock, fallback: fresh.join("\n\n") } : undefined);
+      recoverDraft(sid, { text: block, replace: recoveredBlock ? { lead: recoveredBlock, fallback: fresh.join("\n\n") } : undefined });
       recoveredBlock = block;
     };
     const removals = Promise.all(entries.map(async (entry, i) => {
@@ -3804,9 +3808,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // a ghost message if the queue is recalled.
   const toPiImages = (images?: AttachedImage[]) => images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
   const handleSteer = useCallback(async (message: string, images?: AttachedImage[]) => {
-    if (rejectIfExternallyRunning()) return;
+    if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) return false;
     const piImages = toPiImages(images);
     try {
       await sendAgentCommand(sid, {
@@ -3814,10 +3818,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         message,
         ...(piImages?.length ? { images: piImages } : {}),
       });
+      return true;
     } catch (e) {
       console.error("Failed to steer:", e);
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
       opts.chatInputRef?.current?.insertIfEmpty(message);
+      return false;
     }
   }, [addNotice, opts.chatInputRef, rejectIfExternallyRunning]);
 
@@ -3826,9 +3832,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     behavior: "steer" | "followUp",
     images?: AttachedImage[],
   ) => {
-    if (rejectIfExternallyRunning()) return;
+    if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) return false;
     const piImages = toPiImages(images);
     try {
       await sendAgentCommand(sid, {
@@ -3837,17 +3843,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         streamingBehavior: behavior,
         ...(piImages?.length ? { images: piImages } : {}),
       });
+      return true;
     } catch (e) {
       console.error("Failed to queue prompt:", e);
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
       opts.chatInputRef?.current?.insertIfEmpty(message);
+      return false;
     }
   }, [addNotice, opts.chatInputRef, rejectIfExternallyRunning]);
 
   const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[]) => {
-    if (rejectIfExternallyRunning()) return;
+    if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) return false;
     const piImages = toPiImages(images);
     try {
       await sendAgentCommand(sid, {
@@ -3855,10 +3863,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         message,
         ...(piImages?.length ? { images: piImages } : {}),
       });
+      return true;
     } catch (e) {
       console.error("Failed to follow up:", e);
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
       opts.chatInputRef?.current?.insertIfEmpty(message);
+      return false;
     }
   }, [addNotice, opts.chatInputRef, rejectIfExternallyRunning]);
 

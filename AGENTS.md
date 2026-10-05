@@ -381,12 +381,15 @@ client-side — every client viewing the session must show the same queue.
 One sequence (`queueSeqRef`) orders every source: a get_state snapshot takes
 a number when requested and applies only if no newer snapshot or
 `queue_update` was applied (HTTP and SSE can reorder). Edit/Delete use
-`remove_queued_message` (act only on `removed: true`), Steer uses
+`remove_queued_message` (act only on `removed: true`; newer omp also returns
+the message's `images`, which Edit restores), Steer uses
 `promote_queued_message`; the chip changes when omp's next snapshot arrives.
 `handleAbort` coalesces overlapping Stops, then sends `abort_and_restore_queue`:
 omp's Esc (`clearQueue({ forInterrupt: true })`, then abort) in one step,
-returning the withdrawn user messages, which go to the session draft via
-`recoverDraftText`. It covers what a client snapshot cannot: a steer promoted
+returning the withdrawn user messages, whose texts and images go to the
+session draft via `recoverDraft`. omp labels an image-only message `[Image]`;
+that label is never restored as text. It covers what a client snapshot
+cannot: a steer promoted
 after the last `queue_update`, and live-steered input the run claimed but never
 recorded (omp would otherwise requeue it and drain it into a new turn right
 after the abort). Never reimplement this client-side. A failed request is

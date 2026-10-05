@@ -8,15 +8,29 @@ export interface ChatDraft {
   images: ChatDraftImage[];
 }
 
-/** Text to put back in a composer. `replace` merges a later recovery with an
- *  earlier one in order: while the draft still starts with `lead` (the earlier
- *  block), it becomes `text`; otherwise only `fallback` is prepended. */
+/** Content to put back in a composer. `replace` merges a later recovery with
+ *  an earlier one in order: while the draft still starts with `lead` (the
+ *  earlier block), it becomes `text`; otherwise only `fallback` is prepended.
+ *  `images` are appended to the draft's attachments. */
 export interface DraftRecovery {
   text: string;
   replace?: { lead: string; fallback: string };
+  images?: ChatDraftImage[];
+}
+
+/** The `{ data, mimeType }` images in an omp RPC payload; anything else is dropped. */
+export function toDraftImages(value: unknown): ChatDraftImage[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((image: unknown) => (
+    image && typeof image === "object" && "data" in image && "mimeType" in image
+      && typeof image.data === "string" && typeof image.mimeType === "string"
+      ? [{ data: image.data, mimeType: image.mimeType }]
+      : []
+  ));
 }
 
 export function mergeRecoveredText(current: string, { text, replace }: DraftRecovery): string {
+  if (!text) return current;
   if (replace && current.startsWith(replace.lead)) return text + current.slice(replace.lead.length);
   const lead = replace ? replace.fallback : text;
   return current ? `${lead}\n\n${current}` : lead;
@@ -82,11 +96,17 @@ export function subscribeDraftRecovery(listener: (key: string, recovery: DraftRe
 /** Merge recovered text in front of the stored draft for `key` and notify
  *  recovery subscribers so the mounted composer can merge it into its live
  *  value (which may have newer edits than the store). */
-export function recoverDraftText(key: string, text: string, replace?: DraftRecovery["replace"]): void {
-  if (!key || !text) return;
-  const recovery = { text, replace };
-  const draft = getDraft(key) ?? { value: "", images: [] };
-  setDraft(key, { ...draft, value: mergeRecoveredText(draft.value, recovery) });
+export function recoverDraft(key: string, recovery: DraftRecovery): void {
+  if (key) {
+    const draft = getDraft(key) ?? { value: "", images: [] };
+    setDraft(key, {
+      ...draft,
+      value: mergeRecoveredText(draft.value, recovery),
+      images: [...draft.images, ...(recovery.images ?? [])],
+    });
+  }
+  // Publish the recovery intent separately: ordinary persistence must not
+  // reapply it, and the mounted composer may have React updates still queued.
   for (const listener of recoveryListeners) {
     try {
       listener(key, recovery);

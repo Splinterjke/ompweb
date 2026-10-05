@@ -590,7 +590,10 @@ test("Stop takes queued input back through omp in one step, including a steer th
   const { w } = await startRun("abort-atomic", "hello agent");
   world.abortRestoreQueue = {
     steering: [{ text: "steer the snapshot missed" }],
-    followUp: [{ text: "later follow-up" }],
+    followUp: [
+      { text: "later follow-up", images: [{ type: "image", data: "x", mimeType: "image/png" }] },
+      { text: "[Image]", images: [{ type: "image", data: "y", mimeType: "image/webp" }] },
+    ],
   };
 
   await act(async () => { await w.latest.handleAbort(); });
@@ -599,7 +602,8 @@ test("Stop takes queued input back through omp in one step, including a steer th
   assert.equal(commands.filter((type) => type === "abort_and_restore_queue").length, 1);
   assert.equal(commands.includes("abort"), false, "omp's own abort already stopped the run");
   assert.equal(commands.includes("remove_queued_message"), false);
-  assert.equal(getDraft("abort-atomic")?.value, "steer the snapshot missed\n\nlater follow-up");
+  assert.equal(getDraft("abort-atomic")?.value, "steer the snapshot missed\n\nlater follow-up", "an image-only message's label is not text");
+  assert.deepEqual(getDraft("abort-atomic")?.images, [{ data: "x", mimeType: "image/png" }, { data: "y", mimeType: "image/webp" }]);
   assert.deepEqual(w.latest.notices, []);
   clearDraft("abort-atomic");
 });
@@ -683,4 +687,27 @@ test("overlapping Stops share one atomic withdrawal; an image-only entry does no
   assert.equal(world.calls.filter((c) => c.body?.type === "abort_and_restore_queue").length, 1);
   assert.equal(getDraft("abort-atomic-twice")?.value, "words");
   clearDraft("abort-atomic-twice");
+});
+
+// 453ea585: image-returning remove_queued_message (can1357/oh-my-pi#14179).
+// Edit restores these images; only { data, mimeType } entries survive.
+test("removeQueuedMessage resolves to the removed message's filtered images", async () => {
+  resetWorld();
+  primeSession("queued-edit", [userMsg("u0", "loaded question")]);
+  const { w } = await startRun("queued-edit", "hello agent");
+  await act(async () => {
+    lastEs().emit({ type: "queue_update", steering: [], followUp: ["target"] });
+  });
+  world.holds.push({
+    match: (method, _url, body) => method === "POST" && body?.type === "remove_queued_message",
+    produce: async () => ({
+      status: 200,
+      value: { success: true, data: { removed: true, images: [{ type: "image", data: "AAAA", mimeType: "image/png" }, { bogus: true }] } },
+    }),
+  });
+  let cancellation;
+  await act(async () => { cancellation = w.latest.removeQueuedMessage("target", "followUp"); });
+  await act(async () => {
+    assert.deepEqual(await cancellation, [{ data: "AAAA", mimeType: "image/png" }], "malformed entries are dropped");
+  });
 });

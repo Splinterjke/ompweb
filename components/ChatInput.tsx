@@ -24,7 +24,7 @@ import { useDictation } from "@/hooks/useDictation";
 import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
-import { clearDraft, getDraft, mergeRecoveredText, recoverDraftText, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
+import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import {
@@ -131,9 +131,10 @@ interface Props {
   onPredictWord?: PredictWord;
   onPredictWordFeedback?: PredictWordFeedback;
   onAbort: () => void;
-  onSteer?: (message: string, images?: AttachedImage[]) => void;
-  onFollowUp?: (message: string, images?: AttachedImage[]) => void;
-  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void;
+  /** Steer/follow-up callbacks resolve false when omp refused the message. */
+  onSteer?: (message: string, images?: AttachedImage[]) => Promise<boolean>;
+  onFollowUp?: (message: string, images?: AttachedImage[]) => Promise<boolean>;
+  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => Promise<boolean>;
   isStreaming: boolean;
   /** True while a prompt is in flight but the turn has not visibly started
    *  yet (session spawn / first stream frame) — shows the loading state
@@ -172,9 +173,10 @@ interface Props {
   advisorModel?: { name: string; reasoning: string | null } | null;
   /** Compact the session context from the composer toolbar. */
   onCompact?: () => void;
-  /** Cancel one queued message in omp (Edit/Delete/Steer); resolves when
-   * omp confirms the removal so the UI can gate busy state on it. */
-  onRemoveQueuedMessage?: (text: string, queue: keyof QueuedMessages) => Promise<boolean>;
+  /** Cancel one queued message in omp (Edit/Delete/Steer); resolves to its
+   *  images once omp confirms the removal (empty when it had none or omp
+   *  does not return them), else false, so the UI can gate busy state on it. */
+  onRemoveQueuedMessage?: (text: string, queue: keyof QueuedMessages) => Promise<ChatDraftImage[] | false>;
   /** Promote a queued follow-up to a steering message in omp. */
   onPromoteQueuedToSteer?: (text: string) => void | Promise<void>;
   slashCommands?: SlashCommandInfo[];
@@ -1139,9 +1141,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // edited queued message: the recovery payload may target this composer's
   // key even if a newer local value exists, so merge it in front.
   useLayoutEffect(() => subscribeDraftRecovery((key, recovery) => {
-    const { text } = recovery;
-    if (draftKeyRef.current !== key || !text) return;
+    if (draftKeyRef.current !== key) return;
+    // Merge with pending edits rather than replacing them with a store snapshot.
     setValue((prev) => mergeRecoveredText(prev, recovery));
+    const images = recovery.images ?? [];
+    if (images.length) {
+      setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(images.slice(0, MAX_ATTACHED_IMAGES - prev.length))]);
+    }
   }), []);
   useLayoutEffect(() => {
     if (value === lastMeasuredValueRef.current) return;
@@ -1520,6 +1526,17 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     if (sendSideQuestion(msg, overrideText)) return;
+    // The queue callbacks resolve false when omp refused the message; they
+    // restore its text, and the images go back to this draft.
+    const key = draftKeyRef.current;
+    const images = attachedImages.length ? attachedImages : undefined;
+    const keptImages = images?.map(imageToDraftImage);
+    const restoreImagesOnFailure = (queued: Promise<boolean> | undefined) => {
+      if (!keptImages || !key) return;
+      void Promise.resolve(queued).then((ok) => {
+        if (ok === false) recoverDraft(key, { text: "", images: keptImages });
+      });
+    };
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
     if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
@@ -1541,7 +1558,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           setAttachError(validationError);
           return;
         }
-        onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, attachedImages.length ? attachedImages : undefined);
+        restoreImagesOnFailure(onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, images));
         setAttachError(null);
         clearInput();
         return;
@@ -1558,7 +1575,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         setAttachError(validationError);
         return;
       }
-      onPromptWithStreamingBehavior(msg, streamingBehavior, attachedImages.length ? attachedImages : undefined);
+      restoreImagesOnFailure(onPromptWithStreamingBehavior(msg, streamingBehavior, images));
       setAttachError(null);
       clearInput();
       return;
@@ -1569,9 +1586,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       return;
     }
     if (mode === "steer" && onSteer) {
-      onSteer(msg, attachedImages.length ? attachedImages : undefined);
+      restoreImagesOnFailure(onSteer(msg, images));
     } else if (mode === "followup" && onFollowUp) {
-      onFollowUp(msg, attachedImages.length ? attachedImages : undefined);
+      restoreImagesOnFailure(onFollowUp(msg, images));
     }
     setAttachError(null);
     clearInput();
@@ -1632,8 +1649,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       if (!removed || action !== "edit") return;
       if (draftKeyRef.current === key) {
         // Same composer still owns the key — restore directly, preserving
-        // the local edit UX (focus + caret at the end + autosize).
-        setValue(entry.text);
+        // the local edit UX (focus + caret at the end + autosize). omp
+        // labels an image-only message "[Image]": the label is not text.
+        const restoredText = entry.text === "[Image]" ? "" : entry.text;
+        setValue(restoredText);
+        setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(removed)]);
         setAtQuery(null);
         setSlashMatch(null);
         setHistoryMenuOpen(false);
@@ -1641,15 +1661,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           const ta = textareaRef.current;
           if (!ta) return;
           ta.focus();
-          ta.setSelectionRange(entry.text.length, entry.text.length);
+          ta.setSelectionRange(restoredText.length, restoredText.length);
           ta.style.height = "auto";
           ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
         });
       } else {
         // The user switched sessions during the round-trip; write the text
-        // back through the draft store so it reappears if that session is
-        // reopened.
-        recoverDraftText(key, entry.text);
+        // and images back through the draft store so they reappear if that
+        // session is reopened.
+        recoverDraft(key, { text: entry.text === "[Image]" ? "" : entry.text, images: removed });
       }
     } catch (error) {
       setQueuedDeleteTarget(null);
