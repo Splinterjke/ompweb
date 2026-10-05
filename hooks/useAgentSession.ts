@@ -3431,6 +3431,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setModelSwitching(true);
       try {
         await sendAgentCommand(sid, { type: "set_model", provider, modelId });
+        // A spawned new session reports /slow support per model.
+        await refreshLiveModelState(sid);
       } catch (e) {
         console.error("Failed to set model:", e);
         addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
