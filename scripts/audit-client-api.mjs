@@ -54,6 +54,8 @@ const FORBIDDEN_ES2024 = [
   { re: /\bPromise\.withResolvers\b/, name: "Promise.withResolvers" },
   { re: /\bPromise\.try\s*\(/, name: "Promise.try" },
   { re: /\bArray\.fromAsync\b/, name: "Array.fromAsync" },
+  { re: /\bAbortSignal\.timeout\s*\(/, name: "AbortSignal.timeout" },
+  { re: /\bAbortSignal\.any\s*\(/, name: "AbortSignal.any" },
 ];
 
 function walkClientFiles(dir, out) {

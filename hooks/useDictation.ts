@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { isSttAfter, type SttAfter } from "@/lib/stt";
+import { fetchWithTimeout, sleep } from "@/lib/abort-signal";
 
 export interface UseDictationOptions {
   /** `after` is the send/queue choice made when the recording was sent, if any. */
@@ -222,18 +223,15 @@ export function useDictation({ onTranscript, onError, scope }: UseDictationOptio
           failTranscription("Transcription timed out");
           return;
         }
-        const tick = Promise.withResolvers<void>();
-        window.setTimeout(tick.resolve, delay);
-        await tick.promise;
+        await sleep(delay);
         delay = STT_POLL_INTERVAL_MS;
         if (stale()) return;
         const claimUrl = `${jobUrl}?claim=${encodeURIComponent((claimTokenRef.current ??= randomToken()))}&owner=${encodeURIComponent(ownerToken())}`;
         // Per-request timeout: a stalled request must not freeze the loop past its deadline.
-        const res = await fetch(claiming ? claimUrl : jobUrl, {
+        const res = await fetchWithTimeout(claiming ? claimUrl : jobUrl, STT_POLL_REQUEST_TIMEOUT_MS, {
           method: claiming ? "DELETE" : "GET",
-          signal: AbortSignal.any([signal, AbortSignal.timeout(STT_POLL_REQUEST_TIMEOUT_MS)]),
           cache: "no-store",
-        }).catch((err: unknown) => {
+        }, signal).catch((err: unknown) => {
           if (signal.aborted) throw err;
           return null;
         });

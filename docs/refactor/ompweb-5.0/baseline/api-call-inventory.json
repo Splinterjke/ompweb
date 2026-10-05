@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T18:01:05.654Z",
+  "generatedAt": "2026-10-05T20:02:45.812Z",
   "totals": {
     "files": 37,
     "calls": 180,
@@ -40,7 +40,7 @@
     "web-settings": 4,
     "terminal": 6,
     "usage-summary": 1,
-    "provider-usage": 1,
+    "provider-usage{param}": 1,
     "usage": 3,
     "stt": 6,
     "schedulers": 2
@@ -1391,7 +1391,7 @@
       "file": "components/TerminalPanel.tsx",
       "calls": [
         {
-          "line": 72,
+          "line": 73,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/terminal/resize",
@@ -1400,7 +1400,7 @@
           "stream": false
         },
         {
-          "line": 84,
+          "line": 87,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/terminal/input",
@@ -1409,7 +1409,7 @@
           "stream": false
         },
         {
-          "line": 107,
+          "line": 111,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/terminal/session",
@@ -1418,7 +1418,7 @@
           "stream": false
         },
         {
-          "line": 249,
+          "line": 253,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/terminal/stream",
@@ -1427,7 +1427,7 @@
           "stream": false
         },
         {
-          "line": 329,
+          "line": 333,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/terminal/session",
@@ -1436,7 +1436,7 @@
           "stream": false
         },
         {
-          "line": 397,
+          "line": 401,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/terminal/session",
@@ -1462,8 +1462,8 @@
           "line": 85,
           "kind": "http",
           "method": "GET",
-          "endpoint": "/api/provider-usage",
-          "domain": "provider-usage",
+          "endpoint": "/api/provider-usage{param}",
+          "domain": "provider-usage{param}",
           "rw": "read",
           "stream": false
         }
@@ -1709,7 +1709,7 @@
       "file": "hooks/useDictation.ts",
       "calls": [
         {
-          "line": 313,
+          "line": 311,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/stt",
@@ -1718,7 +1718,7 @@
           "stream": false
         },
         {
-          "line": 317,
+          "line": 315,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/stt/{param}",
@@ -1727,7 +1727,7 @@
           "stream": false
         },
         {
-          "line": 352,
+          "line": 350,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/stt",
@@ -1736,7 +1736,7 @@
           "stream": false
         },
         {
-          "line": 529,
+          "line": 527,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/stt/{param}",
@@ -1745,7 +1745,7 @@
           "stream": false
         },
         {
-          "line": 674,
+          "line": 672,
           "kind": "http",
           "method": "DELETE",
           "endpoint": "/api/stt/{param}",
@@ -1754,7 +1754,7 @@
           "stream": false
         },
         {
-          "line": 698,
+          "line": 696,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/stt/{param}",
