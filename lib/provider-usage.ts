@@ -168,7 +168,9 @@ async function fetchProviderUsage(refresh = false): Promise<string> {
       windowsHide: true,
     });
   }
-  const target = wrapWindowsScript(bin, ["usage", "--json", "--redact"]);
+  // Unredacted so accounts show their real email; only the parsed label, plan
+  // and windows reach the browser, never the raw metadata.
+  const target = wrapWindowsScript(bin, ["usage", "--json"]);
   const { stdout } = await execFileAsync(target.file, target.args, {
     timeout: USAGE_TIMEOUT_MS,
     maxBuffer: USAGE_MAX_BUFFER,
