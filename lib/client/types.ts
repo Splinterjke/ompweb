@@ -12,6 +12,7 @@ import type { NativeSettings } from "@/lib/omp/settings-config";
 import type { ScheduleSpec } from "@/lib/schedule";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
 import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
+import type { MemoryBankInfo, MemoryQueryPage, MemoryQueryResult, MemoryTable } from "@/lib/memory-types";
 
 /** Unified error shape (doc 01 contract rule 3): UI branches on `code`. */
 export interface ClientError {
@@ -211,6 +212,16 @@ export interface ChatEventActionClient {
   test?(input: { action: ActionSpec }): Promise<{ ok: boolean; detail?: string }>;
 }
 
+/** Mnemopi memory viewer domain (5.2): strictly read-only views over the
+ *  live per-project memory banks. GET-only routes; no mutation surface is
+ *  exposed by design (editing memory belongs to the memory backend). */
+export interface MemoryClient {
+  /** GET /api/memory/banks — every bank with per-table counts + mtime. */
+  listBanks(signal?: AbortSignal): Promise<{ banks: MemoryBankInfo[] }>;
+  /** GET /api/memory/banks/[bank] — newest-first page with substring search. */
+  query(bank: string, table: MemoryTable, page?: MemoryQueryPage, signal?: AbortSignal): Promise<MemoryQueryResult>;
+}
+
 export interface OmpwebClient {
   agent: AgentClient;
   sessions: SessionClient;
@@ -220,4 +231,5 @@ export interface OmpwebClient {
   nativeSettings: NativeSettingsClient;
   schedulers: SchedulerClient;
   chatActions: ChatEventActionClient;
+  memory: MemoryClient;
 }

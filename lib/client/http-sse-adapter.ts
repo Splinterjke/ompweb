@@ -17,6 +17,7 @@ import { toClientError } from "./types";
 import type {
   GitClient,
   GitHubStatusPayload,
+  MemoryClient,
   NativeSettingsClient,
   NativeSettingRow,
   OmpSettingsClient,
@@ -25,6 +26,7 @@ import type {
   SchedulerPatch,
 } from "./types";
 import type { ScheduleSpec } from "@/lib/schedule";
+import type { MemoryBankInfo, MemoryQueryPage, MemoryQueryResult, MemoryTable } from "@/lib/memory-types";
 import type { SchedulerWithState } from "@/lib/scheduler-types";
 import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 import type { SessionInfo } from "@/lib/types";
@@ -385,6 +387,19 @@ class HttpOmpSettingsClient implements OmpSettingsClient {
   }
 }
 
+/** Mnemopi memory — /api/memory* answers raw bodies; the routes open the
+ *  live bank databases strictly read-only (viewer feature, no mutations). */
+class HttpMemoryClient implements MemoryClient {
+  async listBanks(signal?: AbortSignal): Promise<{ banks: MemoryBankInfo[] }> {
+    const body = await rawRequest<{ banks?: MemoryBankInfo[]; error?: string }>("/api/memory/banks", { cache: "no-store", ...(signal ? { signal } : {}) });
+    return { banks: body.banks ?? [] };
+  }
+  async query(bank: string, table: MemoryTable, page: MemoryQueryPage = {}, signal?: AbortSignal): Promise<MemoryQueryResult> {
+    const params = new URLSearchParams({ table, q: page.q ?? "", limit: String(page.limit ?? 50), offset: String(page.offset ?? 0) });
+    return rawRequest<MemoryQueryResult & { error?: string }>(`/api/memory/banks/${encodeURIComponent(bank)}?${params.toString()}`, { cache: "no-store", ...(signal ? { signal } : {}) });
+  }
+}
+
 export function createHttpSseClient(): OmpwebClient {
   return {
     agent: new HttpAgentClient(),
@@ -395,5 +410,6 @@ export function createHttpSseClient(): OmpwebClient {
     nativeSettings: new HttpNativeSettingsClient(),
     schedulers: new HttpSchedulerClient(),
     chatActions: new HttpChatEventActionClient(),
+    memory: new HttpMemoryClient(),
   };
 }

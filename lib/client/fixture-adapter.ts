@@ -9,6 +9,7 @@ import type {
   EventSubscription,
   GitClient,
   GitHubStatusPayload,
+  MemoryClient,
   OmpSettingsClient,
   OmpwebClient,
   SessionClient,
@@ -16,6 +17,7 @@ import type {
   SystemClient,
 } from "./types";
 import type { GitStatusResponse } from "@/lib/git-types";
+import type { MemoryQueryPage, MemoryQueryResult } from "@/lib/memory-types";
 import type { SessionInfo } from "@/lib/types";
 
 export interface FixtureState {
@@ -262,8 +264,18 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
     },
   };
 
+  // Fixture memory banks: no network — the viewer renders its empty state.
+  const memory: MemoryClient = {
+    async listBanks() {
+      return { banks: [] };
+    },
+    async query(bank, table, page: MemoryQueryPage = {}): Promise<MemoryQueryResult> {
+      return { bank, table, total: 0, limit: page.limit ?? 50, offset: page.offset ?? 0, items: [] };
+    },
+  };
+
   return {
-    client: { agent, sessions: sessionApi, system, git, ompSettings, nativeSettings, schedulers, chatActions },
+    client: { agent, sessions: sessionApi, system, git, ompSettings, nativeSettings, schedulers, chatActions, memory },
     fixtures,
   };
 }
