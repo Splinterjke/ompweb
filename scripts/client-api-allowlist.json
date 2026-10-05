@@ -22,6 +22,7 @@
     "components/NetworkProxyConfig.tsx": 2,
     "components/OmpSetupWizard.tsx": 1,
     "components/PluginsConfig.tsx": 3,
+    "components/ProviderAccounts.tsx": 1,
     "components/RemoteAccessSetting.tsx": 7,
     "components/SchedulerModal.tsx": 2,
     "components/SessionSidebar.tsx": 18,

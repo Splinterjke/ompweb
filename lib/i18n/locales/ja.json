@@ -2255,5 +2255,10 @@
   "btw.unsupported": "/btw には新しい omp が必要です。omp を更新してからセッションを再起動してください。",
   "btw.failed": "サイド質問に失敗しました",
   "btw.attachmentsUnsupported": "サイド質問には添付ファイルを含められません。添付を外すか、通常のメッセージとして送信してください。",
-  "btw.copyFailed": "回答をコピーできませんでした"
+  "btw.copyFailed": "回答をコピーできませんでした",
+  "modelsConfig.accounts": "アカウント",
+  "modelsConfig.accountsCount": "{count} 件のアカウント",
+  "modelsConfig.accountsLoading": "アカウントを読み込み中…",
+  "modelsConfig.accountNumber": "アカウント {index}",
+  "modelsConfig.accountsRotationHint": "アカウントの選択とローテーションは omp が管理します。"
 }

@@ -2255,5 +2255,10 @@
   "btw.unsupported": "/btw requires a newer omp. Update omp, then restart the session.",
   "btw.failed": "Side question failed",
   "btw.attachmentsUnsupported": "Side questions can't include attachments. Remove them, or send the message as a normal prompt.",
-  "btw.copyFailed": "Could not copy the answer"
+  "btw.copyFailed": "Could not copy the answer",
+  "modelsConfig.accounts": "Account",
+  "modelsConfig.accountsCount": "{count} accounts",
+  "modelsConfig.accountsLoading": "Loading accounts…",
+  "modelsConfig.accountNumber": "Account {index}",
+  "modelsConfig.accountsRotationHint": "omp manages account selection and rotation."
 }

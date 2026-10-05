@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-05T22:06:56.512Z",
+  "generatedAt": "2026-10-05T22:17:57.670Z",
   "totals": {
-    "files": 37,
-    "calls": 181,
-    "http": 171,
+    "files": 38,
+    "calls": 182,
+    "http": 172,
     "sse": 10,
-    "read": 88,
+    "read": 89,
     "write": 93
   },
   "domains": {
@@ -35,6 +35,7 @@
     "providers": 1,
     "proxy": 2,
     "plugins": 3,
+    "provider-usage": 1,
     "home": 1,
     "worktrees": 3,
     "web-settings": 4,
@@ -738,7 +739,7 @@
       "file": "components/ModelsConfig.tsx",
       "calls": [
         {
-          "line": 173,
+          "line": 174,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -747,7 +748,7 @@
           "stream": false
         },
         {
-          "line": 197,
+          "line": 198,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -756,7 +757,7 @@
           "stream": false
         },
         {
-          "line": 262,
+          "line": 263,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -765,7 +766,7 @@
           "stream": false
         },
         {
-          "line": 287,
+          "line": 288,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -774,7 +775,7 @@
           "stream": false
         },
         {
-          "line": 378,
+          "line": 379,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/model-roles",
@@ -783,7 +784,7 @@
           "stream": false
         },
         {
-          "line": 389,
+          "line": 390,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/model-roles",
@@ -792,7 +793,7 @@
           "stream": false
         },
         {
-          "line": 627,
+          "line": 628,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/models/fetch",
@@ -801,7 +802,7 @@
           "stream": false
         },
         {
-          "line": 1104,
+          "line": 1105,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/models-config/test",
@@ -810,7 +811,7 @@
           "stream": false
         },
         {
-          "line": 1403,
+          "line": 1404,
           "kind": "sse",
           "method": "GET",
           "endpoint": "/api/auth/login/{param}",
@@ -819,7 +820,7 @@
           "stream": true
         },
         {
-          "line": 1457,
+          "line": 1458,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/auth/logout/{param}",
@@ -828,7 +829,7 @@
           "stream": false
         },
         {
-          "line": 1475,
+          "line": 1476,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/auth/login/{param}",
@@ -837,7 +838,7 @@
           "stream": false
         },
         {
-          "line": 1495,
+          "line": 1496,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/auth/login/{param}",
@@ -846,7 +847,7 @@
           "stream": false
         },
         {
-          "line": 1940,
+          "line": 1943,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/auth/providers",
@@ -855,7 +856,7 @@
           "stream": false
         },
         {
-          "line": 1949,
+          "line": 1952,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/auth/all-providers",
@@ -864,7 +865,7 @@
           "stream": false
         },
         {
-          "line": 1960,
+          "line": 1963,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/models",
@@ -873,7 +874,7 @@
           "stream": false
         },
         {
-          "line": 1974,
+          "line": 1977,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/models-config",
@@ -882,7 +883,7 @@
           "stream": false
         },
         {
-          "line": 2042,
+          "line": 2045,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/providers/enable",
@@ -891,7 +892,7 @@
           "stream": false
         },
         {
-          "line": 2173,
+          "line": 2176,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/models-config",
@@ -966,6 +967,20 @@
           "endpoint": "/api/plugins",
           "domain": "plugins",
           "rw": "write",
+          "stream": false
+        }
+      ]
+    },
+    {
+      "file": "components/ProviderAccounts.tsx",
+      "calls": [
+        {
+          "line": 15,
+          "kind": "http",
+          "method": "GET",
+          "endpoint": "/api/provider-usage",
+          "domain": "provider-usage",
+          "rw": "read",
           "stream": false
         }
       ]

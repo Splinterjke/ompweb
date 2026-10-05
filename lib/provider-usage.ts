@@ -56,10 +56,6 @@ function usageWindow(
   };
 }
 
-function accountLabel(metadata: Record<string, unknown> | undefined): string | undefined {
-  return nonEmptyString(metadata?.email) ?? nonEmptyString(metadata?.accountId);
-}
-
 type UsageLimit = { id: ProviderUsageWindowId; fraction: number; window: Record<string, unknown> };
 
 type UsageGroup = {
@@ -113,7 +109,9 @@ function normalizeReport(
     selectedGroups.splice(0, selectedGroups.length, selected);
   }
   const metadata = isRecord(rawReport.metadata) ? rawReport.metadata : undefined;
-  const label = accountLabel(metadata);
+  // Email only: unredacted account ids are opaque UUIDs, so those accounts
+  // show as "Account N".
+  const label = nonEmptyString(metadata?.email);
   const plan = nonEmptyString(metadata?.planType);
   if (selectedGroups.length === 0) {
     return [{

@@ -2255,5 +2255,10 @@
   "btw.unsupported": "/btw 需要更新版本的 omp。请更新 omp 后重启会话。",
   "btw.failed": "旁支问题失败",
   "btw.attachmentsUnsupported": "旁支问题不能包含附件。请移除附件，或作为普通消息发送。",
-  "btw.copyFailed": "无法复制回答"
+  "btw.copyFailed": "无法复制回答",
+  "modelsConfig.accounts": "账户",
+  "modelsConfig.accountsCount": "{count} 个账户",
+  "modelsConfig.accountsLoading": "正在加载账户…",
+  "modelsConfig.accountNumber": "账户 {index}",
+  "modelsConfig.accountsRotationHint": "账户的选择和轮换由 omp 管理。"
 }

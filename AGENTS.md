@@ -236,6 +236,7 @@ app/api/
 
 lib/
   omp/                 shared omp foundations (paths, CLI probe, RpcProcess)
+  provider-accounts.ts distinct omp accounts per provider from `omp usage` reports (Models → provider detail)
   agent-client.ts      typed fetch helper for /api/agent commands
   btw.ts               /btw side-question records + pure frame/snapshot merge (order-safe)
   chat-event-action-types.ts  ChatEventType + ActionSpec union (notification/http/bash/scheduled)

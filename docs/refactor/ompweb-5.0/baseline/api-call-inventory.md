@@ -1,6 +1,6 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-10-05T22:06:56.512Z · totals: 181 calls / 37 files · http 171 (read 88 / write 93) · sse 10
+Generated: 2026-10-05T22:17:57.670Z · totals: 182 calls / 38 files · http 172 (read 89 / write 93) · sse 10
 
 | domain | calls |
 |---|---|
@@ -36,6 +36,7 @@ Generated: 2026-10-05T22:06:56.512Z · totals: 181 calls / 37 files · http 171 
 | ui | 1 |
 | web-auth | 1 |
 | providers | 1 |
+| provider-usage | 1 |
 | home | 1 |
 | usage-summary | 1 |
 | provider-usage{param} | 1 |
