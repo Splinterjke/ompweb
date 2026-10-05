@@ -3887,6 +3887,27 @@ html.dark .dropdown-surface :is(select, option) {
   pointer-events: none;
 }
 
+/* File-panel toolbar (port of upstream cace6832): the close control docks at
+   the toolbar's right edge; the toolbar reserves its width so tabs never
+   slide underneath. html:root raises specificity over the touch-target size
+   overrides (upstream 5450ccce). */
+.right-panel-toolbar {
+  --right-panel-close-width: 36px;
+  position: relative;
+  padding-right: var(--right-panel-close-width);
+}
+html:root .shell-toolbar-btn.right-panel-close-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--right-panel-close-width) !important;
+  height: var(--shell-topbar-height) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 0;
+}
+
 /* Maintain a stable minimum layout width inside the rail during open/close
    animation to eliminate text-reflow churn across the 220ms transition. */
 @media (min-width: 641px) {
@@ -3932,6 +3953,13 @@ html.dark .dropdown-surface :is(select, option) {
     opacity: 1;
     overflow: hidden;
     transition: transform var(--dur-slow) var(--ease-out-warm), visibility 0s;
+  }
+  .right-panel-toolbar {
+    --right-panel-close-width: 44px;
+  }
+  html:root .shell-toolbar-btn.right-panel-close-button {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    border-bottom: 1px solid var(--border);
   }
   .right-panel-container.right-panel-open {
     transform: none;

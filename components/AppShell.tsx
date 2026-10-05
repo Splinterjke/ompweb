@@ -1043,6 +1043,11 @@ export function AppShell() {
   const [fileTabs, setFileTabs] = useState<Tab[]>([]);
   const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  // Upstream cace6832: closing the panel returns focus to the header opener.
+  const closeRightPanel = useCallback(() => {
+    setRightPanelOpen(false);
+    topBarRef.current?.querySelector<HTMLButtonElement>(".shell-panel-opener")?.focus();
+  }, []);
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
@@ -2076,6 +2081,24 @@ export function AppShell() {
           </button>
           </Tooltip>
         )}
+        {/* File-panel opener (port of upstream cace6832): the opener lives in
+            the header and dismissal lives inside the panel; focus returns to
+            this button. Gated off in swapped mode, whose inline opener at the
+            top-left already toggles the panel. */}
+        {!panelsSwappedActive && (
+          <button
+            type="button"
+            className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
+            onClick={toggleFilePanel}
+            title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            aria-expanded={rightPanelOpen}
+            aria-controls="workspace-file-panel"
+            aria-pressed={rightPanelOpen}
+          >
+            {rightPanelOpen ? <X size={16} strokeWidth={1.8} aria-hidden="true" /> : <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />}
+          </button>
+        )}
 
           {/* Center Zone: Workspace & Session Breadcrumb + Auto-name action */}
           {showChat && (() => {
@@ -2400,6 +2423,8 @@ export function AppShell() {
         <div
           ref={rightPanelRef}
           className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}`}
+          id="workspace-file-panel"
+          role={isMobile && rightPanelOpen ? "dialog" : undefined}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -2450,10 +2475,19 @@ export function AppShell() {
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", height: 36 }}>
+                  <div className="right-panel-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", minHeight: "var(--shell-topbar-height)" }}>
                     <div style={{ flex: 1, overflow: "hidden" }}>
                       <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
                     </div>
+                    <button
+                      type="button"
+                      onClick={closeRightPanel}
+                      title={t("appShell.hideFilePanel")}
+                      aria-label={t("appShell.hideFilePanel")}
+                      className="shell-toolbar-btn right-panel-close-button ui-focus-ring"
+                    >
+                      <X size={16} strokeWidth={1.8} aria-hidden="true" />
+                    </button>
                   </div>
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                     {/* The explorer stays mounted (toggled via display) so its
@@ -2486,32 +2520,6 @@ export function AppShell() {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-      {/* File panel toggle — fixed at top-right; when the panels are swapped
-          it moves inline to the top-left of the top bar instead. On mobile it
-          is the single expand/collapse control for the full-width panel
-          overlay: visible while the left drawer is closed (the drawer would
-          cover the fixed button while open), toggling the panel open and
-          closed from the same corner. */}
-      {!panelsSwappedActive && (!isMobile || !sidebarOpen) && (
-        <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
-          <button
-          onClick={toggleFilePanel}
-          aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-          style={{
-            position: "fixed", top: 0, right: 0, zIndex: 300,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, padding: 0,
-            background: "var(--bg-panel)", border: "none", borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-            color: rightPanelOpen ? "var(--text)" : "var(--text-muted)",
-            cursor: "pointer", transition: "color var(--dur-fast) var(--ease-out-warm)",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = rightPanelOpen ? "var(--text)" : "var(--text-muted)"; }}
-        >
-          {fileToggleIcon}
-        </button>
-        </Tooltip>
-      )}
     <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
