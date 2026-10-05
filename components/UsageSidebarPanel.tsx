@@ -74,7 +74,7 @@ export function UsageSidebarPanel({
   const [hiddenAccounts, setHiddenAccounts] = useState<Set<string>>(new Set());
   const loadedRef = useRef(false);
 
-  const load = useCallback((isBackground = false) => {
+  const load = useCallback((isBackground = false, force = false) => {
     if (!isBackground) {
       setError(false);
       setRefreshing(true);
@@ -82,7 +82,7 @@ export function UsageSidebarPanel({
     const startedAt = Date.now();
     void Promise.all([
       fetch("/api/usage-summary").then((res) => (res.ok ? res.json() as Promise<UsageSummary> : null)),
-      fetch("/api/provider-usage").then((res) => (res.ok ? res.json() as Promise<{ reports: ProviderUsageReport[] }> : null)),
+      fetch(`/api/provider-usage${force ? "?refresh=true" : ""}`).then((res) => (res.ok ? res.json() as Promise<{ reports: ProviderUsageReport[] }> : null)),
     ])
       .then(([sum, usage]) => {
         if (sum) setSummary(sum);
@@ -350,7 +350,7 @@ export function UsageSidebarPanel({
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   type="button"
-                  onClick={() => load(false)}
+                  onClick={() => load(false, true)}
                   disabled={refreshing}
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "none", background: "none", color: "var(--text-dim)", cursor: refreshing ? "default" : "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", padding: 0 }}
                 >
