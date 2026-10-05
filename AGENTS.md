@@ -261,6 +261,7 @@ lib/
   tool-presets.ts      PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts             shared TypeScript types
   normalize.ts         normalizeToolCalls() — field name mismatch between file format and our types
+  navigation-history.ts  pure back/forward view-history stack + shortcut matcher (⌘[/⌘], Alt+←/→)
   worktree.ts          project/worktree resolution and git worktree operations
   web-settings.ts      omp-web server settings (autoResumeSessions) persistence, ~/.omp/agent/omp-web-settings.json
 
@@ -297,6 +298,7 @@ hooks/
   useBtw.ts                /btw records/active panel/history dialog fed by btw_* SSE frames
   useDragDrop.ts           shared drag/drop state
   useIsMobile.ts           responsive breakpoint hook
+  useNavigationHistory.ts  in-app back/forward stack (record/peek/commit/drop) for visited chat views
   usePrefersReducedMotion.ts OS reduce-motion preference (SMIL-safe)
   useTheme.ts              theme state (localStorage key "omp-theme")
 ```
