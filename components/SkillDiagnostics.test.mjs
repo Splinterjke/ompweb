@@ -52,3 +52,16 @@ test("losing a diagnostic snapshot closes details instead of reopening them on r
   await waitFor(() => assert.equal(screen.queryByRole("dialog", { name: "Skill diagnostics" }) === null, true));
   assert.ok(screen.getByRole("button", { name: "Details" }));
 });
+
+test("dismissing the notice hides that report until the diagnostics change", async () => {
+  const props = { snapshot, onDisable: async () => snapshot };
+  const view = render(React.createElement(SkillDiagnosticsNotice, props));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Dismiss skill notice" })); });
+  assert.equal(screen.queryByRole("status"), null);
+  view.rerender(React.createElement(SkillDiagnosticsNotice, { ...props, snapshot: structuredClone(snapshot) }));
+  assert.equal(screen.queryByRole("status"), null);
+  const changed = structuredClone(snapshot);
+  changed.diagnostics[0].name = "audit";
+  view.rerender(React.createElement(SkillDiagnosticsNotice, { ...props, snapshot: changed }));
+  assert.ok(screen.getByRole("status"));
+});

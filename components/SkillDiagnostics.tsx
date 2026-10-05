@@ -84,6 +84,8 @@ export function SkillDiagnosticsNotice({ snapshot, onDisable }: {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Dismissal hides this exact report for the session; a changed report shows again.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   useEffect(() => {
     if (!snapshot) setOpen(false);
   }, [snapshot]);
@@ -94,7 +96,8 @@ export function SkillDiagnosticsNotice({ snapshot, onDisable }: {
     if (diagnostic.skills.length > 1) conflicts++;
     duplicates += diagnostic.duplicates.length;
   }
-  const visible = snapshot.showStartupDiagnostics && (conflicts > 0 || duplicates > 0);
+  const reportKey = JSON.stringify(snapshot.diagnostics);
+  const visible = snapshot.showStartupDiagnostics && (conflicts > 0 || duplicates > 0) && dismissedKey !== reportKey;
   const Icon = conflicts > 0 ? CircleAlert : Info;
   return (
     <>
@@ -113,6 +116,7 @@ export function SkillDiagnosticsNotice({ snapshot, onDisable }: {
             setSaving(false);
           }
         }}>{saving ? t("skillDiagnostics.saving") : t("skillDiagnostics.disable")}</button>
+        <button type="button" className="ui-focus-ring" style={{ display: "inline-flex", padding: 4, background: "none", border: "none", borderRadius: "var(--radius-control)", color: "var(--text-muted)", cursor: "pointer" }} aria-label={t("skillDiagnostics.dismiss")} title={t("skillDiagnostics.dismiss")} onClick={() => { setDismissedKey(reportKey); setError(null); }}><X size={14} aria-hidden /></button>
         {error && <span role="alert" style={{ color: "var(--status-error)", width: "100%" }}>{error}</span>}
       </div>}
       <SkillDiagnosticsDialog open={open} onOpenChange={setOpen} snapshot={snapshot} />
