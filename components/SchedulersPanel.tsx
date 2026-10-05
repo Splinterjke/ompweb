@@ -408,11 +408,18 @@ export function SchedulersPanel({
 
       {open && (
         <>
-        <div role="tablist" aria-label={t("sessionSidebar.schedulers")} style={{ display: "flex", gap: 2, padding: "0 10px 5px", flexShrink: 0 }}>
+        <div
+          role="tablist"
+          aria-label={t("sessionSidebar.schedulers")}
+          // Full-width strip styled exactly like the right-workbench panel
+          // tabs (the Memories tab strip): flat underline tabs on a panel
+          // background, active tab marked by a 2px accent underline.
+          style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 6px 0", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)", flexShrink: 0 }}
+        >
           {([
-            { key: "scripts" as const, icon: <SquareTerminal size={12} aria-hidden="true" />, count: scriptCount },
-            { key: "prompts" as const, icon: <MessageSquareText size={12} aria-hidden="true" />, count: promptCount },
-          ]).map(({ key, icon, count }) => {
+            { key: "scripts" as const, Icon: SquareTerminal, count: scriptCount },
+            { key: "prompts" as const, Icon: MessageSquareText, count: promptCount },
+          ]).map(({ key, Icon, count }) => {
             const active = tab === key;
             return (
               <button
@@ -423,33 +430,39 @@ export function SchedulersPanel({
                 onClick={() => setTab(key)}
                 style={{
                   display: "inline-flex",
+                  flex: "1 1 0",
+                  minWidth: 0,
+                  justifyContent: "center",
                   alignItems: "center",
                   gap: 5,
-                  height: 25,
-                  padding: "0 6px",
-                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                  // Flat underline tabs, matching the right-workbench tab strip
-                  // (without the close affordance): no chip border/fill, the
-                  // active tab is marked by a 2px accent underline.
+                  padding: "5px 9px",
+                  marginBottom: -1,
                   border: "none",
                   borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
-                  borderRadius: 5,
                   background: "transparent",
                   color: active ? "var(--text)" : "var(--text-muted)",
                   cursor: "pointer",
+                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
+                  fontWeight: active ? 600 : 500,
+                  borderRadius: "var(--radius-control) var(--radius-control) 0 0",
                   whiteSpace: "nowrap",
+                  transition: "color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
                 }}
               >
-                {icon}
+                <Icon size={13} strokeWidth={1.8} aria-hidden style={{ color: active ? "var(--accent)" : "currentColor" }} />
                 {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
-                {count > 0 && <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>{count}</span>}
+                {count > 0 && (
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", color: active ? "var(--accent)" : "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
         <div
           className="animate-slide-down"
-          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "0 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: 6 }}
         >
           {loadError && (
             <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>{t("schedulers.loadError")}</span>
