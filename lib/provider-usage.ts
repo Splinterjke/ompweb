@@ -19,6 +19,7 @@ type CachedUsage = { expiresAt: number; output: string };
 
 let usageCache: CachedUsage | undefined;
 let usageInFlight: Promise<string> | undefined;
+let usageInFlightForced = false;
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -156,9 +157,17 @@ export function parseProviderUsageOutput(output: string, query: UsageQuery = {},
   return { generatedAt, reports };
 }
 
-async function fetchProviderUsage(): Promise<string> {
+async function fetchProviderUsage(refresh = false): Promise<string> {
   const bin = resolveOmpBin();
   if (!bin) throw new Error("omp binary not found. Install oh-my-pi or set OMP_WEB_OMP_BIN.");
+  if (refresh) {
+    const invalidate = wrapWindowsScript(bin, ["usage", "invalidate"]);
+    await execFileAsync(invalidate.file, invalidate.args, {
+      timeout: USAGE_TIMEOUT_MS,
+      maxBuffer: USAGE_MAX_BUFFER,
+      windowsHide: true,
+    });
+  }
   const target = wrapWindowsScript(bin, ["usage", "--json", "--redact"]);
   const { stdout } = await execFileAsync(target.file, target.args, {
     timeout: USAGE_TIMEOUT_MS,
@@ -168,10 +177,15 @@ async function fetchProviderUsage(): Promise<string> {
   return stdout;
 }
 
-function getUsageOutput(): Promise<string> {
-  if (usageCache && usageCache.expiresAt > Date.now()) return Promise.resolve(usageCache.output);
-  if (usageInFlight) return usageInFlight;
-  usageInFlight = fetchProviderUsage()
+function getUsageOutput(refresh = false): Promise<string> {
+  if (!refresh && usageCache && usageCache.expiresAt > Date.now()) return Promise.resolve(usageCache.output);
+  if (usageInFlight) {
+    return refresh && !usageInFlightForced
+      ? usageInFlight.then(() => getUsageOutput(true), () => getUsageOutput(true))
+      : usageInFlight;
+  }
+  usageInFlightForced = refresh;
+  usageInFlight = fetchProviderUsage(refresh)
     .then((output) => {
       usageCache = { output, expiresAt: Date.now() + USAGE_CACHE_TTL_MS };
       return output;
@@ -180,11 +194,7 @@ function getUsageOutput(): Promise<string> {
   return usageInFlight;
 }
 
-export async function getProviderUsage(query: UsageQuery = {}): Promise<ProviderUsageSnapshot> {
-  return parseProviderUsageOutput(await getUsageOutput(), query);
+export async function getProviderUsage(query: UsageQuery = {}, refresh = false): Promise<ProviderUsageSnapshot> {
+  return parseProviderUsageOutput(await getUsageOutput(refresh), query);
 }
 
-export function clearProviderUsageCache(): void {
-  usageCache = undefined;
-  usageInFlight = undefined;
-}
