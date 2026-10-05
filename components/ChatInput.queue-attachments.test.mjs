@@ -130,12 +130,18 @@ test("a queued web slash command is expanded and keeps the attachment", async ()
   assertQueuedWithImage(calls[0], expandWebSlashCommand("/goal ship it").prompt);
 });
 
-// The hook's queue callbacks resolve false when omp refused the send; the
-// composer gives the message's images back to the draft it was sent from.
-test("a refused follow-up gives its images back to the composer", async () => {
-  const calls = await renderRunningWithAttachments({ isStreaming: false, queued: false });
+// The hook's queue callbacks resolve false when omp refused the send: the
+// message goes back, text and images together, to the draft it was sent
+// from — ahead of anything typed since, even after a clear + retype.
+test("a refused follow-up goes back whole to its draft, ahead of what was typed meanwhile", async () => {
+  let refuse;
+  const calls = await renderRunningWithAttachments({ isStreaming: false, queued: new Promise((resolve) => { refuse = () => resolve(false); }) });
   typeText("look at this");
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: /queue/i })); });
   await waitFor(() => assert.equal(calls.length, 1));
+  typeText("typed meanwhile");
+  await act(async () => { refuse(); });
   await waitFor(() => assert.deepEqual(getDraft(KEY)?.images, [{ data: PNG, mimeType: "image/png" }]));
+  assert.equal(getDraft(KEY)?.value, `${calls[0].message}\n\ntyped meanwhile`, "the text comes back too, ahead of what was typed since");
+  assert.equal(screen.getByRole("textbox").value, `${calls[0].message}\n\ntyped meanwhile`);
 });

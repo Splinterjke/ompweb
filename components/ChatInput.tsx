@@ -1526,15 +1526,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     if (sendSideQuestion(msg, overrideText)) return;
-    // The queue callbacks resolve false when omp refused the message; they
-    // restore its text, and the images go back to this draft.
+    // The queue callbacks resolve false when omp refused the message: it goes
+    // back, text and images together, to the draft it was sent from, even if
+    // the user has typed or switched sessions since.
     const key = draftKeyRef.current;
     const images = attachedImages.length ? attachedImages : undefined;
     const keptImages = images?.map(imageToDraftImage);
-    const restoreImagesOnFailure = (queued: Promise<boolean> | undefined) => {
-      if (!keptImages || !key) return;
+    const recoverOnFailure = (queued: Promise<boolean>, text: string) => {
       void Promise.resolve(queued).then((ok) => {
-        if (ok === false) recoverDraft(key, { text: "", images: keptImages });
+        if (ok === false && key) recoverDraft(key, { text, images: keptImages });
       });
     };
     onAudioUnlock?.();
@@ -1558,7 +1558,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           setAttachError(validationError);
           return;
         }
-        restoreImagesOnFailure(onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, images));
+        recoverOnFailure(onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, images), expansion.prompt);
         setAttachError(null);
         clearInput();
         return;
@@ -1575,7 +1575,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         setAttachError(validationError);
         return;
       }
-      restoreImagesOnFailure(onPromptWithStreamingBehavior(msg, streamingBehavior, images));
+      recoverOnFailure(onPromptWithStreamingBehavior(msg, streamingBehavior, images), msg);
       setAttachError(null);
       clearInput();
       return;
@@ -1586,9 +1586,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       return;
     }
     if (mode === "steer" && onSteer) {
-      restoreImagesOnFailure(onSteer(msg, images));
+      recoverOnFailure(onSteer(msg, images), msg);
     } else if (mode === "followup" && onFollowUp) {
-      restoreImagesOnFailure(onFollowUp(msg, images));
+      recoverOnFailure(onFollowUp(msg, images), msg);
     }
     setAttachError(null);
     clearInput();
