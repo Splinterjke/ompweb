@@ -82,6 +82,7 @@ type NativeSettings = {
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
   mnemopi?: { scoping?: "global" | "per-project" | "per-project-tagged"; autoRecall?: boolean; autoRetain?: boolean; noEmbeddings?: boolean };
   mcp?: { enableProjectConfig?: boolean; renderMarkdownResults?: boolean; notifications?: boolean; notificationDebounceMs?: number };
+  skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean; showStartupDiagnostics?: boolean };
   retry?: { enabled?: boolean; maxRetries?: number; modelFallback?: boolean };
 };
 
@@ -269,6 +270,7 @@ type SettingIndexEntry = {
 
 const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior
+  { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
   { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
   { id: "thinking-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hide Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
   { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
@@ -922,7 +924,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     }
   }, [t]);
 
-  const currentTab = getNormalizedActive(activeTab);
+  const currentTab = activeTab === "skills" ? activeTab : getNormalizedActive(activeTab);
 
   const nativeSettingsRequired = currentTab === "general" || currentTab === "safety" || currentTab === "models" || currentTab === "intelligence" || currentTab === "mcp" || currentTab === "native";
 
@@ -1150,6 +1152,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="extended-detail-blocks" label={t("settingsConfig.extendedDetailBlocks")} description={t("settingsConfig.extendedDetailBlocksDesc")} scope="UI">
                     <ToggleSwitch checked={extendedBlocks} onChange={(next) => onExtendedBlocksChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="skill-startup-notices" label={t("settingsConfig.skillStartupNotices")} description={t("settingsConfig.skillStartupNoticesDesc")} scope="Native OMP">
+                    <ToggleSwitch checked={nativeSettings?.skills?.showStartupDiagnostics !== false} disabled={nativeSettingsLoading} onChange={(enabled) => patchSection("skills", { showStartupDiagnostics: enabled })} />
                   </NativeSetting>
                   <NativeSetting searchId="completion-sound" label={t("settingsConfig.completionSound")} description={t("settingsConfig.completionSoundDesc")} scope="UI">
                     <ToggleSwitch
@@ -1762,6 +1767,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
+                  {cwd && <button type="button" className="settings-back ui-focus-ring" onClick={() => handleSelectTab("skills")}>{t("skillsConfig.title")}</button>}
                 </div>
                 {cwd && (
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
@@ -1791,8 +1797,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* SKILLS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "skills" && (
-              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-skills" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
-                <SkillsConfig embedded cwd={cwd} onClose={onClose} />
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
+                <SkillsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} />
               </div>
             )}
 

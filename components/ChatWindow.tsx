@@ -16,6 +16,7 @@ import { ExtensionDialog } from "./ExtensionDialog";
 import { BtwHistoryDialog, type BtwPanelProps } from "./BtwPanel";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
+import { SkillDiagnosticsNotice } from "./SkillDiagnostics";
 import { WorkspaceState } from "./WorkspaceState";
 import { SessionLoading } from "./SessionLoading";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
@@ -620,6 +621,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     modelSwitching,
     isCompacting, compactResult, tokensPerSecond, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, advisorActive, advisorEnabled, handleAdvisorChange,
+    skillDiagnostics, setSkillStartupDiagnostics,
     notices, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection,
     agentPhase, activeGoal, activePlan, planInfo,
@@ -1354,6 +1356,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               <div className="flex w-full flex-col items-center" style={{ maxWidth: 720, minWidth: 0 }}>
                 {newSessionWorkspace}
                 <NoticeShelf notices={notices} align="right" />
+                <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
                 {chatInputElement}
               </div>
             </div>
@@ -1559,6 +1562,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 />
               </div>
             )}
+            <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
             <ComposerPanels
               cwd={messageCwd}
               onOpenGitTab={onOpenGitTab}

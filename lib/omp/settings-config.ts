@@ -53,7 +53,7 @@ export type NativeSettings = {
   modelRoles?: Record<string, string>;
   generateImage?: { enabled?: boolean };
   computer?: { enabled?: boolean };
-  skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean };
+  skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean; showStartupDiagnostics?: boolean };
   bash?: { autoBackground?: { enabled?: boolean } };
   providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
   security?: { enabled?: boolean };
@@ -282,6 +282,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof skills.enableAgentsUser === "boolean" ? { enableAgentsUser: skills.enableAgentsUser } : {}),
         ...(typeof skills.enableClaudeUser === "boolean" ? { enableClaudeUser: skills.enableClaudeUser } : {}),
         ...(typeof skills.enableClaudeProject === "boolean" ? { enableClaudeProject: skills.enableClaudeProject } : {}),
+        ...(typeof skills.showStartupDiagnostics === "boolean" ? { showStartupDiagnostics: skills.showStartupDiagnostics } : {}),
       } } : {}),
       ...(Object.keys(bash).length ? { bash: { ...(Object.keys(bashAutoBackground).length ? { autoBackground: { ...(typeof bashAutoBackground.enabled === "boolean" ? { enabled: bashAutoBackground.enabled } : {}) } } : {}) } } : {}),
       ...(() => {
@@ -376,6 +377,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
     "skills.enableAgentsUser": settings.skills?.enableAgentsUser,
     "skills.enableClaudeUser": settings.skills?.enableClaudeUser,
     "skills.enableClaudeProject": settings.skills?.enableClaudeProject,
+    "skills.showStartupDiagnostics": settings.skills?.showStartupDiagnostics,
     "bash.autoBackground.enabled": settings.bash?.autoBackground?.enabled,
     "security.enabled": settings.security?.enabled,
     "github.enabled": settings.github?.enabled,

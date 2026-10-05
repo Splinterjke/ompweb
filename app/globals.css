@@ -4557,6 +4557,29 @@ html[data-animation-thinking="false"] .thinking-icon-active {
 }
 .skip-link:focus { transform: translateY(0); }
 
+/* Text-style back/navigate button in settings section headers. */
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm);
+}
+
+.settings-back:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--border);
+}
+
 /* Settings tabpanels keep their natural height inside the scrollable content
    column: only the content column owns the scroll (#56). Without flex-shrink:0
    a tall panel would shrink to the viewport as a flex item, its overflow:hidden
