@@ -329,6 +329,24 @@ hooks/
 - URL opens from a session the tab is **not** viewing always go through the `pendingOpens` confirm queue (`ConfirmDialog` in `AppShell`). The "Open agent links without asking" setting only auto-opens links from the viewed session (`!crossSession && openUrlAutomatically`).
 - The multi-question `ask` dialog is opted into on spawn **and** respawn with `set_ask_dialog` (bounded like `get_state`, so a child that never answers cannot stall startup); older omp rejects the command and the per-question select/editor fallback keeps working. Pending `ask` requests only accept their `answers` payload or a cancel — `isAskAnswers()` shape-checks it in `extension_ui_response`, so a replayed reconnect response cannot drop them with a stale/malformed payload.
 
+### Session moves (omp >= 18.5 ownership) and title generation
+- Only the first omp process to write a session file owns it; a non-owner moves
+  to a sibling file with a new id on its first write and emits a
+  `notice` with `source: "session-persistence"`. `handleFrame` answers it with
+  `followSessionMove()`: the pending flag makes the next `applyIdentity` re-key
+  as the same conversation (stream/run state kept, **old id kept as a registry
+  alias**, new id registered via `onIdentityChange({keepOldId})`). Genuine
+  switches (branch/new/switch) re-key through `refreshIdentityAfterSessionChange`
+  and still drop the old key — a move is the only implicit re-key.
+  `startRpcSession` also reuses any live wrapper reporting the requested session
+  file instead of spawning a second `--resume` child (which would fork again).
+  `onDestroy` removes every key that points at the wrapper.
+- `POST /api/sessions/[id]/auto-name` asks omp to generate the title
+  (`AgentSessionWrapper.generateTitle()`: native `generate_title`, else
+  argument-less `/rename`, never while a run is in flight). Only when omp cannot
+  does it fall back to the stored/derived title (`generated:false`), saved
+  through the live process when there is one.
+
 ### Two kinds of branching — don't confuse them
 - **Fork** ("Fork a new session from this point" button, `messageView.newSessionTitle`, on user and assistant messages; only offered while the session is idle — ChatWindow gates it on `!sessionBusy && !isNew`): creates a new independent `.jsonl` file via omp's `branch` RPC. Shown as a child in the sidebar tree via `parentSession` header field. `branch` only takes a user entry and keeps the history *before* it, so `lib/chat-fork.ts` maps rows: a user prompt forks at itself and its returned text prefills the fork's composer (edit-and-resend, text only — attached images are not restored); an assistant reply forks at the next user prompt so the reply is kept; the newest reply falls back to its own prompt with the prefill. Rows that would edit the very first prompt (an empty fork) offer no fork.
 - **In-session branch** (Continue button / BranchNavigator): navigates the entry tree within the same file. Multiple entries share the same `parentId`. Switching between them calls `/api/sessions/[id]/context?leafId=`.
