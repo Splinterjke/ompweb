@@ -3233,9 +3233,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       const entries = [...steering, ...followUp];
       const texts = entries
         // An image-only message comes back as omp's "[Image]" chip label,
-        // which is not text to put back.
+        // which is not text to put back; a literal "[Image]" without images is.
+        .filter((entry) => !(entry.text === "[Image]" && Array.isArray(entry.images) && entry.images.length > 0))
         .map((entry) => entry.text)
-        .filter((text): text is string => typeof text === "string" && text.length > 0 && text !== "[Image]");
+        .filter((text): text is string => typeof text === "string" && text.length > 0);
       const images = entries.flatMap((entry) => toDraftImages(entry.images));
       if (texts.length > 0 || images.length > 0) recoverDraft(sid, { text: texts.join("\n\n"), images });
       // A failed attempt may have withdrawn messages whose texts were in the

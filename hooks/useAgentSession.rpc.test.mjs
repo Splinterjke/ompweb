@@ -589,7 +589,7 @@ test("Stop takes queued input back through omp in one step, including a steer th
   primeSession("abort-atomic", [userMsg("u0", "loaded question")]);
   const { w } = await startRun("abort-atomic", "hello agent");
   world.abortRestoreQueue = {
-    steering: [{ text: "steer the snapshot missed" }],
+    steering: [{ text: "steer the snapshot missed" }, { text: "[Image]" }],
     followUp: [
       { text: "later follow-up", images: [{ type: "image", data: "x", mimeType: "image/png" }] },
       { text: "[Image]", images: [{ type: "image", data: "y", mimeType: "image/webp" }] },
@@ -602,7 +602,7 @@ test("Stop takes queued input back through omp in one step, including a steer th
   assert.equal(commands.filter((type) => type === "abort_and_restore_queue").length, 1);
   assert.equal(commands.includes("abort"), false, "omp's own abort already stopped the run");
   assert.equal(commands.includes("remove_queued_message"), false);
-  assert.equal(getDraft("abort-atomic")?.value, "steer the snapshot missed\n\nlater follow-up", "an image-only message's label is not text");
+  assert.equal(getDraft("abort-atomic")?.value, "steer the snapshot missed\n\n[Image]\n\nlater follow-up", "only an image-only message's label is dropped");
   assert.deepEqual(getDraft("abort-atomic")?.images, [{ data: "x", mimeType: "image/png" }, { data: "y", mimeType: "image/webp" }]);
   assert.deepEqual(w.latest.notices, []);
   clearDraft("abort-atomic");

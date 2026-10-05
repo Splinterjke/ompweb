@@ -145,3 +145,13 @@ test("a refused follow-up goes back whole to its draft, ahead of what was typed 
   assert.equal(getDraft(KEY)?.value, `${calls[0].message}\n\ntyped meanwhile`, "the text comes back too, ahead of what was typed since");
   assert.equal(screen.getByRole("textbox").value, `${calls[0].message}\n\ntyped meanwhile`);
 });
+
+test("recovered images past the attachment cap all stay in the composer", async () => {
+  const { MAX_ATTACHED_IMAGES } = await jiti.import("@/lib/image-attachments");
+  const { recoverDraft } = await jiti.import("@/lib/draft-store");
+  await renderRunningWithAttachments();
+  const recovered = Array.from({ length: MAX_ATTACHED_IMAGES }, () => ({ data: PNG, mimeType: "image/png" }));
+  await act(async () => { recoverDraft(KEY, { text: "", images: recovered }); });
+  await waitFor(() => assert.equal(getDraft(KEY)?.images.length, MAX_ATTACHED_IMAGES + 1));
+  assert.equal(document.querySelectorAll("img").length >= MAX_ATTACHED_IMAGES + 1, true, "every image has a preview to remove");
+});

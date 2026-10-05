@@ -343,10 +343,11 @@ function draftImageToAttachedImage(image: ChatDraftImage): AttachedImage {
   };
 }
 
+/** Every image comes back, even past MAX_ATTACHED_IMAGES (recovered queue
+ *  messages can exceed it); sending enforces the cap, so the user chooses. */
 function draftImagesToAttachedImages(images: ChatDraftImage[] | undefined): AttachedImage[] {
   return (images ?? [])
     .filter(isBase64ImageWithinLimits)
-    .slice(0, MAX_ATTACHED_IMAGES)
     .map(draftImageToAttachedImage);
 }
 
@@ -1146,7 +1147,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     setValue((prev) => mergeRecoveredText(prev, recovery));
     const images = recovery.images ?? [];
     if (images.length) {
-      setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(images.slice(0, MAX_ATTACHED_IMAGES - prev.length))]);
+      setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(images)]);
     }
   }), []);
   useLayoutEffect(() => {
@@ -1650,8 +1651,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       if (draftKeyRef.current === key) {
         // Same composer still owns the key — restore directly, preserving
         // the local edit UX (focus + caret at the end + autosize). omp
-        // labels an image-only message "[Image]": the label is not text.
-        const restoredText = entry.text === "[Image]" ? "" : entry.text;
+        // labels an image-only message "[Image]": not text when it has images.
+        const restoredText = entry.text === "[Image]" && removed.length > 0 ? "" : entry.text;
         setValue(restoredText);
         setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(removed)]);
         setAtQuery(null);
@@ -1669,7 +1670,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         // The user switched sessions during the round-trip; write the text
         // and images back through the draft store so they reappear if that
         // session is reopened.
-        recoverDraft(key, { text: entry.text === "[Image]" ? "" : entry.text, images: removed });
+        recoverDraft(key, { text: entry.text === "[Image]" && removed.length > 0 ? "" : entry.text, images: removed });
       }
     } catch (error) {
       setQueuedDeleteTarget(null);
