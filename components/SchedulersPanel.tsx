@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Eraser, LoaderCircle, MessageSquareText, Pencil, Play, Power, Plus, SquareTerminal, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Eraser, LoaderCircle, Pencil, Play, Power, Plus, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "./ui/toast";
@@ -408,57 +408,40 @@ export function SchedulersPanel({
 
       {open && (
         <>
-        <div
-          role="tablist"
-          aria-label={t("sessionSidebar.schedulers")}
-          // Full-width strip styled exactly like the right-workbench panel
-          // tabs (the Memories tab strip): flat underline tabs on a panel
-          // background, active tab marked by a 2px accent underline.
-          style={{ display: "flex", alignItems: "center", gap: 2, padding: "4px 6px 0", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)", flexShrink: 0 }}
-        >
-          {([
-            { key: "scripts" as const, Icon: SquareTerminal, count: scriptCount },
-            { key: "prompts" as const, Icon: MessageSquareText, count: promptCount },
-          ]).map(({ key, Icon, count }) => {
-            const active = tab === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setTab(key)}
-                style={{
-                  display: "inline-flex",
-                  flex: "1 1 0",
-                  minWidth: 0,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "5px 9px",
-                  marginBottom: -1,
-                  border: "none",
-                  borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
-                  background: "transparent",
-                  color: active ? "var(--text)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
-                  fontWeight: active ? 600 : 500,
-                  borderRadius: "var(--radius-control) var(--radius-control) 0 0",
-                  whiteSpace: "nowrap",
-                  transition: "color var(--dur-fast) var(--ease-out-warm), border-color var(--dur-fast) var(--ease-out-warm)",
-                }}
-              >
-                <Icon size={13} strokeWidth={1.8} aria-hidden style={{ color: active ? "var(--accent)" : "currentColor" }} />
-                {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
-                {count > 0 && (
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", color: active ? "var(--accent)" : "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", alignItems: "center", padding: "6px 8px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+          <div
+            role="tablist"
+            aria-label={t("sessionSidebar.schedulers")}
+            // Segmented control styled exactly like the Memories table tabs
+            // (Working / Episodic / Facts): a bordered pill group on the panel
+            // background with the active segment filled by --bg-selected. The
+            // group spans the full strip width with each tab taking half.
+            style={{ display: "flex", flex: 1, minWidth: 0, gap: 2, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", padding: 2, background: "var(--bg-panel)" }}
+          >
+            {([
+              { key: "scripts" as const, count: scriptCount },
+              { key: "prompts" as const, count: promptCount },
+            ]).map(({ key, count }) => {
+              const active = tab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(key)}
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap", border: "none", borderRadius: 6, padding: "3px 9px", background: active ? "var(--bg-selected)" : "transparent", color: active ? "var(--text)" : "var(--text-muted)", cursor: "pointer", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontWeight: active ? 600 : 500 }}
+                >
+                  {t(key === "scripts" ? "schedulers.tab.scripts" : "schedulers.tab.prompts")}
+                  {count > 0 && (
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div
           className="animate-slide-down"
