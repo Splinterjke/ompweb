@@ -25,7 +25,7 @@ const VIEW_META: Record<WorkbenchView, { icon: typeof Files; labelKey: string; f
   git: { icon: GitBranch, labelKey: "rightWorkbench.git", fallback: "Git" },
   sidechat: { icon: MessageCircle, labelKey: "rightWorkbench.sideChat", fallback: "Side Chat" },
   browser: { icon: Globe2, labelKey: "rightWorkbench.browser", fallback: "Browser" },
-  memory: { icon: Brain, labelKey: "rightWorkbench.memory", fallback: "Memory" },
+  memory: { icon: Brain, labelKey: "rightWorkbench.memory", fallback: "Memories" },
 };
 
 function emptyLayout(): Layout {
@@ -282,7 +282,7 @@ export function RightWorkbench({
     if (view === "agents") return agents;
     if (view === "git") return cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
-    if (view === "memory") return <MemoryPanel />;
+    if (view === "memory") return <MemoryPanel cwd={cwd} />;
     return <BrowserView />;
   }, [agents, cwd, files, onOpenFile]);
 

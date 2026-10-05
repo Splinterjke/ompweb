@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, RefreshCw, Search, X } from "lucide-react";
+import { ChevronDown, Info, RefreshCw, Search, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { createOmpwebClient } from "@/lib/client";
 import type { MemoryBankInfo, MemoryItem, MemoryTable } from "@/lib/memory-types";
@@ -8,8 +8,8 @@ import { Tooltip } from "../ui/primitives";
 
 /**
  * Single-page read-only viewer for Mnemopi memory banks. All data access goes
- * through lib/memory-client (GET-only routes that open the live SQLite
- * databases strictly read-only); nothing here can mutate an agent's memory.
+ * through the lib/client MemoryClient boundary (GET-only routes opening the
+ * live SQLite databases strictly read-only); nothing here can mutate memory.
  */
 
 const PAGE_LIMIT = 50;
@@ -21,6 +21,27 @@ const TABLE_KEYS: Record<MemoryTable, { labelKey: string; fallback: string }> = 
   episodic: { labelKey: "memory.tabEpisodic", fallback: "Episodic" },
   facts: { labelKey: "memory.tabFacts", fallback: "Facts" },
 };
+
+/** Mnemopi names banks `<project>-<suffix>`; a workspace claims its bank by
+ *  its directory base name (case-insensitive), else the first bank stands. */
+export function bankForWorkspace(banks: MemoryBankInfo[], cwd: string | null | undefined): MemoryBankInfo | null {
+  if (!cwd) return null;
+  const base = (cwd.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "").toLowerCase();
+  if (!base) return null;
+  return banks.find((bank) => {
+    const name = bank.name.toLowerCase();
+    return name === base || name.startsWith(`${base}-`);
+  }) ?? null;
+}
+
+const LEGEND_ROWS: Array<{ term: string; key: string; fallback: string }> = [
+  { term: "F · W · E · G", key: "memory.legendCounts", fallback: "Bank contents: facts · working · episodic · gists" },
+  { term: "fact · entity", key: "memory.legendHeadline", fallback: "Headline chip: memory type / source, or subject · predicate for facts" },
+  { term: "i:0.80", key: "memory.legendImportance", fallback: "Importance of a working/episodic memory (0..1)" },
+  { term: "c:0.70", key: "memory.legendConfidence", fallback: "Confidence of a fact (0..1)" },
+  { term: "×3", key: "memory.legendRecall", fallback: "Times this memory was recalled" },
+  { term: "Σ4", key: "memory.legendSummary", fallback: "Episodic summary consolidated from 4 source entries" },
+];
 
 /** "2026-10-05T17:40:05.331Z" / "2026-10-05 17:40:05" → "2026-10-05 17:40". */
 function formatTimestamp(value: unknown): string {
@@ -46,7 +67,7 @@ function chipStyle(): React.CSSProperties {
   };
 }
 
-export function MemoryPanel() {
+export function MemoryPanel({ cwd }: { cwd?: string | null }) {
   const { t } = useI18n();
   const tt = useCallback((key: string, fallback: string) => {
     const translated = t(key);
@@ -66,6 +87,7 @@ export function MemoryPanel() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   const rowsRequestRef = useRef(0);
 
   useEffect(() => {
@@ -81,7 +103,6 @@ export function MemoryPanel() {
         if (cancelled) return;
         setBanks(list);
         setBanksError(null);
-        setBank((current) => (current && list.some((entry) => entry.name === current) ? current : list[0]?.name ?? null));
       })
       .catch((fetchError: unknown) => {
         if (cancelled || controller.signal.aborted) return;
@@ -92,6 +113,17 @@ export function MemoryPanel() {
       controller.abort();
     };
   }, [banksRefresh]);
+
+  // The workspace's own bank (banks are named `<project>-<suffix>`) is
+  // preselected whenever the bank list or the workspace changes; without a
+  // matching bank the current (or first) selection stands.
+  useEffect(() => {
+    if (!banks) return;
+    const match = bankForWorkspace(banks, cwd);
+    setBank((current) => (match
+      ? match.name
+      : current && banks.some((entry) => entry.name === current) ? current : banks[0]?.name ?? null));
+  }, [banks, cwd]);
 
   // Rows for the selected bank/table/search. The request token keeps a slow
   // earlier response from overwriting a newer page (bank switch mid-flight).
@@ -182,12 +214,28 @@ export function MemoryPanel() {
           </select>
           <ChevronDown size={12} aria-hidden style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} />
         </div>
+        <Tooltip content={tt("memory.legendToggle", "What do these markers mean?")}>
+          <button type="button" aria-label={tt("memory.legendToggle", "What do these markers mean?")} aria-expanded={legendOpen} onClick={() => setLegendOpen((value) => !value)} style={{ display: "grid", placeItems: "center", width: 26, height: 26, flexShrink: 0, border: 0, borderRadius: 5, background: legendOpen ? "var(--bg-selected)" : "transparent", color: legendOpen ? "var(--accent)" : "var(--text-muted)", cursor: "pointer" }}>
+            <Info size={13} aria-hidden />
+          </button>
+        </Tooltip>
         <Tooltip content={tt("memory.refresh", "Reload banks")}>
           <button type="button" aria-label={tt("memory.refresh", "Reload banks")} onClick={() => setBanksRefresh((value) => value + 1)} style={{ display: "grid", placeItems: "center", width: 26, height: 26, flexShrink: 0, border: 0, borderRadius: 5, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}>
             <RefreshCw size={13} aria-hidden />
           </button>
         </Tooltip>
       </div>
+
+      {legendOpen && (
+        <div data-testid="memory-legend" style={{ display: "grid", gap: 5, padding: "8px 10px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)", flexShrink: 0 }}>
+          {LEGEND_ROWS.map((row) => (
+            <div key={row.key} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ ...chipStyle(), flexShrink: 0 }}>{row.term}</span>
+              <span style={{ color: "var(--text-muted)", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>{tt(row.key, row.fallback)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         <div role="tablist" aria-label={tt("memory.tablesLabel", "Memory tables")} style={{ display: "flex", gap: 2, border: "1px solid var(--border)", borderRadius: "var(--radius-control)", padding: 2, background: "var(--bg-panel)" }}>

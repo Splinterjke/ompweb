@@ -8,7 +8,7 @@ export type RightPanelTab = "files" | "agents" | "memory";
 const TABS: Array<{ id: RightPanelTab; Icon: typeof Files; labelKey: string; fallback: string }> = [
   { id: "files", Icon: Files, labelKey: "rightPanel.files", fallback: "Files" },
   { id: "agents", Icon: Bot, labelKey: "rightPanel.agents", fallback: "Agents" },
-  { id: "memory", Icon: Brain, labelKey: "rightPanel.memory", fallback: "Memory" },
+  { id: "memory", Icon: Brain, labelKey: "rightPanel.memory", fallback: "Memories" },
 ];
 
 /** Slim panel-level tab strip (Files / Agents) shown above the

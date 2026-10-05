@@ -18,7 +18,7 @@ test("right workbench starts with six actionable empty-state surfaces including 
   }));
   assert.match(html, /right-workbench-empty/);
   assert.equal((html.match(/<strong/g) ?? []).length, 6);
-  assert.match(html, /Memory/);
+  assert.match(html, /Memories/);
   assert.match(html, /Files/);
   assert.doesNotMatch(html, /drag|combine/i);
 });
