@@ -711,3 +711,133 @@ test("removeQueuedMessage resolves to the removed message's filtered images", as
     assert.deepEqual(await cancellation, [{ data: "AAAA", mimeType: "image/png" }], "malformed entries are dropped");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slow toggle + provider usage-limit badge (port of upstream 892399be).
+// ---------------------------------------------------------------------------
+
+const SLOW_MODEL = { provider: "anthropic", id: "claude-test" };
+const SLOW_STATE = { stage: "low_priority", resetsAtSec: 1770000000, allowanceLeftPercent: 62 };
+
+test("opening a session past its Claude usage limit shows the badge, and an idle /slow off clears it", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.agents.set("s1", { running: false, state: { model: SLOW_MODEL, usageLimit: SLOW_STATE } });
+  const { w, es } = await startRun("s1", "q1");
+  assert.deepEqual(w.latest.usageLimit, SLOW_STATE, "opening past the limit shows the badge");
+
+  // End the run with the limit still breached: the badge survives the run.
+  await act(async () => { es.emit({ type: "agent_end", isTerminal: true }); });
+  await settle(300);
+  assert.deepEqual(w.latest.usageLimit, SLOW_STATE, "an ending run without /slow off keeps the badge");
+
+  // Idle slash refresh (prompt_result with agentInvoked:false): /slow off
+  // changes session state without a run, and the re-read must clear the badge.
+  world.agents.set("s1", { running: false, state: { model: SLOW_MODEL } });
+  await act(async () => { es.emit({ type: "prompt_result", agentInvoked: false }); });
+  await settle();
+  assert.equal(w.latest.usageLimit, undefined, "the idle slash refresh clears the badge");
+});
+
+/** Mount + hydrate, start the run, and stream one assistant delta. */
+async function startStreamingRun(sid) {
+  const { w, es } = await startRun(sid, "q1");
+  await act(async () => {
+    es.emit({ type: "agent_start" });
+    es.emit({ type: "message_update", message: assistantMsg("a1", "streaming") });
+    await Promise.resolve();
+  });
+  await settle(90);
+  assert.equal(w.latest.agentRunning, true);
+  return { w, es };
+}
+
+test("the usage-limit badge appears mid-run and clears when the run ends without it", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  const { w, es } = await startStreamingRun("s1");
+  world.agents.set("s1", { running: true, state: { isStreaming: true, model: SLOW_MODEL, usageLimit: SLOW_STATE } });
+  // The in-run sample ticks every 2s; wait for it rather than a fixed sleep.
+  // (Identity wait becomes a deep compare: the stub round-trips JSON.)
+  for (let waited = 0; JSON.stringify(w.latest.usageLimit) !== JSON.stringify(SLOW_STATE) && waited < 5000; waited += 250) await settle(250);
+  assert.deepEqual(w.latest.usageLimit, SLOW_STATE);
+
+  primeSession("s1", [userMsg("u0", "q"), assistantMsg("a1", "done")]);
+  world.agents.set("s1", { running: false, state: { model: SLOW_MODEL } });
+  await act(async () => { es.emit({ type: "agent_end", isTerminal: true }); });
+  await settle();
+  assert.equal(w.latest.usageLimit, undefined);
+});
+
+test("the Slow toggle follows omp's per-model state and is cleared by a switch to an unsupported model", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.agents.set("s1", { running: true, state: { isStreaming: true, model: SLOW_MODEL, slowModeSupported: true, slowModeEnabled: true } });
+  const w = await mountSession("s1");
+  assert.equal(w.latest.slowModeSupported, true);
+  assert.equal(w.latest.slowModeEnabled, true);
+
+  // A model without /slow reports supported:false and omits enabled; the
+  // persisted Claude setting may still be on, but it must not show as pressed.
+  world.agents.set("s1", { running: true, state: { model: { provider: "openrouter", id: "other" }, slowModeSupported: false } });
+  await act(async () => { lastEs().emit({ type: "model_changed" }); });
+  await settle();
+  assert.equal(w.latest.slowModeSupported, false);
+  assert.equal(w.latest.slowModeEnabled, false);
+});
+
+/** Mounts s1 with Slow at `enabled`, answers the next set_slow_mode with `answer`, and parks the follow-up state refresh so only the command's answer can move the toggle. */
+async function mountSlowToggle(enabled, answer) {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.agents.set("s1", { running: true, state: { model: SLOW_MODEL, slowModeSupported: true, slowModeEnabled: enabled, slowModeScope: "global" } });
+  const w = await mountSession("s1");
+  assert.equal(w.latest.slowModeEnabled, enabled);
+  world.holds.push({
+    match: (method, _url, body) => method === "POST" && body?.type === "set_slow_mode",
+    produce: async () => answer,
+  });
+  world.holds.push({
+    match: (method, url) => method === "GET" && url === "/api/sessions/s1/state",
+    produce: () => new Promise(() => {}),
+  });
+  return w;
+}
+
+for (const enabled of [false, true]) {
+  test(`turning Slow ${enabled ? "on" : "off"} sends set_slow_mode and applies omp's answer`, async () => {
+    const w = await mountSlowToggle(!enabled, { value: { success: true, data: { enabled } } });
+    const posted = world.calls.length;
+    await act(async () => { await w.latest.handleSlowModeChange(enabled); });
+    const command = world.calls.slice(posted).find((call) => call.body?.type === "set_slow_mode");
+    assert.deepEqual(command?.body, { type: "set_slow_mode", enabled });
+    assert.equal(w.latest.slowModeEnabled, enabled);
+    assert.deepEqual(w.latest.notices, []);
+  });
+}
+
+test("a refused set_slow_mode leaves the toggle as it was and shows omp's error", async () => {
+  const refusal = "Slow mode is unavailable for the current model.";
+  const w = await mountSlowToggle(false, { status: 400, value: { error: refusal } });
+  await act(async () => { await w.latest.handleSlowModeChange(true); });
+  assert.equal(w.latest.slowModeEnabled, false);
+  assert.deepEqual(w.latest.notices.map((n) => [n.type, n.message]), [["error", refusal]]);
+});
+
+test("the Slow scope follows omp's state and clears with support", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.agents.set("s1", { running: true, state: { isStreaming: true, model: SLOW_MODEL, slowModeSupported: true, slowModeEnabled: false, slowModeScope: "global" } });
+  const w = await mountSession("s1");
+  assert.equal(w.latest.slowModeScope, "global");
+
+  world.agents.set("s1", { running: true, state: { model: { provider: "openai", id: "gpt-test" }, slowModeSupported: true, slowModeEnabled: false, slowModeScope: "session" } });
+  await act(async () => { lastEs().emit({ type: "model_changed" }); });
+  await settle();
+  assert.equal(w.latest.slowModeScope, "session");
+
+  world.agents.set("s1", { running: true, state: { model: { provider: "openrouter", id: "other" }, slowModeSupported: false } });
+  await act(async () => { lastEs().emit({ type: "model_changed" }); });
+  await settle();
+  assert.equal(w.latest.slowModeScope, undefined);
+});

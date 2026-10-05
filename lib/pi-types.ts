@@ -8,9 +8,11 @@ export interface ContextUsage {
   tokens: number | null;
 }
 
-export type AnthropicSlowModeState =
+export type UsageLimitState =
   | { stage: "low_priority"; resetsAtSec: number; allowanceLeftPercent?: number }
   | { stage: "wrap_up"; resetsAtSec?: number; extraUsage: boolean };
+
+export type SlowModeScope = "session" | "global";
 
 export interface ModelLike {
   id: string;
@@ -83,8 +85,16 @@ export interface RpcSessionState {
   fastMode?: boolean;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
-  /** Structured Claude usage-limit state; absent outside wrap-up and low priority. */
-  anthropicSlowMode?: AnthropicSlowModeState;
+  /** Legacy wire name (omp ≤18.6.1) of the structured usage-limit state. */
+  anthropicSlowMode?: UsageLimitState;
+  /** Renamed wire name (omp ≥ slow-mode RPC); absent on older omp. */
+  usageLimit?: UsageLimitState;
+  /** `/slow` applies to the active model (omp ≥ slow-mode RPC). */
+  slowModeSupported?: boolean;
+  /** Slow setting for the active model; false whenever unsupported. */
+  slowModeEnabled?: boolean;
+  /** Present iff supported: `global` = persisted omp config shared by every session/terminal; `session` = this session's flex tier. */
+  slowModeScope?: SlowModeScope;
   /** omp's reported output throughput; null/undefined when not generating. */
   tokensPerSecond?: number | null;
 }
@@ -114,7 +124,10 @@ export interface WebSessionState {
   thinkingLevel: string;
   fastModeEnabled: boolean;
   fastModeActive?: boolean;
-  anthropicSlowMode?: AnthropicSlowModeState;
+  slowModeSupported: boolean;
+  slowModeEnabled: boolean;
+  slowModeScope?: SlowModeScope;
+  usageLimit?: UsageLimitState;
   autoRetryEnabled?: boolean;
   tokensPerSecond?: number | null;
   todoPhases: TodoPhase[];

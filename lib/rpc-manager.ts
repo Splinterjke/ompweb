@@ -1390,7 +1390,12 @@ export class AgentSessionWrapper {
       // The wrapper's own flag is only the spawn-time cache.
       fastModeEnabled: state.fastModeEnabled ?? state.fastMode ?? this.fastModeEnabled,
       fastModeActive: state.fastModeActive,
-      anthropicSlowMode: state.anthropicSlowMode,
+      // omp < slow-mode RPC reports the legacy name; dual-read so the badge
+      // survives both wire spellings (pinned omp 18.6.1 still emits anthropicSlowMode).
+      usageLimit: state.usageLimit ?? state.anthropicSlowMode,
+      slowModeSupported: state.slowModeSupported ?? false,
+      slowModeEnabled: state.slowModeEnabled ?? false,
+      slowModeScope: state.slowModeScope,
       todoPhases: state.todoPhases ?? [],
       extensionStatuses: Array.from(this.extensionStatuses, ([key, text]) => ({ key, text })),
       extensionWidgets: Array.from(this.extensionWidgets.values()),
@@ -1678,6 +1683,12 @@ export class AgentSessionWrapper {
         const result = await this.proc.sendCommand<{ enabled?: boolean; active?: boolean }>({ type: "set_fast_mode", enabled });
         this.fastModeEnabled = result?.enabled ?? enabled;
         return { enabled: this.fastModeEnabled, active: result?.active ?? false };
+      }
+
+      case "set_slow_mode": {
+        const enabled = command.enabled === true;
+        const result = await this.proc.sendCommand<{ enabled?: boolean }>({ type: "set_slow_mode", enabled });
+        return { enabled: result?.enabled ?? enabled };
       }
 
       case "fork": {

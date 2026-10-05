@@ -2573,7 +2573,7 @@ svg.lucide:not([class*="-spin"]) {
   color: var(--text) !important;
   transform: none;
 }
-.composer-slow-mode-badge {
+.composer-usage-limit-badge {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 260px;
@@ -2613,7 +2613,7 @@ svg.lucide:not([class*="-spin"]) {
     display: none;
   }
   /* Own row above the controls, so it never squeezes the model picker. */
-  .composer-slow-mode-badge { order: -1; flex-basis: 100%; max-width: none; }
+  .composer-usage-limit-badge { order: -1; flex-basis: 100%; max-width: none; }
 
   /* Glyph-only reasoning trigger on phones; provider-defined levels keep
      their name (no glyph element -> the label sibling never matches). */

@@ -30,7 +30,7 @@ import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-prese
 import { expandWebSlashCommand } from "@/lib/web-slash-commands";
 import { validateOutgoingPrompt } from "@/lib/image-attachments";
 import { createActiveGoal, parseActiveGoal, type ActiveGoal, type ActivePlan } from "@/lib/web-mode-state";
-import type { AnthropicSlowModeState, HostToolDefinition, HostUriSchemeDefinition, QueuedMessages, RpcAskDialogAnswer, RpcAvailableSlashCommand, SessionStatsInfo, TodoPhase } from "@/lib/pi-types";
+import type { HostToolDefinition, HostUriSchemeDefinition, QueuedMessages, RpcAskDialogAnswer, RpcAvailableSlashCommand, SessionStatsInfo, SlowModeScope, TodoPhase, UsageLimitState } from "@/lib/pi-types";
 import { isRecord } from "@/lib/type-guards";
 
 // Stable across renders and HMR: the default transport for every hook instance.
@@ -191,7 +191,10 @@ type AgentStateResponse = {
   thinkingLevel?: string;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
-  anthropicSlowMode?: AnthropicSlowModeState;
+  slowModeSupported?: boolean;
+  slowModeEnabled?: boolean;
+  slowModeScope?: SlowModeScope;
+  usageLimit?: UsageLimitState;
   autoRetryEnabled?: boolean;
   interruptMode?: "immediate" | "wait";
   autoCompactionEnabled?: boolean;
@@ -694,8 +697,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
   const [fastModeEnabled, setFastModeEnabled] = useState(false);
   const [fastModeActive, setFastModeActive] = useState<boolean | undefined>(undefined);
-  // omp's Claude usage-limit stage (wrap-up allowance / /slow low priority).
-  const [anthropicSlowMode, setAnthropicSlowMode] = useState<AnthropicSlowModeState | undefined>(undefined);
+  // `/slow` for the active model, as omp reports it: false whenever the model
+  // cannot use it, so it is re-read from every state, never carried over.
+  const [slowModeSupported, setSlowModeSupported] = useState(false);
+  const [slowModeEnabled, setSlowModeEnabled] = useState(false);
+  const [slowModeScope, setSlowModeScope] = useState<SlowModeScope | undefined>(undefined);
+  // omp's provider usage-limit stage (wrap-up allowance / /slow low priority).
+  const [usageLimit, setUsageLimit] = useState<UsageLimitState | undefined>(undefined);
   // Runtime session modes returned by get_state and changed via RPC
   // (set_interrupt_mode / set_auto_compaction).
   const [interruptMode, setInterruptMode] = useState<"immediate" | "wait">("immediate");
@@ -1290,7 +1298,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setFastModeEnabled(agentState.state.fastModeEnabled);
       }
       setFastModeActive(agentState.state?.fastModeActive);
-      setAnthropicSlowMode(agentState.state?.anthropicSlowMode);
+      setSlowModeSupported(agentState.state?.slowModeSupported ?? false);
+      setSlowModeEnabled(agentState.state?.slowModeEnabled ?? false);
+      setSlowModeScope(agentState.state?.slowModeScope);
+      setUsageLimit(agentState.state?.usageLimit);
       if (agentState.state?.autoRetryEnabled !== undefined) setAutoRetryEnabled(agentState.state.autoRetryEnabled);
       if (agentState.state?.interruptMode !== undefined) setInterruptMode(agentState.state.interruptMode);
       if (agentState.state?.autoCompactionEnabled !== undefined) setAutoCompactionEnabled(agentState.state.autoCompactionEnabled);
@@ -1414,7 +1425,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (modelApplied && liveState.thinkingLevel !== undefined) setThinkingLevel(normalizeThinkingLevel(liveState.thinkingLevel));
           if (liveState.fastModeEnabled !== undefined) setFastModeEnabled(liveState.fastModeEnabled);
           setFastModeActive(liveState.fastModeActive);
-          setAnthropicSlowMode(liveState.anthropicSlowMode);
+          setSlowModeSupported(liveState.slowModeSupported ?? false);
+          setSlowModeEnabled(liveState.slowModeEnabled ?? false);
+          setSlowModeScope(liveState.slowModeScope);
+          setUsageLimit(liveState.usageLimit);
           if (liveState.autoRetryEnabled !== undefined) setAutoRetryEnabled(liveState.autoRetryEnabled);
           if (liveState.interruptMode !== undefined) setInterruptMode(liveState.interruptMode);
           if (liveState.autoCompactionEnabled !== undefined) setAutoCompactionEnabled(liveState.autoCompactionEnabled);
@@ -2337,7 +2351,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (cancelled) return;
           const tps = data?.state?.tokensPerSecond;
           setTokensPerSecond(typeof tps === "number" && Number.isFinite(tps) && tps > 0 ? tps : null);
-          if (data?.state) setAnthropicSlowMode(data.state.anthropicSlowMode);
+          if (data?.state) setUsageLimit(data.state.usageLimit);
           applyContextUsage(data);
         })
         .catch(() => {});
@@ -2360,8 +2374,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           const tps = data?.state?.tokensPerSecond;
           const hasValue = typeof tps === "number" && Number.isFinite(tps) && tps > 0;
           setTokensPerSecond(hasValue ? tps : null);
-          // The usage-limit badge changes per Anthropic response (lane entry, % left).
-          if (data?.state) setAnthropicSlowMode(data.state.anthropicSlowMode);
+          // The usage-limit badge changes per provider response (lane entry, % left).
+          if (data?.state) setUsageLimit(data.state.usageLimit);
           applyContextUsage(data);
           if (hasValue) {
             consecutiveNulls = 0;
@@ -2543,7 +2557,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
               // composer toggle stuck on a stale value.
               if (d.state?.fastModeEnabled !== undefined) setFastModeEnabled(d.state.fastModeEnabled);
               setFastModeActive(d.state?.fastModeActive);
-              setAnthropicSlowMode(d.state?.anthropicSlowMode);
+              setSlowModeSupported(d.state?.slowModeSupported ?? false);
+              setSlowModeEnabled(d.state?.slowModeEnabled ?? false);
+              setSlowModeScope(d.state?.slowModeScope);
+              setUsageLimit(d.state?.usageLimit);
               if (d.state?.extensionStatuses !== undefined) setExtensionStatuses(d.state.extensionStatuses ?? []);
               if (d.state?.extensionWidgets !== undefined) setExtensionWidgets(d.state.extensionWidgets ?? []);
               if (d.state?.todoPhases !== undefined) setTodoPhases(d.state.todoPhases ?? []);
@@ -2631,7 +2648,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             if (d.state.thinkingLevel !== undefined) setThinkingLevel(normalizeThinkingLevel(d.state.thinkingLevel));
             if (d.state.fastModeEnabled !== undefined) setFastModeEnabled(d.state.fastModeEnabled);
             setFastModeActive(d.state.fastModeActive);
-            setAnthropicSlowMode(d.state.anthropicSlowMode);
+            setSlowModeSupported(d.state.slowModeSupported ?? false);
+            setSlowModeEnabled(d.state.slowModeEnabled ?? false);
+            setSlowModeScope(d.state.slowModeScope);
+            setUsageLimit(d.state.usageLimit);
             if (d.state.autoRetryEnabled !== undefined) setAutoRetryEnabled(d.state.autoRetryEnabled);
             if (d.state.interruptMode !== undefined) setInterruptMode(d.state.interruptMode);
             if (d.state.autoCompactionEnabled !== undefined) setAutoCompactionEnabled(d.state.autoCompactionEnabled);
@@ -3452,6 +3472,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [addNotice, ensureNewSession, refreshLiveModelState, rejectIfExternallyRunning]);
 
+  const handleSlowModeChange = useCallback(async (enabled: boolean) => {
+    if (rejectIfExternallyRunning()) return;
+    // The toggle only renders from live get_state, so a session always exists.
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    try {
+      const result = await sendAgentCommand<{ enabled?: boolean }>(sid, { type: "set_slow_mode", enabled });
+      setSlowModeEnabled(result?.enabled ?? enabled);
+      void refreshLiveModelState(sid);
+    } catch (error) {
+      console.error("Failed to change Slow mode:", error);
+      addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    }
+  }, [addNotice, rejectIfExternallyRunning, refreshLiveModelState]);
+
   /** Toggle automatic retry for transient model failures. */
   const handleAutoRetryChange = useCallback(async (enabled: boolean) => {
     const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
@@ -4248,7 +4283,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   return {
     // State
     data, loading, error, activeLeafId, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, anthropicSlowMode, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
+    agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
     liveModelMeta,
     retryInfo, contextUsage, systemPrompt, forkingEntryId, modelSwitching,
     isCompacting, compactError, compactResult, tokensPerSecond, currentModel, displayModel, isAutoModelSelection: !displayModel, sessionStats, agentPhase,
@@ -4263,7 +4298,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     sessionIdRef, messagesEndRef, scrollContainerRef,
     pendingScrollToUserRef, initialScrollDoneRef,
     // Actions
-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, handleFastModeChange, handleAutoRetryChange, handleInterruptModeChange, handleAutoCompactionChange, handleSteeringModeChange, handleFollowUpModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, handleInterruptAndReply,
+    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, handleFastModeChange, handleSlowModeChange, handleAutoRetryChange, handleInterruptModeChange, handleAutoCompactionChange, handleSteeringModeChange, handleFollowUpModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, handleInterruptAndReply,
     retrySession: () => { const sid = sessionIdRef.current; if (sid) void loadSession(sid, true, true); },
     handleCompact, handleHandoff, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
     removeQueuedMessage, promoteQueuedToSteer,

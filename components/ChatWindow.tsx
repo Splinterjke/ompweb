@@ -614,7 +614,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, anthropicSlowMode,
+    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, liveToolResults,
     modelSwitching,
@@ -633,7 +633,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     removeQueuedMessage, promoteQueuedToSteer,
     handleBuiltinSlashCommand, togglePreCompactionHistory,
     btw, askBtw,
-    handleThinkingLevelChange, handleFastModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
+    handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
     session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
@@ -1224,9 +1224,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
       fastModeEnabled={fastModeEnabled}
       fastModeActive={fastModeActive}
-      anthropicSlowMode={anthropicSlowMode}
+      usageLimit={usageLimit}
       fastModeSupported={Boolean(displayModelValue && modelList.some((entry) => entry.provider === displayModelValue.provider && entry.id === displayModelValue.modelId && entry.supportsFastMode))}
       onFastModeChange={session || isNew ? handleFastModeChange : undefined}
+      slowModeSupported={slowModeSupported}
+      slowModeEnabled={slowModeEnabled}
+      slowModeScope={slowModeScope}
+      onSlowModeChange={session || isNew ? handleSlowModeChange : undefined}
       onAbortRetry={session ? handleAbortRetry : undefined}
       availableThinkingLevels={availableThinkingLevels}
       thinkingLevelMap={currentThinkingLevelMap}

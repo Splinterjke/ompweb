@@ -2,12 +2,12 @@
 import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
-import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
+import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
 import type { ComposerAccentBg } from "./AppShell";
- import type { AnthropicSlowModeState, GenerationSpeedInfo, SessionStatsInfo } from "@/lib/pi-types";
+ import type { GenerationSpeedInfo, SessionStatsInfo, SlowModeScope, UsageLimitState } from "@/lib/pi-types";
 import type { SttAfter } from "@/lib/stt";
 import { formatCompactNumber, formatPercent } from "@/lib/format";
 import { getSubmitDuringRunBehavior, isWordCompletionEnabled } from "@/lib/composer-prefs";
@@ -84,8 +84,8 @@ function slowModeAllowancePercent(
     : null;
 }
 
-function formatAnthropicSlowModeLabel(
-  state: AnthropicSlowModeState,
+function formatUsageLimitLabel(
+  state: UsageLimitState,
   t: (key: string, vars?: Record<string, string | number>) => string,
   now = Date.now(),
 ): string {
@@ -150,10 +150,16 @@ interface Props {
   onModelChange?: (provider: string, modelId: string) => void;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
-  /** omp's structured Claude usage-limit state, shown as a warning chip. */
-  anthropicSlowMode?: AnthropicSlowModeState;
+  /** omp's structured provider usage-limit state, shown as a warning chip. */
+  usageLimit?: UsageLimitState;
   fastModeSupported?: boolean;
   onFastModeChange?: (enabled: boolean) => void;
+  /** omp reports `/slow` applies to the active model (absent on older omp). */
+  slowModeSupported?: boolean;
+  slowModeEnabled?: boolean;
+  /** `global` = shared persisted omp setting; `session` = this session only. */
+  slowModeScope?: SlowModeScope;
+  onSlowModeChange?: (enabled: boolean) => void;
   onAbortCompaction?: () => void;
   isCompacting?: boolean;
   compactResult?: CompactResultInfo | null;
@@ -635,7 +641,7 @@ function ComposerModeStatus({ goal, goalInfo, onGoalCommand, onTrackGoal, showGo
 }
 
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
-  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, anthropicSlowMode, fastModeSupported, onFastModeChange,
+  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, usageLimit, fastModeSupported, onFastModeChange, slowModeSupported, slowModeEnabled, slowModeScope, onSlowModeChange,
   onAbortCompaction, isCompacting, compactResult,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap, modelNameOverride,
   retryInfo, queuedMessages, inputHistory = [], onAbortRetry,
@@ -700,8 +706,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     return () => { cancelled = true; };
   }, []);
   const { t, tn, locale } = useI18n();
-  const anthropicSlowModeLabel = anthropicSlowMode
-    ? formatAnthropicSlowModeLabel(anthropicSlowMode, t)
+  const usageLimitLabel = usageLimit
+    ? formatUsageLimitLabel(usageLimit, t)
     : undefined;
   const modelCollator = React.useMemo(
     () => new Intl.Collator(locale, { numeric: true, sensitivity: "base" }),
@@ -3334,13 +3340,46 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </Tooltip>
             )}
 
-            {/* Claude usage-limit stage (wrap-up allowance or /slow low
+            {/* Slow toggle — only when omp reports /slow applies to the
+                active model. A `global` scope is a persisted omp setting
+                shared by every session; `session` is this session's flex
+                tier — the tooltip says which. */}
+            {slowModeSupported && onSlowModeChange && (
+              <button
+                type="button"
+                className="composer-slow-control"
+                onClick={() => { if (isStreaming) return; onSlowModeChange(!slowModeEnabled); }}
+                disabled={isStreaming}
+                title={t(slowModeScope === "global" ? "chatInput.slowTitleGlobal" : "chatInput.slowTitleSession")}
+                aria-label={t("chatInput.slowLabel")}
+                aria-pressed={slowModeEnabled}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  height: 28,
+                  padding: "0 8px",
+                  background: slowModeEnabled ? "var(--bg-selected)" : "none",
+                  border: "none",
+                  borderRadius: 7,
+                  color: slowModeEnabled ? "var(--accent)" : "var(--text-muted)",
+                  cursor: isStreaming ? "not-allowed" : "pointer",
+                  opacity: isStreaming ? 0.5 : 1,
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                  fontWeight: 600,
+                  transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
+                }}
+              >
+                <Snail size={11} aria-hidden="true" />
+                {t("chatInput.slowLabel")}
+              </button>
+            )}
+
+            {/* Provider usage-limit stage (wrap-up allowance or /slow low
                 priority), warning-colored like the TUI status line so
                 past-the-limit service is never mistaken for normal.
                 Layout lives in globals.css (own row on mobile). */}
-            {anthropicSlowModeLabel && (
-              <div className="composer-slow-mode-badge" role="status" aria-live="polite" title={anthropicSlowModeLabel}>
-                {anthropicSlowModeLabel}
+            {usageLimitLabel && (
+              <div className="composer-usage-limit-badge" role="status" aria-live="polite" title={usageLimitLabel}>
+                {usageLimitLabel}
               </div>
             )}
 
