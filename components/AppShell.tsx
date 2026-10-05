@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSidebarHistory } from "@/hooks/useSidebarHistory";
+import { useMobileSidebarGestures } from "@/hooks/useMobileSidebarGestures";
 import { ConfirmDialog } from "./ui/field";
 import { SessionSidebar } from "./SessionSidebar";
 import { BackendHealthBanner } from "./BackendDiagnostics";
@@ -1048,6 +1049,17 @@ export function AppShell() {
     setRightPanelOpen(false);
     topBarRef.current?.querySelector<HTMLButtonElement>(".shell-panel-opener")?.focus();
   }, []);
+  // Intentional horizontal swipes open/close the mobile drawers (squashed
+  // port of upstream 6e772b84…fb5f536a). The hook owns a document-level
+  // touch stream and skips inputs, text selections, horizontal scrollers, and
+  // open overlays ([data-top-panel]/[data-branch-panel]/dialogs).
+  useMobileSidebarGestures({
+    enabled: isMobile && mobileSidebarReady && !settingsTab,
+    leftOpen: sidebarOpen,
+    rightOpen: rightPanelOpen,
+    onLeftOpenChange: setSidebarOpen,
+    onRightOpenChange: setRightPanelOpen,
+  });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
@@ -2153,7 +2165,9 @@ export function AppShell() {
                     color: "var(--text-muted)",
                     whiteSpace: "nowrap",
                     minWidth: 0,
-                    maxWidth: "min(400px, 30vw)",
+                    width: "fit-content",
+                    maxWidth: "100%",
+                    justifyContent: "center",
                     flexShrink: 1,
                   }}
                 >
