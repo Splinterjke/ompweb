@@ -157,11 +157,11 @@ export function proxy(request: NextRequest) {
   // The /remote landing page performs the accept itself, so it is exempt
   // too; it renders no data.
   if (isPairingFlowPath(pathname) || pathname === "/remote") return NextResponse.next();
-  // The PWA manifest and its icons are fetched by browsers without
-  // credentials, so they must stay reachable without a session (otherwise a
-  // password-protected app would redirect them to /login and Chrome would
-  // never offer to install / "Add to Home screen" would have no icon).
-  if (pathname === "/manifest.webmanifest" || /^\/icon/.test(pathname) || /^\/favicon/.test(pathname)) return NextResponse.next();
+  // The ordinary browser icons (tab/favicon) stay public: browsers fetch
+  // them without cookies. /api/manifest is authenticated instead — its link
+  // carries credentials and its embedded installation icons need no separate
+  // request, so installs work behind the web password.
+  if (/^\/icon/.test(pathname) || /^\/favicon/.test(pathname)) return NextResponse.next();
   // The rebuild reaper POSTs /api/ui/refresh from loopback after every
   // restart (detached, no session cookie) to mark the boot "updated", wake
   // the Rust host (hostClient.ui.refresh() -> ensure() -> boot), and fan out

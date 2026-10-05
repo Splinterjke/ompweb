@@ -80,6 +80,7 @@ export default function RootLayout({
   return (
     <html lang="en" translate="no" className={`${notoSansMono.variable} ${sourceSerif.variable} ${notoSerifSC.variable} notranslate`} suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/api/manifest" crossOrigin="use-credentials" />
         <meta name="google" content="notranslate" />
         {/* Register before Next's router. Owned sidebar traversals must be handled
             before the router can synchronously restore an older session URL. */}

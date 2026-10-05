@@ -128,6 +128,18 @@ The project incorporates improvements originally contributed by the `kahme247` a
 - 3-zone top bar with a center workspace / session breadcrumb, session-info popover, and sub-agents hub in the composer
 - Removal of unnecessary extras, with layout / gutter and performance cleanups
 
+## 📲 App installation behind authentication
+
+To install the web app, sign in first and use your browser's installation menu.
+The single manifest link requests `/api/manifest` with credentials; that endpoint
+uses the existing web-password guard and private, revalidating caching. Its
+192×192 and 512×512 PNG icons are embedded from the packaged favicon set because
+Android's native installer fetches ordinary icon URLs without authentication
+cookies. The app still launches at `/` with scope `/`.
+
+No public manifest exception is needed; `/api/manifest` stays behind the same
+password guard as every other API route. This does not add offline support.
+
 ## 🛠️ Environment variables
 
 | Variable | Description | Default / Example |
