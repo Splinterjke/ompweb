@@ -139,11 +139,25 @@ The project incorporates improvements originally contributed by the `kahme247` a
 | `OMP_WEB_NO_OPEN` | Skip opening browser automatically | `0` (`1` to skip) |
 | `OMP_WEB_DISABLE_AUTOUPDATE` | Set to `1` to disable update checks and in-app updates; restart after changing | `0` |
 | `OMP_WEB_OMP_BIN` | Absolute path to `omp` binary | Resolved from `PATH` |
+| `OMP_WEB_DEV_ORIGIN` | Additional allowed hostname for the development server (no scheme or port); ignored in production | _None_ |
 | `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL | _None (disabled)_ |
 | `OMP_WEB_STT_KEY` | Optional API key for the STT endpoint | _None_ |
 | `OMP_WEB_STT_MODEL` | Optional model name for the STT endpoint | _None_ |
 | `PI_CODING_AGENT_DIR` | OMP agent home directory | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | Proxies for server-side requests | *(System default)* |
+
+The development server allows loopback and RFC1918 private IPv4 origins
+(`10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`). When using a tunnel
+or reverse proxy with a custom hostname, set it without editing `next.config.ts`:
+
+```bash
+OMP_WEB_DEV_ORIGIN=dev.example.com npm run dev
+```
+
+For a persistent setup, set the variable in your local environment or service
+configuration and restart the dev server. This does not change the bind address
+or enable authentication. Next.js hostname patterns cannot express IPv6 CIDRs;
+a private IPv6 origin must be supplied explicitly (for example, `[fd00::1]`).
 
 ## 📄 License
 
