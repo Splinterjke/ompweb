@@ -12,7 +12,7 @@
   <a href="./README.md">English</a> | <a href="./README.zh-CN.md">简体中文</a> | <a href="./README.ja.md">日本語</a> | <a href="./README.ru.md">Русский</a>
 </p>
 
-ompweb provides a browser workspace for your local omp runtime: session browsing with branch navigation and forking, real-time chat over the omp RPC protocol, model / MCP / skill management, Git worktree switching, and rich file previews.
+ompweb provides a browser workspace for your local omp runtime: session browsing with branch navigation and forking, real-time chat over the omp RPC protocol, model / MCP / skill management, Git worktree switching, and rich file previews. Skill conflicts and redundant installations appear above the composer when an omp session starts; **×** dismisses the notice for that session until the report changes, and **Turn off** and **Settings → Skill startup notices** disable it.
 
 <details>
 <summary>📸 I believe screenshots sometimes describe better than words</summary>
