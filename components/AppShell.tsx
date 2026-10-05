@@ -1753,6 +1753,7 @@ export function AppShell() {
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}
         onBrandClick={() => setSidebarOpen(false)}
+        onClose={isMobile ? handleSidebarToggle : undefined}
       />
     </>
   );
@@ -1861,10 +1862,6 @@ export function AppShell() {
         }
       }
       @media (max-width: 640px) {
-        .sidebar-overlay-backdrop.sidebar-mobile-pending {
-          opacity: 0 !important;
-          pointer-events: none !important;
-        }
         .sidebar-container.sidebar-mobile-pending.sidebar-open {
           transform: translateX(-100%);
           box-shadow: none;
@@ -1873,31 +1870,19 @@ export function AppShell() {
     `}</style>
     <a href="#main-content" className="skip-link">{t("appShell.skipToContent")}</a>
     <div className={panelsSwappedActive ? "shell-panels-swapped" : undefined} style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
-      {/* Mobile overlay backdrop */}
-      <div
-        className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
-        onClick={() => setSidebarOpen(false)}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 199,
-          background: "color-mix(in srgb, var(--text) 28%, transparent)",
-          opacity: sidebarOpen ? 1 : 0,
-          pointerEvents: sidebarOpen ? "auto" : "none",
-          transition: "opacity var(--dur-slow) var(--ease-out-warm)",
-        }}
-      />
 
       {/* Left sidebar */}
       <nav
         aria-label={t("projects.heading")}
+        id="workspace-sidebar"
+        role={isMobile && sidebarOpen ? "dialog" : undefined}
         ref={sidebarContainerRef}
         className={`sidebar-container${sidebarOpen ? " sidebar-open" : " sidebar-closed"}${mobileSidebarReady ? "" : " sidebar-mobile-pending"}${sidebarResizing ? " sidebar-resizing" : ""}`}
         aria-hidden={mobileSidebarReady && !sidebarOpen ? true : undefined}
         inert={mobileSidebarReady && !sidebarOpen ? true : undefined}
         style={{
           background: "var(--bg-panel)",
-          borderRight: panelsSwappedActive ? "none" : "1px solid var(--border)",
+          borderRight: !isMobile && !panelsSwappedActive ? "1px solid var(--border)" : "none",
           borderLeft: panelsSwappedActive ? "1px solid var(--border)" : "none",
           display: "flex",
           flexDirection: "column",
@@ -1968,7 +1953,7 @@ export function AppShell() {
           }}
         />
         {/* Top bar: compact icon-led control bar */}
-        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: isMobile ? 44 : 36, background: "var(--bg-panel)" }}>
+        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: "var(--shell-topbar-height)", background: "var(--bg-panel)" }}>
         {/* Utility group: sidebar, theme, language */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%", paddingLeft: isMobile ? 4 : 8 }}>
           {panelsSwappedActive && (
