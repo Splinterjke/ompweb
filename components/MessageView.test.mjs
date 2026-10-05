@@ -182,10 +182,10 @@ test("committed assistant messages offer copy actions before the fork button", (
   // fork button, ordered before it.
   assert.match(html, /data-message-text/);
   assert.match(html, /message-copy-actions/);
-  assert.match(html, /New session/);
+  assert.match(html, /Fork/);
   assert.ok(
-    html.indexOf("message-copy-actions") < html.indexOf("New session"),
-    "copy actions must appear before the New session (fork) button"
+    html.indexOf("message-copy-actions") < html.indexOf("Fork"),
+    "copy actions must appear before the Fork button"
   );
 });
 
