@@ -931,6 +931,8 @@
   "sessionSidebar.archiveLeafOnly": "Archive child sessions first",
   "sessionSidebar.archiveBrowser": "Archived Sessions",
   "sessionSidebar.archiveBrowserTitle": "Open archived sessions browser",
+  "sessionSidebar.navigateBack": "Navigate back",
+  "sessionSidebar.navigateForward": "Navigate forward",
   "sessionSidebar.delete": "Delete",
   "sessionSidebar.deleteConfirm": "Delete “{title}”?",
   "sessionSidebar.deleteFailed": "Failed to delete the session",

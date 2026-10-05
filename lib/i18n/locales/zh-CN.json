@@ -931,6 +931,8 @@
   "sessionSidebar.archiveLeafOnly": "请先归档子会话",
   "sessionSidebar.archiveBrowser": "已归档会话",
   "sessionSidebar.archiveBrowserTitle": "打开已归档会话浏览器",
+  "sessionSidebar.navigateBack": "后退",
+  "sessionSidebar.navigateForward": "前进",
   "sessionSidebar.delete": "删除",
   "sessionSidebar.deleteConfirm": "删除“{title}”？",
   "sessionSidebar.deleteFailed": "删除会话失败",

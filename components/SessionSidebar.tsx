@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -67,6 +67,16 @@ interface Props {
   updateAvailable?: boolean;
   /** Opens the archived sessions browser. */
   onOpenArchive?: () => void;
+  /** In-app back/forward over visited chat views (sidebar header buttons). */
+  navigation?: {
+    canBack: boolean;
+    canForward: boolean;
+    onBack: () => void;
+    onForward: () => void;
+    /** Platform shortcut label for the tooltip, e.g. "⌘[" / "Alt+←". */
+    backShortcut: string;
+    forwardShortcut: string;
+  };
   /** Fired when the server restarts under us (SSE boot-epoch mismatch) so the
    *  parent can surface the "OmpWeb started" notice with a Refresh button. */
   onServerRestarted?: () => void;
@@ -562,7 +572,7 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1810,7 +1820,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
   ) : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", overflowX: "hidden" }}>
+    <div className="sidebar-shell" style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", overflowX: "hidden" }}>
       {addProjectOpen && (
         <DirectoryPicker
           busy={addProjectBusy}
@@ -1850,6 +1860,28 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
             <BackendStatusButton />
           </div>
           <div style={{ display: "flex", gap: 2 }}>
+            {navigation && (
+              <span className="sidebar-nav-buttons">
+                <Tooltip content={`${t("sessionSidebar.navigateBack")} (${navigation.backShortcut})`} side="bottom">
+                  <SidebarIconButton
+                    label={t("sessionSidebar.navigateBack")}
+                    onClick={navigation.onBack}
+                    disabled={!navigation.canBack}
+                  >
+                    <ArrowLeft size={14} strokeWidth={1.9} aria-hidden="true" />
+                  </SidebarIconButton>
+                </Tooltip>
+                <Tooltip content={`${t("sessionSidebar.navigateForward")} (${navigation.forwardShortcut})`} side="bottom">
+                  <SidebarIconButton
+                    label={t("sessionSidebar.navigateForward")}
+                    onClick={navigation.onForward}
+                    disabled={!navigation.canForward}
+                  >
+                    <ArrowRight size={14} strokeWidth={1.9} aria-hidden="true" />
+                  </SidebarIconButton>
+                </Tooltip>
+              </span>
+            )}
             {onOpenArchive && (
               <Tooltip content={t("sessionSidebar.archiveBrowserTitle")} side="bottom">
                 <SidebarIconButton

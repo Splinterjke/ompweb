@@ -931,6 +931,8 @@
   "sessionSidebar.archiveLeafOnly": "先に子セッションをアーカイブしてください",
   "sessionSidebar.archiveBrowser": "アーカイブされたセッション",
   "sessionSidebar.archiveBrowserTitle": "アーカイブされたセッションを開く",
+  "sessionSidebar.navigateBack": "戻る",
+  "sessionSidebar.navigateForward": "進む",
   "sessionSidebar.delete": "削除",
   "sessionSidebar.deleteConfirm": "「{title}」を削除しますか？",
   "sessionSidebar.deleteFailed": "セッションを削除できませんでした",

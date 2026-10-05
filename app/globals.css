@@ -2344,6 +2344,26 @@ svg.lucide:not([class*="-spin"]) {
   outline-offset: -2px;
 }
 
+/* The sidebar is its own inline-size container so the header can adapt to the
+   user-adjustable width. Below ~250px the title plus five header icons no
+   longer fit, so the navigate back/forward buttons drop out first (they stay
+   reachable via ⌘[/⌘] / Alt+←/→); Archive/Import/Refresh are kept — with the
+   nav pair hidden, the header fits down to the 200px minimum. The wrapper's
+   display/gap live here, NOT as an inline style — an inline display:flex
+   would out-rank the container query's display:none and break the hiding. */
+.sidebar-shell {
+  container-type: inline-size;
+}
+.sidebar-nav-buttons {
+  display: flex;
+  gap: 2px;
+}
+@container (max-width: 250px) {
+  .sidebar-nav-buttons {
+    display: none;
+  }
+}
+
 /* Sidebar overflow menus: compact items with a subtle warm hover highlight. */
 .sidebar-menu-item {
   display: block;

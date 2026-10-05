@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSidebarHistory } from "@/hooks/useSidebarHistory";
+import { useNavigationHistory } from "@/hooks/useNavigationHistory";
+import { isMacPlatform, navigateShortcutHint, NAVIGATION_HISTORY_MAX_ENTRIES } from "@/lib/navigation-history";
 import { useMobileSidebarGestures } from "@/hooks/useMobileSidebarGestures";
 import { ConfirmDialog } from "./ui/field";
 import { SessionSidebar } from "./SessionSidebar";
@@ -1265,7 +1267,7 @@ export function AppShell() {
     return () => window.removeEventListener("omp-open-usage-dashboard", handler);
   }, []);
 
-  const handleNewSession = useCallback((_sessionId: string, cwd: string) => {
+  const handleNewSession = useCallback((_sessionId: string, cwd: string | null) => {
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setInitialSessionRestored(true);
@@ -1282,9 +1284,107 @@ export function AppShell() {
     router.replace("/", { scroll: false });
   }, [router, isMobile]);
 
+  // ---- In-app Navigate back / forward over visited chat views ----
+  // Own stack, not the browser History API (that one belongs to the mobile
+  // back-gesture/exit-guard machinery — see lib/navigation-history.ts).
+  const navigationHistory = useNavigationHistory();
+  const {
+    record: recordNavigationView,
+    peekBack: peekNavigationBack,
+    peekForward: peekNavigationForward,
+  } = navigationHistory;
+  // Bumped by the recording effect on every view change. navigateInHistory
+  // captures it across its await and bails if the user moved on meanwhile,
+  // so a slow session-list fetch can never yank the chat out from under a
+  // view the user just switched to.
+  const navViewVersionRef = useRef(0);
+  const navSessionId = selectedSession?.id ?? null;
+  const navSessionCwd = selectedSession?.cwd ?? null;
+  useEffect(() => {
+    navViewVersionRef.current += 1;
+    recordNavigationView({
+      sessionId: navSessionId,
+      cwd: navSessionId ? navSessionCwd : newSessionCwd,
+    });
+  }, [navSessionId, navSessionCwd, newSessionCwd, recordNavigationView]);
+
+  // Resolves a history entry's session id against the live list. `null`
+  // means the id is gone (entry should be dropped); "unavailable" means the
+  // list itself could not be fetched (keep the entry, abort this navigation).
+  const fetchSessionForNavigation = useCallback(async (sessionId: string): Promise<SessionInfo | null | "unavailable"> => {
+    try {
+      const res = await fetch("/api/sessions");
+      if (!res.ok) return "unavailable";
+      const data = (await res.json()) as { sessions?: SessionInfo[] };
+      return data.sessions?.find((s) => s.id === sessionId) ?? null;
+    } catch {
+      return "unavailable";
+    }
+  }, []);
+
+  const navigateInHistory = useCallback(async (direction: -1 | 1): Promise<void> => {
+    // Dead entries (deleted sessions) are skipped, like browser history
+    // skipping a dead slot; bound the loop by the stack's own cap.
+    for (let attempt = 0; attempt <= NAVIGATION_HISTORY_MAX_ENTRIES; attempt++) {
+      const entry = direction === -1 ? peekNavigationBack() : peekNavigationForward();
+      // Nothing that way: stay put. An exhausted stack never falls through to
+      // the browser's own back/forward — the keystroke is swallowed by the
+      // keyboard layer, so the app can never be backed out of by accident.
+      if (!entry) return;
+      if (entry.sessionId === null) {
+        if (direction === -1) navigationHistory.commitBack();
+        else navigationHistory.commitForward();
+        // Mobile: the workbench is full-width there, so a chat switch would
+        // otherwise land behind it (see rightPanelOpen width in the render).
+        if (isMobile) setRightPanelOpen(false);
+        handleNewSession("navigate-history", entry.cwd);
+        return;
+      }
+      const versionAtPress = navViewVersionRef.current;
+      const session = await fetchSessionForNavigation(entry.sessionId);
+      if (navViewVersionRef.current !== versionAtPress) return; // user moved on: do nothing
+      if (session === "unavailable") return; // list fetch failed: keep the entry, try again next press
+      if (session) {
+        if (direction === -1) navigationHistory.commitBack();
+        else navigationHistory.commitForward();
+        // Mobile: the workbench is full-width there, so a chat switch would
+        // otherwise land behind it (see rightPanelOpen width in the render).
+        if (isMobile) setRightPanelOpen(false);
+        handleSelectSession(session, false);
+        return;
+      }
+      if (direction === -1) navigationHistory.dropPeekedBack();
+      else navigationHistory.dropPeekedForward();
+    }
+  }, [navigationHistory, peekNavigationBack, peekNavigationForward, fetchSessionForNavigation, handleNewSession, handleSelectSession, isMobile]);
+
+  // Shared by the sidebar buttons and the global shortcuts. The keyboard
+  // layer always swallows the keystroke, so both directions stop dead at the
+  // ends of the stack instead of continuing into browser history.
+  const handleNavigateBack = useCallback(() => {
+    void navigateInHistory(-1);
+  }, [navigateInHistory]);
+  const handleNavigateForward = useCallback(() => {
+    void navigateInHistory(1);
+  }, [navigateInHistory]);
+
+  // Tooltip shortcut labels follow the platform (⌘[ vs Alt+←). Computed from
+  // navigator after mount state to keep SSR markup stable.
+  const [navIsMac] = useState(() => isMacPlatform());
+  const sidebarNavigation = useMemo(() => ({
+    canBack: navigationHistory.canBack,
+    canForward: navigationHistory.canForward,
+    onBack: handleNavigateBack,
+    onForward: handleNavigateForward,
+    backShortcut: navigateShortcutHint(-1, navIsMac),
+    forwardShortcut: navigateShortcutHint(1, navIsMac),
+  }), [navigationHistory.canBack, navigationHistory.canForward, handleNavigateBack, handleNavigateForward, navIsMac]);
+
   // Global keyboard shortcuts (handles Esc, Ctrl+Alt+N etc.)
   useGlobalKeyboardShortcuts({
     onNewSession: (cwd: string) => handleNewSession(`kb-${Date.now()}`, cwd),
+    onNavigateBack: handleNavigateBack,
+    onNavigateForward: handleNavigateForward,
     activeCwd,
   });
 
@@ -1766,6 +1866,7 @@ export function AppShell() {
         onOpenGitGraph={handleOpenGitGraph}
         onOpenRemote={() => setSettingsTab("remote")}
         onOpenArchive={() => setArchiveBrowserOpen(true)}
+        navigation={sidebarNavigation}
         updateAvailable={appUpdateAvailable || ompUpdateAvailable}
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}

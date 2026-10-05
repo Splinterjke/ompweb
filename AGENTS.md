@@ -634,6 +634,43 @@ during the wait.
   treatment, and the active project's worktree selector renders directly
   below its row.
 
+### Navigate back / forward (`lib/navigation-history.ts`, `hooks/useNavigationHistory.ts`)
+- Browser-style back/forward over visited chat views (sessions + the new-chat
+  composer), in-memory per page load. It is **omp-web's own stack**, never the
+  browser History API — the app only ever `router.replace`s `?session=`, and
+  the real history stack belongs to the mobile back-gesture / exit-guard
+  machinery (`useSidebarHistory` + the popstate bridge).
+- AppShell records views from one effect keyed on
+  `(selectedSession?.id, selectedSession?.cwd, newSessionCwd)`: recording the entry the cursor
+  already sits on is a no-op, which is what makes back/forward
+  self-suppressing — `navigateInHistory` commits the step, the view lands, the
+  effect re-records the target, nothing is pushed. Any other view change
+  (sidebar/palette select, new chat, session created, fork, project-switch
+  close) pushes normally and truncates the forward branch, browser-style.
+- Applying a step: peek → resolve the session id via `/api/sessions` →
+  commit + `handleSelectSession`, or `handleNewSession` for new-chat entries.
+  A dead id (deleted session) drops that entry and tries the next one in the
+  same direction; a failed list fetch aborts without dropping. A view change
+  during the await (versioned ref) aborts the navigation so a slow fetch
+  never yanks the chat away.
+- Shortcuts live in `useGlobalKeyboardShortcuts`: ⌘[/⌘] (macOS standard),
+  Alt+←/Alt+→ (Windows/Linux standard; on macOS Alt+Arrow stays free — it is
+  word-wise caret movement), plus the mouse back/forward buttons
+  (`BrowserBack`/`BrowserForward`). The keystroke is always swallowed while a
+  handler is registered — an exhausted stack stops dead rather than falling
+  through to the browser's own back/forward, so the app is never backed out
+  of by accident — and shortcuts are skipped entirely while a
+  `[role="dialog"]` modal is open. The sidebar header buttons (before Archived
+  Sessions, wrapped in `.sidebar-nav-buttons`) disable on stack bounds, show
+  the platform shortcut in their tooltip, and hide below a 250px sidebar via
+  the `.sidebar-shell` container query (the keyboard shortcuts still work).
+- Local deltas vs upstream: the header row also carries the
+  `BackendStatusButton`, which is why the container-query breakpoint is 250px
+  (upstream tuned 240px) — the nav pair drops out one icon-width earlier; and
+  on mobile the full-width right workbench is closed when a step is applied
+  (`setRightPanelOpen(false)` in `navigateInHistory`), so the chat switch is
+  actually visible instead of landing behind the panel.
+
 ### File access allow-list
 - `/api/files` is intentionally not a general filesystem browser. Allowed roots come from session cwds, their resolved project roots, `~/omp-cwd-*`, and roots explicitly added with `allowFileRoot()`.
 - `/api/cwd/validate`, `/api/default-cwd`, and `/api/worktrees` call `allowFileRoot()` when they make a new location browsable.
