@@ -631,14 +631,6 @@ function ComposerModeStatus({ goal, goalInfo, onGoalCommand, onTrackGoal, showGo
   );
 }
 
-/** A queued message is text-only: omp refuses attachments in a steer or a
- *  follow-up, whether or not a run is active. One predicate decides both
- *  whether `sendQueued` may queue and what a refused dictation tells the user,
- *  so the rule and its explanation cannot drift apart. */
-export function queueAllowsAttachments(attachedImages: number): boolean {
-  return attachedImages === 0;
-}
-
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
   onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, anthropicSlowMode, fastModeSupported, onFastModeChange,
   onAbortCompaction, isCompacting, compactResult,
@@ -830,13 +822,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       const finalText = base + sep + text;
       insertTextAtCursor(text);
       if (after && onFollowUp) {
-        // Queued messages are text-only: with attachments in the composer the
-        // queue would refuse it, so keep it here and say why.
-        if (!queueAllowsAttachments(attachedImagesRef.current.length)) {
-          toast.info(t("chatInput.dictationKeptWithAttachments"));
-        } else {
-          sendQueued(after === "send" ? "followup" : after, finalText);
-        }
+        sendQueued(after === "send" ? "followup" : after, finalText);
       } else if (after && !isStreaming) {
         void handleSend(finalText);
       } else {
@@ -1033,14 +1019,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const otherFiles = files.filter((file) => !file.type.startsWith("image/"));
     // 普通文件只插路径，任何时刻都允许（不影响运行中的 agent）。
     if (otherFiles.length > 0) insertFilePaths(otherFiles);
-    if (imageFiles.length > 0) {
-      if (isStreaming) {
-        setAttachError("Attachments are disabled while the agent is running.");
-        return;
-      }
-      void processImageFiles(imageFiles);
-    }
-  }, [isStreaming, processImageFiles, insertFilePaths]);
+    if (imageFiles.length > 0) void processImageFiles(imageFiles);
+  }, [processImageFiles, insertFilePaths]);
 
   const processFilesRef = useRef(processFiles);
   processFilesRef.current = processFiles;
@@ -1540,7 +1520,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     if (sendSideQuestion(msg, overrideText)) return;
-    if (!queueAllowsAttachments(attachedImages.length)) return;
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
     if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
@@ -1609,7 +1588,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const primaryActionQueuesMessage =
     !isStreaming
     && (Boolean(value.trim()) || dictationCapturing)
-    && attachedImages.length === 0
     && Boolean(onFollowUp);
 
   // ── Queued follow-up bar ────────────────────────────────────────────────
@@ -2141,7 +2119,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         // only hide files the app can attach (code, config, logs, ...).
         accept="*/*"
         multiple
-        disabled={isStreaming}
         style={{ display: "none" }}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
@@ -2981,13 +2958,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <button
                     role="menuitem"
                     onClick={() => { setPlusMenuOpen(false); fileInputRef.current?.click(); }}
-                    disabled={isStreaming}
                     style={{
                       display: "flex", alignItems: "center", gap: 8, width: "100%",
                       padding: "7px 10px", border: 0, borderRadius: 5,
-                      background: "transparent", color: isStreaming ? "var(--text-dim)" : "var(--text-muted)",
-                      cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
-                      opacity: isStreaming ? 0.5 : 1,
+                      background: "transparent", color: "var(--text-muted)",
+                      cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                     }}
                   >
                     <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -3000,13 +2975,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       role="menuitem"
                       type="button"
                       onClick={() => void pasteClipboardImage()}
-                      disabled={isStreaming}
                       style={{
                         display: "flex", alignItems: "center", gap: 8, width: "100%",
                         padding: "7px 10px", border: 0, borderRadius: 5,
-                        background: "transparent", color: isStreaming ? "var(--text-dim)" : "var(--text-muted)",
-                        cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
-                        opacity: isStreaming ? 0.5 : 1,
+                        background: "transparent", color: "var(--text-muted)",
+                        cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                       }}
                     >
                       <ClipboardPaste size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
