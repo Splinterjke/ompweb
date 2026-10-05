@@ -55,7 +55,7 @@ export type NativeSettings = {
   computer?: { enabled?: boolean };
   skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean };
   bash?: { autoBackground?: { enabled?: boolean } };
-  providers?: { cacheWarming?: "off" | "streaming" | "idle" };
+  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
   security?: { enabled?: boolean };
   github?: { enabled?: boolean };
   colorBlindMode?: boolean;
@@ -181,6 +181,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const bash = isRecord(data.bash) ? data.bash : {};
   const bashAutoBackground = isRecord(bash.autoBackground) ? bash.autoBackground : {};
   const providers = isRecord(data.providers) ? data.providers : {};
+  const autoThinkingSource = providers.autoThinkingSource;
   const security = isRecord(data.security) ? data.security : {};
   const github = isRecord(data.github) ? data.github : {};
   const contextPromotion = isRecord(data.contextPromotion) ? data.contextPromotion : {};
@@ -283,9 +284,13 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof skills.enableClaudeProject === "boolean" ? { enableClaudeProject: skills.enableClaudeProject } : {}),
       } } : {}),
       ...(Object.keys(bash).length ? { bash: { ...(Object.keys(bashAutoBackground).length ? { autoBackground: { ...(typeof bashAutoBackground.enabled === "boolean" ? { enabled: bashAutoBackground.enabled } : {}) } } : {}) } } : {}),
-      ...(Object.keys(providers).length ? { providers: {
-        ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
-      } } : {}),
+      ...(() => {
+        const providersOut = {
+          ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
+          ...(autoThinkingSource === "classifier" || autoThinkingSource === "vendor" ? { autoThinkingSource: autoThinkingSource as "classifier" | "vendor" } : {}),
+        };
+        return Object.keys(providersOut).length ? { providers: providersOut } : {};
+      })(),
       ...(Object.keys(security).length ? { security: { ...(typeof security.enabled === "boolean" ? { enabled: security.enabled } : {}) } } : {}),
       ...(Object.keys(github).length ? { github: { ...(typeof github.enabled === "boolean" ? { enabled: github.enabled } : {}) } } : {}),
       ...(typeof data.colorBlindMode === "boolean" ? { colorBlindMode: data.colorBlindMode } : {}),
@@ -385,6 +390,11 @@ export function writeNativeSettings(settings: NativeSettings): void {
       if (!role.trim() || typeof model !== "string" || !model.trim()) throw new Error("Model roles require non-empty role and model values");
     }
   }
+  assertOptionalRecord(settings.providers, "providers");
+  const autoThinkingSource = settings.providers?.autoThinkingSource;
+  if (autoThinkingSource !== undefined && autoThinkingSource !== "classifier" && autoThinkingSource !== "vendor") {
+    throw new Error("Invalid Auto thinking source");
+  }
   if (settings.providers?.cacheWarming !== undefined && !(settings.providers.cacheWarming in CACHE_WARMING_MODES)) throw new Error("providers.cacheWarming must be one of: off, streaming, idle");
   if (settings.goal?.continuationModes !== undefined && goalContinuationModes(settings.goal.continuationModes) === undefined) throw new Error("goal.continuationModes must be a non-empty array of: interactive, rpc");
   if (settings.tools?.artifactMaxBytes !== undefined && !isArtifactMb(settings.tools.artifactMaxBytes)) throw new Error("tools.artifactMaxBytes must be an integer between 0 and 1024 (MiB; 0 = unlimited)");
@@ -482,6 +492,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
   if (settings.bash?.autoBackground?.enabled !== undefined) doc.setIn(["bash", "autoBackground", "enabled"], settings.bash.autoBackground.enabled);
   if (settings.tools?.artifactMaxBytes !== undefined) doc.setIn(["tools", "artifactMaxBytes"], settings.tools.artifactMaxBytes);
   if (settings.providers?.cacheWarming !== undefined) doc.setIn(["providers", "cacheWarming"], settings.providers.cacheWarming);
+  if (autoThinkingSource !== undefined) doc.setIn(["providers", "autoThinkingSource"], autoThinkingSource);
   if (settings.security?.enabled !== undefined) doc.setIn(["security", "enabled"], settings.security.enabled);
   if (settings.github?.enabled !== undefined) doc.setIn(["github", "enabled"], settings.github.enabled);
   if (settings.colorBlindMode !== undefined) doc.set("colorBlindMode", settings.colorBlindMode);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T20:02:45.812Z",
+  "generatedAt": "2026-10-05T20:17:40.824Z",
   "totals": {
     "files": 37,
     "calls": 180,
@@ -381,7 +381,7 @@
       "file": "components/ChatInput.tsx",
       "calls": [
         {
-          "line": 685,
+          "line": 697,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/pair/devices",
@@ -390,7 +390,7 @@
           "stream": false
         },
         {
-          "line": 1231,
+          "line": 1247,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/skills",
@@ -399,7 +399,7 @@
           "stream": false
         },
         {
-          "line": 1344,
+          "line": 1360,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/file-index",
@@ -408,7 +408,7 @@
           "stream": false
         },
         {
-          "line": 1404,
+          "line": 1420,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/file-index",
@@ -1223,7 +1223,7 @@
       "file": "components/SettingsConfig.tsx",
       "calls": [
         {
-          "line": 392,
+          "line": 394,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1232,7 +1232,7 @@
           "stream": false
         },
         {
-          "line": 402,
+          "line": 404,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1241,7 +1241,7 @@
           "stream": false
         },
         {
-          "line": 441,
+          "line": 443,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1250,7 +1250,7 @@
           "stream": false
         },
         {
-          "line": 458,
+          "line": 460,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/web-settings",
@@ -1259,7 +1259,7 @@
           "stream": false
         },
         {
-          "line": 768,
+          "line": 770,
           "kind": "http",
           "method": "GET",
           "endpoint": "/api/omp-settings",
@@ -1268,7 +1268,7 @@
           "stream": false
         },
         {
-          "line": 792,
+          "line": 794,
           "kind": "http",
           "method": "PUT",
           "endpoint": "/api/omp-settings",
@@ -1277,7 +1277,7 @@
           "stream": false
         },
         {
-          "line": 844,
+          "line": 846,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1286,7 +1286,7 @@
           "stream": false
         },
         {
-          "line": 893,
+          "line": 895,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
@@ -1295,7 +1295,7 @@
           "stream": false
         },
         {
-          "line": 912,
+          "line": 914,
           "kind": "http",
           "method": "POST",
           "endpoint": "/api/omp-update",
