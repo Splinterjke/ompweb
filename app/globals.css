@@ -2766,7 +2766,7 @@ span.token.table {
 }
 @keyframes ui-scale-in {
   from { opacity: 0; transform: scale(0.96) translateY(-4px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes ui-slide-down {
   from { opacity: 0; transform: translateY(-6px); }
@@ -2777,7 +2777,7 @@ span.token.table {
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in    { animation: ui-fade-in   var(--dur-fast) var(--ease-out-warm) both; }
-.animate-scale-in   { animation: ui-scale-in var(--dur-med) var(--ease-out-warm) both; }
+.animate-scale-in   { animation: ui-scale-in var(--dur-med) var(--ease-out-warm) backwards; }
 .animate-slide-down { animation: ui-slide-down var(--dur-med) var(--ease-out-warm) both; }
 .animate-slide-up   { animation: ui-slide-up   var(--dur-med) var(--ease-out-warm) both; }
 @keyframes ui-slide-down-out {
@@ -2848,7 +2848,7 @@ span.token.table {
   box-shadow: var(--shadow-pop);
   color: var(--text);
   overflow: hidden;
-  animation: ui-scale-in var(--dur-fast) var(--ease-out-warm) both;
+  animation: ui-scale-in var(--dur-fast) var(--ease-out-warm) backwards;
 }
 .top-panel-animated {
   transform-origin: top right;
@@ -2901,7 +2901,7 @@ span.token.table {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-pop);
-  animation: ui-scale-in var(--dur-fast) var(--ease-out-warm) both;
+  animation: ui-scale-in var(--dur-fast) var(--ease-out-warm) backwards;
 }
 .picker-panel-header {
   display: flex;
@@ -3343,6 +3343,20 @@ html.dark .dropdown-surface :is(select, option) {
 .mobile-overflow-row:disabled {
   opacity: 0.45;
   cursor: default;
+}
+/* Embedded pickers (theme, language) inside the overflow menu: the row is
+   the visual control, so the trigger inside it collapses to a plain content
+   box — no toolbar-size box, min-width, or own padding fighting the row. */
+.mobile-overflow-row .shell-toolbar-btn {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  border-radius: var(--radius-control);
+  background: none !important;
+}
+.mobile-overflow-row .shell-toolbar-btn:hover {
+  background: none !important;
 }
 /* Subtle group separator between toolbar control clusters */
 .shell-toolbar-divider {
