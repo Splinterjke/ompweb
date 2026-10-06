@@ -2173,10 +2173,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         flexShrink: 0,
         width: isMobile || narrowColumn ? "100%" : undefined,
         background: "transparent",
-         padding: isMobile
-           ? `0 ${CHAT_COLUMN_GUTTER} calc(8px + env(safe-area-inset-bottom))`
-           : narrowColumn
-             ? `0 0 calc(8px + env(safe-area-inset-bottom)) 0`
+         // narrowColumn means the host container already pads the sides
+         // (desktop chat column / mobile new-session hero column with px-4),
+         // so the root must not add a second horizontal gutter on top.
+         padding: narrowColumn
+           ? `0 0 calc(8px + env(safe-area-inset-bottom))`
+           : isMobile
+             ? `0 ${CHAT_COLUMN_GUTTER} calc(8px + env(safe-area-inset-bottom))`
              : `0 ${CHAT_COLUMN_GUTTER} calc(8px + env(safe-area-inset-bottom)) ${CHAT_COLUMN_GUTTER}`,
       }}
     >
