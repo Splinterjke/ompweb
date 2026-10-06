@@ -3415,7 +3415,10 @@ html.dark .dropdown-surface :is(select, option) {
   .shell-topbar-center {
     top: 0;
     bottom: 0;
-    left: var(--topbar-side);
+    /* The phone left cluster is only the drawer toggle (4 + 40px), so the
+       pill starts right after it; the right inset keeps the overflow-cluster
+       (and context-ring) reservation. */
+    left: calc(52px + env(safe-area-inset-left, 0px));
     right: var(--topbar-side);
     width: auto;
     transform: none;

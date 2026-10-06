@@ -2345,9 +2345,9 @@ export function AppShell({ appName }: { appName: string }) {
                     color: "var(--text-muted)",
                     whiteSpace: "nowrap",
                     minWidth: 0,
-                    width: "fit-content",
+                    width: isMobile ? "100%" : "fit-content",
                     maxWidth: "100%",
-                    justifyContent: "center",
+                    justifyContent: isMobile ? "flex-start" : "center",
                     flexShrink: 1,
                   }}
                 >
@@ -2441,9 +2441,9 @@ export function AppShell({ appName }: { appName: string }) {
           {/* Session info mount (port of upstream 193047f1 chain): the
               context ring moves from the composer toolbar to the header on
               phones while the "Context ring (mobile)" setting says "topbar".
-              It floats at the bar's right end, just left of the overflow
-              cluster (the `--topbar-side` inset grows while it is visible
-              so the centered title pill never reaches under it); the bar's
+              It sits flush at the right edge against the overflow cluster
+              (the `--topbar-side` inset grows while it is visible so the
+              title pill never reaches under it; the bar's
               height token sizes it (44px on phones, no extra safe-area
               inset — the PWA viewport carries it). */}
           {isMobile && showChat && contextRingMobile === "topbar" && (
@@ -2452,7 +2452,7 @@ export function AppShell({ appName }: { appName: string }) {
               className="shell-session-info"
               style={{
                 position: "absolute",
-                right: "calc(96px + env(safe-area-inset-right, 0px))",
+                right: "calc(89px + env(safe-area-inset-right, 0px))",
                 top: 0,
                 height: "100%",
                 display: "flex",

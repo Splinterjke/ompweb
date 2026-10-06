@@ -2171,7 +2171,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       aria-label={t("chatInput.composerLabel")}
       style={{
         flexShrink: 0,
-        width: !isMobile && narrowColumn ? "100%" : undefined,
+        width: isMobile || narrowColumn ? "100%" : undefined,
         background: "transparent",
          padding: isMobile
            ? `0 ${CHAT_COLUMN_GUTTER} calc(8px + env(safe-area-inset-bottom))`
