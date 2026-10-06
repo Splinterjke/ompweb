@@ -1743,7 +1743,8 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     ? worktreeStateByProject[normalizeProjectKey(selectedProject)]
     : undefined;
 
-  /** Branch label below the workspace name, from a project's OWN cached Git
+  /** Branch label placed per the "Workspace git stats" setting (name row or
+   *  second line), from a project's OWN cached Git
    *  state. Returns null when the project has no Git state or is not a git
    *  repo, so a non-Git / not-yet-loaded project never shows another repo's
    *  branch. */
@@ -2460,7 +2461,8 @@ interface ProjectRowProps {
   onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
   activeWorktreeSwitcher?: ReactNode;
-  /** Active worktree/branch label shown below the workspace name. */
+  /** Active worktree/branch label shown per the "Workspace git stats"
+   *  placement setting (inline on the name row, below it, or hidden). */
   worktreeBranch?: string | null;
   worktreeToggleRef?: RefObject<HTMLButtonElement | null>;
   worktreeOpen?: boolean;
@@ -2593,13 +2595,14 @@ function ProjectRow({
     ? tree.slice(0, MAX_PROJECT_SESSIONS)
     : tree;
   const showActions = hovered || focusWithin || actionMenuOpen;
-  // "second" placement renders the git stats on a dedicated line under the
-  // workspace name, so the header grows from a fixed 30px row to a two-line
-  // card; "inline" keeps the stats in the same row (previous behavior).
+  // The "Workspace git stats" placement governs BOTH the change-count chip
+  // and the active branch/worktree chip: "inline" keeps them on the name row
+  // (fixed 30px card), "second" stacks them under the name (two-line card),
+  // "hidden" renders neither (the worktree dropdown loses its trigger).
   const secondLineStats = gitStatsPlacement === "second" && Boolean(gitStatsLabel);
-  // The active branch chip now also claims the second line (port of upstream
-  // 3ecbcdff), so the header grows to a two-line card for either of them.
-  const secondLineBranch = Boolean(worktreeBranch && worktreeToggleRef);
+  const branchChipVisible = Boolean(worktreeBranch && worktreeToggleRef);
+  const inlineBranch = gitStatsPlacement === "inline" && branchChipVisible;
+  const secondLineBranch = gitStatsPlacement === "second" && branchChipVisible;
   const hasSecondLine = secondLineStats || secondLineBranch;
   const statsChipStyle = {
     overflow: "hidden",
@@ -2745,6 +2748,42 @@ function ProjectRow({
                     {label}
                   </span>
                 </span>
+                </button>
+              </Tooltip>
+            )}
+            {/* Inline branch chip (the pre-stack look): shown on the name row
+                when the placement setting says "inline"; the same chip moves
+                to the second line under "second". */}
+            {inlineBranch && worktreeBranch && (
+              <Tooltip content={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}>
+                <button
+                className="sidebar-project-action"
+                type="button"
+                ref={worktreeToggleRef}
+                onClick={onToggleWorktrees}
+                aria-expanded={worktreeOpen}
+                aria-haspopup="menu"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  flex: "0 1 auto",
+                  minWidth: 0,
+                  height: 24,
+                  padding: "0 6px",
+                  border: "none",
+                  borderRadius: "var(--radius-control)",
+                  background: worktreeOpen ? "var(--bg-selected)" : "none",
+                  color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
+                  cursor: "pointer",
+                  fontFamily: "var(--app-font-family)",
+                  fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
+                  lineHeight: 1,
+                  transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
+                }}
+              >
+                <span aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }}>·</span>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
                 </button>
               </Tooltip>
             )}

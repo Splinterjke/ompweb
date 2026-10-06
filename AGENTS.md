@@ -527,9 +527,11 @@ during the wait.
   keeps running; `gitPresent` via `onPresenceChange` gates the slot.
 - **Workspace git stats** ("Interface & Behavior" → Workspace git stats):
   `gitStatsPlacement` (`"inline" | "second" | "hidden"`, AppShell →
-  `SessionSidebar`) places the change counts in the sidebar workspace
-  header — inline chip on the name row, a second line under the name, or
-  hidden (hidden workspaces are not polled).
+  `SessionSidebar`) places BOTH the change-count chip and the active
+  branch/worktree chip in the sidebar workspace header — both inline on the
+  name row, both on a second line under the name, or neither shown (hidden
+  workspaces are not polled, and the worktree dropdown loses its inline
+  trigger).
 - Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
   for terminal states) fed by the same `subagent_lifecycle`/`subagent_progress`
   SSE frames; clicking a chip opens the transcript dialog. Non-running
