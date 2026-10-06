@@ -25,3 +25,17 @@ export function getCacheHitRate(input: number, cacheRead: number, cacheWrite: nu
   const denom = input + cacheRead;
   return denom > 0 ? (cacheRead / denom) * 100 : null;
 }
+
+/** Rate-limit reset countdown, e.g. 90 minutes → "1h 30m", 30 hours → "1d 6h". */
+export function formatUsageReset(value: number, unit: "minutes" | "hours"): string {
+  if (unit === "minutes") {
+    if (value < 60) return `${value}m`;
+    const hours = Math.floor(value / 60);
+    const minutes = value % 60;
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (value < 24) return `${value}h`;
+  const days = Math.floor(value / 24);
+  const hours = value % 24;
+  return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+}

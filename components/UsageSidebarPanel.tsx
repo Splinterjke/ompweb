@@ -4,7 +4,7 @@ import { Tooltip } from "./ui/primitives";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, ChevronRight, Eye, EyeOff, Gauge, LoaderCircle, RefreshCw, Settings2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { formatCompactNumber } from "@/lib/format";
+import { formatCompactNumber, formatUsageReset } from "@/lib/format";
 import type { ProviderUsageReport, ProviderUsageWindow } from "@/lib/provider-usage-types";
 import { prewarmStatsData } from "./usage/UsageDashboardModal";
 import { SeparatorHandle } from "./SeparatorHandle";
@@ -31,9 +31,9 @@ function windowText(window: ProviderUsageWindow | undefined, prefix: string): st
   if (!window) return null;
   const percent = Math.round(window.percent);
   const reset = window.resetMinutes !== undefined
-    ? ` (${window.resetMinutes}m)`
+    ? ` (${formatUsageReset(window.resetMinutes, "minutes")})`
     : window.resetHours !== undefined
-      ? ` (${window.resetHours}h)`
+      ? ` (${formatUsageReset(window.resetHours, "hours")})`
       : "";
   return `${prefix} ${percent}%${reset}`;
 }
