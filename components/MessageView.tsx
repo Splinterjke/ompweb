@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useContext, type ComponentProps } from "react";
-import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText } from "lucide-react";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square } from "lucide-react";
+import { useSpeechContext } from "@/hooks/useSpeechSynthesis";
 import { MarkdownBody } from "./MarkdownBody";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
 import { ClickableImage } from "./ImageLightbox";
@@ -539,6 +540,16 @@ function AssistantMessageView({
   const { t, locale } = useI18n();
   const time = showTimestamp ? formatTime(message.timestamp, locale, timeFormat) : null;
   const texts = (message.content ?? []).filter((block): block is TextContent => block.type === "text").map((block) => block.text);
+  const { isSupported: ttsSupported, isSpeaking: ttsSpeaking, speakingId: ttsSpeakingId, toggle: ttsToggle } = useSpeechContext();
+  const speakableText = useMemo(
+    () => (message.content ?? [])
+      .filter((block): block is TextContent => block.type === "text" && typeof block.text === "string")
+      .map((block) => block.text)
+      .join("\n\n"),
+    [message.content],
+  );
+  const messageSpeechId = entryId ?? (message.timestamp ? String(message.timestamp) : "msg");
+  const isThisSpeaking = ttsSpeaking && ttsSpeakingId === messageSpeechId;
   const canFork = !!forkEntryId && !!onFork;
   const blockItems = (message.content ?? [])
     .map((block, index) => ({ block, originalIndex: sourceBlockIndices?.[index] ?? index }))
@@ -570,6 +581,20 @@ function AssistantMessageView({
         {messageActionsVisible && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
             <MessageCopyActions texts={texts} bodyRef={bodyRef} />
+            {ttsSupported && speakableText.trim().length > 0 && (
+              <Tooltip content={isThisSpeaking ? t("messageView.stopSpeech") : t("messageView.readAloud")}>
+                <button
+                  type="button"
+                  className="message-copy-action"
+                  onClick={() => ttsToggle(messageSpeechId, speakableText)}
+                  aria-label={isThisSpeaking ? t("messageView.stopSpeech") : t("messageView.readAloud")}
+                  style={isThisSpeaking ? { color: "var(--accent)", background: "var(--bg-hover)" } : undefined}
+                >
+                  {isThisSpeaking ? <Square size={13} aria-hidden="true" /> : <Volume2 size={13} aria-hidden="true" />}
+                  <span>{isThisSpeaking ? t("messageView.stopSpeech") : t("messageView.read")}</span>
+                </button>
+              </Tooltip>
+            )}
             {canFork && <ForkSessionButton entryId={forkEntryId!} editPrompt={forkEditsPrompt} onFork={onFork!} forking={forking} forkDisabled={forkDisabled} />}
           </div>
         )}

@@ -1018,6 +1018,25 @@ during the wait.
 - `hooks/useAudio.ts` stores the toggle in `localStorage` and reuses one `AudioContext`.
 - Browser autoplay policy means sound must be unlocked from a user gesture; `ChatInput` calls the unlock hook from interactive controls, and `ChatWindow` plays the tone from `onAgentEnd`.
 
+### Text-to-speech read-aloud (`hooks/useSpeechSynthesis.tsx`, `lib/speech-sanitizer.ts`)
+- Port of upstream f852ad0d + 995d9489. Browser `speechSynthesis` reads completed
+  assistant replies; the button label is **Read** (tooltip/aria stay "Read aloud").
+- `useSpeechSynthesis()` is the speech controller (module-level active-utterance
+  ref + `TTS_STATE_EVENT`/`TTS_PREF_EVENT` window events keep several hook
+  instances in sync — `ChatWindow` owns one behind `SpeechSynthesisProvider`,
+  `SettingsConfig` mounts its own just for the settings). Message rows consume
+  it through `useSpeechContext()`, which falls back to an inert
+  (`isSupported: false`) state outside a provider — rows never mount a
+  controller each and SSR renders stay clean.
+- Autoplay must not read the transcript inside `onAgentEnd` (omp fires it in the
+  same tick as the committing state update, so the ref-render is one turn
+  behind): `wrappedOnAgentEnd` only sets `autoplayPendingRef` and the effect on
+  `[messages, entryIds, streamState, agentRunning]` speaks from the render that
+  carries the finished reply (`assistantSpeech()` prefers the live streaming
+  message, else the last assistant row keyed by its entry id).
+- Settings rows render disabled with a "Not supported in this browser" suffix
+  instead of hiding when `speechSynthesis` is absent.
+
 ## omp Session File Format (v3)
 
 Location: `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`

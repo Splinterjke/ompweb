@@ -5,6 +5,7 @@ import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
+import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
@@ -128,6 +129,39 @@ function getUserInputText(message: AgentMessage): string | null {
     .join("\n")
     .trim();
   return text.length > 0 ? text : null;
+}
+
+function assistantSpeech(
+  messages: AgentMessage[],
+  entryIds: string[],
+  streaming: Partial<AgentMessage> | null,
+): { id: string; text: string } | null {
+  const textOf = (content: unknown): string => {
+    if (!Array.isArray(content)) return "";
+    return content
+      .filter((block: unknown): block is { type: "text"; text: string } => {
+        if (!block || typeof block !== "object") return false;
+        if (!("type" in block) || block.type !== "text") return false;
+        return "text" in block && typeof block.text === "string";
+      })
+      .map((block) => block.text)
+      .join("\n\n");
+  };
+
+  if (streaming && streaming.role === "assistant") {
+    const text = textOf(streaming.content);
+    if (text.trim()) {
+      return { id: streaming.timestamp ? String(streaming.timestamp) : "msg", text };
+    }
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    const text = textOf(message.content);
+    if (!text.trim()) break;
+    return { id: entryIds[i] ?? (message.timestamp ? String(message.timestamp) : "msg"), text };
+  }
+  return null;
 }
 
 function withAssistantBlocks(
@@ -605,10 +639,20 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   // on every render (it syncs the latest callback), which would blow away an
   // externally-installed wrapper after the first re-render. playDoneSound
   // checks the sound preference itself.
+  const tts = useSpeechSynthesis();
+  const ttsRef = useRef(tts);
+  useEffect(() => {
+    ttsRef.current = tts;
+  }, [tts]);
+  // omp calls onAgentEnd in the same tick as the state update that commits the
+  // finished reply, so reading the transcript here would still see the previous
+  // one. Flag it instead and speak from the render that carries it.
+  const autoplayPendingRef = useRef(false);
   const playDoneSoundRef = useRef(playDoneSound);
   playDoneSoundRef.current = playDoneSound;
   const wrappedOnAgentEnd = useCallback(() => {
     playDoneSoundRef.current();
+    if (ttsRef.current.autoPlayEnabled) autoplayPendingRef.current = true;
     onAgentEnd?.();
   }, [onAgentEnd]);
 
@@ -645,6 +689,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
     onOpenFile, onOpenUrl,
   });
+
+  useEffect(() => {
+    if (!autoplayPendingRef.current) return;
+    autoplayPendingRef.current = false;
+    const speech = assistantSpeech(messages, entryIds, streamState.streamingMessage);
+    if (speech) ttsRef.current.speak(speech.id, speech.text);
+  }, [messages, entryIds, streamState, agentRunning]);
   const sessionBusy = agentRunning || bashRunning;
   const modelCapacity = useMemo(() => {
     if (!displayModelValue) return null;
@@ -1305,6 +1356,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }
 
   return (
+    <SpeechSynthesisProvider value={tts}>
     <AgentLinkContext.Provider value={openAgentLink}>
     <div
       className="relative flex h-full flex-col overflow-hidden aurora-flow-bg"
@@ -1623,6 +1675,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       />
     </div>
     </AgentLinkContext.Provider>
+    </SpeechSynthesisProvider>
   );
 }
 
