@@ -178,7 +178,7 @@ type AutoNameStatus =
   | { kind: "success" }
   | { kind: "error"; message: string };
 
-export function AppShell() {
+export function AppShell({ appName }: { appName: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
@@ -1790,7 +1790,7 @@ export function AppShell() {
   }, [initialSessionRestored]);
 
   const activeCwdName = activeCwd ? getFileName(activeCwd) || activeCwd : null;
-  const windowTitle = activeCwdName ? `${activeCwdName} - omp web` : "omp web";
+  const windowTitle = activeCwdName ? `${activeCwdName} - ${appName}` : appName;
   // Probe whether the active workspace is a git repository so the GitGraph
   // button can be disabled (with an explanatory tooltip) when it is not.
   // The probe runs whenever the resolved cwd changes; the latest result wins.

@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { Noto_Sans_Mono, Noto_Serif_SC, Source_Serif_4 } from "next/font/google";
 import { BootSkeleton } from "@/components/BootSkeleton";
 import { SIDEBAR_HISTORY_BRIDGE_SCRIPT } from "@/lib/sidebar-history-bridge";
+import { getInstallName } from "@/lib/install-name";
 import { IosFocusZoomGuard } from "@/components/IosFocusZoomGuard";
 import "./globals.css";
 
@@ -30,33 +32,36 @@ const notoSerifSC = Noto_Serif_SC({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "omp web",
-  description: "Web UI for the oh-my-pi (omp) coding agent",
-  // App icon (brand) everywhere: the favicon set is the artwork from
-  // omp.sh — the app/favicon.ico convention file serves the ICO tab
-  // fallback (Next emits its <link> from the file), the SVG source is
-  // preferred by modern tabs, plus the apple-touch-icon size.
-  icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.png", type: "image/png", sizes: "256x256" },
-      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
-      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
-    ],
-    shortcut: "/favicon.png",
-    apple: [{ url: "/favicon-180x180.png", sizes: "180x180", type: "image/png" }],
-  },
-  // PWA-like behavior on iOS: standalone chrome, no telephone autodetect.
-  appleWebApp: {
-    capable: true,
-    title: "omp web",
-    statusBarStyle: "default",
-  },
-  formatDetection: {
-    telephone: false,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const title = getInstallName(await headers());
+  return {
+    title,
+    description: "Web UI for the oh-my-pi (omp) coding agent",
+    // App icon (brand) everywhere: the favicon set is the artwork from
+    // omp.sh — the app/favicon.ico convention file serves the ICO tab
+    // fallback (Next emits its <link> from the file), the SVG source is
+    // preferred by modern tabs, plus the apple-touch-icon size.
+    icons: {
+      icon: [
+        { url: "/favicon.svg", type: "image/svg+xml" },
+        { url: "/favicon.png", type: "image/png", sizes: "256x256" },
+        { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+        { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      ],
+      shortcut: "/favicon.png",
+      apple: [{ url: "/favicon-180x180.png", sizes: "180x180", type: "image/png" }],
+    },
+    // PWA-like behavior on iOS: standalone chrome, no telephone autodetect.
+    appleWebApp: {
+      capable: true,
+      title,
+      statusBarStyle: "default",
+    },
+    formatDetection: {
+      telephone: false,
+    },
+  };
+}
 
 // theme-color adapts to light/dark so the browser chrome / iOS status bar
 // matches the active theme. `viewportFit: cover` lets us honor safe-area-inset
