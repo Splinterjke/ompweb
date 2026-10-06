@@ -2248,7 +2248,7 @@ export function AppShell() {
             onClick={handleSidebarToggle}
             aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
             className="shell-toolbar-btn ui-focus-ring"
-            style={{ marginLeft: "auto" }}
+            style={{ marginLeft: isMobile ? 0 : "auto" }}
           >
             {sidebarToggleIcon}
           </button>
@@ -2280,7 +2280,7 @@ export function AppShell() {
           <button
             type="button"
             className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
-            style={{ marginLeft: "auto" }}
+            style={{ marginLeft: isMobile ? 0 : "auto", marginRight: "5px" }}
             onClick={toggleFilePanel}
             title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
             aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
