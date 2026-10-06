@@ -19,60 +19,60 @@ ompweb предоставляет браузерное рабочее прост
 
 | | |
 | :---: | :---: |
-| Основная рабочая область<br>![](screenshots/screenshot-main-workspace.png) | Автоматизации (задачи-промпты)<br>![](screenshots/automation-tasks-prompt-type-list.png) |
-| Диалог редактирования автоматизации (промпт)<br>![](screenshots/automation-tasks-prompt-type-modal.png) | Компактные хабы композера (в ряд)<br>![](screenshots/compact-hub-bars.png) |
-| Композер новой сессии<br>![](screenshots/new-session-composer.png) | Развёрнутые детали обработки (вызовы инструментов)<br>![](screenshots/chat-expanded-details.png) |
-| Панель задач композера<br>![](screenshots/composer-tasks-expanded.png) | Меню слэш-команд<br>![](screenshots/slash-command-popover.png) |
-| Попап информации о сессии / контекста<br>![](screenshots/session-info-popover.png) | Палитра команд<br>![](screenshots/command-palette.png) |
-| Модальное окно Git Graph<br>![](screenshots/gitgraph-commit-log.png) | Git Graph — дифф коммита<br>![](screenshots/gitgraph-commit-diff.png) |
-| Вкладка просмотрщика файлов<br>![](screenshots/fileviewer-tab.png) | Список сессий (развёрнут)<br>![](screenshots/sidebar-sessions-full.png) |
-| Просмотрщик архивных сессий<br>![](screenshots/archived-sessions.png) | Проводник (hover + mention)<br>![](screenshots/explorer-hover-mention.png) |
-| Панель суб-агентов (задачи)<br>![](screenshots/rightpanel-taskmanager.png) | Git-панель (изменённые файлы)<br>![](screenshots/rightpanel-git.png) |
-| Хаб Goal & Subagents (развёрнут)<br>![](screenshots/composer-goal-subagents.png) | Боковая панель чата<br>![](screenshots/rightpanel-sidechat.png) |
-| Боковой чат (пустое состояние)<br>![](screenshots/rightpanel-sidechat-empty.png) | Панель файлов<br>![](screenshots/rightpanel-files.png) |
-| Всплывающая подсказка миникарты чата<br>![](screenshots/minimap-tooltip.png) | Очередь восстановления при ошибке сервиса<br>![](screenshots/service-error-recovery.png) |
-| Действия чат-событий<br>![](screenshots/chat-event-actions-section.png) | Модальные окна действий чат-событий<br>![](screenshots/chat-event-actions-modals.png) |
-| Диалог редактирования планировщика<br>![](screenshots/scheduler-edit-modal.png) | Встроенный терминал (открыт)<br>![](screenshots/embedded-terminal.png) |
-| Палитра тем — статичная<br>![](screenshots/themepalette-static.png) | Палитра тем — текучая<br>![](screenshots/themepalette-flowing.png) |
-| Палитра тем — анимация<br>![](screenshots/themepalette-motion.png) | Палитра тем — шрифт<br>![](screenshots/themepalette-font.png) |
-| Палитра тем — масштаб UI-шрифта<br>![](screenshots/theme-palette-ui-scale-settings.png) | Настройки — интерфейс и поведение<br>![](screenshots/settings-interface-behavior.png) |
-| Настройки — безопасность и разрешения<br>![](screenshots/settings-safety-approvals.png) | Настройки — параметры ИИ-моделей по умолчанию<br>![](screenshots/settings-ai-model-defaults.png) |
-| Настройки — агент и интеллект<br>![](screenshots/settings-agent-intelligence.png) | Настройки — агенты<br>![](screenshots/settings-agents.png) |
-| Настройки — расширения и инструменты<br>![](screenshots/settings-extensions-tools.png) | Настройки — нативные настройки OMP<br>![](screenshots/settings-omp-native.png) |
-| Настройки — удалённый доступ<br>![](screenshots/settings-remote-access.png) | Настройки — центр навыков<br>![](screenshots/settings-skill-hub.png) |
-| Настройки — система и обновления<br>![](screenshots/settings-system-updates.png) | Настройки — поиск<br>![](screenshots/settings-search.png) |
-| Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) | Тема: Deep Seek<br>![](screenshots/screenshot-theme-deep-seek-dark.png) |
-| Тема: Qwen Chat<br>![](screenshots/screenshot-theme-qwen-dark.png) | Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) |
-| Тема: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) | Тема: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) |
-| Тема: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) | Тема: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) |
-| Тема: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) | Тема: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) |
-| Тема: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) | Тема: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) |
-| Тема: Harbor<br>![](screenshots/screenshot-theme-harbor.png) | Тема: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) |
-| Моб.: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) | Тема: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) |
-| Тема: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) | Тема: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) |
-| Тема: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) | Тема: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) |
-| Тема: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) | Тема: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) |
-| Тема: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) | Тема: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) |
-| Тема: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) | Тема: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) |
-| Тема: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) | Тема: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) |
-| Тема: One Light<br>![](screenshots/screenshot-theme-one-light.png) | Тема: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) |
-| Тема: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) | Тема: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) |
-| Тема: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) | Тема: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) |
-| Моб.: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light-mobile.png) | Моб.: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) |
-| Моб.: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) | Моб.: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) |
-| Моб.: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) | Моб.: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) |
-| Моб.: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) | Моб.: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) |
-| Моб.: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) | Моб.: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) |
-| Моб.: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) | Моб.: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) |
-| Моб.: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) | Моб.: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) |
-| Моб.: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) | Моб.: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) |
-| Моб.: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) | Моб.: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) |
-| Моб.: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) | Моб.: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) |
-| Моб.: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) | Моб.: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) |
-| Моб.: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) | Моб.: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) |
-| Моб.: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) | Моб.: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) |
-| Моб.: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) | Моб.: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) |
-| Моб.: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |  |
+| Основная рабочая область<br>![](screenshots/screenshot-main-workspace.png) | Панель памяти (Mnemopi)<br>![](screenshots/side-panel-workspace-mnemopi-memories.png) |
+| Автоматизации (задачи-промпты)<br>![](screenshots/automation-tasks-prompt-type-list.png) | Диалог редактирования автоматизации (промпт)<br>![](screenshots/automation-tasks-prompt-type-modal.png) |
+| Компактные хабы композера (в ряд)<br>![](screenshots/compact-hub-bars.png) | Композер новой сессии<br>![](screenshots/new-session-composer.png) |
+| Развёрнутые детали обработки (вызовы инструментов)<br>![](screenshots/chat-expanded-details.png) | Панель задач композера<br>![](screenshots/composer-tasks-expanded.png) |
+| Меню слэш-команд<br>![](screenshots/slash-command-popover.png) | Попап информации о сессии / контекста<br>![](screenshots/session-info-popover.png) |
+| Палитра команд<br>![](screenshots/command-palette.png) | Модальное окно Git Graph<br>![](screenshots/gitgraph-commit-log.png) |
+| Git Graph — дифф коммита<br>![](screenshots/gitgraph-commit-diff.png) | Вкладка просмотрщика файлов<br>![](screenshots/fileviewer-tab.png) |
+| Список сессий (развёрнут)<br>![](screenshots/sidebar-sessions-full.png) | Просмотрщик архивных сессий<br>![](screenshots/archived-sessions.png) |
+| Проводник (hover + mention)<br>![](screenshots/explorer-hover-mention.png) | Панель суб-агентов (задачи)<br>![](screenshots/rightpanel-taskmanager.png) |
+| Git-панель (изменённые файлы)<br>![](screenshots/rightpanel-git.png) | Хаб Goal & Subagents (развёрнут)<br>![](screenshots/composer-goal-subagents.png) |
+| Боковая панель чата<br>![](screenshots/rightpanel-sidechat.png) | Боковой чат (пустое состояние)<br>![](screenshots/rightpanel-sidechat-empty.png) |
+| Панель файлов<br>![](screenshots/rightpanel-files.png) | Всплывающая подсказка миникарты чата<br>![](screenshots/minimap-tooltip.png) |
+| Очередь восстановления при ошибке сервиса<br>![](screenshots/service-error-recovery.png) | Действия чат-событий<br>![](screenshots/chat-event-actions-section.png) |
+| Модальные окна действий чат-событий<br>![](screenshots/chat-event-actions-modals.png) | Диалог редактирования планировщика<br>![](screenshots/scheduler-edit-modal.png) |
+| Встроенный терминал (открыт)<br>![](screenshots/embedded-terminal.png) | Палитра тем — статичная<br>![](screenshots/themepalette-static.png) |
+| Палитра тем — текучая<br>![](screenshots/themepalette-flowing.png) | Палитра тем — анимация<br>![](screenshots/themepalette-motion.png) |
+| Палитра тем — шрифт<br>![](screenshots/themepalette-font.png) | Палитра тем — масштаб UI-шрифта<br>![](screenshots/theme-palette-ui-scale-settings.png) |
+| Настройки — интерфейс и поведение<br>![](screenshots/settings-interface-behavior.png) | Настройки — безопасность и разрешения<br>![](screenshots/settings-safety-approvals.png) |
+| Настройки — параметры ИИ-моделей по умолчанию<br>![](screenshots/settings-ai-model-defaults.png) | Настройки — агент и интеллект<br>![](screenshots/settings-agent-intelligence.png) |
+| Настройки — агенты<br>![](screenshots/settings-agents.png) | Настройки — расширения и инструменты<br>![](screenshots/settings-extensions-tools.png) |
+| Настройки — нативные настройки OMP<br>![](screenshots/settings-omp-native.png) | Настройки — удалённый доступ<br>![](screenshots/settings-remote-access.png) |
+| Настройки — центр навыков<br>![](screenshots/settings-skill-hub.png) | Настройки — система и обновления<br>![](screenshots/settings-system-updates.png) |
+| Настройки — поиск<br>![](screenshots/settings-search.png) | Настройки — диагностика и восстановление<br>![](screenshots/settings-diagnostics.png) |
+| Тема: Deep Seek<br>![](screenshots/screenshot-theme-deep-seek-dark.png) | Тема: Qwen Chat<br>![](screenshots/screenshot-theme-qwen-dark.png) |
+| Тема: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light.png) | Тема: omp Midnight<br>![](screenshots/screenshot-theme-omp-midnight.png) |
+| Тема: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-latte.png) | Тема: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro.png) |
+| Тема: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum.png) | Тема: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai.png) |
+| Тема: Monochrome (Codex)<br>![](screenshots/screenshot-theme-monochrome-codex.png) | Тема: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun.png) |
+| Тема: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn.png) | Тема: Harbor<br>![](screenshots/screenshot-theme-harbor.png) |
+| Тема: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha.png) | Моб.: Harbor<br>![](screenshots/screenshot-theme-harbor-mobile.png) |
+| Тема: Nord Arctic<br>![](screenshots/screenshot-theme-nord.png) | Тема: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha.png) |
+| Тема: OLED Obsidian<br>![](screenshots/screenshot-theme-oled.png) | Тема: Warm Ember<br>![](screenshots/screenshot-theme-dark.png) |
+| Тема: Antique Vellum<br>![](screenshots/screenshot-theme-sepia.png) | Тема: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula.png) |
+| Тема: Pine Forest<br>![](screenshots/screenshot-theme-pine.png) | Тема: Horizon Navy<br>![](screenshots/screenshot-theme-navy.png) |
+| Тема: Monokai Classic<br>![](screenshots/screenshot-theme-monokai.png) | Тема: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon.png) |
+| Тема: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine.png) | Тема: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto.png) |
+| Тема: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light.png) | Тема: One Light<br>![](screenshots/screenshot-theme-one-light.png) |
+| Тема: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro.png) | Тема: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte.png) |
+| Тема: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark.png) | Тема: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night.png) |
+| Тема: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine.png) | Моб.: Light (Warm Paper)<br>![](screenshots/screenshot-theme-light-mobile.png) |
+| Моб.: Nord Arctic<br>![](screenshots/screenshot-theme-nord-mobile.png) | Моб.: Oatmeal Latte<br>![](screenshots/screenshot-theme-oatmeal-mobile.png) |
+| Моб.: Kyoto Matcha<br>![](screenshots/screenshot-theme-matcha-mobile.png) | Моб.: OLED Obsidian<br>![](screenshots/screenshot-theme-oled-mobile.png) |
+| Моб.: Monochrome (Codex)<br>![](screenshots/screenshot-theme-codex-mobile.png) | Моб.: Warm Ember<br>![](screenshots/screenshot-theme-dark-mobile.png) |
+| Моб.: Antique Vellum<br>![](screenshots/screenshot-theme-sepia-mobile.png) | Моб.: Dracula Velvet<br>![](screenshots/screenshot-theme-dracula-mobile.png) |
+| Моб.: Pine Forest<br>![](screenshots/screenshot-theme-pine-mobile.png) | Моб.: Horizon Navy<br>![](screenshots/screenshot-theme-navy-mobile.png) |
+| Моб.: Omarchy Monokai<br>![](screenshots/screenshot-theme-omarchy-monokai-mobile.png) | Моб.: Monokai Classic<br>![](screenshots/screenshot-theme-monokai-mobile.png) |
+| Моб.: Monokai Pro<br>![](screenshots/screenshot-theme-monokai-pro-mobile.png) | Моб.: Monokai Pro Octagon<br>![](screenshots/screenshot-theme-monokai-pro-octagon-mobile.png) |
+| Моб.: Monokai Pro Machine<br>![](screenshots/screenshot-theme-monokai-pro-machine-mobile.png) | Моб.: Monokai Pro Ristretto<br>![](screenshots/screenshot-theme-monokai-pro-ristretto-mobile.png) |
+| Моб.: Monokai Pro Spectrum<br>![](screenshots/screenshot-theme-monokai-pro-spectrum-mobile.png) | Моб.: Monokai Pro Light<br>![](screenshots/screenshot-theme-monokai-pro-light-mobile.png) |
+| Моб.: Monokai Pro Light Sun<br>![](screenshots/screenshot-theme-monokai-pro-light-sun-mobile.png) | Моб.: omp Midnight<br>![](screenshots/screenshot-theme-omp-mobile.png) |
+| Моб.: One Light<br>![](screenshots/screenshot-theme-one-light-mobile.png) | Моб.: One Dark Pro<br>![](screenshots/screenshot-theme-one-dark-pro-mobile.png) |
+| Моб.: Catppuccin Latte<br>![](screenshots/screenshot-theme-catppuccin-latte-mobile.png) | Моб.: Catppuccin Mocha<br>![](screenshots/screenshot-theme-catppuccin-mocha-mobile.png) |
+| Моб.: Gruvbox Dark<br>![](screenshots/screenshot-theme-gruvbox-dark-mobile.png) | Моб.: Tokyo Night<br>![](screenshots/screenshot-theme-tokyo-night-mobile.png) |
+| Моб.: Rosé Pine<br>![](screenshots/screenshot-theme-rose-pine-mobile.png) | Моб.: Rosé Pine Dawn<br>![](screenshots/screenshot-theme-rose-pine-dawn-mobile.png) |
 </details>
 
 ## 🐳 Запуск в Docker
