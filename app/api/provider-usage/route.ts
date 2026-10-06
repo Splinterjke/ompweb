@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json(await getProviderUsage({ provider, modelId }));
+    return NextResponse.json(await getProviderUsage({ provider, modelId }, searchParams.get("refresh") === "true"));
   } catch {
     return NextResponse.json(
       { error: "Provider usage is currently unavailable", code: "provider_usage_unavailable" },

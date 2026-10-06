@@ -28,6 +28,7 @@ import { Plus, Trash2, RefreshCw, AlertCircle, Cpu, Settings, Sparkles, Check as
 import { toast } from "@/components/ui/toast";
 import { SettingsTabs, type SettingsTab } from "./SettingsTabs";
 import { ModelCatalogPicker } from "./ModelCatalogPicker";
+import { ProviderAccounts } from "./ProviderAccounts";
 
 
 type IconComponent = React.ComponentType<{ size?: number | string; style?: React.CSSProperties }>;
@@ -1609,6 +1610,8 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
           <p style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-error)" }}>{loginState.message}</p>
         )}
       </div>
+
+      <ProviderAccounts providerId={provider.id} enabled={provider.loggedIn} />
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>

@@ -49,7 +49,7 @@ export function MessageCopyActions({ texts, bodyRef }: {
     <div className="message-copy-actions">
       {[
         { label: t("messageView.copyMessage"), text: t("messageView.copy"), copied: plain.copied, onClick: copyPlain, Icon: Copy },
-        { label: t("messageView.copyMarkdown"), text: t("messageView.copyMarkdown"), copied: markdown.copied, onClick: () => markdown.copy(texts.join("\n\n")), Icon: FileText },
+        { label: t("messageView.copyMarkdown"), text: t("messageView.markdown"), copied: markdown.copied, onClick: () => markdown.copy(texts.join("\n\n")), Icon: FileText },
       ].map(({ label, text, copied, onClick, Icon }) => (
         <Tooltip key={label} content={label}>
           <button type="button" className="message-copy-action" onClick={onClick} aria-label={label}>

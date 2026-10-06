@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { extractTerminalStreamFrames } from "@/lib/terminal-stream";
+import { timeoutSignal } from "@/lib/abort-signal";
 
 interface Props {
   open: boolean;
@@ -80,16 +81,19 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
 
   const sendTerminalInput = useCallback((sid: string, data: string) => {
     inputChainRef.current = inputChainRef.current.then(async () => {
+      // A hung input must not freeze the whole keystroke queue.
+      const { signal, clear } = timeoutSignal(5000);
       try {
         await fetch("/api/terminal/input", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: sid, data }),
-          // A hung input must not freeze the whole keystroke queue.
-          signal: AbortSignal.timeout(5000),
+          signal,
         });
       } catch {
         // Best effort; the next keystroke is still sent.
+      } finally {
+        clear();
       }
     });
   }, []);

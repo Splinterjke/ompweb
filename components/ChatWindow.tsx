@@ -5,17 +5,19 @@ import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
+import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
  import { MessageView } from "./MessageView";
-import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
+import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
 import { BtwHistoryDialog, type BtwPanelProps } from "./BtwPanel";
 import { ChatMinimap } from "./ChatMinimap";
 import { ComposerPanels } from "./ComposerPanels";
+import { SkillDiagnosticsNotice } from "./SkillDiagnostics";
 import { WorkspaceState } from "./WorkspaceState";
 import { SessionLoading } from "./SessionLoading";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
@@ -69,6 +71,10 @@ interface Props {
   onSessionStatsChange?: (stats: SessionStatsInfo | null) => void;
   /** Show the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
+  /** Mobile top-bar mount point for the session information control. */
+  sessionInfoContainer?: HTMLDivElement | null;
+  /** Context ring placement on phone screen sizes (Interface & Behavior). */
+  contextRingMobile?: ContextRingMobilePlacement;
   /** Show the jump-to-bottom button above the composer (Interface & Behavior switch). */
   showJumpToBottomButton?: boolean;
   /** Composer hub bar stacking: vertical column or horizontal row (Interface & Behavior). */
@@ -123,6 +129,39 @@ function getUserInputText(message: AgentMessage): string | null {
     .join("\n")
     .trim();
   return text.length > 0 ? text : null;
+}
+
+function assistantSpeech(
+  messages: AgentMessage[],
+  entryIds: string[],
+  streaming: Partial<AgentMessage> | null,
+): { id: string; text: string } | null {
+  const textOf = (content: unknown): string => {
+    if (!Array.isArray(content)) return "";
+    return content
+      .filter((block: unknown): block is { type: "text"; text: string } => {
+        if (!block || typeof block !== "object") return false;
+        if (!("type" in block) || block.type !== "text") return false;
+        return "text" in block && typeof block.text === "string";
+      })
+      .map((block) => block.text)
+      .join("\n\n");
+  };
+
+  if (streaming && streaming.role === "assistant") {
+    const text = textOf(streaming.content);
+    if (text.trim()) {
+      return { id: streaming.timestamp ? String(streaming.timestamp) : "msg", text };
+    }
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    const text = textOf(message.content);
+    if (!text.trim()) break;
+    return { id: entryIds[i] ?? (message.timestamp ? String(message.timestamp) : "msg"), text };
+  }
+  return null;
 }
 
 function withAssistantBlocks(
@@ -588,7 +627,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -600,10 +639,20 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   // on every render (it syncs the latest callback), which would blow away an
   // externally-installed wrapper after the first re-render. playDoneSound
   // checks the sound preference itself.
+  const tts = useSpeechSynthesis();
+  const ttsRef = useRef(tts);
+  useEffect(() => {
+    ttsRef.current = tts;
+  }, [tts]);
+  // omp calls onAgentEnd in the same tick as the state update that commits the
+  // finished reply, so reading the transcript here would still see the previous
+  // one. Flag it instead and speak from the render that carries it.
+  const autoplayPendingRef = useRef(false);
   const playDoneSoundRef = useRef(playDoneSound);
   playDoneSoundRef.current = playDoneSound;
   const wrappedOnAgentEnd = useCallback(() => {
     playDoneSoundRef.current();
+    if (ttsRef.current.autoPlayEnabled) autoplayPendingRef.current = true;
     onAgentEnd?.();
   }, [onAgentEnd]);
 
@@ -614,12 +663,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, anthropicSlowMode,
+    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, liveToolResults,
     modelSwitching,
     isCompacting, compactResult, tokensPerSecond, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, advisorActive, advisorEnabled, handleAdvisorChange,
+    skillDiagnostics, setSkillStartupDiagnostics,
     notices, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection,
     agentPhase, activeGoal, activePlan, planInfo,
@@ -633,12 +683,19 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     removeQueuedMessage, promoteQueuedToSteer,
     handleBuiltinSlashCommand, togglePreCompactionHistory,
     btw, askBtw,
-    handleThinkingLevelChange, handleFastModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
+    handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
     session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
     onOpenFile, onOpenUrl,
   });
+
+  useEffect(() => {
+    if (!autoplayPendingRef.current) return;
+    autoplayPendingRef.current = false;
+    const speech = assistantSpeech(messages, entryIds, streamState.streamingMessage);
+    if (speech) ttsRef.current.speak(speech.id, speech.text);
+  }, [messages, entryIds, streamState, agentRunning]);
   const sessionBusy = agentRunning || bashRunning;
   const modelCapacity = useMemo(() => {
     if (!displayModelValue) return null;
@@ -1043,9 +1100,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }, [onSelectSubagent]);
 
   const onDrop = useCallback((files: File[]) => {
-    if (sessionBusy) return;
     chatInputRef?.current?.addFiles(files);
-  }, [sessionBusy, chatInputRef]);
+  }, [chatInputRef]);
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
   const inputHistory = useMemo(() => {
@@ -1225,9 +1281,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
       fastModeEnabled={fastModeEnabled}
       fastModeActive={fastModeActive}
-      anthropicSlowMode={anthropicSlowMode}
+      usageLimit={usageLimit}
       fastModeSupported={Boolean(displayModelValue && modelList.some((entry) => entry.provider === displayModelValue.provider && entry.id === displayModelValue.modelId && entry.supportsFastMode))}
       onFastModeChange={session || isNew ? handleFastModeChange : undefined}
+      slowModeSupported={slowModeSupported}
+      slowModeEnabled={slowModeEnabled}
+      slowModeScope={slowModeScope}
+      onSlowModeChange={session || isNew ? handleSlowModeChange : undefined}
       onAbortRetry={session ? handleAbortRetry : undefined}
       availableThinkingLevels={availableThinkingLevels}
       thinkingLevelMap={currentThinkingLevelMap}
@@ -1247,6 +1307,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       modelCapacity={modelCapacity}
       generationSpeed={generationSpeed}
       sessionInfoButtonVisible={sessionInfoButtonVisible}
+      sessionInfoContainer={sessionInfoContainer}
+      contextRingMobile={contextRingMobile}
       composerAccentBg={composerAccentBg}
       onAdvisorChange={handleAdvisorChange}
       advisorModel={advisorModelMeta}
@@ -1294,6 +1356,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }
 
   return (
+    <SpeechSynthesisProvider value={tts}>
     <AgentLinkContext.Provider value={openAgentLink}>
     <div
       className="relative flex h-full flex-col overflow-hidden aurora-flow-bg"
@@ -1302,7 +1365,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {isDragOver && !sessionBusy && (
+      {isDragOver && (
         <div className="drop-zone-overlay pointer-events-none absolute inset-0 z-50 flex items-center justify-center backdrop-blur-[1px]">
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             {[0, 0.8, 1.6].map((delay) => (
@@ -1351,6 +1414,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               <div className="flex w-full flex-col items-center" style={{ maxWidth: 720, minWidth: 0 }}>
                 {newSessionWorkspace}
                 <NoticeShelf notices={notices} align="right" />
+                <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
                 {chatInputElement}
               </div>
             </div>
@@ -1556,6 +1620,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 />
               </div>
             )}
+            <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
             <ComposerPanels
               cwd={messageCwd}
               onOpenGitTab={onOpenGitTab}
@@ -1610,6 +1675,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       />
     </div>
     </AgentLinkContext.Provider>
+    </SpeechSynthesisProvider>
   );
 }
 

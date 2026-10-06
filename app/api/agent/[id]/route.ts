@@ -27,6 +27,14 @@ const NO_SPAWN_REPLIES: Record<string, unknown> = {
   goal_get: { goal: null },
 };
 
+// Live diagnostics of a skill-resolving omp. A saved or exited session has none,
+// and resuming a full child (MCP, LSP) just to answer a read-only inspection or
+// flip one setting is not what the click asked for: with no live wrapper these
+// answer 409 instead of starting omp, and a live idle child is never replaced
+// because the advisor flag differs.
+const LIVE_SESSION_ONLY = new Set(["get_skill_diagnostics", "set_skill_startup_diagnostics"]);
+
+
 /** omp-web's own failures carry a stable code the client can localize; omp's
  * errors stay opaque English text. */
 function commandErrorResponse(error: unknown) {
@@ -72,14 +80,21 @@ export async function POST(
     const noSpawnKey = body.type === "goal"
       ? (body.op === "get" ? "goal_get" : undefined)
       : (Object.hasOwn(NO_SPAWN_REPLIES, body.type) ? body.type : undefined);
+    const liveOnly = LIVE_SESSION_ONLY.has(body.type);
     if (existing?.isAlive()) {
-      if (noSpawnKey || existing.advisorSpawned === advisor || existing.isRunning()) {
+      if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning()) {
         const result = await existing.send(body);
         return NextResponse.json({ success: true, data: result });
       }
       await existing.destroyAndWait();
     }
     if (noSpawnKey) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
+    if (liveOnly) {
+      return NextResponse.json(
+        { error: "Skill diagnostics require a running session", code: "skill_diagnostics_unavailable" },
+        { status: 409 },
+      );
+    }
 
     const resolved = await resolveSessionPathOr404(id);
     if ("response" in resolved) return resolved.response;

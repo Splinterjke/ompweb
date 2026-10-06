@@ -2,12 +2,13 @@
 import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
-import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, Search, Shrink, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
-import type { ComposerAccentBg } from "./AppShell";
- import type { AnthropicSlowModeState, GenerationSpeedInfo, SessionStatsInfo } from "@/lib/pi-types";
+import type { ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
+ import type { GenerationSpeedInfo, SessionStatsInfo, SlowModeScope, UsageLimitState } from "@/lib/pi-types";
 import type { SttAfter } from "@/lib/stt";
 import { formatCompactNumber, formatPercent } from "@/lib/format";
 import { getSubmitDuringRunBehavior, isWordCompletionEnabled } from "@/lib/composer-prefs";
@@ -24,7 +25,7 @@ import { useDictation } from "@/hooks/useDictation";
 import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
-import { clearDraft, getDraft, mergeRecoveredText, recoverDraftText, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
+import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import {
@@ -40,9 +41,21 @@ import {
 import { FolderIcon, getFileIcon } from "./FileIcons";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/lib/i18n";
-import { selectableThinkingLevels } from "@/lib/thinking-levels";
+import { selectableThinkingLevels, DEFAULT_THINKING_LEVELS } from "@/lib/thinking-levels";
 
 const SLOW_MODE_SAME_DAY_MS = 20 * 3_600_000;
+
+/** TUI-style effort icon drawn in CSS (see .composer-thinking-glyph).
+ *  Provider-defined levels have no shape and render no icon; the label
+ *  carries them. */
+function ThinkingGlyph({ level }: { level: string }) {
+  if (!DEFAULT_THINKING_LEVELS.includes(level)) return null;
+  return (
+    <span className="composer-thinking-glyph" data-level={level} aria-hidden="true">
+      {level === "auto" ? <RotateCw strokeWidth={2} /> : null}
+    </span>
+  );
+}
 
 function formatSlowModeResetClock(resetsAtSec: number, now: number): string {
   const date = new Date(resetsAtSec * 1000);
@@ -72,8 +85,8 @@ function slowModeAllowancePercent(
     : null;
 }
 
-function formatAnthropicSlowModeLabel(
-  state: AnthropicSlowModeState,
+function formatUsageLimitLabel(
+  state: UsageLimitState,
   t: (key: string, vars?: Record<string, string | number>) => string,
   now = Date.now(),
 ): string {
@@ -119,9 +132,10 @@ interface Props {
   onPredictWord?: PredictWord;
   onPredictWordFeedback?: PredictWordFeedback;
   onAbort: () => void;
-  onSteer?: (message: string, images?: AttachedImage[]) => void;
-  onFollowUp?: (message: string, images?: AttachedImage[]) => void;
-  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => void;
+  /** Steer/follow-up callbacks resolve false when omp refused the message. */
+  onSteer?: (message: string, images?: AttachedImage[]) => Promise<boolean>;
+  onFollowUp?: (message: string, images?: AttachedImage[]) => Promise<boolean>;
+  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => Promise<boolean>;
   isStreaming: boolean;
   /** True while a prompt is in flight but the turn has not visibly started
    *  yet (session spawn / first stream frame) — shows the loading state
@@ -137,10 +151,16 @@ interface Props {
   onModelChange?: (provider: string, modelId: string) => void;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
-  /** omp's structured Claude usage-limit state, shown as a warning chip. */
-  anthropicSlowMode?: AnthropicSlowModeState;
+  /** omp's structured provider usage-limit state, shown as a warning chip. */
+  usageLimit?: UsageLimitState;
   fastModeSupported?: boolean;
   onFastModeChange?: (enabled: boolean) => void;
+  /** omp reports `/slow` applies to the active model (absent on older omp). */
+  slowModeSupported?: boolean;
+  slowModeEnabled?: boolean;
+  /** `global` = shared persisted omp setting; `session` = this session only. */
+  slowModeScope?: SlowModeScope;
+  onSlowModeChange?: (enabled: boolean) => void;
   onAbortCompaction?: () => void;
   isCompacting?: boolean;
   compactResult?: CompactResultInfo | null;
@@ -160,9 +180,10 @@ interface Props {
   advisorModel?: { name: string; reasoning: string | null } | null;
   /** Compact the session context from the composer toolbar. */
   onCompact?: () => void;
-  /** Cancel one queued message in omp (Edit/Delete/Steer); resolves when
-   * omp confirms the removal so the UI can gate busy state on it. */
-  onRemoveQueuedMessage?: (text: string, queue: keyof QueuedMessages) => Promise<boolean>;
+  /** Cancel one queued message in omp (Edit/Delete/Steer); resolves to its
+   *  images once omp confirms the removal (empty when it had none or omp
+   *  does not return them), else false, so the UI can gate busy state on it. */
+  onRemoveQueuedMessage?: (text: string, queue: keyof QueuedMessages) => Promise<ChatDraftImage[] | false>;
   /** Promote a queued follow-up to a steering message in omp. */
   onPromoteQueuedToSteer?: (text: string) => void | Promise<void>;
   slashCommands?: SlashCommandInfo[];
@@ -203,6 +224,12 @@ interface Props {
   generationSpeed?: GenerationSpeedInfo | null;
   /** Render the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
+  /** Mobile top-bar mount point for the session information control. */
+  sessionInfoContainer?: HTMLDivElement | null;
+  /** Context ring placement on phone screen sizes (Interface & Behavior
+   *  select): top-bar mount, the composer's own anchor, or hidden. Desktop
+   *  always keeps the ring in the composer. */
+  contextRingMobile?: ContextRingMobilePlacement;
   /** Composer shell background secondary color (Interface & Behavior select):
    *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
   composerAccentBg?: ComposerAccentBg;
@@ -329,10 +356,11 @@ function draftImageToAttachedImage(image: ChatDraftImage): AttachedImage {
   };
 }
 
+/** Every image comes back, even past MAX_ATTACHED_IMAGES (recovered queue
+ *  messages can exceed it); sending enforces the cap, so the user chooses. */
 function draftImagesToAttachedImages(images: ChatDraftImage[] | undefined): AttachedImage[] {
   return (images ?? [])
     .filter(isBase64ImageWithinLimits)
-    .slice(0, MAX_ATTACHED_IMAGES)
     .map(draftImageToAttachedImage);
 }
 
@@ -619,16 +647,8 @@ function ComposerModeStatus({ goal, goalInfo, onGoalCommand, onTrackGoal, showGo
   );
 }
 
-/** A queued message is text-only: omp refuses attachments in a steer or a
- *  follow-up, whether or not a run is active. One predicate decides both
- *  whether `sendQueued` may queue and what a refused dictation tells the user,
- *  so the rule and its explanation cannot drift apart. */
-export function queueAllowsAttachments(attachedImages: number): boolean {
-  return attachedImages === 0;
-}
-
 export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatInput({
-  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, anthropicSlowMode, fastModeSupported, onFastModeChange,
+  onSend, onPredictWord, onPredictWordFeedback, onAbort, onSteer, onFollowUp, isStreaming, sendPending, modelSwitching, model, isAutoModelSelection, modelNames, modelList, modelError, modelsLoading, onModelChange, fastModeEnabled, fastModeActive, usageLimit, fastModeSupported, onFastModeChange, slowModeSupported, slowModeEnabled, slowModeScope, onSlowModeChange,
   onAbortCompaction, isCompacting, compactResult,
   thinkingLevel, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap, modelNameOverride,
   retryInfo, queuedMessages, inputHistory = [], onAbortRetry,
@@ -646,6 +666,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   modelCapacity,
   generationSpeed,
   sessionInfoButtonVisible = true,
+  sessionInfoContainer,
+  contextRingMobile = "topbar",
   composerAccentBg = "off",
   onRemoveQueuedMessage,
   onPromoteQueuedToSteer,
@@ -693,8 +715,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     return () => { cancelled = true; };
   }, []);
   const { t, tn, locale } = useI18n();
-  const anthropicSlowModeLabel = anthropicSlowMode
-    ? formatAnthropicSlowModeLabel(anthropicSlowMode, t)
+  const usageLimitLabel = usageLimit
+    ? formatUsageLimitLabel(usageLimit, t)
     : undefined;
   const modelCollator = React.useMemo(
     () => new Intl.Collator(locale, { numeric: true, sensitivity: "base" }),
@@ -731,6 +753,22 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusExpanded, setPlusExpanded] = useState<"tools" | "advisor" | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
+  // The ring portals to its placement target: the AppShell top-bar mount on
+  // phones with the "Context ring (mobile)" setting on "topbar", otherwise
+  // the composer's own anchor (desktop always; phones on "composer"). On
+  // phones with "hidden" no ring renders at all.
+  const [composerContextContainer, setComposerContextContainer] = useState<HTMLDivElement | null>(null);
+  const ringInTopbar = isMobile && contextRingMobile === "topbar";
+  const ringHidden = isMobile && contextRingMobile === "hidden";
+  const ringMobileComposer = isMobile && contextRingMobile === "composer";
+  const contextContainer = ringInTopbar ? sessionInfoContainer : composerContextContainer;
+
+  // Desktop context popover height cap: the room above its trigger, so it only
+  // scrolls when the window is genuinely too short for it.
+  const [contextMaxHeight, setContextMaxHeight] = useState<number>();
+  // Ring top (scale-compensated CSS px) measured on open — the mobile
+  // composer placement anchors its fixed popover above the ring with it.
+  const [contextRingTop, setContextRingTop] = useState<number>();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -741,6 +779,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const contextWrapRef = useRef<HTMLDivElement>(null);
+  const contextReturnFocusRef = useRef<HTMLElement | null>(null);
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
   const slashCommandsRequestedRef = useRef(false);
@@ -814,13 +853,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       const finalText = base + sep + text;
       insertTextAtCursor(text);
       if (after && onFollowUp) {
-        // Queued messages are text-only: with attachments in the composer the
-        // queue would refuse it, so keep it here and say why.
-        if (!queueAllowsAttachments(attachedImagesRef.current.length)) {
-          toast.info(t("chatInput.dictationKeptWithAttachments"));
-        } else {
-          sendQueued(after === "send" ? "followup" : after, finalText);
-        }
+        sendQueued(after === "send" ? "followup" : after, finalText);
       } else if (after && !isStreaming) {
         void handleSend(finalText);
       } else {
@@ -914,7 +947,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       processFiles(files);
     },
     openSessionInfo() {
-      if (!sessionInfoButtonVisible) return;
+      // No ring on this screen (mobile "hidden" placement) — nothing to open.
+      if (ringHidden) return;
       setContextOpen(true);
     },
   }));
@@ -1017,14 +1051,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const otherFiles = files.filter((file) => !file.type.startsWith("image/"));
     // 普通文件只插路径，任何时刻都允许（不影响运行中的 agent）。
     if (otherFiles.length > 0) insertFilePaths(otherFiles);
-    if (imageFiles.length > 0) {
-      if (isStreaming) {
-        setAttachError("Attachments are disabled while the agent is running.");
-        return;
-      }
-      void processImageFiles(imageFiles);
-    }
-  }, [isStreaming, processImageFiles, insertFilePaths]);
+    if (imageFiles.length > 0) void processImageFiles(imageFiles);
+  }, [processImageFiles, insertFilePaths]);
 
   const processFilesRef = useRef(processFiles);
   processFilesRef.current = processFiles;
@@ -1143,9 +1171,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // edited queued message: the recovery payload may target this composer's
   // key even if a newer local value exists, so merge it in front.
   useLayoutEffect(() => subscribeDraftRecovery((key, recovery) => {
-    const { text } = recovery;
-    if (draftKeyRef.current !== key || !text) return;
+    if (draftKeyRef.current !== key) return;
+    // Merge with pending edits rather than replacing them with a store snapshot.
     setValue((prev) => mergeRecoveredText(prev, recovery));
+    const images = recovery.images ?? [];
+    if (images.length) {
+      setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(images)]);
+    }
   }), []);
   useLayoutEffect(() => {
     if (value === lastMeasuredValueRef.current) return;
@@ -1524,7 +1556,17 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
     if (sendSideQuestion(msg, overrideText)) return;
-    if (!queueAllowsAttachments(attachedImages.length)) return;
+    // The queue callbacks resolve false when omp refused the message: it goes
+    // back, text and images together, to the draft it was sent from, even if
+    // the user has typed or switched sessions since.
+    const key = draftKeyRef.current;
+    const images = attachedImages.length ? attachedImages : undefined;
+    const keptImages = images?.map(imageToDraftImage);
+    const recoverOnFailure = (queued: Promise<boolean>, text: string) => {
+      void Promise.resolve(queued).then((ok) => {
+        if (ok === false && key) recoverDraft(key, { text, images: keptImages });
+      });
+    };
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
     if (msg.startsWith("/") && onPromptWithStreamingBehavior) {
@@ -1546,7 +1588,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           setAttachError(validationError);
           return;
         }
-        onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, attachedImages.length ? attachedImages : undefined);
+        recoverOnFailure(onPromptWithStreamingBehavior(expansion.prompt, streamingBehavior, images), expansion.prompt);
         setAttachError(null);
         clearInput();
         return;
@@ -1563,7 +1605,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         setAttachError(validationError);
         return;
       }
-      onPromptWithStreamingBehavior(msg, streamingBehavior, attachedImages.length ? attachedImages : undefined);
+      recoverOnFailure(onPromptWithStreamingBehavior(msg, streamingBehavior, images), msg);
       setAttachError(null);
       clearInput();
       return;
@@ -1574,9 +1616,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       return;
     }
     if (mode === "steer" && onSteer) {
-      onSteer(msg, attachedImages.length ? attachedImages : undefined);
+      recoverOnFailure(onSteer(msg, images), msg);
     } else if (mode === "followup" && onFollowUp) {
-      onFollowUp(msg, attachedImages.length ? attachedImages : undefined);
+      recoverOnFailure(onFollowUp(msg, images), msg);
     }
     setAttachError(null);
     clearInput();
@@ -1593,7 +1635,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const primaryActionQueuesMessage =
     !isStreaming
     && (Boolean(value.trim()) || dictationCapturing)
-    && attachedImages.length === 0
     && Boolean(onFollowUp);
 
   // ── Queued follow-up bar ────────────────────────────────────────────────
@@ -1638,8 +1679,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       if (!removed || action !== "edit") return;
       if (draftKeyRef.current === key) {
         // Same composer still owns the key — restore directly, preserving
-        // the local edit UX (focus + caret at the end + autosize).
-        setValue(entry.text);
+        // the local edit UX (focus + caret at the end + autosize). omp
+        // labels an image-only message "[Image]": not text when it has images.
+        const restoredText = entry.text === "[Image]" && removed.length > 0 ? "" : entry.text;
+        setValue(restoredText);
+        setAttachedImages((prev) => [...prev, ...draftImagesToAttachedImages(removed)]);
         setAtQuery(null);
         setSlashMatch(null);
         setHistoryMenuOpen(false);
@@ -1647,15 +1691,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           const ta = textareaRef.current;
           if (!ta) return;
           ta.focus();
-          ta.setSelectionRange(entry.text.length, entry.text.length);
+          ta.setSelectionRange(restoredText.length, restoredText.length);
           ta.style.height = "auto";
           ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
         });
       } else {
         // The user switched sessions during the round-trip; write the text
-        // back through the draft store so it reappears if that session is
-        // reopened.
-        recoverDraftText(key, entry.text);
+        // and images back through the draft store so they reappear if that
+        // session is reopened.
+        recoverDraft(key, { text: entry.text === "[Image]" && removed.length > 0 ? "" : entry.text, images: removed });
       }
     } catch (error) {
       setQueuedDeleteTarget(null);
@@ -2034,6 +2078,55 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     if (isStreaming) setThinkingDropdownOpen(false);
   }, [isStreaming]);
 
+  useLayoutEffect(() => {
+    const wrap = contextWrapRef.current;
+    if (!contextOpen || !wrap) return;
+    // --ui-scale zooms <html>: the rect is in painted pixels, styles are not.
+    const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale")) || 1;
+    const ringTop = wrap.getBoundingClientRect().top / scale;
+    setContextMaxHeight(Math.max(160, ringTop - 16));
+    setContextRingTop(ringTop);
+  }, [contextOpen]);
+  // Focus management for the context popover (it can live in the top bar):
+  // move focus into the dialog on open and back to the opener on close, so
+  // keyboard users are not stranded on the removed trigger.
+  useLayoutEffect(() => {
+    const panel = contextWrapRef.current?.querySelector<HTMLElement>('[role="dialog"]');
+    if (contextOpen && panel) {
+      const active = document.activeElement;
+      contextReturnFocusRef.current ??= active instanceof HTMLElement ? active : null;
+      panel.focus();
+    } else if (!contextOpen) {
+      const previous = contextReturnFocusRef.current;
+      contextReturnFocusRef.current = null;
+      const active = document.activeElement;
+      if (previous?.isConnected && (active === document.body || contextWrapRef.current?.contains(active))) {
+        previous.focus();
+      }
+    }
+  }, [contextOpen, contextContainer]);
+  // Escape closes the popover before the composer (or the global shortcut
+  // layer) can consume it and stop the running agent turn.
+  useEffect(() => {
+    if (!contextOpen) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+      const panel = contextWrapRef.current?.querySelector<HTMLElement>('[role="dialog"]');
+      if (!panel?.getClientRects().length) return;
+      const popup = event.target instanceof Element
+        ? event.target.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')
+        : null;
+      if (popup && !contextWrapRef.current?.contains(popup)) return;
+      // Capture-phase: fires before the composer's bubble keydown and the
+      // window-level abort handler, so Stop keeps working.
+      event.preventDefault();
+      event.stopPropagation();
+      setContextOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [contextOpen]);
+
   useEffect(() => {
     if (!modelDropdownOpen) {
       setModelSearchQuery("");
@@ -2117,7 +2210,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         // only hide files the app can attach (code, config, logs, ...).
         accept="*/*"
         multiple
-        disabled={isStreaming}
         style={{ display: "none" }}
         onChange={(e) => {
           const files = Array.from(e.target.files ?? []);
@@ -2957,13 +3049,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     <button
                     role="menuitem"
                     onClick={() => { setPlusMenuOpen(false); fileInputRef.current?.click(); }}
-                    disabled={isStreaming}
                     style={{
                       display: "flex", alignItems: "center", gap: 8, width: "100%",
                       padding: "7px 10px", border: 0, borderRadius: 5,
-                      background: "transparent", color: isStreaming ? "var(--text-dim)" : "var(--text-muted)",
-                      cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
-                      opacity: isStreaming ? 0.5 : 1,
+                      background: "transparent", color: "var(--text-muted)",
+                      cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                     }}
                   >
                     <Paperclip size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -2976,13 +3066,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       role="menuitem"
                       type="button"
                       onClick={() => void pasteClipboardImage()}
-                      disabled={isStreaming}
                       style={{
                         display: "flex", alignItems: "center", gap: 8, width: "100%",
                         padding: "7px 10px", border: 0, borderRadius: 5,
-                        background: "transparent", color: isStreaming ? "var(--text-dim)" : "var(--text-muted)",
-                        cursor: isStreaming ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
-                        opacity: isStreaming ? 0.5 : 1,
+                        background: "transparent", color: "var(--text-muted)",
+                        cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "left",
                       }}
                     >
                       <ClipboardPaste size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} aria-hidden="true" />
@@ -3204,9 +3292,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             )}
 
+            <div style={{ flex: 1 }} />
+
             {/* Thinking selector — compact, expressive, and consistent with models */}
             {onThinkingLevelChange && (
-              <div ref={thinkingDropdownRef} style={{ position: "relative" }}>
+              <div ref={thinkingDropdownRef} className="composer-thinking-control" style={{ position: "relative", minWidth: 0 }}>
                 <Tooltip content={t("chatInput.changeReasoningTitle", { level: thinkingDisplayLabel })}>
                   <button
                   onClick={() => setThinkingDropdownOpen((v) => !v)}
@@ -3224,11 +3314,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   onMouseEnter={(e) => { if (!isStreaming) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text)"; } }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = thinkingDropdownOpen ? "var(--bg-hover)" : "none"; e.currentTarget.style.color = "var(--text-muted)"; }}
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
-                    <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.7.78 3.21 2 4.21V14a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-2.29c1.22-1 2-2.51 2-4.21A5.5 5.5 0 0 0 9.5 2z" />
-                    <line x1="7" y1="18" x2="12" y2="18" /><line x1="8" y1="21" x2="11" y2="21" />
-                  </svg>
-                  <span style={{ whiteSpace: "nowrap", textTransform: "capitalize" }}>{thinkingDisplayLabel}</span>
+                  {/* TUI-style level icon; the name stays next to it on wide toolbars and
+                      in title/aria always. Provider-defined levels show just the name. */}
+                  <ThinkingGlyph level={thinkingLevel ?? "auto"} />
+                  <span className="composer-thinking-label" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{thinkingDisplayLabel}</span>
                   <ChevronDown size={12} strokeWidth={1.8} style={{ flexShrink: 0, opacity: 0.7, transform: thinkingDropdownOpen ? "rotate(180deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} aria-hidden="true" />
                 </button>
                 </Tooltip>
@@ -3266,6 +3355,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                             <span className="picker-check">
                               {isActive && <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5 5 4 7.5 8.5 2.5" /></svg>}
                             </span>
+                            <ThinkingGlyph level={lvl} />
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{displayLabel}</span>
                           </button>
                         );
@@ -3314,17 +3404,48 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </Tooltip>
             )}
 
-            {/* Claude usage-limit stage (wrap-up allowance or /slow low
+            {/* Slow toggle — only when omp reports /slow applies to the
+                active model. A `global` scope is a persisted omp setting
+                shared by every session; `session` is this session's flex
+                tier — the tooltip says which. */}
+            {slowModeSupported && onSlowModeChange && (
+              <button
+                type="button"
+                className="composer-slow-control"
+                onClick={() => { if (isStreaming) return; onSlowModeChange(!slowModeEnabled); }}
+                disabled={isStreaming}
+                title={t(slowModeScope === "global" ? "chatInput.slowTitleGlobal" : "chatInput.slowTitleSession")}
+                aria-label={t("chatInput.slowLabel")}
+                aria-pressed={slowModeEnabled}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  height: 28,
+                  padding: "0 8px",
+                  background: slowModeEnabled ? "var(--bg-selected)" : "none",
+                  border: "none",
+                  borderRadius: 7,
+                  color: slowModeEnabled ? "var(--accent)" : "var(--text-muted)",
+                  cursor: isStreaming ? "not-allowed" : "pointer",
+                  opacity: isStreaming ? 0.5 : 1,
+                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                  fontWeight: 600,
+                  transition: "background var(--dur-fast) var(--ease-out-warm), color var(--dur-fast) var(--ease-out-warm)",
+                }}
+              >
+                <Snail size={11} aria-hidden="true" />
+                {t("chatInput.slowLabel")}
+              </button>
+            )}
+
+            {/* Provider usage-limit stage (wrap-up allowance or /slow low
                 priority), warning-colored like the TUI status line so
                 past-the-limit service is never mistaken for normal.
                 Layout lives in globals.css (own row on mobile). */}
-            {anthropicSlowModeLabel && (
-              <div className="composer-slow-mode-badge" role="status" aria-live="polite" title={anthropicSlowModeLabel}>
-                {anthropicSlowModeLabel}
+            {usageLimitLabel && (
+              <div className="composer-usage-limit-badge" role="status" aria-live="polite" title={usageLimitLabel}>
+                {usageLimitLabel}
               </div>
             )}
-
-            <div style={{ flex: 1 }} />
 
             {/* Advisor — visible while enabled for this chat; lit while it reviews the running turn; click to toggle */}
             {(advisorEnabled || advisorActive) && (
@@ -3346,8 +3467,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </Tooltip>
             )}
 
-            {/* Context ring: usage gauge opening the session context popover */}
+            {/* The ring's composer anchor: hidden while the ring portals to
+                the mobile top bar or the placement hides it entirely. */}
             {onCompact && (
+              <div ref={setComposerContextContainer} style={{ display: ringInTopbar || ringHidden ? "none" : undefined, flexShrink: 0 }} />
+            )}
+            {!ringHidden && onCompact && contextContainer && createPortal(
               <div ref={contextWrapRef} style={{ position: "relative", flexShrink: 0 }}>
                 <Tooltip content={ringTitle}>
                   <button
@@ -3356,9 +3481,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   aria-label={t("composerContext.title")}
                   aria-expanded={contextOpen}
                   aria-haspopup="dialog"
+                  className="ui-focus-ring"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    width: 28, height: 28, padding: 0,
+                    width: ringInTopbar ? 44 : 28, height: ringInTopbar ? 44 : 28, padding: 0,
                     background: contextOpen ? "var(--bg-hover)" : "none", border: "none",
                     borderRadius: 7,
                     color: isCompacting ? "var(--accent)" : "var(--text-muted)",
@@ -3403,27 +3529,40 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   <div
                     role="dialog"
                     aria-label={t("composerContext.title")}
+                    tabIndex={-1}
                     className="picker-panel"
                     style={{
-                      position: isMobile ? "fixed" : "absolute",
-                      bottom: isMobile ? 8 : "calc(100% + 8px)",
-                      ...(isMobile
-                        ? { left: 8, right: 8 }
-                        : { right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
+                      position: ringInTopbar || ringMobileComposer ? "fixed" : "absolute",
+                      ...(ringInTopbar
+                        ? { top: "calc(var(--shell-topbar-height) + 8px)", left: 8, right: 8 }
+                        : ringMobileComposer
+                          // Full-width sheet above the ring: the ring sits in
+                          // the composer's right cluster, so an absolutely
+                          // anchored 360px panel would hang off the left edge.
+                          ? { left: 8, right: 8, bottom: contextRingTop === undefined ? undefined : `calc(100dvh - ${contextRingTop}px + 8px)` }
+                          : { bottom: "calc(100% + 8px)", right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
                       background: "var(--bg-panel)",
                       border: "1px solid var(--border)",
                       borderRadius: "var(--radius-card)",
                       boxShadow: "var(--shadow-pop)",
                       zIndex: 60,
                       padding: 0,
-                      maxHeight: isMobile ? "calc(100dvh - 32px)" : "min(50vh, 380px)",
+                      maxHeight: ringInTopbar
+                        ? "calc(100dvh - var(--shell-topbar-height) - 24px)"
+                        : ringMobileComposer
+                          ? contextRingTop === undefined ? undefined : Math.max(160, contextRingTop - 68)
+                          : contextMaxHeight,
                       overflow: "hidden",
                     }}
                   >
                     {/* One-shot background glare: plays once on open (element
                         remounts each time the popover opens). */}
                     <div className="popover-glare" aria-hidden="true" />
-                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - 32px)" : "min(50vh, 380px)", padding: 12 }}>
+                    <div style={{ overflowY: "auto", maxHeight: ringInTopbar
+                        ? "calc(100dvh - var(--shell-topbar-height) - 24px)"
+                        : ringMobileComposer
+                          ? contextRingTop === undefined ? undefined : Math.max(160, contextRingTop - 68)
+                          : contextMaxHeight, padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (
@@ -3471,7 +3610,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     </div>
                   </div>
                 )}
-              </div>
+              </div>,
+              contextContainer,
             )}
 
             {/* Dictation */}

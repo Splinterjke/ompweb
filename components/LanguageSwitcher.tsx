@@ -1,7 +1,7 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { LOCALES, useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -19,8 +19,10 @@ export function LanguageSwitcher() {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [listPos, setListPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listRef = useRef<HTMLUListElement | null>(null);
   const baseId = useId();
   const listboxId = `${baseId}-listbox`;
 
@@ -36,6 +38,37 @@ export function LanguageSwitcher() {
   useEffect(() => {
     if (open) itemRefs.current[activeIndex]?.focus();
   }, [open, activeIndex]);
+
+  // Place the list in fixed viewport coordinates: as an absolutely-positioned
+  // child it is clipped by any scrolling/clipping ancestor — inside the
+  // overflow menu the list ran past the menu's own bounds and was cut off.
+  // Prefer opening below the trigger, flip above when the viewport bottom has
+  // no room, and clamp horizontally so the list never hangs off-screen. The
+  // layout effect runs before paint, so the unplaced frame never shows.
+  useLayoutEffect(() => {
+    if (!open) {
+      setListPos(null);
+      return;
+    }
+    const trigger = triggerRef.current;
+    const list = listRef.current;
+    if (!trigger || !list) return;
+    const rect = trigger.getBoundingClientRect();
+    const h = list.offsetHeight;
+    const w = list.offsetWidth;
+    // Keep the list under the row it belongs to (right-aligned to the row's
+    // right edge, as the in-menu design intends), not under the narrow
+    // trigger — otherwise it spills over the menu's left border.
+    const row = trigger.closest(".mobile-overflow-row");
+    const box = row ? row.getBoundingClientRect() : rect;
+    let top = rect.bottom + 4;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, rect.top - h - 4);
+    const left = Math.min(
+      Math.max(8, box.right - w - 4),
+      window.innerWidth - w - 8,
+    );
+    setListPos({ top, left });
+  }, [open]);
 
   // Mirror the UI language to the server: locale-dependent server-side
   // rendering (e.g. the $event_name chat-action variable) translates in the
@@ -154,10 +187,11 @@ export function LanguageSwitcher() {
           id={listboxId}
           role="menu"
           className="dropdown-surface animate-slide-down"
+          ref={listRef}
           style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            right: 0,
+            position: "fixed",
+            top: listPos ? Math.round(listPos.top) : -9999,
+            left: listPos ? Math.round(listPos.left) : -9999,
             zIndex: 50,
             minWidth: 120,
             margin: 0,

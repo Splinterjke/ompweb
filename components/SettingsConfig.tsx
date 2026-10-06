@@ -18,7 +18,8 @@ import { SettingsTabs, type SettingsTab, SETTINGS_CATEGORIES, getNormalizedActiv
 import { BackendDiagnosticsBody } from "./BackendDiagnostics";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
-import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
+import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 
 const SettingsTabLoading = () => {
   const { t } = useI18n();
@@ -49,6 +50,7 @@ type UpdateState = {
 
 type NativeSettings = {
   defaultThinkingLevel?: "auto" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
   hideThinkingBlock?: boolean;
   externalThinking?: boolean;
   textVerbosity?: "low" | "medium" | "high";
@@ -81,6 +83,7 @@ type NativeSettings = {
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
   mnemopi?: { scoping?: "global" | "per-project" | "per-project-tagged"; autoRecall?: boolean; autoRetain?: boolean; noEmbeddings?: boolean };
   mcp?: { enableProjectConfig?: boolean; renderMarkdownResults?: boolean; notifications?: boolean; notificationDebounceMs?: number };
+  skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean; showStartupDiagnostics?: boolean };
   retry?: { enabled?: boolean; maxRetries?: number; modelFallback?: boolean };
 };
 
@@ -268,6 +271,7 @@ type SettingIndexEntry = {
 
 const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior
+  { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
   { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
   { id: "thinking-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hide Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
   { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
@@ -276,6 +280,8 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
   { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
   { id: "completion-sound", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.completionSound", descKey: "settingsConfig.completionSoundDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Completion sound", fallbackDesc: "Play a tone when the agent completes a run.", scope: "UI" },
+  { id: "tts-autoplay", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsAutoplay", descKey: "settingsConfig.ttsAutoplayDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-read assistant responses", fallbackDesc: "Automatically read aloud new assistant replies when completed.", scope: "UI" },
+  { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
   { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
   { id: "word-completion", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
   { id: "git-graph-modal-size", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.gitGraphModalSize", descKey: "settingsConfig.gitGraphModalSizeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "GitGraph modal size", fallbackDesc: "Size of the Git graph modal as a percentage of the window. Choose a preset size between 40% and 95%.", scope: "UI" },
@@ -300,6 +306,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "extension-tool-requests", tab: "safety", sectionKey: "settingsConfig.toolSafetyApprovals", labelKey: "settingsConfig.extensionToolRequests", descKey: "settingsConfig.extensionToolRequestsDesc", fallbackSection: "Tool Safety & Approvals", fallbackLabel: "Extension Tool Requests", fallbackDesc: "Automatically approve extension tool authorization requests.", scope: "Native OMP" },
   // AI Model Defaults
   { id: "reasoning", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.reasoning", descKey: "settingsConfig.reasoningDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Reasoning", fallbackDesc: "Default effort level for thinking-capable models.", scope: "Native OMP" },
+  { id: "auto-thinking-source", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.autoThinkingSource", descKey: "settingsConfig.autoThinkingSourceDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Auto Thinking Source", fallbackDesc: "Choose prompt classification or the publisher default with omp fallback.", scope: "Native OMP" },
   { id: "verbosity", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.verbosity", descKey: "settingsConfig.verbosityDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Verbosity", fallbackDesc: "Response detail level for supporting providers.", scope: "Native OMP" },
   { id: "personality", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.personality", descKey: "settingsConfig.personalityDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "Personality", fallbackDesc: "Style included in OMP's system prompt.", scope: "Native OMP" },
   { id: "external-thinking", tab: "models", sectionKey: "settingsConfig.modelDefaults", labelKey: "settingsConfig.externalThinking", descKey: "settingsConfig.externalThinkingDesc", fallbackSection: "AI Model Defaults", fallbackLabel: "External Thinking", fallbackDesc: "Private scratchpad reasoning via think tool.", scope: "Native OMP" },
@@ -614,7 +621,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -634,6 +641,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
    *  (Interface & Behavior): inline, second line, or hidden. */
   gitStatsPlacement?: GitStatsPlacement;
   onGitStatsPlacementChange?: (placement: GitStatsPlacement) => void;
+  contextRingMobile?: ContextRingMobilePlacement;
+  onContextRingMobileChange?: (placement: ContextRingMobilePlacement) => void;
   /** Composer hub bar stacking: vertical column or horizontal row. */
   hubBarLayout?: HubBarLayout;
   onHubBarLayoutChange?: (layout: HubBarLayout) => void;
@@ -737,6 +746,14 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     };
   }, []);
   const workspaceReady = cwd !== null;
+  const {
+    isSupported: ttsSupported,
+    autoPlayEnabled: ttsAutoPlay,
+    setAutoPlay: setTtsAutoPlay,
+    voices: ttsVoices,
+    selectedVoiceURI: ttsVoiceURI,
+    setSelectedVoiceURI: setTtsVoiceURI,
+  } = useSpeechSynthesis();
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [submitBehavior, setSubmitBehavior] = useState<SubmitDuringRunBehavior>(() => getSubmitDuringRunBehavior());
@@ -920,7 +937,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     }
   }, [t]);
 
-  const currentTab = getNormalizedActive(activeTab);
+  const currentTab = activeTab === "skills" ? activeTab : getNormalizedActive(activeTab);
 
   const nativeSettingsRequired = currentTab === "general" || currentTab === "safety" || currentTab === "models" || currentTab === "intelligence" || currentTab === "mcp" || currentTab === "native";
 
@@ -951,6 +968,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
       }
     }
     for (const setting of SETTING_INDEX) {
+      if (setting.id === "auto-thinking-source" && nativeSettings?.defaultThinkingLevel !== "auto") continue;
       const trLabel = t(setting.labelKey);
       const trDesc = t(setting.descKey);
       const trSection = t(setting.sectionKey);
@@ -963,7 +981,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
       }
     }
     return results;
-  }, [trimmedQuery, t]);
+  }, [trimmedQuery, t, nativeSettings?.defaultThinkingLevel]);
 
   const openSearchResult = useCallback((result: SearchResult) => {
     startTransition(() => onSelectTab(result.tab));
@@ -1148,6 +1166,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   <NativeSetting searchId="extended-detail-blocks" label={t("settingsConfig.extendedDetailBlocks")} description={t("settingsConfig.extendedDetailBlocksDesc")} scope="UI">
                     <ToggleSwitch checked={extendedBlocks} onChange={(next) => onExtendedBlocksChange?.(next)} />
                   </NativeSetting>
+                  <NativeSetting searchId="skill-startup-notices" label={t("settingsConfig.skillStartupNotices")} description={t("settingsConfig.skillStartupNoticesDesc")} scope="Native OMP">
+                    <ToggleSwitch checked={nativeSettings?.skills?.showStartupDiagnostics !== false} disabled={nativeSettingsLoading} onChange={(enabled) => patchSection("skills", { showStartupDiagnostics: enabled })} />
+                  </NativeSetting>
                   <NativeSetting searchId="completion-sound" label={t("settingsConfig.completionSound")} description={t("settingsConfig.completionSoundDesc")} scope="UI">
                     <ToggleSwitch
                       checked={soundEnabled}
@@ -1157,6 +1178,38 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                         window.dispatchEvent(new CustomEvent("omp-sound-pref-change", { detail: next }));
                       }}
                     />
+                  </NativeSetting>
+                  <NativeSetting
+                    searchId="tts-autoplay"
+                    label={t("settingsConfig.ttsAutoplay") || "Auto-read assistant responses"}
+                    description={ttsSupported ? (t("settingsConfig.ttsAutoplayDesc") || "Automatically read aloud new assistant replies when completed.") : `${t("settingsConfig.ttsAutoplayDesc") || "Automatically read aloud new assistant replies when completed."} (${t("settingsConfig.ttsNotSupported") || "Not supported in this browser"})`}
+                    scope="UI"
+                  >
+                    <ToggleSwitch
+                      checked={ttsSupported ? ttsAutoPlay : false}
+                      disabled={!ttsSupported}
+                      onChange={setTtsAutoPlay}
+                    />
+                  </NativeSetting>
+                  <NativeSetting
+                    searchId="tts-voice"
+                    label={t("settingsConfig.ttsVoice") || "Speech Voice"}
+                    description={ttsSupported ? (t("settingsConfig.ttsVoiceDesc") || "Select the browser voice for text-to-speech reading.") : `${t("settingsConfig.ttsVoiceDesc") || "Select the browser voice for text-to-speech reading."} (${t("settingsConfig.ttsNotSupported") || "Not supported in this browser"})`}
+                    scope="UI"
+                  >
+                    <select
+                      style={nativeSelectStyle}
+                      value={ttsVoiceURI || ""}
+                      disabled={!ttsSupported || ttsVoices.length === 0}
+                      onChange={(e) => setTtsVoiceURI(e.target.value || null)}
+                    >
+                      <option value="" style={nativeOptionStyle}>{t("settingsConfig.defaultVoice") || "Default system voice"}</option>
+                      {ttsVoices.map((v) => (
+                        <option key={v.voiceURI} value={v.voiceURI} style={nativeOptionStyle}>
+                          {v.name} ({v.lang})
+                        </option>
+                      ))}
+                    </select>
                   </NativeSetting>
                   <NativeSetting searchId="message-during-active-run" label={t("settingsConfig.messageDuringActiveRun")} description={t("settingsConfig.messageDuringActiveRunDesc")} scope="UI">
                     <select
@@ -1200,6 +1253,17 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">
                     <ToggleSwitch checked={sessionInfoButtonVisible} onChange={(next) => onSessionInfoButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="context-ring-mobile" label={t("settingsConfig.contextRingMobile")} description={t("settingsConfig.contextRingMobileDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={contextRingMobile}
+                      onChange={(event) => onContextRingMobileChange?.(event.target.value as ContextRingMobilePlacement)}
+                    >
+                      <option value="composer" style={nativeOptionStyle}>{t("settingsConfig.contextRingComposer")}</option>
+                      <option value="topbar" style={nativeOptionStyle}>{t("settingsConfig.contextRingTopbar")}</option>
+                      <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.contextRingHidden")}</option>
+                    </select>
                   </NativeSetting>
                   <NativeSetting searchId="jump-to-bottom-button" label={t("settingsConfig.jumpToBottomButton")} description={t("settingsConfig.jumpToBottomButtonDesc")} scope="UI">
                     <ToggleSwitch checked={showJumpToBottomButton} onChange={(next) => onShowJumpToBottomButtonChange?.(next)} />
@@ -1403,6 +1467,20 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       ))}
                     </select>
                   </NativeSetting>
+                  {nativeSettings?.defaultThinkingLevel === "auto" && (
+                    <NativeSetting searchId="auto-thinking-source" label={t("settingsConfig.autoThinkingSource")} description={t("settingsConfig.autoThinkingSourceDesc")} scope="Native OMP">
+                      <select
+                        style={nativeSelectStyle}
+                        value={nativeSettings.providers?.autoThinkingSource ?? "classifier"}
+                        onChange={(e) => patchSection("providers", {
+                          autoThinkingSource: e.target.value === "vendor" ? "vendor" : "classifier",
+                        })}
+                      >
+                        <option value="classifier" style={nativeOptionStyle}>{t("settingsConfig.autoThinkingClassifier")}</option>
+                        <option value="vendor" style={nativeOptionStyle}>{t("settingsConfig.autoThinkingVendor")}</option>
+                      </select>
+                    </NativeSetting>
+                  )}
                   <NativeSetting searchId="verbosity" label={t("settingsConfig.verbosity")} description={t("settingsConfig.verbosityDesc")} scope="Native OMP">
                     <select
                       style={nativeSelectStyle}
@@ -1745,6 +1823,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
+                  {cwd && <button type="button" className="settings-back ui-focus-ring" onClick={() => handleSelectTab("skills")}>{t("skillsConfig.title")}</button>}
                 </div>
                 {cwd && (
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
@@ -1774,8 +1853,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
 
             {/* SKILLS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "skills" && (
-              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-skills" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
-                <SkillsConfig embedded cwd={cwd} onClose={onClose} />
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
+                <SkillsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} />
               </div>
             )}
 

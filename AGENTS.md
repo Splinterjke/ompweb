@@ -236,6 +236,7 @@ app/api/
 
 lib/
   omp/                 shared omp foundations (paths, CLI probe, RpcProcess)
+  provider-accounts.ts distinct omp accounts per provider from `omp usage` reports (Models → provider detail)
   agent-client.ts      typed fetch helper for /api/agent commands
   btw.ts               /btw side-question records + pure frame/snapshot merge (order-safe)
   chat-event-action-types.ts  ChatEventType + ActionSpec union (notification/http/bash/scheduled)
@@ -261,6 +262,7 @@ lib/
   tool-presets.ts      PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts             shared TypeScript types
   normalize.ts         normalizeToolCalls() — field name mismatch between file format and our types
+  navigation-history.ts  pure back/forward view-history stack + shortcut matcher (⌘[/⌘], Alt+←/→)
   worktree.ts          project/worktree resolution and git worktree operations
   web-settings.ts      omp-web server settings (autoResumeSessions) persistence, ~/.omp/agent/omp-web-settings.json
 
@@ -297,6 +299,7 @@ hooks/
   useBtw.ts                /btw records/active panel/history dialog fed by btw_* SSE frames
   useDragDrop.ts           shared drag/drop state
   useIsMobile.ts           responsive breakpoint hook
+  useNavigationHistory.ts  in-app back/forward stack (record/peek/commit/drop) for visited chat views
   usePrefersReducedMotion.ts OS reduce-motion preference (SMIL-safe)
   useTheme.ts              theme state (localStorage key "omp-theme")
 ```
@@ -326,6 +329,24 @@ hooks/
 - Full-page Settings hides the chat, so its session counts as *not viewed* (`viewing = call.sessionId === selectedSession?.id && !settingsTab` in `AppShell`) — opens from it go through the confirm queue like any cross-session open.
 - URL opens from a session the tab is **not** viewing always go through the `pendingOpens` confirm queue (`ConfirmDialog` in `AppShell`). The "Open agent links without asking" setting only auto-opens links from the viewed session (`!crossSession && openUrlAutomatically`).
 - The multi-question `ask` dialog is opted into on spawn **and** respawn with `set_ask_dialog` (bounded like `get_state`, so a child that never answers cannot stall startup); older omp rejects the command and the per-question select/editor fallback keeps working. Pending `ask` requests only accept their `answers` payload or a cancel — `isAskAnswers()` shape-checks it in `extension_ui_response`, so a replayed reconnect response cannot drop them with a stale/malformed payload.
+
+### Session moves (omp >= 18.5 ownership) and title generation
+- Only the first omp process to write a session file owns it; a non-owner moves
+  to a sibling file with a new id on its first write and emits a
+  `notice` with `source: "session-persistence"`. `handleFrame` answers it with
+  `followSessionMove()`: the pending flag makes the next `applyIdentity` re-key
+  as the same conversation (stream/run state kept, **old id kept as a registry
+  alias**, new id registered via `onIdentityChange({keepOldId})`). Genuine
+  switches (branch/new/switch) re-key through `refreshIdentityAfterSessionChange`
+  and still drop the old key — a move is the only implicit re-key.
+  `startRpcSession` also reuses any live wrapper reporting the requested session
+  file instead of spawning a second `--resume` child (which would fork again).
+  `onDestroy` removes every key that points at the wrapper.
+- `POST /api/sessions/[id]/auto-name` asks omp to generate the title
+  (`AgentSessionWrapper.generateTitle()`: native `generate_title`, else
+  argument-less `/rename`, never while a run is in flight). Only when omp cannot
+  does it fall back to the stored/derived title (`generated:false`), saved
+  through the live process when there is one.
 
 ### Two kinds of branching — don't confuse them
 - **Fork** ("Fork a new session from this point" button, `messageView.newSessionTitle`, on user and assistant messages; only offered while the session is idle — ChatWindow gates it on `!sessionBusy && !isNew`): creates a new independent `.jsonl` file via omp's `branch` RPC. Shown as a child in the sidebar tree via `parentSession` header field. `branch` only takes a user entry and keeps the history *before* it, so `lib/chat-fork.ts` maps rows: a user prompt forks at itself and its returned text prefills the fork's composer (edit-and-resend, text only — attached images are not restored); an assistant reply forks at the next user prompt so the reply is kept; the newest reply falls back to its own prompt with the prefill. Rows that would edit the very first prompt (an empty fork) offer no fork.
@@ -381,18 +402,28 @@ client-side — every client viewing the session must show the same queue.
 One sequence (`queueSeqRef`) orders every source: a get_state snapshot takes
 a number when requested and applies only if no newer snapshot or
 `queue_update` was applied (HTTP and SSE can reorder). Edit/Delete use
-`remove_queued_message` (act only on `removed: true`), Steer uses
+`remove_queued_message` (act only on `removed: true`; newer omp also returns
+the message's `images`, which Edit restores), Steer uses
 `promote_queued_message`; the chip changes when omp's next snapshot arrives.
-`handleAbort` coalesces overlapping Stops, then withdraws pending messages BEFORE sending `abort` (bounded by
-`WITHDRAW_BEFORE_ABORT_MS`), like the TUI's Esc: omp runs a queued steer as
-soon as an abort lands. Withdrawn text goes to the session draft via
-`recoverDraftText`, saved as each removal confirms. A follow-up that answers
-`removed: false` is retried on `steering` (a concurrent promotion moved it);
-never the reverse. The abort is fenced to the prompt run id captured at Stop,
-so it cannot kill a prompt started during the wait. Known gap: input taken by
-live steering answers `removed: false`, and RPC `abort` does not call
-`withdrawLiveSteering` (the TUI's `clearQueue({ forInterrupt: true })` does),
-so omp requeues it on abort and runs it next; omp-web cannot prevent that.
+`handleAbort` coalesces overlapping Stops, then sends `abort_and_restore_queue`:
+omp's Esc (`clearQueue({ forInterrupt: true })`, then abort) in one step,
+returning the withdrawn user messages, whose texts and images go to the
+session draft via `recoverDraft`. omp labels an image-only message `[Image]`;
+that label is never restored as text. It covers what a client snapshot
+cannot: a steer promoted
+after the last `queue_update`, and live-steered input the run claimed but never
+recorded (omp would otherwise requeue it and drain it into a new turn right
+after the abort). Never reimplement this client-side. A failed request is
+retried once (omp returns whatever is still queued) and only while the run
+captured at the click is current; texts lost with a response that never
+arrived cannot be recovered, so the hook warns (`queueRestoreUncertain`).
+Fallback ONLY when omp answers "Unknown command" (omp without the command):
+withdraw each listed message with `remove_queued_message` BEFORE sending
+`abort` (bounded by `WITHDRAW_BEFORE_ABORT_MS`), saved as each removal
+confirms. A follow-up that answers `removed: false` is retried on `steering`
+(a concurrent promotion moved it); never the reverse. Every abort is fenced to
+the prompt run id captured at the click, so it cannot kill a prompt started
+during the wait.
 
 ### Skill-invoked first prompt (`customType: "skill-prompt"`)
 - When a session is started with a skill mention (`/skill:name …`), omp stores the
@@ -496,15 +527,33 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   keeps running; `gitPresent` via `onPresenceChange` gates the slot.
 - **Workspace git stats** ("Interface & Behavior" → Workspace git stats):
   `gitStatsPlacement` (`"inline" | "second" | "hidden"`, AppShell →
-  `SessionSidebar`) places the change counts in the sidebar workspace
-  header — inline chip on the name row, a second line under the name, or
-  hidden (hidden workspaces are not polled).
+  `SessionSidebar`) places BOTH the change-count chip and the active
+  branch/worktree chip in the sidebar workspace header — both inline on the
+  name row, both on a second line under the name, or neither shown (hidden
+  workspaces are not polled, and the worktree dropdown loses its inline
+  trigger).
 - Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
   for terminal states) fed by the same `subagent_lifecycle`/`subagent_progress`
   SSE frames; clicking a chip opens the transcript dialog. Non-running
   subagents (terminal or history) nest under a collapsible `Completed (N)`
   group inside the hub, re-collapsing on every mount (not persisted).
   `TodoList` keeps a non-collapsible default (`collapsible` prop) for SSR tests.
+
+### Mobile context ring placement (`Settings → Interface & Behavior`)
+- The context info ring (port of upstream 193047f1 chain, mobile top-bar
+  mount of 3c1e8449) is placement-configurable on phone screen sizes:
+  `contextRingMobile` (`"composer" | "topbar" | "hidden"`, localStorage
+  `omp-web:context-ring-mobile`, default `"topbar"`). Desktop is inert —
+  the ring always stays in the composer there.
+- The ring renders through one portal (`ChatInput`): `ringInTopbar` picks
+  the AppShell `.shell-session-info` top-bar mount (44px touch target,
+  popover fixed under the bar), otherwise the composer's own anchor
+  (28px, popover opens above the trigger like desktop). `ringHidden`
+  renders no ring at all — the composer anchor stays mounted but
+  `display: none` (no stray flex gap), and `/session` no-ops.
+- The top-bar mount div is only rendered while the setting says
+  `"topbar"`; unmounting it nulls `sessionInfoContainer` through the
+  callback ref, so the composer anchor takes over without a stale target.
 
 ### Side questions (`/btw`, `lib/btw.ts`, `hooks/useBtw.ts`, `components/BtwPanel.tsx`)
 - `btw` / `btw_cancel` / `get_btw_history` are passthrough RPC commands;
@@ -515,7 +564,7 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   running `btw_record` comes first.
 - `/btw <question>` and `/btw` are client builtins (`handleBuiltinSlashCommand`
   case `"btw"`). `ChatInput.sendSideQuestion` routes them there from both the
-  idle and the streaming submit path, *before* the attachment gate: never sent
+  idle and the streaming submit path, *before* attachments are checked: never sent
   as a prompt, never queued, and refused with a toast (draft and attachments
   kept) while attachments are attached. Asking starts the wrapper
   (`get_state`) and attaches SSE first when it is not open, so no early delta
@@ -621,6 +670,43 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
   project rows are cards matching the session items' height/margins/accent
   treatment, and the active project's worktree selector renders directly
   below its row.
+
+### Navigate back / forward (`lib/navigation-history.ts`, `hooks/useNavigationHistory.ts`)
+- Browser-style back/forward over visited chat views (sessions + the new-chat
+  composer), in-memory per page load. It is **omp-web's own stack**, never the
+  browser History API — the app only ever `router.replace`s `?session=`, and
+  the real history stack belongs to the mobile back-gesture / exit-guard
+  machinery (`useSidebarHistory` + the popstate bridge).
+- AppShell records views from one effect keyed on
+  `(selectedSession?.id, selectedSession?.cwd, newSessionCwd)`: recording the entry the cursor
+  already sits on is a no-op, which is what makes back/forward
+  self-suppressing — `navigateInHistory` commits the step, the view lands, the
+  effect re-records the target, nothing is pushed. Any other view change
+  (sidebar/palette select, new chat, session created, fork, project-switch
+  close) pushes normally and truncates the forward branch, browser-style.
+- Applying a step: peek → resolve the session id via `/api/sessions` →
+  commit + `handleSelectSession`, or `handleNewSession` for new-chat entries.
+  A dead id (deleted session) drops that entry and tries the next one in the
+  same direction; a failed list fetch aborts without dropping. A view change
+  during the await (versioned ref) aborts the navigation so a slow fetch
+  never yanks the chat away.
+- Shortcuts live in `useGlobalKeyboardShortcuts`: ⌘[/⌘] (macOS standard),
+  Alt+←/Alt+→ (Windows/Linux standard; on macOS Alt+Arrow stays free — it is
+  word-wise caret movement), plus the mouse back/forward buttons
+  (`BrowserBack`/`BrowserForward`). The keystroke is always swallowed while a
+  handler is registered — an exhausted stack stops dead rather than falling
+  through to the browser's own back/forward, so the app is never backed out
+  of by accident — and shortcuts are skipped entirely while a
+  `[role="dialog"]` modal is open. The sidebar header buttons (before Archived
+  Sessions, wrapped in `.sidebar-nav-buttons`) disable on stack bounds, show
+  the platform shortcut in their tooltip, and hide below a 250px sidebar via
+  the `.sidebar-shell` container query (the keyboard shortcuts still work).
+- Local deltas vs upstream: the header row also carries the
+  `BackendStatusButton`, which is why the container-query breakpoint is 250px
+  (upstream tuned 240px) — the nav pair drops out one icon-width earlier; and
+  on mobile the full-width right workbench is closed when a step is applied
+  (`setRightPanelOpen(false)` in `navigateInHistory`), so the chat switch is
+  actually visible instead of landing behind the panel.
 
 ### File access allow-list
 - `/api/files` is intentionally not a general filesystem browser. Allowed roots come from session cwds, their resolved project roots, `~/omp-cwd-*`, and roots explicitly added with `allowFileRoot()`.
@@ -931,6 +1017,25 @@ so omp requeues it on abort and runs it next; omp-web cannot prevent that.
 ### Completion sound
 - `hooks/useAudio.ts` stores the toggle in `localStorage` and reuses one `AudioContext`.
 - Browser autoplay policy means sound must be unlocked from a user gesture; `ChatInput` calls the unlock hook from interactive controls, and `ChatWindow` plays the tone from `onAgentEnd`.
+
+### Text-to-speech read-aloud (`hooks/useSpeechSynthesis.tsx`, `lib/speech-sanitizer.ts`)
+- Port of upstream f852ad0d + 995d9489. Browser `speechSynthesis` reads completed
+  assistant replies; the button label is **Read** (tooltip/aria stay "Read aloud").
+- `useSpeechSynthesis()` is the speech controller (module-level active-utterance
+  ref + `TTS_STATE_EVENT`/`TTS_PREF_EVENT` window events keep several hook
+  instances in sync — `ChatWindow` owns one behind `SpeechSynthesisProvider`,
+  `SettingsConfig` mounts its own just for the settings). Message rows consume
+  it through `useSpeechContext()`, which falls back to an inert
+  (`isSupported: false`) state outside a provider — rows never mount a
+  controller each and SSR renders stay clean.
+- Autoplay must not read the transcript inside `onAgentEnd` (omp fires it in the
+  same tick as the committing state update, so the ref-render is one turn
+  behind): `wrappedOnAgentEnd` only sets `autoplayPendingRef` and the effect on
+  `[messages, entryIds, streamState, agentRunning]` speaks from the render that
+  carries the finished reply (`assistantSpeech()` prefers the live streaming
+  message, else the last assistant row keyed by its entry id).
+- Settings rows render disabled with a "Not supported in this browser" suffix
+  instead of hiding when `speechSynthesis` is absent.
 
 ## omp Session File Format (v3)
 

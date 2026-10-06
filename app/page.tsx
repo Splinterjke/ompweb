@@ -1,12 +1,8 @@
-"use client";
+import { headers } from "next/headers";
+import { getInstallName } from "@/lib/install-name";
+import { HomeClient } from "./home-client";
 
-import dynamic from "next/dynamic";
-
-const AppShell = dynamic(() => import("@/components/AppShell").then((m) => m.AppShell), {
-  ssr: false,
-});
-
-export default function Home() {
-  return <AppShell />;
+export default async function Home() {
+  const appName = getInstallName(await headers());
+  return <HomeClient appName={appName} />;
 }
-

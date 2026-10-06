@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -67,6 +67,16 @@ interface Props {
   updateAvailable?: boolean;
   /** Opens the archived sessions browser. */
   onOpenArchive?: () => void;
+  /** In-app back/forward over visited chat views (sidebar header buttons). */
+  navigation?: {
+    canBack: boolean;
+    canForward: boolean;
+    onBack: () => void;
+    onForward: () => void;
+    /** Platform shortcut label for the tooltip, e.g. "⌘[" / "Alt+←". */
+    backShortcut: string;
+    forwardShortcut: string;
+  };
   /** Fired when the server restarts under us (SSE boot-epoch mismatch) so the
    *  parent can surface the "OmpWeb started" notice with a Refresh button. */
   onServerRestarted?: () => void;
@@ -98,6 +108,8 @@ interface Props {
   gitStatsPlacement?: GitStatsPlacement;
   /** Closes the mobile sidebar drawer when the brand button is tapped. */
   onBrandClick?: () => void;
+  /** Mobile full-screen drawer only: shows a top-left close control. */
+  onClose?: () => void;
 }
 
 interface WorktreeEntry {
@@ -538,8 +550,8 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     lineHeight: 1,
     textAlign: "left",
   } as const;
-  // Mobile: the brand doubles as the drawer's collapse button — the chevron
-  // and hover state make it read as a button, not a logo. On desktop it is a
+  // Mobile: the brand doubles as the drawer's collapse button — the hover
+  // state makes it read as a button, not a logo. On desktop it is a
   // static label (no click behavior, no animation).
   return isMobile && onMobileClick ? (
     <button
@@ -552,7 +564,6 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
     >
       {brand}
-      <ChevronLeft size={14} strokeWidth={1.8} aria-hidden="true" style={{ color: "var(--text-muted)", flexShrink: 0 }} />
     </button>
   ) : (
     <span aria-label="omp web" style={style}>
@@ -560,7 +571,7 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline" }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1731,7 +1742,8 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     ? worktreeStateByProject[normalizeProjectKey(selectedProject)]
     : undefined;
 
-  /** Inline branch label ("omp-web · main") from a project's OWN cached Git
+  /** Branch label placed per the "Workspace git stats" setting (name row or
+   *  second line), from a project's OWN cached Git
    *  state. Returns null when the project has no Git state or is not a git
    *  repo, so a non-Git / not-yet-loaded project never shows another repo's
    *  branch. */
@@ -1808,7 +1820,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
   ) : null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", overflowX: "hidden" }}>
+    <div className="sidebar-shell" style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", overflowX: "hidden" }}>
       {addProjectOpen && (
         <DirectoryPicker
           busy={addProjectBusy}
@@ -1833,10 +1845,43 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                title={t("appShell.hideSidebar")}
+                aria-label={t("appShell.hideSidebar")}
+                className="shell-toolbar-btn ui-focus-ring"
+              >
+                <X size={16} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            )}
             <OmpWebTitle onMobileClick={onBrandClick} />
             <BackendStatusButton />
           </div>
           <div style={{ display: "flex", gap: 2 }}>
+            {navigation && (
+              <span className="sidebar-nav-buttons">
+                <Tooltip content={`${t("sessionSidebar.navigateBack")} (${navigation.backShortcut})`} side="bottom">
+                  <SidebarIconButton
+                    label={t("sessionSidebar.navigateBack")}
+                    onClick={navigation.onBack}
+                    disabled={!navigation.canBack}
+                  >
+                    <ArrowLeft size={14} strokeWidth={1.9} aria-hidden="true" />
+                  </SidebarIconButton>
+                </Tooltip>
+                <Tooltip content={`${t("sessionSidebar.navigateForward")} (${navigation.forwardShortcut})`} side="bottom">
+                  <SidebarIconButton
+                    label={t("sessionSidebar.navigateForward")}
+                    onClick={navigation.onForward}
+                    disabled={!navigation.canForward}
+                  >
+                    <ArrowRight size={14} strokeWidth={1.9} aria-hidden="true" />
+                  </SidebarIconButton>
+                </Tooltip>
+              </span>
+            )}
             {onOpenArchive && (
               <Tooltip content={t("sessionSidebar.archiveBrowserTitle")} side="bottom">
                 <SidebarIconButton
@@ -2415,7 +2460,8 @@ interface ProjectRowProps {
   onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
   activeWorktreeSwitcher?: ReactNode;
-  /** Active worktree/branch label shown inline beside the workspace name. */
+  /** Active worktree/branch label shown per the "Workspace git stats"
+   *  placement setting (inline on the name row, below it, or hidden). */
   worktreeBranch?: string | null;
   worktreeToggleRef?: RefObject<HTMLButtonElement | null>;
   worktreeOpen?: boolean;
@@ -2548,10 +2594,15 @@ function ProjectRow({
     ? tree.slice(0, MAX_PROJECT_SESSIONS)
     : tree;
   const showActions = hovered || focusWithin || actionMenuOpen;
-  // "second" placement renders the git stats on a dedicated line under the
-  // workspace name, so the header grows from a fixed 30px row to a two-line
-  // card; "inline" keeps the stats in the same row (previous behavior).
+  // The "Workspace git stats" placement governs BOTH the change-count chip
+  // and the active branch/worktree chip: "inline" keeps them on the name row
+  // (fixed 30px card), "second" stacks them under the name (two-line card),
+  // "hidden" renders neither (the worktree dropdown loses its trigger).
   const secondLineStats = gitStatsPlacement === "second" && Boolean(gitStatsLabel);
+  const branchChipVisible = Boolean(worktreeBranch && worktreeToggleRef);
+  const inlineBranch = gitStatsPlacement === "inline" && branchChipVisible;
+  const secondLineBranch = gitStatsPlacement === "second" && branchChipVisible;
+  const hasSecondLine = secondLineStats || secondLineBranch;
   const statsChipStyle = {
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -2588,9 +2639,9 @@ function ProjectRow({
           display: "flex",
           alignItems: "center",
           gap: 2,
-          height: secondLineStats ? "auto" : 30,
+          height: hasSecondLine ? "auto" : 30,
           margin: 0,
-          padding: secondLineStats ? "2px 6px" : "0 6px 0 0",
+          padding: hasSecondLine ? "2px 6px" : "0 6px 0 0",
           borderRadius: "var(--radius-control)",
           background: isActive
             ? (hovered ? "var(--bg-hover)" : "var(--bg-subtle)")
@@ -2599,153 +2650,200 @@ function ProjectRow({
           ...(isDragTarget ? { outline: "1px solid var(--accent)", outlineOffset: -1 } : {}),
         }}
       >
-        {aliasEditing ? (
-          <div
-            className="sidebar-project-identity"
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              flex: "0 1 auto",
-              minWidth: 0,
-              alignSelf: "stretch",
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "0 4px 0 10px",
-            }}
-          >
-            <Folder
-              size={15}
-              strokeWidth={1.8}
-              style={{ flexShrink: 0, color: "var(--text-muted)" }}
-              aria-hidden="true"
-            />
-            <input
-              ref={aliasInputRef}
-              autoFocus
-              aria-label={t("projects.aliasPrompt")}
-              value={aliasValue}
-              onChange={(event) => setAliasValue(event.target.value)}
-              onBlur={commitAliasEdit}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  commitAliasEdit();
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  aliasCancelRef.current = true;
-                  setAliasEditing(false);
-                }
-              }}
-              style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--app-font-family)", fontWeight: 600 }}
-            />
-          </div>
-        ) : (
-          <Tooltip content={t("sessionSidebar.newSessionIn", { cwd: project.path })}>
-            <button
-            className="sidebar-project-identity"
-            onClick={() => { onActivate(project.path); onNewSession?.(project.path); }}
-            aria-current={isActive ? "true" : undefined}
-            style={{
-              flex: "0 1 auto",
-              minWidth: 0,
-              alignSelf: "stretch",
-              display: "flex",
-              flexDirection: secondLineStats ? "column" : "row",
-              alignItems: secondLineStats ? "stretch" : "center",
-              gap: secondLineStats ? 2 : 7,
-              padding: secondLineStats ? "4px 4px 4px 10px" : "0 4px 0 10px",
-              background: "none", border: "none",
-              color: isActive ? "var(--text)" : hovered ? "var(--text)" : "var(--text-muted)",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                minWidth: 0,
-                flex: 1,
-              }}
-            >
-              <Folder
-                size={15}
-                strokeWidth={1.8}
-                style={{ flexShrink: 0, color: isActive ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)", transition: "color var(--dur-fast) var(--ease-out-warm)" }}
-                aria-hidden="true"
-              />
-              <span
+        {/* Upstream 3ecbcdff: identity + controls stack in a column so the
+            active branch gets a full-width second line instead of squeezing
+            the workspace name into an ellipsis. */}
+        <div style={{ flex: "1 1 auto", minWidth: 0, alignSelf: "stretch", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+            {aliasEditing ? (
+              <div
+                className="sidebar-project-identity"
+                onClick={(event) => event.stopPropagation()}
                 style={{
+                  flex: "0 1 auto",
                   minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontFamily: "var(--app-font-family)",
-                  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
-                  fontWeight: 600,
-                  letterSpacing: "-0.01em",
-                  lineHeight: 1.25,
+                  alignSelf: "stretch",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "0 4px 0 10px",
                 }}
               >
-                {label}
-              </span>
-            </span>
-            {secondLineStats && gitStatsLabel && (
+                <Folder
+                  size={15}
+                  strokeWidth={1.8}
+                  style={{ flexShrink: 0, color: "var(--text-muted)" }}
+                  aria-hidden="true"
+                />
+                <input
+                  ref={aliasInputRef}
+                  autoFocus
+                  aria-label={t("projects.aliasPrompt")}
+                  value={aliasValue}
+                  onChange={(event) => setAliasValue(event.target.value)}
+                  onBlur={commitAliasEdit}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitAliasEdit();
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      aliasCancelRef.current = true;
+                      setAliasEditing(false);
+                    }
+                  }}
+                  style={{ flex: 1, minWidth: 0, height: 22, padding: "2px 6px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", outline: "none", background: "var(--bg)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontFamily: "var(--app-font-family)", fontWeight: 600 }}
+                />
+              </div>
+            ) : (
+              <Tooltip content={t("sessionSidebar.newSessionIn", { cwd: project.path })}>
+                <button
+                className="sidebar-project-identity"
+                onClick={() => { onActivate(project.path); onNewSession?.(project.path); }}
+                aria-current={isActive ? "true" : undefined}
+                style={{
+                  flex: "0 1 auto",
+                  minWidth: 0,
+                  alignSelf: "stretch",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "0 4px 0 10px",
+                  background: "none", border: "none",
+                  color: isActive ? "var(--text)" : hovered ? "var(--text)" : "var(--text-muted)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
+                  <Folder
+                    size={15}
+                    strokeWidth={1.8}
+                    style={{ flexShrink: 0, color: isActive ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)", transition: "color var(--dur-fast) var(--ease-out-warm)" }}
+                    aria-hidden="true"
+                  />
+                  <span
+                    style={{
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontFamily: "var(--app-font-family)",
+                      fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+                      fontWeight: 600,
+                      letterSpacing: "-0.01em",
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {label}
+                  </span>
+                </span>
+                </button>
+              </Tooltip>
+            )}
+            {/* Inline branch chip (the pre-stack look): shown on the name row
+                when the placement setting says "inline"; the same chip moves
+                to the second line under "second". */}
+            {inlineBranch && worktreeBranch && (
+              <Tooltip content={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}>
+                <button
+                className="sidebar-project-action"
+                type="button"
+                ref={worktreeToggleRef}
+                onClick={onToggleWorktrees}
+                aria-expanded={worktreeOpen}
+                aria-haspopup="menu"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  flex: "0 1 auto",
+                  minWidth: 0,
+                  height: 24,
+                  padding: "0 6px",
+                  border: "none",
+                  borderRadius: "var(--radius-control)",
+                  background: worktreeOpen ? "var(--bg-selected)" : "none",
+                  color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
+                  cursor: "pointer",
+                  fontFamily: "var(--app-font-family)",
+                  fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
+                  lineHeight: 1,
+                  transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
+                }}
+              >
+                <span aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }}>·</span>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
+                </button>
+              </Tooltip>
+            )}
+            {gitStatsPlacement === "inline" && gitStatsLabel && (
               <Tooltip content={gitStatsLabel}>
                 <span
-                style={{ ...statsChipStyle, maxWidth: "100%", flexShrink: 1 }}
+                style={{ ...statsChipStyle, flexShrink: 0, maxWidth: 128 }}
               >
                 {gitStatsLabel}
               </span>
               </Tooltip>
             )}
-          </button>
-          </Tooltip>
-        )}
-        {worktreeBranch && worktreeToggleRef && (
-          <Tooltip content={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}>
-            <button
-            className="sidebar-project-action"
-            type="button"
-            ref={worktreeToggleRef}
-            onClick={onToggleWorktrees}
-            aria-expanded={worktreeOpen}
-            aria-haspopup="menu"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              flex: "0 1 auto",
-              minWidth: 0,
-              height: 24,
-              padding: "0 6px",
-              border: "none",
-              borderRadius: "var(--radius-control)",
-              background: worktreeOpen ? "var(--bg-selected)" : "none",
-              color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
-              cursor: "pointer",
-              fontFamily: "var(--app-font-family)",
-              fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
-              lineHeight: 1,
-              transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
-            }}
-          >
-            <span aria-hidden="true" style={{ flexShrink: 0, opacity: 0.7 }}>·</span>
-            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
-          </button>
-          </Tooltip>
-        )}
-        {gitStatsPlacement === "inline" && gitStatsLabel && (
-          <Tooltip content={gitStatsLabel}>
-            <span
-            style={{ ...statsChipStyle, flexShrink: 0, maxWidth: 128 }}
-          >
-            {gitStatsLabel}
-          </span>
-          </Tooltip>
-        )}
+          </div>
+          {(secondLineBranch || secondLineStats) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+              {secondLineBranch && worktreeBranch && (
+                <Tooltip content={t("sessionSidebar.switchWorktreeTo", { path: worktreeBranch })}>
+                  <button
+                  className="sidebar-project-action"
+                  type="button"
+                  ref={worktreeToggleRef}
+                  onClick={onToggleWorktrees}
+                  aria-expanded={worktreeOpen}
+                  aria-haspopup="menu"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    flexShrink: 0,
+                    minWidth: 0,
+                    maxWidth: "100%",
+                    height: 24,
+                    padding: "0 4px 0 32px",
+                    border: "none",
+                    borderRadius: "var(--radius-control)",
+                    background: worktreeOpen ? "var(--bg-selected)" : "none",
+                    color: worktreeOpen ? "var(--accent)" : hovered ? "var(--text-muted)" : "var(--text-dim)",
+                    cursor: "pointer",
+                    fontFamily: "var(--app-font-family)",
+                    fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))",
+                    lineHeight: 1,
+                    transition: "color var(--dur-fast) var(--ease-out-warm), background var(--dur-fast) var(--ease-out-warm)",
+                  }}
+                >
+                  <GitBranch size={10} style={{ flexShrink: 0 }} aria-hidden="true" />
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{worktreeBranch}</span>
+                  </button>
+                </Tooltip>
+              )}
+              {secondLineStats && gitStatsLabel && (
+                <Tooltip content={gitStatsLabel}>
+                  <span
+                  style={{ ...statsChipStyle, maxWidth: "100%", flexShrink: 1, ...(secondLineBranch ? {} : { paddingLeft: 32 }) }}
+                >
+                  {gitStatsLabel}
+                </span>
+                </Tooltip>
+              )}
+            </div>
+          )}
+        </div>
         <div style={{ flex: 1 }} />
         {/* Open GitGraph for this workspace (matches the top-panel GitGraph button).
             Hidden once the workspace is confirmed not to be a Git repo. */}

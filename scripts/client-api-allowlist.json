@@ -3,7 +3,7 @@
   "files": {
     "app/remote/page.tsx": 1,
     "components/AgentsConfig.tsx": 5,
-    "components/AppShell.tsx": 14,
+    "components/AppShell.tsx": 15,
     "components/ArchiveBrowser.tsx": 2,
     "components/BackendDiagnostics.tsx": 12,
     "components/ChatInput.tsx": 4,
@@ -22,6 +22,7 @@
     "components/NetworkProxyConfig.tsx": 2,
     "components/OmpSetupWizard.tsx": 1,
     "components/PluginsConfig.tsx": 3,
+    "components/ProviderAccounts.tsx": 1,
     "components/RemoteAccessSetting.tsx": 7,
     "components/SchedulerModal.tsx": 2,
     "components/SessionSidebar.tsx": 18,

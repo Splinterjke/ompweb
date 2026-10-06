@@ -31,6 +31,7 @@
     "!.next/**/*.map",
     "public",
     "next.config.ts",
+    "backend-ownership.yaml",
     "package.json",
     "templates",
     "vendor/ompweb-host"

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSidebarHistory } from "@/hooks/useSidebarHistory";
+import { useNavigationHistory } from "@/hooks/useNavigationHistory";
+import { isMacPlatform, navigateShortcutHint, NAVIGATION_HISTORY_MAX_ENTRIES } from "@/lib/navigation-history";
+import { useMobileSidebarGestures } from "@/hooks/useMobileSidebarGestures";
 import { ConfirmDialog } from "./ui/field";
 import { SessionSidebar } from "./SessionSidebar";
 import { BackendHealthBanner } from "./BackendDiagnostics";
@@ -16,7 +19,7 @@ import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -81,10 +84,12 @@ const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
 const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
 const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
 const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
+const CONTEXT_RING_MOBILE_STORAGE_KEY = "omp-web:context-ring-mobile";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
 export type HubBarLayout = "stack" | "row";
 export type ComposerAccentBg = "off" | "dimmed" | "themed";
+export type ContextRingMobilePlacement = "composer" | "topbar" | "hidden";
 export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
@@ -173,7 +178,7 @@ type AutoNameStatus =
   | { kind: "success" }
   | { kind: "error"; message: string };
 
-export function AppShell() {
+export function AppShell({ appName }: { appName: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
@@ -280,6 +285,20 @@ export function AppShell() {
       return window.localStorage.getItem("omp-web:session-git-stats") === "false" ? "hidden" : "inline";
     } catch {
       return "inline";
+    }
+  });
+  // Context info ring placement on phone screen sizes (Interface & Behavior
+  // select): the ring portals to the top bar (default, port of upstream
+  // 3c1e8449), stays in the composer like desktop, or is hidden entirely.
+  // Desktop always keeps the ring in the composer; the setting is inert there.
+  const [contextRingMobile, setContextRingMobile] = useState<ContextRingMobilePlacement>(() => {
+    if (typeof window === "undefined") return "topbar";
+    try {
+      const raw = window.localStorage.getItem(CONTEXT_RING_MOBILE_STORAGE_KEY);
+      if (raw === "composer" || raw === "topbar" || raw === "hidden") return raw;
+      return "topbar";
+    } catch {
+      return "topbar";
     }
   });
   // Composer hub bar stacking: "stack" (vertical column, default) or "row"
@@ -525,6 +544,14 @@ export function AppShell() {
       // The preference still applies for this page load.
     }
   }, []);
+  const handleContextRingMobileChange = useCallback((placement: ContextRingMobilePlacement) => {
+    setContextRingMobile(placement);
+    try {
+      window.localStorage.setItem(CONTEXT_RING_MOBILE_STORAGE_KEY, placement);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
   const handleToolOutputCapChange = useCallback((enabled: boolean) => {
     setToolOutputCapEnabled(enabled);
     try {
@@ -744,6 +771,9 @@ export function AppShell() {
   }, []);
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
+  // Mobile top-bar slot the session information ring portals into (ChatInput
+  // renders the control here when the chat is open on a phone).
+  const [sessionInfoContainer, setSessionInfoContainer] = useState<HTMLDivElement | null>(null);
 
   // Branch navigator state — populated by ChatWindow via onBranchDataChange
   const [branchTree, setBranchTree] = useState<SessionTreeNode[]>([]);
@@ -815,6 +845,10 @@ export function AppShell() {
   // Single active panel — only one dropdown open at a time
   const [activeTopPanel, setActiveTopPanel] = useState<"branches" | "system" | null>(null);
   const [topPanelPos, setTopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  // Mobile top-bar overflow popover (⋮): the utility and session controls
+  // the desktop bar shows inline live behind this menu on phone sizes.
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
   const toggleTopPanel = useCallback((panel: "branches" | "system") => {
     if (isMobile) setSidebarOpen(false);
     setActiveTopPanel((cur) => cur === panel ? null : panel);
@@ -1038,11 +1072,50 @@ export function AppShell() {
     };
   }, [activeTopPanel]);
 
+  // Overflow popover dismissal: outside click or Escape. Clicks inside the
+  // menu (including the embedded theme/language pickers, whose panels live
+  // in the menu's DOM) keep it open; the opener button toggles itself.
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (event.target instanceof Element) {
+        if (event.target.closest("[data-more-menu]")) return;
+        if (moreBtnRef.current?.contains(event.target as Node)) return;
+      }
+      setMoreMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreMenuOpen]);
+
   // Right workbench owns Files, Agents, Browser and Side chat. Terminal remains
   // a dedicated bottom bar/drawer so its resize and PTY lifecycle stay clear.
   const [fileTabs, setFileTabs] = useState<Tab[]>([]);
   const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  // Upstream cace6832: closing the panel returns focus to the header opener.
+  const closeRightPanel = useCallback(() => {
+    setRightPanelOpen(false);
+    topBarRef.current?.querySelector<HTMLButtonElement>(".shell-panel-opener")?.focus();
+  }, []);
+  // Intentional horizontal swipes open/close the mobile drawers (squashed
+  // port of upstream 6e772b84…fb5f536a). The hook owns a document-level
+  // touch stream and skips inputs, text selections, horizontal scrollers, and
+  // open overlays ([data-top-panel]/[data-branch-panel]/dialogs).
+  useMobileSidebarGestures({
+    enabled: isMobile && mobileSidebarReady && !settingsTab,
+    leftOpen: sidebarOpen,
+    rightOpen: rightPanelOpen,
+    onLeftOpenChange: setSidebarOpen,
+    onRightOpenChange: setRightPanelOpen,
+  });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
@@ -1248,7 +1321,7 @@ export function AppShell() {
     return () => window.removeEventListener("omp-open-usage-dashboard", handler);
   }, []);
 
-  const handleNewSession = useCallback((_sessionId: string, cwd: string) => {
+  const handleNewSession = useCallback((_sessionId: string, cwd: string | null) => {
     setSelectedSession(null);
     setNewSessionCwd(cwd);
     setInitialSessionRestored(true);
@@ -1265,9 +1338,107 @@ export function AppShell() {
     router.replace("/", { scroll: false });
   }, [router, isMobile]);
 
+  // ---- In-app Navigate back / forward over visited chat views ----
+  // Own stack, not the browser History API (that one belongs to the mobile
+  // back-gesture/exit-guard machinery — see lib/navigation-history.ts).
+  const navigationHistory = useNavigationHistory();
+  const {
+    record: recordNavigationView,
+    peekBack: peekNavigationBack,
+    peekForward: peekNavigationForward,
+  } = navigationHistory;
+  // Bumped by the recording effect on every view change. navigateInHistory
+  // captures it across its await and bails if the user moved on meanwhile,
+  // so a slow session-list fetch can never yank the chat out from under a
+  // view the user just switched to.
+  const navViewVersionRef = useRef(0);
+  const navSessionId = selectedSession?.id ?? null;
+  const navSessionCwd = selectedSession?.cwd ?? null;
+  useEffect(() => {
+    navViewVersionRef.current += 1;
+    recordNavigationView({
+      sessionId: navSessionId,
+      cwd: navSessionId ? navSessionCwd : newSessionCwd,
+    });
+  }, [navSessionId, navSessionCwd, newSessionCwd, recordNavigationView]);
+
+  // Resolves a history entry's session id against the live list. `null`
+  // means the id is gone (entry should be dropped); "unavailable" means the
+  // list itself could not be fetched (keep the entry, abort this navigation).
+  const fetchSessionForNavigation = useCallback(async (sessionId: string): Promise<SessionInfo | null | "unavailable"> => {
+    try {
+      const res = await fetch("/api/sessions");
+      if (!res.ok) return "unavailable";
+      const data = (await res.json()) as { sessions?: SessionInfo[] };
+      return data.sessions?.find((s) => s.id === sessionId) ?? null;
+    } catch {
+      return "unavailable";
+    }
+  }, []);
+
+  const navigateInHistory = useCallback(async (direction: -1 | 1): Promise<void> => {
+    // Dead entries (deleted sessions) are skipped, like browser history
+    // skipping a dead slot; bound the loop by the stack's own cap.
+    for (let attempt = 0; attempt <= NAVIGATION_HISTORY_MAX_ENTRIES; attempt++) {
+      const entry = direction === -1 ? peekNavigationBack() : peekNavigationForward();
+      // Nothing that way: stay put. An exhausted stack never falls through to
+      // the browser's own back/forward — the keystroke is swallowed by the
+      // keyboard layer, so the app can never be backed out of by accident.
+      if (!entry) return;
+      if (entry.sessionId === null) {
+        if (direction === -1) navigationHistory.commitBack();
+        else navigationHistory.commitForward();
+        // Mobile: the workbench is full-width there, so a chat switch would
+        // otherwise land behind it (see rightPanelOpen width in the render).
+        if (isMobile) setRightPanelOpen(false);
+        handleNewSession("navigate-history", entry.cwd);
+        return;
+      }
+      const versionAtPress = navViewVersionRef.current;
+      const session = await fetchSessionForNavigation(entry.sessionId);
+      if (navViewVersionRef.current !== versionAtPress) return; // user moved on: do nothing
+      if (session === "unavailable") return; // list fetch failed: keep the entry, try again next press
+      if (session) {
+        if (direction === -1) navigationHistory.commitBack();
+        else navigationHistory.commitForward();
+        // Mobile: the workbench is full-width there, so a chat switch would
+        // otherwise land behind it (see rightPanelOpen width in the render).
+        if (isMobile) setRightPanelOpen(false);
+        handleSelectSession(session, false);
+        return;
+      }
+      if (direction === -1) navigationHistory.dropPeekedBack();
+      else navigationHistory.dropPeekedForward();
+    }
+  }, [navigationHistory, peekNavigationBack, peekNavigationForward, fetchSessionForNavigation, handleNewSession, handleSelectSession, isMobile]);
+
+  // Shared by the sidebar buttons and the global shortcuts. The keyboard
+  // layer always swallows the keystroke, so both directions stop dead at the
+  // ends of the stack instead of continuing into browser history.
+  const handleNavigateBack = useCallback(() => {
+    void navigateInHistory(-1);
+  }, [navigateInHistory]);
+  const handleNavigateForward = useCallback(() => {
+    void navigateInHistory(1);
+  }, [navigateInHistory]);
+
+  // Tooltip shortcut labels follow the platform (⌘[ vs Alt+←). Computed from
+  // navigator after mount state to keep SSR markup stable.
+  const [navIsMac] = useState(() => isMacPlatform());
+  const sidebarNavigation = useMemo(() => ({
+    canBack: navigationHistory.canBack,
+    canForward: navigationHistory.canForward,
+    onBack: handleNavigateBack,
+    onForward: handleNavigateForward,
+    backShortcut: navigateShortcutHint(-1, navIsMac),
+    forwardShortcut: navigateShortcutHint(1, navIsMac),
+  }), [navigationHistory.canBack, navigationHistory.canForward, handleNavigateBack, handleNavigateForward, navIsMac]);
+
   // Global keyboard shortcuts (handles Esc, Ctrl+Alt+N etc.)
   useGlobalKeyboardShortcuts({
     onNewSession: (cwd: string) => handleNewSession(`kb-${Date.now()}`, cwd),
+    onNavigateBack: handleNavigateBack,
+    onNavigateForward: handleNavigateForward,
     activeCwd,
   });
 
@@ -1619,7 +1790,7 @@ export function AppShell() {
   }, [initialSessionRestored]);
 
   const activeCwdName = activeCwd ? getFileName(activeCwd) || activeCwd : null;
-  const windowTitle = activeCwdName ? `${activeCwdName} - omp web` : "omp web";
+  const windowTitle = activeCwdName ? `${activeCwdName} - ${appName}` : appName;
   // Probe whether the active workspace is a git repository so the GitGraph
   // button can be disabled (with an explanatory tooltip) when it is not.
   // The probe runs whenever the resolved cwd changes; the latest result wins.
@@ -1749,10 +1920,12 @@ export function AppShell() {
         onOpenGitGraph={handleOpenGitGraph}
         onOpenRemote={() => setSettingsTab("remote")}
         onOpenArchive={() => setArchiveBrowserOpen(true)}
+        navigation={sidebarNavigation}
         updateAvailable={appUpdateAvailable || ompUpdateAvailable}
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}
         onBrandClick={() => setSidebarOpen(false)}
+        onClose={isMobile ? handleSidebarToggle : undefined}
       />
     </>
   );
@@ -1861,10 +2034,6 @@ export function AppShell() {
         }
       }
       @media (max-width: 640px) {
-        .sidebar-overlay-backdrop.sidebar-mobile-pending {
-          opacity: 0 !important;
-          pointer-events: none !important;
-        }
         .sidebar-container.sidebar-mobile-pending.sidebar-open {
           transform: translateX(-100%);
           box-shadow: none;
@@ -1873,31 +2042,19 @@ export function AppShell() {
     `}</style>
     <a href="#main-content" className="skip-link">{t("appShell.skipToContent")}</a>
     <div className={panelsSwappedActive ? "shell-panels-swapped" : undefined} style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
-      {/* Mobile overlay backdrop */}
-      <div
-        className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
-        onClick={() => setSidebarOpen(false)}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 199,
-          background: "color-mix(in srgb, var(--text) 28%, transparent)",
-          opacity: sidebarOpen ? 1 : 0,
-          pointerEvents: sidebarOpen ? "auto" : "none",
-          transition: "opacity var(--dur-slow) var(--ease-out-warm)",
-        }}
-      />
 
       {/* Left sidebar */}
       <nav
         aria-label={t("projects.heading")}
+        id="workspace-sidebar"
+        role={isMobile && sidebarOpen ? "dialog" : undefined}
         ref={sidebarContainerRef}
         className={`sidebar-container${sidebarOpen ? " sidebar-open" : " sidebar-closed"}${mobileSidebarReady ? "" : " sidebar-mobile-pending"}${sidebarResizing ? " sidebar-resizing" : ""}`}
         aria-hidden={mobileSidebarReady && !sidebarOpen ? true : undefined}
         inert={mobileSidebarReady && !sidebarOpen ? true : undefined}
         style={{
           background: "var(--bg-panel)",
-          borderRight: panelsSwappedActive ? "none" : "1px solid var(--border)",
+          borderRight: !isMobile && !panelsSwappedActive ? "1px solid var(--border)" : "none",
           borderLeft: panelsSwappedActive ? "1px solid var(--border)" : "none",
           display: "flex",
           flexDirection: "column",
@@ -1968,7 +2125,7 @@ export function AppShell() {
           }}
         />
         {/* Top bar: compact icon-led control bar */}
-        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: isMobile ? 44 : 36, background: "var(--bg-panel)" }}>
+        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: "var(--shell-topbar-height)", background: "var(--bg-panel)", ...(isMobile && showChat && contextRingMobile === "topbar" ? { "--topbar-side": "144px" } : {}) }}>
         {/* Utility group: sidebar, theme, language */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%", paddingLeft: isMobile ? 4 : 8 }}>
           {panelsSwappedActive && (
@@ -1994,36 +2151,42 @@ export function AppShell() {
             </button>
             </Tooltip>
           )}
-          {/* Touch entry for the command palette (mobile has no ⌘K/Ctrl+K) */}
-          <Tooltip content={t("appShell.commandPalette")}>
-            <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("omp-open-palette"))}
-            aria-label={t("appShell.commandPalette")}
-            className="shell-toolbar-btn ui-focus-ring"
-          >
-            <Search size={16} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          </Tooltip>
-          <ThemePicker />
-          <Tooltip content={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}>
-            <button
-            type="button"
-            onClick={toggleTerminalPanel}
-            aria-label={t("appShell.toggleTerminal") || "Toggle Terminal"}
-            aria-pressed={terminalOpen}
-            className="shell-toolbar-btn ui-focus-ring"
-            style={{
-              color: terminalOpen ? "var(--accent)" : undefined,
-              background: terminalOpen ? "var(--bg-selected)" : undefined,
-            }}
-          >
-            <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          </Tooltip>
-          <LanguageSwitcher />
+          {/* Utility controls beyond the drawer toggle: desktop inline,
+              mobile behind the top-right overflow popover. */}
+          {!isMobile && (
+            <>
+              {/* Touch entry for the command palette (⌘K/Ctrl+K mirror). */}
+              <Tooltip content={t("appShell.commandPalette")}>
+                <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("omp-open-palette"))}
+                aria-label={t("appShell.commandPalette")}
+                className="shell-toolbar-btn ui-focus-ring"
+              >
+                <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              </Tooltip>
+              <ThemePicker />
+              <Tooltip content={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}>
+                <button
+                type="button"
+                onClick={toggleTerminalPanel}
+                aria-label={t("appShell.toggleTerminal") || "Toggle Terminal"}
+                aria-pressed={terminalOpen}
+                className="shell-toolbar-btn ui-focus-ring"
+                style={{
+                  color: terminalOpen ? "var(--accent)" : undefined,
+                  background: terminalOpen ? "var(--bg-selected)" : undefined,
+                }}
+              >
+                <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              </Tooltip>
+              <LanguageSwitcher />
+            </>
+          )}
         </div>
-        {showChat && (
+        {showChat && !isMobile && (
           <>
             <div className="shell-toolbar-divider" aria-hidden="true" />
             {/* Session controls: history, generate title, branches, system */}
@@ -2085,11 +2248,48 @@ export function AppShell() {
             onClick={handleSidebarToggle}
             aria-label={sidebarOpen ? t("appShell.hideSidebar") : t("appShell.showSidebar")}
             className="shell-toolbar-btn ui-focus-ring"
-            style={{ marginLeft: "auto" }}
+            style={{ marginLeft: isMobile ? 0 : "auto" }}
           >
             {sidebarToggleIcon}
           </button>
           </Tooltip>
+        )}
+        {/* Mobile overflow opener (⋮): everything the desktop bar shows
+            inline lives behind this menu; it pushes the right-edge cluster
+            (⋮ + file-panel opener) to the bar's end. */}
+        {isMobile && (
+          <Tooltip content={t("appShell.moreActions")}>
+            <button
+              ref={moreBtnRef}
+              type="button"
+              onClick={() => setMoreMenuOpen((open) => !open)}
+              aria-label={t("appShell.moreActions")}
+              aria-expanded={moreMenuOpen}
+              className="shell-toolbar-btn ui-focus-ring"
+              style={{ marginLeft: "auto" }}
+            >
+              <MoreHorizontal size={16} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
+        {/* File-panel opener (port of upstream cace6832): the opener lives in
+            the header and dismissal lives inside the panel; focus returns to
+            this button. Gated off in swapped mode, whose inline opener at the
+            top-left already toggles the panel. */}
+        {!panelsSwappedActive && (
+          <button
+            type="button"
+            className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
+            style={{ marginLeft: isMobile ? 0 : "auto", marginRight: "5px" }}
+            onClick={toggleFilePanel}
+            title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            aria-expanded={rightPanelOpen}
+            aria-controls="workspace-file-panel"
+            aria-pressed={rightPanelOpen}
+          >
+            {rightPanelOpen ? <X size={16} strokeWidth={1.8} aria-hidden="true" /> : <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />}
+          </button>
         )}
 
           {/* Center Zone: Workspace & Session Breadcrumb + Auto-name action */}
@@ -2145,7 +2345,9 @@ export function AppShell() {
                     color: "var(--text-muted)",
                     whiteSpace: "nowrap",
                     minWidth: 0,
-                    maxWidth: "min(400px, 30vw)",
+                    width: "fit-content",
+                    maxWidth: "100%",
+                    justifyContent: "center",
                     flexShrink: 1,
                   }}
                 >
@@ -2236,6 +2438,173 @@ export function AppShell() {
               </div>
             );
           })()}
+          {/* Session info mount (port of upstream 193047f1 chain): the
+              context ring moves from the composer toolbar to the header on
+              phones while the "Context ring (mobile)" setting says "topbar".
+              It floats at the bar's right end, just left of the overflow
+              cluster (the `--topbar-side` inset grows while it is visible
+              so the centered title pill never reaches under it); the bar's
+              height token sizes it (44px on phones, no extra safe-area
+              inset — the PWA viewport carries it). */}
+          {isMobile && showChat && contextRingMobile === "topbar" && (
+            <div
+              ref={setSessionInfoContainer}
+              className="shell-session-info"
+              style={{
+                position: "absolute",
+                right: "calc(96px + env(safe-area-inset-right, 0px))",
+                top: 0,
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+              }}
+            />
+          )}
+          {/* Mobile overflow popover: the utility and session controls the
+              desktop bar shows inline. Rows run an action and close the
+              menu; the theme/language rows embed the self-managed pickers
+              (their panels live inside the menu's DOM, keeping it open). */}
+          {isMobile && moreMenuOpen && (
+            <div
+              data-more-menu
+              className="picker-panel animate-scale-in"
+              style={{
+                position: "fixed",
+                top: "calc(var(--shell-topbar-height) + 4px)",
+                right: 4,
+                zIndex: 70,
+                width: 250,
+                maxHeight: "calc(100dvh - var(--shell-topbar-height) - 16px)",
+                overflowY: "auto",
+                background: "var(--bg-panel)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-card)",
+                boxShadow: "var(--shadow-pop)",
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent("omp-open-palette"));
+                }}
+              >
+                <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.commandPalette")}
+              </button>
+              <div
+                className="mobile-overflow-row"
+                role="none"
+                onClick={(event) => {
+                  // A click on the row (not its own button) opens the picker.
+                  if (event.target instanceof Element && event.target.closest("button")) return;
+                  event.currentTarget.querySelector("button")?.click();
+                }}
+              >
+                <ThemePicker />
+                <span>{t("appShell.switchTheme") || "Theme & Typography"}</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  toggleTerminalPanel();
+                }}
+              >
+                <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: terminalOpen ? "var(--accent)" : undefined }} />
+                {t("appShell.toggleTerminal") || "Toggle Terminal"}
+              </button>
+              <div
+                className="mobile-overflow-row"
+                role="none"
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest("button")) return;
+                  event.currentTarget.querySelector("button")?.click();
+                }}
+              >
+                <LanguageSwitcher />
+                <span>{t("appShell.language")}</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  handleViewFullHistory();
+                }}
+                disabled={!selectedSession}
+              >
+                <History size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.fullHistory")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  if (gitWorkspace !== true) return;
+                  setMoreMenuOpen(false);
+                  handleOpenGitGraph();
+                }}
+                disabled={gitWorkspace !== true}
+              >
+                <GitBranch size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.githubStatus")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  toggleTopPanel("branches");
+                }}
+              >
+                <GitFork size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("branchNavigator.branches")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  handleSystemPromptToggle();
+                }}
+              >
+                <Terminal size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: systemPrompt ? "var(--accent)" : undefined }} />
+                {t("appShell.system")}
+              </button>
+            </div>
+          )}
+          {/* Hidden branch-navigator host (mobile): the overflow row opens
+              the branch panel, so the component must stay mounted while the
+              menu itself closes. The fixed panel escapes the 0x0 clip. */}
+          {isMobile && showChat && (
+            <div
+              ref={(el) => {
+                // The off-screen trigger stays out of tab order and the
+                // a11y tree — the overflow row is the real trigger on phones.
+                if (!el) return;
+                for (const b of el.querySelectorAll("button")) {
+                  b.tabIndex = -1;
+                  b.setAttribute("aria-hidden", "true");
+                }
+              }}
+              style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+            >
+              <BranchNavigator
+                tree={branchTree}
+                activeLeafId={branchActiveLeafId}
+                onLeafChange={handleBranchLeafChange}
+                inline
+                containerRef={topBarRef}
+                open={activeTopPanel === "branches"}
+                onToggle={() => toggleTopPanel("branches")}
+                hasSession
+              />
+            </div>
+          )}
           {/* Top panel dropdown — shared, only one active at a time. The
               branch panel renders inside BranchNavigator itself; never mount
               an empty fixed layer for it (it would sit over the top-bar
@@ -2331,6 +2700,8 @@ export function AppShell() {
               onSystemPromptLoaderChange={handleSystemPromptLoaderChange}
               onSessionStatsChange={handleSessionStatsChange}
               sessionInfoButtonVisible={sessionInfoButtonVisible}
+              sessionInfoContainer={sessionInfoContainer}
+              contextRingMobile={contextRingMobile}
               showJumpToBottomButton={showJumpToBottomButton}
               onOpenGitTab={handleOpenGitTab}
               onSubagentsChange={setSubagents}
@@ -2415,6 +2786,8 @@ export function AppShell() {
         <div
           ref={rightPanelRef}
           className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}`}
+          id="workspace-file-panel"
+          role={isMobile && rightPanelOpen ? "dialog" : undefined}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -2465,10 +2838,19 @@ export function AppShell() {
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", height: 36 }}>
+                  <div className="right-panel-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", minHeight: "var(--shell-topbar-height)" }}>
                     <div style={{ flex: 1, overflow: "hidden" }}>
                       <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
                     </div>
+                    <button
+                      type="button"
+                      onClick={closeRightPanel}
+                      title={t("appShell.hideFilePanel")}
+                      aria-label={t("appShell.hideFilePanel")}
+                      className="shell-toolbar-btn right-panel-close-button ui-focus-ring"
+                    >
+                      <X size={16} strokeWidth={1.8} aria-hidden="true" />
+                    </button>
                   </div>
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                     {/* The explorer stays mounted (toggled via display) so its
@@ -2501,32 +2883,6 @@ export function AppShell() {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-      {/* File panel toggle — fixed at top-right; when the panels are swapped
-          it moves inline to the top-left of the top bar instead. On mobile it
-          is the single expand/collapse control for the full-width panel
-          overlay: visible while the left drawer is closed (the drawer would
-          cover the fixed button while open), toggling the panel open and
-          closed from the same corner. */}
-      {!panelsSwappedActive && (!isMobile || !sidebarOpen) && (
-        <Tooltip content={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}>
-          <button
-          onClick={toggleFilePanel}
-          aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-          style={{
-            position: "fixed", top: 0, right: 0, zIndex: 300,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, padding: 0,
-            background: "var(--bg-panel)", border: "none", borderLeft: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
-            color: rightPanelOpen ? "var(--text)" : "var(--text-muted)",
-            cursor: "pointer", transition: "color var(--dur-fast) var(--ease-out-warm)",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = rightPanelOpen ? "var(--text)" : "var(--text-muted)"; }}
-        >
-          {fileToggleIcon}
-        </button>
-        </Tooltip>
-      )}
     <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
@@ -2565,6 +2921,8 @@ export function AppShell() {
         onPanelsSwappedChange={handlePanelsSwappedChange}
         gitStatsPlacement={gitStatsPlacement}
         onGitStatsPlacementChange={handleGitStatsPlacementChange}
+        contextRingMobile={contextRingMobile}
+        onContextRingMobileChange={handleContextRingMobileChange}
         hubBarLayout={hubBarLayout}
         onHubBarLayoutChange={handleHubBarLayoutChange}
         hubBarsVisible={hubBarsVisible}

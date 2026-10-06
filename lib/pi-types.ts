@@ -1,3 +1,5 @@
+import type { SkillDiagnosticsSnapshot } from "./skill-diagnostics";
+
 // Local mirrors of the omp shapes used by omp-web. omp's SDK packages are
 // Bun-only, so these types are hand-maintained against
 // oh-my-pi/packages/coding-agent/src/modes/rpc/rpc-types.ts (protocol v1).
@@ -8,9 +10,11 @@ export interface ContextUsage {
   tokens: number | null;
 }
 
-export type AnthropicSlowModeState =
+export type UsageLimitState =
   | { stage: "low_priority"; resetsAtSec: number; allowanceLeftPercent?: number }
   | { stage: "wrap_up"; resetsAtSec?: number; extraUsage: boolean };
+
+export type SlowModeScope = "session" | "global";
 
 export interface ModelLike {
   id: string;
@@ -83,10 +87,20 @@ export interface RpcSessionState {
   fastMode?: boolean;
   fastModeEnabled?: boolean;
   fastModeActive?: boolean;
-  /** Structured Claude usage-limit state; absent outside wrap-up and low priority. */
-  anthropicSlowMode?: AnthropicSlowModeState;
+  /** Legacy wire name (omp ≤18.6.1) of the structured usage-limit state. */
+  anthropicSlowMode?: UsageLimitState;
+  /** Renamed wire name (omp ≥ slow-mode RPC); absent on older omp. */
+  usageLimit?: UsageLimitState;
+  /** `/slow` applies to the active model (omp ≥ slow-mode RPC). */
+  slowModeSupported?: boolean;
+  /** Slow setting for the active model; false whenever unsupported. */
+  slowModeEnabled?: boolean;
+  /** Present iff supported: `global` = persisted omp config shared by every session/terminal; `session` = this session's flex tier. */
+  slowModeScope?: SlowModeScope;
   /** omp's reported output throughput; null/undefined when not generating. */
   tokensPerSecond?: number | null;
+  /** Structured skill resolution diagnostics; absent on older OMP builds. */
+  skillDiagnostics?: SkillDiagnosticsSnapshot;
 }
 
 /**
@@ -114,9 +128,14 @@ export interface WebSessionState {
   thinkingLevel: string;
   fastModeEnabled: boolean;
   fastModeActive?: boolean;
-  anthropicSlowMode?: AnthropicSlowModeState;
+  slowModeSupported: boolean;
+  slowModeEnabled: boolean;
+  slowModeScope?: SlowModeScope;
+  usageLimit?: UsageLimitState;
   autoRetryEnabled?: boolean;
   tokensPerSecond?: number | null;
+  /** Parsed public diagnostics DTO; absent means unsupported or malformed. */
+  skillDiagnostics?: SkillDiagnosticsSnapshot;
   todoPhases: TodoPhase[];
   extensionStatuses: Array<{ key: string; text: string }>;
   extensionWidgets: Array<{ key: string; lines: string[]; placement: "aboveEditor" | "belowEditor" }>;

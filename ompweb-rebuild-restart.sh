@@ -419,7 +419,7 @@ for name, ignore, preserve in (
 ):
     mirror(name, ignore, preserve)
 
-for f in ('next.config.ts', 'package.json', 'instrumentation.ts', 'proxy.ts', 'tsconfig.json'):
+for f in ('next.config.ts', 'package.json', 'instrumentation.ts', 'proxy.ts', 'tsconfig.json', 'backend-ownership.yaml'):
     sp, dp = os.path.join(src, f), os.path.join(dst, f)
     if not os.path.exists(sp):
         continue
