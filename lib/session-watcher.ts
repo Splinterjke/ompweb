@@ -427,12 +427,13 @@ export function getExternallyActiveIds(withinMs = 5000): string[] {
 }
 
 // ── External holder (process) detection ────────────────────────────────────
-// An `omp` process that resumed a session file keeps `--resume <file>` in its
-// command line for the whole session lifetime, so /proc is the reliable
-// signal that a session is owned by a process outside this server (a terminal
-// run, a harness, or a child that outlived an ompweb restart). File locks are
-// not created for idle sessions, and the file is only held open while
-// writing, so neither catches a quiet in-progress run.
+// An `omp` process that resumed a session file keeps an open write fd on it
+// for the whole session lifetime (and, for command-line resumes, the
+// `--resume <file>` argument too), so /proc is the reliable signal that a
+// session is held by a process outside this server (a terminal run, a
+// harness, or a child that outlived an ompweb restart). File locks are not
+// created for idle sessions, so they catch neither a quiet in-progress run
+// nor a holder — the process scan is the only mechanism that does.
 
 const HOLDER_CACHE_MS = 5_000;
 let heldCache: { at: number; byId: Map<string, string> } | null = null;
@@ -593,13 +594,16 @@ function scanExternallyHeldSessions(): Map<string, string> {
       }
       const held = parseHeldSession(args, cwd);
       if (held) candidates.push(held);
-      continue;
     }
-    // Mechanism 2: host-spawned children resume via IPC, so the file never
-    // appears on their command line — but omp keeps the session file open
-    // (write fd) for the whole session lifetime, so the open fd identifies
-    // the holder. This is what keeps a turn visible across a web-server
-    // crash/restart even for a session that was brand-new to the old server.
+    // Mechanism 2: runs for EVERY omp process, because the command line is
+    // not always the truth — host-spawned children resume via IPC (no file
+    // in argv), and a child whose file was taken over by omp's >= 18.5 file
+    // ownership MOVED at runtime to a sibling file: its command line still
+    // names the pre-move path while its open write fd names the current one.
+    // omp keeps that fd open for the whole session lifetime, so the fd walk
+    // is what catches quiet holders and moved holders alike — across a
+    // web-server crash/restart, and even for a session brand-new to the old
+    // server.
     try {
       for (const fd of readdirSync(`/proc/${pid}/fd`)) {
         let target = "";
@@ -670,5 +674,162 @@ function isWebOwnedOmp(pid: string): boolean {
     return getWebOwnedHostPids().has(ppid);
   } catch {
     return false;
+  }
+}
+
+// ── Pre-spawn holder gate (consumed by lib/rpc-manager.ts) ─────────────────
+// omp >= 18.5 lets exactly one process own a session file: a second live
+// process that resumes it cannot take over — on its first write it
+// sidewrites a sibling file with a new id, which the UI can only follow as
+// a "fork". Before spawning `--resume <file>` the RPC manager therefore asks
+// which live processes already hold the file and either reaps the leaked
+// ones (children of an orphaned host daemon whose Node owner is dead) or
+// refuses the spawn (a holder OmpWeb must never stop). Unlike
+// scanExternallyHeldSessions this is uncached, applies NO stalled-holder
+// mtime filter (a quiet holder forks a fresh child just the same as an
+// active one), and matches by open fd as well as by command line — so a
+// holder that already moved the file is still found for its CURRENT file.
+
+export interface SessionFileHolder {
+  pid: number;
+  parentPid: number;
+  /** The holder's parent is an `ompweb-host` daemon that was itself
+   * reparented to init: a leaked child of a previous server instance. Its
+   * owning Node process is gone and nobody can reach the session through
+   * it any more, so it is safe to terminate before the spawn. */
+  staleWebChild: boolean;
+  /** The holder is a child of an `ompweb-host` daemon that still has a live
+   * parent — another RUNNING ompweb instance legitimately owns it. */
+  heldByLiveServer: boolean;
+}
+
+/** Live `omp` processes outside this instance that hold `sessionFile` open
+ * (by open fd or by a `--resume` command line naming it). Linux only;
+ * empty elsewhere, where the caller keeps the pre-existing best effort. */
+export function findSessionFileHolders(sessionFile: string): SessionFileHolder[] {
+  if (process.platform !== "linux") return [];
+  const target = resolve(sessionFile);
+  const holders: SessionFileHolder[] = [];
+  let pids: string[];
+  try {
+    pids = readdirSync("/proc");
+  } catch {
+    return [];
+  }
+  const ppidOf = (pid: number | string): number => {
+    try {
+      const match = /(^|\n)PPid:\s*(\d+)/.exec(readFileSync(`/proc/${pid}/status`, "utf8"));
+      return match ? Number(match[2]) : 0;
+    } catch {
+      return 0;
+    }
+  };
+  for (const pid of pids) {
+    if (!/^\d+$/.test(pid)) continue;
+    let cmdline = "";
+    try {
+      cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf8");
+    } catch {
+      continue; // exited or unreadable between readdir and read
+    }
+    const args = cmdline.split("\0").filter(Boolean);
+    if (args.length < 2 || (args[0].split("/").pop() ?? "") !== "omp") continue;
+    if (isWebOwnedOmp(pid)) continue; // this instance's own live child
+    let holds = false;
+    if (args.includes("--resume")) {
+      let cwd: string | null = null;
+      try {
+        cwd = readlinkSync(`/proc/${pid}/cwd`);
+      } catch {
+        cwd = null;
+      }
+      const held = parseHeldSession(args, cwd);
+      holds = held !== null && held.file === target;
+    }
+    if (!holds) {
+      // The fd is the ground truth for moved holders: their command line
+      // still names the pre-move file while the session lives at `target`.
+      try {
+        for (const fd of readdirSync(`/proc/${pid}/fd`)) {
+          let link = "";
+          try {
+            link = readlinkSync(`/proc/${pid}/fd/${fd}`);
+          } catch {
+            continue;
+          }
+          if (link.endsWith(" (deleted)")) link = link.slice(0, -" (deleted)".length);
+          if (link === target) {
+            holds = true;
+            break;
+          }
+        }
+      } catch {
+        continue; // exited mid-walk
+      }
+    }
+    if (!holds) continue;
+    const parentPid = ppidOf(pid);
+    let parentArgv0 = "";
+    try {
+      parentArgv0 = readFileSync(`/proc/${parentPid}/cmdline`, "utf8").split("\0")[0] ?? "";
+    } catch {
+      parentArgv0 = "";
+    }
+    const parentIsHost = basename(parentArgv0) === "ompweb-host";
+    holders.push({
+      pid: Number(pid),
+      parentPid,
+      staleWebChild: parentIsHost && ppidOf(parentPid) === 1,
+      heldByLiveServer: parentIsHost && ppidOf(parentPid) !== 1,
+    });
+  }
+  return holders;
+}
+
+/** Split holders into the leaked web children that may be terminated before
+ * a spawn and the first blocker that must not be touched. Any non-reapable
+ * holder blocks the spawn: taking over a live terminal run or another
+ * instance's session by killing it is never silently acceptable. */
+export function partitionSessionHolders(holders: SessionFileHolder[]): {
+  reappable: SessionFileHolder[];
+  blocked: SessionFileHolder | null;
+} {
+  const reappable: SessionFileHolder[] = [];
+  let blocked: SessionFileHolder | null = null;
+  for (const holder of holders) {
+    if (holder.staleWebChild) reappable.push(holder);
+    else if (!blocked) blocked = holder;
+  }
+  return { reappable, blocked };
+}
+
+/** SIGTERM the given processes and wait for them to exit (gone or zombie
+ * counts as exited — a session holder flushing its last write becomes one).
+ * Returns the pids still alive after `timeoutMs`. SIGKILL is deliberately
+ * never attempted: an omp child may be mid-write to the very file the next
+ * spawn is about to resume. */
+export async function terminateHoldersAndWait(pids: number[], timeoutMs = 5_000): Promise<number[]> {
+  if (pids.length === 0) return [];
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // already gone — this pid is as cleaned as it will get
+    }
+  }
+  const stillRunning = (pid: number): boolean => {
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      return !stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z");
+    } catch {
+      return false;
+    }
+  };
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const alive = pids.filter(stillRunning);
+    if (alive.length === 0) return [];
+    if (Date.now() >= deadline) return alive;
+    await new Promise((r) => setTimeout(r, 150));
   }
 }

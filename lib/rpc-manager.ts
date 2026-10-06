@@ -10,6 +10,7 @@ import { readNativeSettings } from "./omp/settings-config";
 import { scanSessionInfo } from "./omp/session-files";
 import { sanitizeSessionTitle } from "./session-title";
 import { cacheSessionPath, invalidateSessionListCache, readSessionHeader, resolveSessionPath } from "./session-reader";
+import { findSessionFileHolders, partitionSessionHolders, terminateHoldersAndWait } from "./session-watcher";
 import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { taskCompletedDiff } from "./todo-completion";
@@ -2302,6 +2303,16 @@ export async function startRpcSession(
     }
   }
 
+  // omp >= 18.5 file ownership: a second live process resuming this file can
+  // never take it over — on its first write it sidewrites a sibling file
+  // with a new id, which move-following can only honor as a "fork". The
+  // spawn-report split check below catches only the child that reports the
+  // move at once; a first-write move gets silently followed — the per-prompt
+  // fork storm behind a restart that left the old child alive. So clear
+  // stale holders before spawning, and refuse to steal the file from a
+  // holder OmpWeb must not stop.
+  if (sessionFile) await releaseStaleSessionHolders(sessionFile);
+
   const inflight = locks.get(sessionId);
   if (inflight) return inflight;
 
@@ -2375,4 +2386,33 @@ export async function startRpcSession(
 
   locks.set(sessionId, starting);
   return starting;
+}
+
+/**
+ * Pre-spawn holder gate (see the holder-gate section in session-watcher.ts):
+ * terminate leaked children of a previous server instance TOGETHER WITH
+ * their orphaned host daemons (a daemon never idle-teardowns while a child
+ * lives, which is what kept stale file ownership alive across restarts),
+ * then wait until the session file actually falls free. A holder OmpWeb
+ * must not stop — a live terminal run or another running instance's child —
+ * rejects the spawn instead of silently forking the session away.
+ */
+export async function releaseStaleSessionHolders(sessionFile: string): Promise<void> {
+  const holders = findSessionFileHolders(sessionFile);
+  if (holders.length === 0) return;
+  const { reappable, blocked } = partitionSessionHolders(holders);
+  if (blocked) {
+    throw new WebRpcError(
+      `This session is held by a live omp process (pid ${blocked.pid}) that OmpWeb must not stop — a terminal run or another running instance. Stop it at its source, then retry.`,
+      "session_held_external",
+    );
+  }
+  const daemons = [...new Set(reappable.map((holder) => holder.parentPid).filter((pid) => pid > 1))];
+  const stuck = await terminateHoldersAndWait([...reappable.map((holder) => holder.pid), ...daemons]);
+  if (stuck.length > 0) {
+    throw new WebRpcError(
+      `A stale session holder did not exit after SIGTERM (pid ${stuck.join(", ")}). Retry in a moment or terminate it manually.`,
+      "session_held_stuck",
+    );
+  }
 }

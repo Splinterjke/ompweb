@@ -189,6 +189,63 @@ PY
   release_port
   rlog "stop: tree torn down; the supervisor loop will relaunch ompweb with the new build"
 
+  # --- Reap leaked host daemons and their session holders ---
+  # A killed next-server leaves its ompweb-host daemon orphaned (reparented
+  # to init), and the daemon keeps its `omp --mode rpc-ui` children alive for
+  # the whole session lifetime. Those children hold their session files OPEN;
+  # under omp >= 18.5 file ownership any later `--resume` of a held file
+  # forks it into a sibling file on the first write — the per-prompt fork
+  # storm after a restart. The tree kill above cannot reach them: orphaned
+  # daemons left the wrapper's process tree the moment their parent died.
+  # Scope is exact: only daemons ALREADY reparented to init (every live
+  # instance's daemon is a child of its own node process, so dev instances
+  # and terminal omp runs are never touched).
+  python3 - >>"$REAPER_LOG" 2>&1 <<'PY'
+import os, signal
+
+def field(pid, name):
+    try:
+        for line in open(f'/proc/{pid}/status'):
+            if line.startswith(name):
+                return line.split(':')[1].strip()
+    except OSError:
+        pass
+    return ''
+
+def comm(pid):
+    try:
+        return open(f'/proc/{pid}/comm').read().strip()
+    except OSError:
+        return ''
+
+def alive(pid):
+    try:
+        st = open(f'/proc/{pid}/stat').read()
+        return st.rsplit(')', 1)[1].split()[0] != 'Z'
+    except OSError:
+        return False
+
+try:
+    pids = [int(p) for p in os.listdir('/proc') if p.isdigit()]
+    kids = {}
+    for p in pids:
+        kids.setdefault(field(p, 'PPid'), []).append(p)
+    orphans = [p for p in pids if comm(p) == 'ompweb-host' and field(p, 'PPid') == '1' and alive(p)]
+    victims = []
+    for d in orphans:
+        victims += [k for k in kids.get(str(d), []) if comm(k) == 'omp' and alive(k)]
+    victims += orphans
+    for v in victims:  # children first, daemons last
+        try:
+            os.kill(v, signal.SIGTERM)
+        except OSError:
+            pass
+    print(f"orphan sweep: daemons={orphans} session_holders={[v for v in victims if v not in orphans]}", flush=True)
+except Exception as ex:
+    print(f"WARNING: orphan sweep failed ({type(ex).__name__}: {ex})", flush=True)
+PY
+  rlog "stop: orphaned host daemons swept (stale session ownership released)"
+
   # --- Wait for the entrypoint supervisor to relaunch (the loop guarantees it) ---
   probe() { curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:$PORT/" 2>/dev/null; }
 

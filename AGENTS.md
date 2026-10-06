@@ -342,6 +342,22 @@ hooks/
   `startRpcSession` also reuses any live wrapper reporting the requested session
   file instead of spawning a second `--resume` child (which would fork again).
   `onDestroy` removes every key that points at the wrapper.
+- **Pre-spawn holder gate** (`releaseStaleSessionHolders` in `lib/rpc-manager.ts`,
+  finder/classifier in `lib/session-watcher.ts`): a second live process resuming an
+  owned file can never take it over — its first write forks the session into a sibling
+  file, which move-following can only honor as a fork (observed as a fork-per-prompt
+  storm after restarts that left the previous instance's `omp` children alive under
+  orphaned `ompweb-host` daemons). So before any resume spawn, live holders of the
+  file are found by **open fd as well as by the `--resume` cmdline** (a holder that
+  already moved at runtime keeps the *current* file's fd while its cmdline names the
+  pre-move path — the old cmdline-only scan was blind to exactly that, and so was the
+  external-holder badge), leaked children of orphaned daemons (parent `ompweb-host`
+  reparented to init) are SIGTERMed **together with their daemon** and awaited, and
+  holders that must not be stopped (live terminal run, another live instance) reject
+  the spawn with `session_held_external` / `session_held_stuck` instead of forking.
+  `ompweb-rebuild-restart.sh`'s reaper sweeps orphaned daemons too; the queue lives
+  inside the owning process, which is why prompts that land on a *different* fresh
+  process can never queue — they fork.
 - `POST /api/sessions/[id]/auto-name` asks omp to generate the title
   (`AgentSessionWrapper.generateTitle()`: native `generate_title`, else
   argument-less `/rename`, never while a run is in flight). Only when omp cannot
