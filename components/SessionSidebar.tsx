@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -550,8 +550,8 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     lineHeight: 1,
     textAlign: "left",
   } as const;
-  // Mobile: the brand doubles as the drawer's collapse button — the chevron
-  // and hover state make it read as a button, not a logo. On desktop it is a
+  // Mobile: the brand doubles as the drawer's collapse button — the hover
+  // state makes it read as a button, not a logo. On desktop it is a
   // static label (no click behavior, no animation).
   return isMobile && onMobileClick ? (
     <button
@@ -564,7 +564,6 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
     >
       {brand}
-      <ChevronLeft size={14} strokeWidth={1.8} aria-hidden="true" style={{ color: "var(--text-muted)", flexShrink: 0 }} />
     </button>
   ) : (
     <span aria-label="omp web" style={style}>

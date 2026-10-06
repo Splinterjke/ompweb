@@ -3320,6 +3320,30 @@ html.dark .dropdown-surface :is(select, option) {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
+/* Mobile top-bar overflow popover row (⋮ menu): a full-width action row —
+   icon, localized label, hover/focus treatment like the toolbar buttons. */
+.mobile-overflow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font-size: calc(13px * var(--ui-font-scale-lg, 1));
+  text-align: left;
+  cursor: pointer;
+}
+.mobile-overflow-row:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.mobile-overflow-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 /* Subtle group separator between toolbar control clusters */
 .shell-toolbar-divider {
   width: 1px;
@@ -3907,26 +3931,9 @@ html.dark .dropdown-surface :is(select, option) {
   pointer-events: none;
 }
 
-/* File-panel toolbar (port of upstream cace6832): the close control docks at
-   the toolbar's right edge; the toolbar reserves its width so tabs never
-   slide underneath. html:root raises specificity over the touch-target size
-   overrides (upstream 5450ccce). */
-.right-panel-toolbar {
-  --right-panel-close-width: 36px;
-  position: relative;
-  padding-right: var(--right-panel-close-width);
-}
-html:root .shell-toolbar-btn.right-panel-close-button {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: var(--right-panel-close-width) !important;
-  height: var(--shell-topbar-height) !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-  border-radius: 0;
-}
+/* File-panel toolbar (port of upstream cace6832): the close control is a
+   plain flex child — the toolbar row ends with it, docked at the right
+   edge by flow rather than absolute positioning. */
 
 /* Maintain a stable minimum layout width inside the rail during open/close
    animation to eliminate text-reflow churn across the 220ms transition. */
@@ -3973,13 +3980,6 @@ html:root .shell-toolbar-btn.right-panel-close-button {
     opacity: 1;
     overflow: hidden;
     transition: transform var(--dur-slow) var(--ease-out-warm), visibility 0s;
-  }
-  .right-panel-toolbar {
-    --right-panel-close-width: 44px;
-  }
-  html:root .shell-toolbar-btn.right-panel-close-button {
-    padding-top: env(safe-area-inset-top, 0px) !important;
-    border-bottom: 1px solid var(--border);
   }
   .right-panel-container.right-panel-open {
     transform: none;

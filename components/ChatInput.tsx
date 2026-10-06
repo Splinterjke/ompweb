@@ -760,11 +760,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const [composerContextContainer, setComposerContextContainer] = useState<HTMLDivElement | null>(null);
   const ringInTopbar = isMobile && contextRingMobile === "topbar";
   const ringHidden = isMobile && contextRingMobile === "hidden";
+  const ringMobileComposer = isMobile && contextRingMobile === "composer";
   const contextContainer = ringInTopbar ? sessionInfoContainer : composerContextContainer;
 
   // Desktop context popover height cap: the room above its trigger, so it only
   // scrolls when the window is genuinely too short for it.
   const [contextMaxHeight, setContextMaxHeight] = useState<number>();
+  // Ring top (scale-compensated CSS px) measured on open — the mobile
+  // composer placement anchors its fixed popover above the ring with it.
+  const [contextRingTop, setContextRingTop] = useState<number>();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -2079,7 +2083,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     if (!contextOpen || !wrap) return;
     // --ui-scale zooms <html>: the rect is in painted pixels, styles are not.
     const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale")) || 1;
-    setContextMaxHeight(Math.max(160, wrap.getBoundingClientRect().top / scale - 16));
+    const ringTop = wrap.getBoundingClientRect().top / scale;
+    setContextMaxHeight(Math.max(160, ringTop - 16));
+    setContextRingTop(ringTop);
   }, [contextOpen]);
   // Focus management for the context popover (it can live in the top bar):
   // move focus into the dialog on open and back to the opener on close, so
@@ -3526,24 +3532,37 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     tabIndex={-1}
                     className="picker-panel"
                     style={{
-                      position: ringInTopbar ? "fixed" : "absolute",
+                      position: ringInTopbar || ringMobileComposer ? "fixed" : "absolute",
                       ...(ringInTopbar
                         ? { top: "calc(var(--shell-topbar-height) + 8px)", left: 8, right: 8 }
-                        : { bottom: "calc(100% + 8px)", right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
+                        : ringMobileComposer
+                          // Full-width sheet above the ring: the ring sits in
+                          // the composer's right cluster, so an absolutely
+                          // anchored 360px panel would hang off the left edge.
+                          ? { left: 8, right: 8, bottom: contextRingTop === undefined ? undefined : `calc(100dvh - ${contextRingTop}px + 8px)` }
+                          : { bottom: "calc(100% + 8px)", right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
                       background: "var(--bg-panel)",
                       border: "1px solid var(--border)",
                       borderRadius: "var(--radius-card)",
                       boxShadow: "var(--shadow-pop)",
                       zIndex: 60,
                       padding: 0,
-                      maxHeight: ringInTopbar ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight,
+                      maxHeight: ringInTopbar
+                        ? "calc(100dvh - var(--shell-topbar-height) - 24px)"
+                        : ringMobileComposer
+                          ? contextRingTop === undefined ? undefined : Math.max(160, contextRingTop - 68)
+                          : contextMaxHeight,
                       overflow: "hidden",
                     }}
                   >
                     {/* One-shot background glare: plays once on open (element
                         remounts each time the popover opens). */}
                     <div className="popover-glare" aria-hidden="true" />
-                    <div style={{ overflowY: "auto", maxHeight: ringInTopbar ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight, padding: 12 }}>
+                    <div style={{ overflowY: "auto", maxHeight: ringInTopbar
+                        ? "calc(100dvh - var(--shell-topbar-height) - 24px)"
+                        : ringMobileComposer
+                          ? contextRingTop === undefined ? undefined : Math.max(160, contextRingTop - 68)
+                          : contextMaxHeight, padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (

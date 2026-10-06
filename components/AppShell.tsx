@@ -19,7 +19,7 @@ import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, History, Menu, Moon, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -845,6 +845,10 @@ export function AppShell() {
   // Single active panel — only one dropdown open at a time
   const [activeTopPanel, setActiveTopPanel] = useState<"branches" | "system" | null>(null);
   const [topPanelPos, setTopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  // Mobile top-bar overflow popover (⋮): the utility and session controls
+  // the desktop bar shows inline live behind this menu on phone sizes.
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
   const toggleTopPanel = useCallback((panel: "branches" | "system") => {
     if (isMobile) setSidebarOpen(false);
     setActiveTopPanel((cur) => cur === panel ? null : panel);
@@ -1067,6 +1071,29 @@ export function AppShell() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [activeTopPanel]);
+
+  // Overflow popover dismissal: outside click or Escape. Clicks inside the
+  // menu (including the embedded theme/language pickers, whose panels live
+  // in the menu's DOM) keep it open; the opener button toggles itself.
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (event.target instanceof Element) {
+        if (event.target.closest("[data-more-menu]")) return;
+        if (moreBtnRef.current?.contains(event.target as Node)) return;
+      }
+      setMoreMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreMenuOpen]);
 
   // Right workbench owns Files, Agents, Browser and Side chat. Terminal remains
   // a dedicated bottom bar/drawer so its resize and PTY lifecycle stay clear.
@@ -2098,7 +2125,7 @@ export function AppShell() {
           }}
         />
         {/* Top bar: compact icon-led control bar */}
-        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: "var(--shell-topbar-height)", background: "var(--bg-panel)" }}>
+        <div ref={topBarRef} className="shell-topbar" style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0, borderBottom: "1px solid var(--border)", height: "var(--shell-topbar-height)", background: "var(--bg-panel)", ...(isMobile && showChat && contextRingMobile === "topbar" ? { "--topbar-side": "144px" } : {}) }}>
         {/* Utility group: sidebar, theme, language */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, height: "100%", paddingLeft: isMobile ? 4 : 8 }}>
           {panelsSwappedActive && (
@@ -2124,36 +2151,42 @@ export function AppShell() {
             </button>
             </Tooltip>
           )}
-          {/* Touch entry for the command palette (mobile has no ⌘K/Ctrl+K) */}
-          <Tooltip content={t("appShell.commandPalette")}>
-            <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("omp-open-palette"))}
-            aria-label={t("appShell.commandPalette")}
-            className="shell-toolbar-btn ui-focus-ring"
-          >
-            <Search size={16} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          </Tooltip>
-          <ThemePicker />
-          <Tooltip content={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}>
-            <button
-            type="button"
-            onClick={toggleTerminalPanel}
-            aria-label={t("appShell.toggleTerminal") || "Toggle Terminal"}
-            aria-pressed={terminalOpen}
-            className="shell-toolbar-btn ui-focus-ring"
-            style={{
-              color: terminalOpen ? "var(--accent)" : undefined,
-              background: terminalOpen ? "var(--bg-selected)" : undefined,
-            }}
-          >
-            <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          </Tooltip>
-          <LanguageSwitcher />
+          {/* Utility controls beyond the drawer toggle: desktop inline,
+              mobile behind the top-right overflow popover. */}
+          {!isMobile && (
+            <>
+              {/* Touch entry for the command palette (⌘K/Ctrl+K mirror). */}
+              <Tooltip content={t("appShell.commandPalette")}>
+                <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("omp-open-palette"))}
+                aria-label={t("appShell.commandPalette")}
+                className="shell-toolbar-btn ui-focus-ring"
+              >
+                <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              </Tooltip>
+              <ThemePicker />
+              <Tooltip content={terminalOpen ? (t("appShell.hideTerminal") || "Hide Terminal") : (t("appShell.toggleTerminal") || "Open Terminal")}>
+                <button
+                type="button"
+                onClick={toggleTerminalPanel}
+                aria-label={t("appShell.toggleTerminal") || "Toggle Terminal"}
+                aria-pressed={terminalOpen}
+                className="shell-toolbar-btn ui-focus-ring"
+                style={{
+                  color: terminalOpen ? "var(--accent)" : undefined,
+                  background: terminalOpen ? "var(--bg-selected)" : undefined,
+                }}
+              >
+                <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+              </Tooltip>
+              <LanguageSwitcher />
+            </>
+          )}
         </div>
-        {showChat && (
+        {showChat && !isMobile && (
           <>
             <div className="shell-toolbar-divider" aria-hidden="true" />
             {/* Session controls: history, generate title, branches, system */}
@@ -2221,6 +2254,24 @@ export function AppShell() {
           </button>
           </Tooltip>
         )}
+        {/* Mobile overflow opener (⋮): everything the desktop bar shows
+            inline lives behind this menu; it pushes the right-edge cluster
+            (⋮ + file-panel opener) to the bar's end. */}
+        {isMobile && (
+          <Tooltip content={t("appShell.moreActions")}>
+            <button
+              ref={moreBtnRef}
+              type="button"
+              onClick={() => setMoreMenuOpen((open) => !open)}
+              aria-label={t("appShell.moreActions")}
+              aria-expanded={moreMenuOpen}
+              className="shell-toolbar-btn ui-focus-ring"
+              style={{ marginLeft: "auto" }}
+            >
+              <MoreHorizontal size={16} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
         {/* File-panel opener (port of upstream cace6832): the opener lives in
             the header and dismissal lives inside the panel; focus returns to
             this button. Gated off in swapped mode, whose inline opener at the
@@ -2229,6 +2280,7 @@ export function AppShell() {
           <button
             type="button"
             className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
+            style={{ marginLeft: "auto" }}
             onClick={toggleFilePanel}
             title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
             aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
@@ -2389,23 +2441,169 @@ export function AppShell() {
           {/* Session info mount (port of upstream 193047f1 chain): the
               context ring moves from the composer toolbar to the header on
               phones while the "Context ring (mobile)" setting says "topbar".
-              It sits inside the right `--topbar-side` band the
-              centered title pill already reserves, so it cannot collide with
-              the pill; the bar's height token sizes it (44px on phones, no
-              extra safe-area inset — the PWA viewport carries it). */}
+              It floats at the bar's right end, just left of the overflow
+              cluster (the `--topbar-side` inset grows while it is visible
+              so the centered title pill never reaches under it); the bar's
+              height token sizes it (44px on phones, no extra safe-area
+              inset — the PWA viewport carries it). */}
           {isMobile && showChat && contextRingMobile === "topbar" && (
             <div
               ref={setSessionInfoContainer}
               className="shell-session-info"
               style={{
                 position: "absolute",
-                right: "calc(4px + env(safe-area-inset-right, 0px))",
+                right: "calc(96px + env(safe-area-inset-right, 0px))",
                 top: 0,
                 height: "100%",
                 display: "flex",
                 alignItems: "center",
               }}
             />
+          )}
+          {/* Mobile overflow popover: the utility and session controls the
+              desktop bar shows inline. Rows run an action and close the
+              menu; the theme/language rows embed the self-managed pickers
+              (their panels live inside the menu's DOM, keeping it open). */}
+          {isMobile && moreMenuOpen && (
+            <div
+              data-more-menu
+              className="picker-panel animate-scale-in"
+              style={{
+                position: "fixed",
+                top: "calc(var(--shell-topbar-height) + 4px)",
+                right: 4,
+                zIndex: 70,
+                width: 250,
+                maxHeight: "calc(100dvh - var(--shell-topbar-height) - 16px)",
+                overflowY: "auto",
+                background: "var(--bg-panel)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-card)",
+                boxShadow: "var(--shadow-pop)",
+                padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent("omp-open-palette"));
+                }}
+              >
+                <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.commandPalette")}
+              </button>
+              <div
+                className="mobile-overflow-row"
+                role="none"
+                onClick={(event) => {
+                  // A click on the row (not its own button) opens the picker.
+                  if (event.target instanceof Element && event.target.closest("button")) return;
+                  event.currentTarget.querySelector("button")?.click();
+                }}
+              >
+                <ThemePicker />
+                <span>{t("appShell.switchTheme") || "Theme & Typography"}</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  toggleTerminalPanel();
+                }}
+              >
+                <TerminalSquare size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: terminalOpen ? "var(--accent)" : undefined }} />
+                {t("appShell.toggleTerminal") || "Toggle Terminal"}
+              </button>
+              <div
+                className="mobile-overflow-row"
+                role="none"
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest("button")) return;
+                  event.currentTarget.querySelector("button")?.click();
+                }}
+              >
+                <LanguageSwitcher />
+                <span>{t("appShell.language")}</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  handleViewFullHistory();
+                }}
+                disabled={!selectedSession}
+              >
+                <History size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.fullHistory")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  if (gitWorkspace !== true) return;
+                  setMoreMenuOpen(false);
+                  handleOpenGitGraph();
+                }}
+                disabled={gitWorkspace !== true}
+              >
+                <GitBranch size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("appShell.githubStatus")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  toggleTopPanel("branches");
+                }}
+              >
+                <GitFork size={16} strokeWidth={1.8} aria-hidden="true" />
+                {t("branchNavigator.branches")}
+              </button>
+              <button
+                type="button"
+                className="mobile-overflow-row"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  handleSystemPromptToggle();
+                }}
+              >
+                <Terminal size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: systemPrompt ? "var(--accent)" : undefined }} />
+                {t("appShell.system")}
+              </button>
+            </div>
+          )}
+          {/* Hidden branch-navigator host (mobile): the overflow row opens
+              the branch panel, so the component must stay mounted while the
+              menu itself closes. The fixed panel escapes the 0x0 clip. */}
+          {isMobile && showChat && (
+            <div
+              ref={(el) => {
+                // The off-screen trigger stays out of tab order and the
+                // a11y tree — the overflow row is the real trigger on phones.
+                if (!el) return;
+                for (const b of el.querySelectorAll("button")) {
+                  b.tabIndex = -1;
+                  b.setAttribute("aria-hidden", "true");
+                }
+              }}
+              style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+            >
+              <BranchNavigator
+                tree={branchTree}
+                activeLeafId={branchActiveLeafId}
+                onLeafChange={handleBranchLeafChange}
+                inline
+                containerRef={topBarRef}
+                open={activeTopPanel === "branches"}
+                onToggle={() => toggleTopPanel("branches")}
+                hasSession
+              />
+            </div>
           )}
           {/* Top panel dropdown — shared, only one active at a time. The
               branch panel renders inside BranchNavigator itself; never mount
