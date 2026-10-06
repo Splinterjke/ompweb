@@ -9,7 +9,7 @@ import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecuti
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
  import { MessageView } from "./MessageView";
-import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
+import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ExtensionDialog } from "./ExtensionDialog";
@@ -72,6 +72,8 @@ interface Props {
   sessionInfoButtonVisible?: boolean;
   /** Mobile top-bar mount point for the session information control. */
   sessionInfoContainer?: HTMLDivElement | null;
+  /** Context ring placement on phone screen sizes (Interface & Behavior). */
+  contextRingMobile?: ContextRingMobilePlacement;
   /** Show the jump-to-bottom button above the composer (Interface & Behavior switch). */
   showJumpToBottomButton?: boolean;
   /** Composer hub bar stacking: vertical column or horizontal row (Interface & Behavior). */
@@ -591,7 +593,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, sessionInfoContainer, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -1255,6 +1257,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       generationSpeed={generationSpeed}
       sessionInfoButtonVisible={sessionInfoButtonVisible}
       sessionInfoContainer={sessionInfoContainer}
+      contextRingMobile={contextRingMobile}
       composerAccentBg={composerAccentBg}
       onAdvisorChange={handleAdvisorChange}
       advisorModel={advisorModelMeta}

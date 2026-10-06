@@ -18,7 +18,7 @@ import { SettingsTabs, type SettingsTab, SETTINGS_CATEGORIES, getNormalizedActiv
 import { BackendDiagnosticsBody } from "./BackendDiagnostics";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
-import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg } from "./AppShell";
+import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 
 const SettingsTabLoading = () => {
   const { t } = useI18n();
@@ -618,7 +618,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -638,6 +638,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
    *  (Interface & Behavior): inline, second line, or hidden. */
   gitStatsPlacement?: GitStatsPlacement;
   onGitStatsPlacementChange?: (placement: GitStatsPlacement) => void;
+  contextRingMobile?: ContextRingMobilePlacement;
+  onContextRingMobileChange?: (placement: ContextRingMobilePlacement) => void;
   /** Composer hub bar stacking: vertical column or horizontal row. */
   hubBarLayout?: HubBarLayout;
   onHubBarLayoutChange?: (layout: HubBarLayout) => void;
@@ -1208,6 +1210,17 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">
                     <ToggleSwitch checked={sessionInfoButtonVisible} onChange={(next) => onSessionInfoButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="context-ring-mobile" label={t("settingsConfig.contextRingMobile")} description={t("settingsConfig.contextRingMobileDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={contextRingMobile}
+                      onChange={(event) => onContextRingMobileChange?.(event.target.value as ContextRingMobilePlacement)}
+                    >
+                      <option value="composer" style={nativeOptionStyle}>{t("settingsConfig.contextRingComposer")}</option>
+                      <option value="topbar" style={nativeOptionStyle}>{t("settingsConfig.contextRingTopbar")}</option>
+                      <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.contextRingHidden")}</option>
+                    </select>
                   </NativeSetting>
                   <NativeSetting searchId="jump-to-bottom-button" label={t("settingsConfig.jumpToBottomButton")} description={t("settingsConfig.jumpToBottomButtonDesc")} scope="UI">
                     <ToggleSwitch checked={showJumpToBottomButton} onChange={(next) => onShowJumpToBottomButtonChange?.(next)} />

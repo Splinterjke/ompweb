@@ -84,10 +84,12 @@ const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
 const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
 const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
 const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
+const CONTEXT_RING_MOBILE_STORAGE_KEY = "omp-web:context-ring-mobile";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
 export type HubBarLayout = "stack" | "row";
 export type ComposerAccentBg = "off" | "dimmed" | "themed";
+export type ContextRingMobilePlacement = "composer" | "topbar" | "hidden";
 export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
 const GIT_GRAPH_DEFAULT_SIZE = 80;
 const GIT_GRAPH_MIN_SIZE = 40;
@@ -283,6 +285,20 @@ export function AppShell() {
       return window.localStorage.getItem("omp-web:session-git-stats") === "false" ? "hidden" : "inline";
     } catch {
       return "inline";
+    }
+  });
+  // Context info ring placement on phone screen sizes (Interface & Behavior
+  // select): the ring portals to the top bar (default, port of upstream
+  // 3c1e8449), stays in the composer like desktop, or is hidden entirely.
+  // Desktop always keeps the ring in the composer; the setting is inert there.
+  const [contextRingMobile, setContextRingMobile] = useState<ContextRingMobilePlacement>(() => {
+    if (typeof window === "undefined") return "topbar";
+    try {
+      const raw = window.localStorage.getItem(CONTEXT_RING_MOBILE_STORAGE_KEY);
+      if (raw === "composer" || raw === "topbar" || raw === "hidden") return raw;
+      return "topbar";
+    } catch {
+      return "topbar";
     }
   });
   // Composer hub bar stacking: "stack" (vertical column, default) or "row"
@@ -524,6 +540,14 @@ export function AppShell() {
     setGitStatsPlacement(placement);
     try {
       window.localStorage.setItem(GIT_STATS_PLACEMENT_STORAGE_KEY, placement);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleContextRingMobileChange = useCallback((placement: ContextRingMobilePlacement) => {
+    setContextRingMobile(placement);
+    try {
+      window.localStorage.setItem(CONTEXT_RING_MOBILE_STORAGE_KEY, placement);
     } catch {
       // The preference still applies for this page load.
     }
@@ -2364,11 +2388,12 @@ export function AppShell() {
           })()}
           {/* Session info mount (port of upstream 193047f1 chain): the
               context ring moves from the composer toolbar to the header on
-              phones. It sits inside the right `--topbar-side` band the
+              phones while the "Context ring (mobile)" setting says "topbar".
+              It sits inside the right `--topbar-side` band the
               centered title pill already reserves, so it cannot collide with
               the pill; the bar's height token sizes it (44px on phones, no
               extra safe-area inset — the PWA viewport carries it). */}
-          {isMobile && showChat && (
+          {isMobile && showChat && contextRingMobile === "topbar" && (
             <div
               ref={setSessionInfoContainer}
               className="shell-session-info"
@@ -2478,6 +2503,7 @@ export function AppShell() {
               onSessionStatsChange={handleSessionStatsChange}
               sessionInfoButtonVisible={sessionInfoButtonVisible}
               sessionInfoContainer={sessionInfoContainer}
+              contextRingMobile={contextRingMobile}
               showJumpToBottomButton={showJumpToBottomButton}
               onOpenGitTab={handleOpenGitTab}
               onSubagentsChange={setSubagents}
@@ -2697,6 +2723,8 @@ export function AppShell() {
         onPanelsSwappedChange={handlePanelsSwappedChange}
         gitStatsPlacement={gitStatsPlacement}
         onGitStatsPlacementChange={handleGitStatsPlacementChange}
+        contextRingMobile={contextRingMobile}
+        onContextRingMobileChange={handleContextRingMobileChange}
         hubBarLayout={hubBarLayout}
         onHubBarLayoutChange={handleHubBarLayoutChange}
         hubBarsVisible={hubBarsVisible}

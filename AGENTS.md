@@ -539,6 +539,22 @@ during the wait.
   group inside the hub, re-collapsing on every mount (not persisted).
   `TodoList` keeps a non-collapsible default (`collapsible` prop) for SSR tests.
 
+### Mobile context ring placement (`Settings → Interface & Behavior`)
+- The context info ring (port of upstream 193047f1 chain, mobile top-bar
+  mount of 3c1e8449) is placement-configurable on phone screen sizes:
+  `contextRingMobile` (`"composer" | "topbar" | "hidden"`, localStorage
+  `omp-web:context-ring-mobile`, default `"topbar"`). Desktop is inert —
+  the ring always stays in the composer there.
+- The ring renders through one portal (`ChatInput`): `ringInTopbar` picks
+  the AppShell `.shell-session-info` top-bar mount (44px touch target,
+  popover fixed under the bar), otherwise the composer's own anchor
+  (28px, popover opens above the trigger like desktop). `ringHidden`
+  renders no ring at all — the composer anchor stays mounted but
+  `display: none` (no stray flex gap), and `/session` no-ops.
+- The top-bar mount div is only rendered while the setting says
+  `"topbar"`; unmounting it nulls `sessionInfoContainer` through the
+  callback ref, so the composer anchor takes over without a stale target.
+
 ### Side questions (`/btw`, `lib/btw.ts`, `hooks/useBtw.ts`, `components/BtwPanel.tsx`)
 - `btw` / `btw_cancel` / `get_btw_history` are passthrough RPC commands;
   answers stream as `btw_delta` (text appended to the latest turn) and

@@ -7,7 +7,7 @@ import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Pap
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
-import type { ComposerAccentBg } from "./AppShell";
+import type { ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
  import type { GenerationSpeedInfo, SessionStatsInfo, SlowModeScope, UsageLimitState } from "@/lib/pi-types";
 import type { SttAfter } from "@/lib/stt";
 import { formatCompactNumber, formatPercent } from "@/lib/format";
@@ -226,6 +226,10 @@ interface Props {
   sessionInfoButtonVisible?: boolean;
   /** Mobile top-bar mount point for the session information control. */
   sessionInfoContainer?: HTMLDivElement | null;
+  /** Context ring placement on phone screen sizes (Interface & Behavior
+   *  select): top-bar mount, the composer's own anchor, or hidden. Desktop
+   *  always keeps the ring in the composer. */
+  contextRingMobile?: ContextRingMobilePlacement;
   /** Composer shell background secondary color (Interface & Behavior select):
    *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
   composerAccentBg?: ComposerAccentBg;
@@ -663,6 +667,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   generationSpeed,
   sessionInfoButtonVisible = true,
   sessionInfoContainer,
+  contextRingMobile = "topbar",
   composerAccentBg = "off",
   onRemoveQueuedMessage,
   onPromoteQueuedToSteer,
@@ -748,10 +753,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusExpanded, setPlusExpanded] = useState<"tools" | "advisor" | null>(null);
   const [contextOpen, setContextOpen] = useState(false);
-  // Mobile renders the ring into the AppShell top-bar mount; the composer
-  // keeps its own container on desktop.
+  // The ring portals to its placement target: the AppShell top-bar mount on
+  // phones with the "Context ring (mobile)" setting on "topbar", otherwise
+  // the composer's own anchor (desktop always; phones on "composer"). On
+  // phones with "hidden" no ring renders at all.
   const [composerContextContainer, setComposerContextContainer] = useState<HTMLDivElement | null>(null);
-  const contextContainer = isMobile ? sessionInfoContainer : composerContextContainer;
+  const ringInTopbar = isMobile && contextRingMobile === "topbar";
+  const ringHidden = isMobile && contextRingMobile === "hidden";
+  const contextContainer = ringInTopbar ? sessionInfoContainer : composerContextContainer;
 
   // Desktop context popover height cap: the room above its trigger, so it only
   // scrolls when the window is genuinely too short for it.
@@ -934,6 +943,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       processFiles(files);
     },
     openSessionInfo() {
+      // No ring on this screen (mobile "hidden" placement) — nothing to open.
+      if (ringHidden) return;
       setContextOpen(true);
     },
   }));
@@ -3450,11 +3461,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </Tooltip>
             )}
 
-            {/* Desktop keeps the control in the composer; mobile uses the header mount. */}
+            {/* The ring's composer anchor: hidden while the ring portals to
+                the mobile top bar or the placement hides it entirely. */}
             {onCompact && (
-              <div ref={setComposerContextContainer} style={{ display: isMobile ? "none" : undefined, flexShrink: 0 }} />
+              <div ref={setComposerContextContainer} style={{ display: ringInTopbar || ringHidden ? "none" : undefined, flexShrink: 0 }} />
             )}
-            {onCompact && contextContainer && createPortal(
+            {!ringHidden && onCompact && contextContainer && createPortal(
               <div ref={contextWrapRef} style={{ position: "relative", flexShrink: 0 }}>
                 <Tooltip content={ringTitle}>
                   <button
@@ -3466,7 +3478,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   className="ui-focus-ring"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, padding: 0,
+                    width: ringInTopbar ? 44 : 28, height: ringInTopbar ? 44 : 28, padding: 0,
                     background: contextOpen ? "var(--bg-hover)" : "none", border: "none",
                     borderRadius: 7,
                     color: isCompacting ? "var(--accent)" : "var(--text-muted)",
@@ -3514,8 +3526,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     tabIndex={-1}
                     className="picker-panel"
                     style={{
-                      position: isMobile ? "fixed" : "absolute",
-                      ...(isMobile
+                      position: ringInTopbar ? "fixed" : "absolute",
+                      ...(ringInTopbar
                         ? { top: "calc(var(--shell-topbar-height) + 8px)", left: 8, right: 8 }
                         : { bottom: "calc(100% + 8px)", right: 0, width: 360, maxWidth: "min(360px, calc(100vw - 32px))" }),
                       background: "var(--bg-panel)",
@@ -3524,14 +3536,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                       boxShadow: "var(--shadow-pop)",
                       zIndex: 60,
                       padding: 0,
-                      maxHeight: isMobile ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight,
+                      maxHeight: ringInTopbar ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight,
                       overflow: "hidden",
                     }}
                   >
                     {/* One-shot background glare: plays once on open (element
                         remounts each time the popover opens). */}
                     <div className="popover-glare" aria-hidden="true" />
-                    <div style={{ overflowY: "auto", maxHeight: isMobile ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight, padding: 12 }}>
+                    <div style={{ overflowY: "auto", maxHeight: ringInTopbar ? "calc(100dvh - var(--shell-topbar-height) - 24px)" : contextMaxHeight, padding: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
                       <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)" }}>{t("composerContext.title")}</span>
                       {ringPct !== null && (
