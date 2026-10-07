@@ -18,8 +18,9 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
+import { ARCHIVE_OLDER_THAN_BUCKET_MS, type ArchiveOlderThanBucket } from "@/lib/archive-older-than";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -1781,6 +1782,20 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
     loadSessions();
   }, [allSessions, onSessionDeleted, loadSessions]);
 
+  // Bulk "Archive older than": apply the same per-session bookkeeping the
+  // single archive/delete path does for each archived id, then reload once.
+  const handleBulkArchived = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      const archived = allSessions.find((session) => session.id === id);
+      if (archived) {
+        clearLastOpenSession(workspaceKeyOf(archived));
+        clearLastOpenSessionGlobal(id);
+      }
+      onSessionDeleted?.(id);
+    }
+    loadSessions();
+  }, [allSessions, onSessionDeleted, loadSessions]);
+
   useEffect(() => {
     const selected = allSessions.find((session) => session.id === selectedSessionId);
     if (selected) {
@@ -2142,6 +2157,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
                 onRenamed={loadSessions}
                 onOptimisticRename={handleOptimisticRename}
                 onSessionDeleted={handleSessionDeleted}
+                onBulkArchived={handleBulkArchived}
                 activeWorktreeSwitcher={isActive ? activeProjectSwitcher : null}
                 worktreeBranch={projectBranch}
                 worktreeToggleRef={isActive && projectBranch ? wtToggleRef : undefined}
@@ -2433,6 +2449,9 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
 
 const MAX_PROJECT_SESSIONS = 5;
 
+/** Menu buckets for "Archive older than", in declaration order. */
+const ARCHIVE_OLDER_THAN_BUCKETS = Object.keys(ARCHIVE_OLDER_THAN_BUCKET_MS) as ArchiveOlderThanBucket[];
+
 interface ProjectRowProps {
   project: ManagedProject;
   isActive: boolean;
@@ -2459,6 +2478,8 @@ interface ProjectRowProps {
   onRenamed?: () => void;
   onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
+  /** Bulk "Archive older than" finished; the ids were archived server-side. */
+  onBulkArchived?: (ids: string[]) => void;
   activeWorktreeSwitcher?: ReactNode;
   /** Active worktree/branch label shown per the "Workspace git stats"
    *  placement setting (inline on the name row, below it, or hidden). */
@@ -2506,6 +2527,7 @@ function ProjectRow({
   onRenamed,
   onOptimisticRename,
   onSessionDeleted,
+  onBulkArchived,
   activeWorktreeSwitcher,
   worktreeBranch,
   worktreeToggleRef,
@@ -2516,7 +2538,7 @@ function ProjectRow({
   gitStats,
   gitStatsPlacement,
 }: ProjectRowProps) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const [hovered, setHovered] = useState(false);
   // Workspace-level git change summary shown in the header (moved here from
   // under session names).
@@ -2536,6 +2558,8 @@ function ProjectRow({
     }
   });
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const [archiveSubmenuOpen, setArchiveSubmenuOpen] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const [confirmHideOpen, setConfirmHideOpen] = useState(false);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
   const [aliasEditing, setAliasEditing] = useState(false);
@@ -2588,6 +2612,37 @@ function ProjectRow({
       toast.error(t("fileExplorer.revealFailed"));
     }
   }, [t]);
+
+  const archiveOlderThan = useCallback(async (bucket: ArchiveOlderThanBucket) => {
+    setActionMenuOpen(false);
+    setArchiveSubmenuOpen(false);
+    setArchiveBusy(true);
+    try {
+      const res = await fetch("/api/projects/archive-older-than", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: project.path, olderThan: bucket }),
+      });
+      const data = await res.json().catch(() => ({})) as { archived?: string[]; skipped?: unknown[]; error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? t("projects.archiveOlderThanFailed"));
+        return;
+      }
+      const archived = data.archived ?? [];
+      if (archived.length === 0) {
+        toast.info(t("projects.archiveOlderThanNone"));
+        return;
+      }
+      toast.success(tn("projects.archiveOlderThanDone", archived.length));
+      const skipped = data.skipped?.length ?? 0;
+      if (skipped > 0) toast.info(tn("projects.archiveOlderThanSkipped", skipped));
+      onBulkArchived?.(archived);
+    } catch {
+      toast.error(t("projects.archiveOlderThanFailed"));
+    } finally {
+      setArchiveBusy(false);
+    }
+  }, [project.path, t, tn, onBulkArchived]);
   const label = project.alias ?? projectLabel(project.path);
   const hasActivity = Boolean(activity && (activity.running > 0 || activity.unread > 0 || (activity.exited ?? 0) > 0));
   const visibleRoots = hiddenCount > 0 && !showAllSessions
@@ -2909,12 +2964,15 @@ function ProjectRow({
             type="button"
             ref={actionButtonRef}
             className="sidebar-project-action"
-            onClick={() => setActionMenuOpen((open) => !open)}
-            disabled={removeBusy}
+            onClick={() => {
+              if (actionMenuOpen) setArchiveSubmenuOpen(false);
+              setActionMenuOpen((open) => !open);
+            }}
+            disabled={removeBusy || archiveBusy}
             aria-label={t("commandPalette.actions")}
             aria-expanded={actionMenuOpen}
             aria-haspopup="menu"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: "var(--text-dim)", cursor: removeBusy ? "default" : "pointer", opacity: removeBusy ? 0.5 : 1, lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: actionMenuOpen ? "var(--bg-selected)" : "transparent", color: "var(--text-dim)", cursor: removeBusy || archiveBusy ? "default" : "pointer", opacity: removeBusy || archiveBusy ? 0.5 : 1, lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
           >
             <MoreHorizontal size={13} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -2922,25 +2980,45 @@ function ProjectRow({
           <SidebarPortalMenu
             anchor={actionButtonRef}
             open={actionMenuOpen}
-            onClose={() => setActionMenuOpen(false)}
+            onClose={() => { setActionMenuOpen(false); setArchiveSubmenuOpen(false); }}
             placement="below"
             minWidth={136}
           >
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { startAliasEdit(); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-              {project.alias ? t("projects.editAlias") : t("projects.nameAlias")}
-            </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void revealInFileManager(project.path); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-              {t("fileExplorer.revealInFileManager")}
-            </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-              {t("projects.moveUp")}
-            </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-              {t("projects.moveDown")}
-            </button>
-            <button type="button" role="menuitem" className="sidebar-menu-item" disabled={removeBusy} onClick={() => { setActionMenuOpen(false); setConfirmHideOpen(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: removeBusy ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-              {t("projects.remove", { name: label })}
-            </button>
+            {archiveSubmenuOpen ? (
+              <>
+                <button type="button" role="menuitem" onClick={() => setArchiveSubmenuOpen(false)} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  <ChevronLeft size={12} strokeWidth={2} aria-hidden="true" />
+                  {t("projects.archiveOlderThan")}
+                </button>
+                {ARCHIVE_OLDER_THAN_BUCKETS.map((bucket) => (
+                  <button key={bucket} type="button" role="menuitem" onClick={() => void archiveOlderThan(bucket)} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                    {t(`projects.archiveOlderThan.${bucket}`)}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { startAliasEdit(); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  {project.alias ? t("projects.editAlias") : t("projects.nameAlias")}
+                </button>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void revealInFileManager(project.path); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  {t("fileExplorer.revealInFileManager")}
+                </button>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  {t("projects.moveUp")}
+                </button>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  {t("projects.moveDown")}
+                </button>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => setArchiveSubmenuOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  <span>{t("projects.archiveOlderThan")}</span>
+                  <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />
+                </button>
+                <button type="button" role="menuitem" className="sidebar-menu-item" disabled={removeBusy} onClick={() => { setActionMenuOpen(false); setConfirmHideOpen(true); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--status-error)", cursor: removeBusy ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                  {t("projects.remove", { name: label })}
+                </button>
+              </>
+            )}
           </SidebarPortalMenu>
           <ConfirmDialog
             open={confirmHideOpen}
