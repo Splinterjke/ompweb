@@ -7,6 +7,7 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 import { getSessionAdvisorEnabled, setSessionAdvisorEnabled } from "@/lib/session-preferences";
 import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
+import { parseSessionStartupBinding } from "@/lib/session-model-check";
 
 // Commands that ride whatever child is alive and never spawn or replace one:
 // keystroke predictions (NOTE: stock omp 18.3.x has no predict_word RPC; see
@@ -45,7 +46,10 @@ function commandErrorResponse(error: unknown) {
     return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
   if (error instanceof WebRpcError) {
-    return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+    return NextResponse.json(
+      { error: error.message, code: error.code, ...(error.data !== undefined ? { data: error.data } : {}) },
+      { status: 400 },
+    );
   }
   if (error instanceof RpcCommandError) {
     return NextResponse.json({ error: error.message, code: error.code ?? "rpc_command_failed" }, { status: 400 });
@@ -72,6 +76,12 @@ export async function POST(
     if (advisorParam === "1" || advisorParam === "0")
       setSessionAdvisorEnabled(id, advisorParam === "1");
     const advisor = getSessionAdvisorEnabled(id);
+    // Optional spawn-time binding ({ modelOverride } rebinds an unrestorable
+    // saved model, { forceModelCheck } skips the pre-flight). omp must never
+    // see it: it is stripped before the command is forwarded.
+    const startup = parseSessionStartupBinding(body.startup);
+    const command = { ...body };
+    delete command.startup;
     // Fast path: already-running session. --advisor is a spawn-time flag with
     // no runtime RPC, so a toggle that now differs from the live child's spawn
     // flag must replace an idle child to take effect; busy children keep
@@ -83,7 +93,7 @@ export async function POST(
     const liveOnly = LIVE_SESSION_ONLY.has(body.type);
     if (existing?.isAlive()) {
       if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning()) {
-        const result = await existing.send(body);
+        const result = await existing.send(command);
         return NextResponse.json({ success: true, data: result });
       }
       await existing.destroyAndWait();
@@ -103,8 +113,8 @@ export async function POST(
     const header = readSessionHeader(filePath);
     const { cwd } = resolveSpawnCwdResult(header?.cwd);
 
-    const { session } = await startRpcSession(id, filePath, cwd, undefined, advisor, header?.cwd);
-    const result = await session.send(body);
+    const { session } = await startRpcSession(id, filePath, cwd, undefined, advisor, header?.cwd, startup);
+    const result = await session.send(command);
 
     return NextResponse.json({ success: true, data: result });
   } catch (error) {

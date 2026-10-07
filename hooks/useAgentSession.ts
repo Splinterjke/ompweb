@@ -629,7 +629,7 @@ export interface AttachedImage {
 }
 
 type SelectedModel = { provider: string; modelId: string };
-type ModelEntry = { id: string; name: string; provider: string; supportsFastMode?: boolean; contextWindow?: number; maxTokens?: number };
+export type ModelEntry = { id: string; name: string; provider: string; supportsFastMode?: boolean; contextWindow?: number; maxTokens?: number };
 type ModelsResponse = {
   models: Record<string, string>;
   modelList?: ModelEntry[];
@@ -724,6 +724,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const [currentModelOverride, setCurrentModelOverride] = useState<{ provider: string; modelId: string } | null>(null);
   const [modelSwitching, setModelSwitching] = useState(false);
+  // omp ≥ 18.6.3 fail-closes on resume when a session's saved model cannot
+  // be restored (renamed, disabled, signed out). Holds the failed model id
+  // until the user rebinds the session to a different model.
+  const [modelRestoreFailure, setModelRestoreFailure] = useState<{ model: string | null } | null>(null);
   const [pendingModel, setPendingModel] = useState<{ provider: string; modelId: string } | null>(null);
   const [isCompacting, setIsCompacting] = useState(false);
   // omp's own output throughput from get_state. omp reports a number only
@@ -3073,6 +3077,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     completionScrollAllowedRef.current = true;
 
     let sentSessionId: string | null = null;
+    setModelRestoreFailure(null);
     try {
       if (isNew && newSessionCwd) {
         const selectedModel = newSessionModel;
@@ -3126,11 +3131,27 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       return true;
     } catch (e) {
       console.error("Failed to send message:", e);
+      const errorCode = (e as Error & { code?: string })?.code;
+      if (errorCode === "session_model_unavailable") {
+        // Recoverable through an explicit rebind: the dialog offers a
+        // replacement model (or an explicit "try anyway"). The prompt goes
+        // back to the composer — a transcript is never silently re-sent to
+        // a model that did not write it.
+        const data = (e as Error & { data?: { model?: unknown } }).data;
+        setModelRestoreFailure({ model: typeof data?.model === "string" ? data.model : null });
+        optimisticUserMessageKeyRef.current = null;
+        agentRunningRef.current = false;
+        setAgentRunning(false);
+        setTurnStarting(false);
+        setAgentPhase(null);
+        dispatch({ type: "end" });
+        if (message) opts.chatInputRef?.current?.insertIfEmpty(message);
+        return false;
+      }
       // A split resume is recoverable when the competing process is an
       // orphaned OmpWeb Rust host. Repair only those exact orphan hosts, then
       // recreate the wrapper and retry this prompt once. Terminal omp
       // processes are intentionally never touched by the repair endpoint.
-      const errorCode = (e as Error & { code?: string })?.code;
       if (errorCode === "session_split" && sentSessionId) {
         try {
           const repair = await fetch("/api/omp-update", {
@@ -3536,6 +3557,41 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
     }
   }, [addNotice, rejectIfExternallyRunning, refreshLiveModelState]);
+
+  /** Restart a session whose saved model could not be restored: bind the
+   * spawn to the chosen model (omp's `--model` semantics), or force past
+   * the pre-flight and let omp itself decide. */
+  const handleModelRestore = useCallback(async (override?: { provider: string; modelId: string }, force = false): Promise<boolean> => {
+    const sid = sessionIdRef.current;
+    if (!sid) return false;
+    setModelRestoreFailure(null);
+    try {
+      await sendAgentCommand(sid, {
+        type: "get_state",
+        ...(override ? { startup: { modelOverride: override } } : force ? { startup: { forceModelCheck: true } } : {}),
+      });
+      if (override) {
+        // Persist the replacement as the session's saved model (omp records a
+        // `model_change` entry on a real switch): `--model` only binds the
+        // live run, so without this every later cold start fails closed and
+        // re-asks. A failed persist still leaves this run correctly bound.
+        await sendAgentCommand(sid, { type: "set_model", provider: override.provider, modelId: override.modelId }).catch(() => {});
+      }
+      await ensureEventsConnected(sid);
+      void refreshSubagentRoster(sid);
+      return true;
+    } catch (error) {
+      console.error("Failed to restart the session with another model:", error);
+      const errorCode = (error as Error & { code?: string })?.code;
+      if (errorCode === "session_model_unavailable") {
+        const data = (error as Error & { data?: { model?: unknown } }).data;
+        setModelRestoreFailure({ model: typeof data?.model === "string" ? data.model : null });
+      } else {
+        addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      }
+      return false;
+    }
+  }, [addNotice, ensureEventsConnected, refreshSubagentRoster]);
 
   /** Toggle automatic retry for transient model failures. */
   const handleAutoRetryChange = useCallback(async (enabled: boolean) => {
@@ -4356,7 +4412,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     data, loading, error, activeLeafId, messages, entryIds, showPreCompactionHistory, streamState,
     agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
     liveModelMeta,
-    retryInfo, contextUsage, systemPrompt, skillDiagnostics, forkingEntryId, modelSwitching,
+    retryInfo, contextUsage, systemPrompt, skillDiagnostics, forkingEntryId, modelSwitching, modelRestoreFailure,
     isCompacting, compactError, compactResult, tokensPerSecond, currentModel, displayModel, isAutoModelSelection: !displayModel, sessionStats, agentPhase,
     slashCommands, slashCommandsLoading, queuedMessages,
     notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
@@ -4369,7 +4425,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     sessionIdRef, messagesEndRef, scrollContainerRef,
     pendingScrollToUserRef, initialScrollDoneRef,
     // Actions
-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, handleFastModeChange, handleSlowModeChange, handleAutoRetryChange, handleInterruptModeChange, handleAutoCompactionChange, handleSteeringModeChange, handleFollowUpModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, handleInterruptAndReply, setSkillStartupDiagnostics,
+    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, handleFastModeChange, handleSlowModeChange, handleModelRestore, handleAutoRetryChange, handleInterruptModeChange, handleAutoCompactionChange, handleSteeringModeChange, handleFollowUpModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, handleInterruptAndReply, setSkillStartupDiagnostics,
     retrySession: () => { const sid = sessionIdRef.current; if (sid) void loadSession(sid, true, true); },
     handleCompact, handleHandoff, handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction,
     removeQueuedMessage, promoteQueuedToSteer,

@@ -1,5 +1,5 @@
 "use client";
-import { Tooltip } from "./ui/primitives";
+import { Dialog, DialogClose, DialogContent, DialogTitle, Tooltip } from "./ui/primitives";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
@@ -22,7 +22,7 @@ import { WorkspaceState } from "./WorkspaceState";
 import { SessionLoading } from "./SessionLoading";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import { EmptyChatHero } from "./EmptyChatHero";
-import { useAgentSession, type AgentPhase, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
+import { useAgentSession, type AgentPhase, type ModelEntry, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
 import { useAudio } from "@/hooks/useAudio";
 import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -666,7 +666,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, liveToolResults,
-    modelSwitching,
+    modelSwitching, modelRestoreFailure,
     isCompacting, compactResult, tokensPerSecond, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, advisorActive, advisorEnabled, handleAdvisorChange,
     skillDiagnostics, setSkillStartupDiagnostics,
@@ -683,12 +683,16 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     removeQueuedMessage, promoteQueuedToSteer,
     handleBuiltinSlashCommand, togglePreCompactionHistory,
     btw, askBtw,
-    handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
+    handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleModelRestore, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
     session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
     onOpenFile, onOpenUrl,
   });
+  // The restore dialog re-opens on every fresh failure; dismissing one stays
+  // dismissed until a new sendPrompt failure produces a new record.
+  const [restoreDismissed, setRestoreDismissed] = useState(false);
+  useEffect(() => setRestoreDismissed(false), [modelRestoreFailure]);
 
   useEffect(() => {
     if (!autoplayPendingRef.current) return;
@@ -1620,6 +1624,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 />
               </div>
             )}
+            {modelRestoreFailure && !restoreDismissed && (
+              <ModelRestoreDialog
+                failedModel={modelRestoreFailure.model}
+                modelList={modelList}
+                onRestore={handleModelRestore}
+                onClose={() => setRestoreDismissed(true)}
+              />
+            )}
             <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
             <ComposerPanels
               cwd={messageCwd}
@@ -1947,5 +1959,91 @@ function ExtensionCustomPanel({
         </pre>
       </div>
     </div>
+  );
+}
+
+/** omp ≥ 18.6.3 fail-closes a resume when the session's saved model cannot
+ * be restored (renamed, disabled, or signed out) instead of silently using
+ * the default. The transcript and context stay intact; this dialog picks the
+ * model the session should continue with, or retries the saved one as-is. */
+function ModelRestoreDialog({ failedModel, modelList, onRestore, onClose }: {
+  failedModel: string | null;
+  modelList: ModelEntry[];
+  onRestore: (override: { provider: string; modelId: string } | undefined, force: boolean) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [picked, setPicked] = useState("");
+  const [busy, setBusy] = useState(false);
+  const providers = useMemo(() => {
+    const map = new Map<string, ModelEntry[]>();
+    for (const entry of modelList) {
+      const list = map.get(entry.provider);
+      if (list) list.push(entry);
+      else map.set(entry.provider, [entry]);
+    }
+    return [...map.entries()];
+  }, [modelList]);
+  const run = async (override: { provider: string; modelId: string } | undefined, force: boolean) => {
+    setBusy(true);
+    try {
+      if (await onRestore(override, force)) onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pickedModel = modelList.find((entry) => `${entry.provider}/${entry.id}` === picked);
+  return (
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent ariaLabel={t("modelRestore.title")}>
+        <>
+          <DialogTitle style={{ marginBottom: 8 }}>{t("modelRestore.title")}</DialogTitle>
+          <p style={{ fontSize: "calc(13px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginBottom: 14, lineHeight: 1.5 }}>
+            {failedModel
+              ? t("modelRestore.body", { model: failedModel })
+              : t("modelRestore.bodyUnknown")}
+          </p>
+          <label style={{ display: "block", fontSize: "calc(12.5px * var(--ui-font-scale, 1))", color: "var(--text-muted)", marginBottom: 6 }}>
+            {t("modelRestore.pick")}
+            <select
+              value={picked}
+              onChange={(event) => setPicked(event.target.value)}
+              style={{ width: "100%", marginTop: 6 }}
+            >
+              <option value="">{t("modelRestore.placeholder")}</option>
+              {providers.map(([provider, models]) => (
+                <optgroup key={provider} label={provider}>
+                  {models.map((entry) => (
+                    <option key={`${entry.provider}/${entry.id}`} value={`${entry.provider}/${entry.id}`}>
+                      {entry.name ?? entry.id}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !failedModel}
+              title={!failedModel ? t("modelRestore.bodyUnknown") : undefined}
+              onClick={() => void run(undefined, true)}
+            >
+              {t("modelRestore.force")}
+            </button>
+            <DialogClose className="btn">{t("modelRestore.close")}</DialogClose>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy || !pickedModel}
+              onClick={() => pickedModel && void run({ provider: pickedModel.provider, modelId: pickedModel.id }, false)}
+            >
+              {t("modelRestore.start")}
+            </button>
+          </div>
+        </>
+      </DialogContent>
+    </Dialog>
   );
 }

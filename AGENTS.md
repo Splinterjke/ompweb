@@ -364,6 +364,41 @@ hooks/
   does it fall back to the stored/derived title (`generated:false`), saved
   through the live process when there is one.
 
+### Resume fail-closed model restore (omp ≥ 18.6.3) — `lib/session-model-check.ts`, `ModelRestoreDialog` in `components/ChatWindow.tsx`
+- omp ≥ 18.6.3 refuses to resume a session whose saved model cannot be
+  restored (`Could not restore model <provider/id>`), and ≥ 18.7.0 fails
+  `--resume <path>` closed on a missing file (`Session "<path>" not found.`)
+  instead of silently continuing on the default model or creating a session.
+- **Pre-flight** (`checkSavedSessionModel`, run by `startRpcSession` before
+  every resume spawn): reads the last *default-role* `model_change` entry from
+  the session file (bounded tail scan; `role:"title"`/`subagent:*` entries
+  name OTHER models and must never shadow the default) and checks it against
+  the same availability list the composer picker uses (utility RPC
+  `get_available_models`, 60 s snapshot, minus disabled providers). A miss is
+  a `WebRpcError` `session_model_unavailable` with `data.model` — never a
+  dead child. `invalidateModelAvailability()` must run whenever credentials
+  change (wired into the logout route; login's own models-cache sweep
+  bounds the staleness to the TTL). The Rust host loses the child's stderr,
+  so the pre-flight is the primary detector there; Node mode classifies the
+  spawn error message as the backstop (`classifyStartupFailure`). A failed
+  availability read SKIPS the check (never blocks a start on a guess).
+- **Recovery UX**: `POST /api/agent/[id]` accepts a web-only `startup` field
+  (`{modelOverride}` or `{forceModelCheck}` — stripped before the command
+  reaches omp, validated by `parseSessionStartupBinding`). The hook keeps the
+  failure (`modelRestoreFailure`) from the `session_model_unavailable` code,
+  `sendPrompt` returns the draft to the composer, and the dialog resumes the
+  session bound to the picked model. `--model` only binds the LIVE run — the
+  handler must follow with `set_model` so omp records a `model_change` entry;
+  without that persist every later cold start re-asks (verified in E2E).
+  The binding is stored on the wrapper (`startupModelOverride`) so `restart()`
+  never falls back onto the unrestorable saved model.
+- **Missing-file retry**: a `missing` classification (the file moved/was
+  archived between the route's resolve and the spawn) re-resolves the id
+  once and retries against the current path, then fails with
+  `session_file_missing` (localized in all three locales;
+  `session_model_unavailable` deliberately is not — its message carries the
+  dynamic model id, and the dialog localizes itself).
+
 ### Two kinds of branching — don't confuse them
 - **Fork** ("Fork a new session from this point" button, `messageView.newSessionTitle`, on user and assistant messages; only offered while the session is idle — ChatWindow gates it on `!sessionBusy && !isNew`): creates a new independent `.jsonl` file via omp's `branch` RPC. Shown as a child in the sidebar tree via `parentSession` header field. `branch` only takes a user entry and keeps the history *before* it, so `lib/chat-fork.ts` maps rows: a user prompt forks at itself and its returned text prefills the fork's composer (edit-and-resend, text only — attached images are not restored); an assistant reply forks at the next user prompt so the reply is kept; the newest reply falls back to its own prompt with the prefill. Rows that would edit the very first prompt (an empty fork) offer no fork.
 - **In-session branch** (Continue button / BranchNavigator): navigates the entry tree within the same file. Multiple entries share the same `parentId`. Switching between them calls `/api/sessions/[id]/context?leafId=`.

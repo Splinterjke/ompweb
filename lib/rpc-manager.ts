@@ -10,6 +10,7 @@ import { readNativeSettings } from "./omp/settings-config";
 import { scanSessionInfo } from "./omp/session-files";
 import { sanitizeSessionTitle } from "./session-title";
 import { cacheSessionPath, invalidateSessionListCache, readSessionHeader, resolveSessionPath } from "./session-reader";
+import { checkSavedSessionModel, classifyStartupFailure, type SessionStartupBinding } from "./session-model-check";
 import { findSessionFileHolders, partitionSessionHolders, terminateHoldersAndWait } from "./session-watcher";
 import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
@@ -114,11 +115,15 @@ const BASH_EXCLUDE_MESSAGE =
  */
 export class WebRpcError extends Error {
   readonly code: string;
+  /** Structured payload for the client (e.g. the unrestorable model id);
+   * routes serialize it beside `error` + `code`. */
+  readonly data?: unknown;
 
-  constructor(message: string, code: string) {
+  constructor(message: string, code: string, data?: unknown) {
     super(message);
     this.name = "WebRpcError";
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -224,7 +229,7 @@ export function mapPresetToolNames(toolNames: string[]): string[] {
 const FULL_PRESET_KEY = [...PRESET_FULL].map((n) => n.toLowerCase()).sort().join(",");
 
 /** Extra CLI args for spawning `omp --mode rpc-ui` for a session. */
-export function buildSessionSpawnArgs(sessionFile: string, toolNames?: string[], advisor = false): string[] {
+export function buildSessionSpawnArgs(sessionFile: string, toolNames?: string[], advisor = false, modelOverride?: { provider: string; modelId: string }): string[] {
   const args: string[] = [];
   if (sessionFile) {
     // An absolute path (or anything containing "/") resolves deterministically:
@@ -244,6 +249,9 @@ export function buildSessionSpawnArgs(sessionFile: string, toolNames?: string[],
     }
   }
   if (advisor) args.push("--advisor");
+  // omp ≥ 18.6.3: `--model` replaces a resumed session's saved model and
+  // skips its restore check (same binding as open_session's provider/modelId).
+  if (modelOverride) args.push(`--model=${modelOverride.provider}/${modelOverride.modelId}`);
   return args;
 }
 
@@ -421,6 +429,9 @@ export class AgentSessionWrapper {
    * only (no runtime RPC toggles it), so applying a changed advisor setting
    * means replacing an idle child on the next startRpcSession call. */
   readonly advisorSpawned: boolean;
+  /** Spawn-time model binding kept for restarts so a rebound session never
+   * falls back onto its unrestorable saved model. */
+  readonly startupModelOverride?: { provider: string; modelId: string };
   /** The cwd recorded in the session file header; null for brand-new sessions
    * or when the header lacks one. Used to detect a spawn fallback so a notice
    * can warn the user the agent is running in a different directory. */
@@ -437,6 +448,7 @@ export class AgentSessionWrapper {
     /** Test seam: the real value is DISCONNECT_DESTROY_MS (120s), far too long
      *  for a unit test. 0 disables reaping for that wrapper. */
     disconnectDestroyMs: number = DISCONNECT_DESTROY_MS,
+    startupModelOverride?: { provider: string; modelId: string },
   ) {
     this.proc = proc;
     this.cwd = cwd;
@@ -444,6 +456,7 @@ export class AgentSessionWrapper {
     this.advisorSpawned = advisorSpawned;
     this._sessionId = expectedSessionId;
     this.disconnectDestroyMs = disconnectDestroyMs;
+    this.startupModelOverride = startupModelOverride;
   }
 
   get sessionId(): string {
@@ -1587,7 +1600,7 @@ export class AgentSessionWrapper {
           // Re-read per spawn so a restart picks up environment values the user
           // added in Settings after this session was created (#104).
           env: getAgentEnvOverrides(),
-          extraArgs: buildSessionSpawnArgs(resumable ? sessionFile : ""),
+          extraArgs: buildSessionSpawnArgs(resumable ? sessionFile : "", undefined, false, this.startupModelOverride),
           onExit: (info) => {
             if (this.proc === proc) this.handleProcessExit(info, proc);
           },
@@ -2269,6 +2282,9 @@ export async function startRpcSession(
   /** The cwd recorded in the session file header, used to detect a spawn
    * fallback (recorded dir gone) and warn the user. Omit for new sessions. */
   recordedCwd?: string | null,
+  /** Spawn-time startup options: a model binding that replaces the session's
+   * saved (unrestorable) model, or an explicit force past the pre-flight. */
+  startup?: SessionStartupBinding,
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
   const registry = getRegistry();
   const locks = getLocks();
@@ -2320,36 +2336,81 @@ export async function startRpcSession(
     // The wrapper needs the process and the process's onExit needs the wrapper;
     // the holder breaks that cycle (onExit only fires once the child dies).
     const holder: { wrapper?: AgentSessionWrapper } = {};
-    let proc: RpcProcessLike;
-    try {
-      proc = await createRpcProcess({
-        cwd,
-        sessionId: sessionId ?? `session-${Math.random().toString(36).slice(2, 10)}`,
-        // User-configured variables for MCP servers and generated configs (#104).
-        env: getAgentEnvOverrides(),
-        extraArgs: buildSessionSpawnArgs(sessionFile, toolNames, advisor === true),
-        onExit: (info) => holder.wrapper?.handleProcessExit(info, proc),
-      });
-    } catch (error) {
-      // Rust 后端下启动失败 = host 不可用（二进制缺失/启动超时/IPC 失败），
-      // 记入后端错误环让横幅可见；node 显式回滚模式不计入 host 故障。
-      if (process.env.OMPWEB_BACKEND !== "node") {
-        recordBackendError("host_unavailable", `session start failed: ${error instanceof Error ? error.message : String(error)}`);
+    // omp ≥ 18.6.3 fail-closes (`Could not restore model <p/id>`) when a
+    // resumed session's saved model cannot be restored, and the Rust host
+    // discards the child's stderr — the reason would be lost after the fact.
+    // Check the saved model against the composer's own list first so the UI
+    // can offer a rebind instead of a dead child with an opaque exit.
+    if (sessionFile && !startup?.modelOverride && !startup?.forceModelCheck) {
+      const check = await checkSavedSessionModel(sessionFile);
+      if (check.status === "unavailable") {
+        throw new WebRpcError(
+          `Could not restore model ${check.model}. The model is no longer available (renamed, disabled, or signed out).`,
+          "session_model_unavailable",
+          { model: check.model },
+        );
       }
-      throw error;
     }
-    const created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true, sessionFile ? sessionId : "");
-    holder.wrapper = created;
-    created.start();
-    try {
-      await created.waitUntilReady();
-    } catch (error) {
-      // Await the child's full exit before the `finally` releases the startup
-      // lock: a fire-and-forget destroy() would let a retry spawn a second
-      // OMP child while the failed one is still flushing/exiting, and
-      // concurrent resume/delete/archive paths could race that old child.
-      await created.destroyAndWait();
-      throw error;
+    let resumeFile = sessionFile;
+    let proc: RpcProcessLike;
+    let created: AgentSessionWrapper;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        proc = await createRpcProcess({
+          cwd,
+          sessionId: sessionId ?? `session-${Math.random().toString(36).slice(2, 10)}`,
+          // User-configured variables for MCP servers and generated configs (#104).
+          env: getAgentEnvOverrides(),
+          extraArgs: buildSessionSpawnArgs(resumeFile, toolNames, advisor === true, startup?.modelOverride),
+          onExit: (info) => holder.wrapper?.handleProcessExit(info, proc),
+        });
+      } catch (error) {
+        // Rust 后端下启动失败 = host 不可用（二进制缺失/启动超时/IPC 失败），
+        // 记入后端错误环让横幅可见；node 显式回滚模式不计入 host 故障。
+        if (process.env.OMPWEB_BACKEND !== "node") {
+          recordBackendError("host_unavailable", `session start failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        throw error;
+      }
+      created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true, resumeFile ? sessionId : "", undefined, startup?.modelOverride);
+      holder.wrapper = created;
+      created.start();
+      try {
+        await created.waitUntilReady();
+        break;
+      } catch (error) {
+        // Await the child's full exit before a retry or the `finally` lock
+        // release: a fire-and-forget destroy() would let the next spawn race
+        // the failed child that is still flushing/exiting.
+        await created.destroyAndWait();
+        const failure = classifyStartupFailure(error instanceof Error ? error.message : String(error));
+        if (failure?.kind === "model") {
+          throw new WebRpcError(
+            `Could not restore model ${failure.model}. The model is no longer available (renamed, disabled, or signed out).`,
+            "session_model_unavailable",
+            { model: failure.model },
+          );
+        }
+        if (failure?.kind === "missing" && sessionFile)
+        {
+          // omp ≥ 18.7.0 fails closed on a missing --resume path instead of
+          // silently creating a session. The file can move between the
+          // route's resolve and the spawn (ownership move, archive, delete):
+          // re-resolve the id once and retry against the current path.
+          if (attempt === 0) {
+            const fresh = await resolveSessionPath(sessionId);
+            if (fresh && !samePath(fresh, resumeFile)) {
+              resumeFile = fresh;
+              continue;
+            }
+          }
+          throw new WebRpcError(
+            "The session file disappeared while starting (deleted, archived, or moved). Open the session again and retry.",
+            "session_file_missing",
+          );
+        }
+        throw error;
+      }
     }
 
     const realSessionId = created.sessionId;

@@ -38,9 +38,11 @@ export async function sendAgentCommand<T = unknown>(
  if (!res.ok || body.error) {
    // Routes attach a stable `code` for well-known failures; these messages are
    // surfaced to the user as notices, so localize before throwing.
-    const error = new Error(body.error || body.code ? formatApiError(body) : `HTTP ${res.status}`) as Error & { code?: string };
+    const error = new Error(body.error || body.code ? formatApiError(body) : `HTTP ${res.status}`) as Error & { code?: string; data?: unknown };
     if (typeof body.code === "string") error.code = body.code;
+    // Structured failure payload (e.g. session_model_unavailable's model id).
+    if (body.error && body.data !== undefined) error.data = body.data;
     throw error;
- }
+}
   return body.data as T;
 }

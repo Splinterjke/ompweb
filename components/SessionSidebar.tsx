@@ -1850,7 +1850,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       {/* Header: branding + quiet utilities + New Session */}
       <div
         style={{
-          padding: "10px 10px 8px",
+          padding: "5px 10px 8px",
           borderBottom: "1px solid var(--border)",
           flexShrink: 0,
           display: "flex",
