@@ -385,7 +385,8 @@ export interface TtsrInjectionEntry extends SessionEntryBase {
 /** Initial context capture for subagent sessions (omp). */
 export interface SessionInitEntry extends SessionEntryBase {
   type: "session_init";
-  systemPrompt: string;
+  /** omp ≥ 18.6.3 writes the blocks as sent; older files keep one joined string. */
+  systemPrompt: string | string[];
   task: string;
   tools: string[];
   outputSchema?: unknown;
