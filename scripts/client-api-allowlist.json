@@ -25,7 +25,7 @@
     "components/ProviderAccounts.tsx": 1,
     "components/RemoteAccessSetting.tsx": 7,
     "components/SchedulerModal.tsx": 2,
-    "components/SessionSidebar.tsx": 18,
+    "components/SessionSidebar.tsx": 19,
     "components/SettingsConfig.tsx": 9,
     "components/SkillsConfig.tsx": 6,
     "components/SubagentTranscriptDialog.tsx": 2,

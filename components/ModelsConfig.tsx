@@ -29,6 +29,7 @@ import { toast } from "@/components/ui/toast";
 import { SettingsTabs, type SettingsTab } from "./SettingsTabs";
 import { ModelCatalogPicker } from "./ModelCatalogPicker";
 import { ProviderAccounts } from "./ProviderAccounts";
+import type { LogoutAccount } from "@/lib/auth-logout";
 
 
 type IconComponent = React.ComponentType<{ size?: number | string; style?: React.CSSProperties }>;
@@ -1375,6 +1376,8 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
   const { t, tn } = useI18n();
   const [loginState, setLoginState] = useState<OAuthLoginState>({ phase: "idle" });
   const [inputValue, setInputValue] = useState("");
+  const [logoutAccounts, setLogoutAccounts] = useState<LogoutAccount[] | null>(null);
+  const [logoutSelected, setLogoutSelected] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1388,6 +1391,8 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
   useEffect(() => {
     setLoginState({ phase: "idle" });
     setInputValue("");
+    setLogoutAccounts(null);
+    setLogoutSelected(null);
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
   }, [provider.id]);
@@ -1453,21 +1458,41 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
     };
   }, [provider.id, onRefresh, t]);
 
-  const handleLogout = useCallback(async () => {
+  const postLogout = useCallback(async (credentialId?: number) => {
     try {
-      const res = await fetch(`/api/auth/logout/${encodeURIComponent(provider.id)}`, { method: "POST" });
-      const d = await res.json().catch(() => ({})) as { error?: string; code?: string };
+      const res = await fetch(`/api/auth/logout/${encodeURIComponent(provider.id)}`, {
+        method: "POST",
+        ...(credentialId !== undefined
+          ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credentialId }) }
+          : {}),
+      });
+      const d = await res.json().catch(() => ({})) as {
+        error?: string;
+        code?: string;
+        accounts?: LogoutAccount[];
+      };
+      if (d.code === "credential_choice_required" && Array.isArray(d.accounts)) {
+        // Several credentials stored: pick one explicitly, then retry.
+        setLogoutAccounts(d.accounts);
+        setLogoutSelected(d.accounts.find((a) => a.active)?.credentialId ?? d.accounts[0]?.credentialId ?? null);
+        return;
+      }
       if (!res.ok || d.error) {
-        // omp has no logout RPC/CLI surface; the route returns 501 with guidance.
+        // Older omp builds answer 501 with terminal guidance; other codes
+        // surface the route's localized error message.
         setLoginState({ phase: "error", message: d.error || d.code ? formatApiError(d) : `HTTP ${res.status}` });
         return;
       }
+      setLogoutAccounts(null);
+      setLogoutSelected(null);
       setLoginState({ phase: "idle" });
       onRefresh();
     } catch (e) {
       setLoginState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }, [provider.id, onRefresh]);
+
+  const handleLogout = useCallback(() => { void postLogout(); }, [postLogout]);
 
   const submitCode = useCallback(async (token: string, code: string) => {
     if (!code.trim()) return;
@@ -1615,7 +1640,50 @@ function OAuthDetail({ provider, onRefresh }: { provider: OAuthProvider; onRefre
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>
-        {isWorking ? (
+        {logoutAccounts ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>
+              {t("modelsConfig.logoutChoose")}
+            </span>
+            {logoutAccounts.map((account) => (
+              <label
+                key={account.credentialId}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}
+              >
+                <input
+                  type="radio"
+                  name={`logout-${provider.id}`}
+                  checked={logoutSelected === account.credentialId}
+                  onChange={() => setLogoutSelected(account.credentialId)}
+                />
+                <span>{account.label || account.detail || `#${account.credentialId}`}</span>
+                {account.detail && account.label && (
+                  <span style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{account.detail}</span>
+                )}
+                {account.active && (
+                  <span style={{ color: "var(--status-success)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                    {t("modelsConfig.logoutActiveBadge")}
+                  </span>
+                )}
+              </label>
+            ))}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                disabled={logoutSelected === null}
+                onClick={() => { if (logoutSelected !== null) void postLogout(logoutSelected); }}
+                style={{ padding: "5px 12px", background: "none", border: "1px solid color-mix(in srgb, var(--status-error) 30%, transparent)", borderRadius: 5, color: "var(--status-error)", cursor: logoutSelected === null ? "default" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", opacity: logoutSelected === null ? 0.5 : 1 }}
+              >
+                {t("modelsConfig.disconnect")}
+              </button>
+              <button
+                onClick={() => { setLogoutAccounts(null); setLogoutSelected(null); }}
+                style={{ padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
+              >
+                {t("modelsConfig.cancel")}
+              </button>
+            </div>
+          </div>
+        ) : isWorking ? (
           <button
             onClick={() => { eventSourceRef.current?.close(); setLoginState({ phase: "idle" }); }}
             style={{ padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
