@@ -2691,6 +2691,13 @@ export function AppShell({ appName }: { appName: string }) {
                     handleNewSession("", cwd);
                   }}
                   onAdd={() => setAddProjectOpen(true)}
+                  worktreePicker={worktreeCtx && worktreeCtx.worktrees.length > 1
+                    && (comparableProjectPath(worktreeCtx.projectRoot) === comparableProjectPath(effectiveNewSessionCwd)
+                      || comparableProjectPath(worktreeCtx.currentPath) === comparableProjectPath(effectiveNewSessionCwd)) ? {
+                    currentPath: worktreeCtx.currentPath,
+                    worktrees: worktreeCtx.worktrees,
+                    onSelect: worktreeCtx.select,
+                  } : undefined}
                 />
               )}
               onAgentEnd={handleAgentEnd}
