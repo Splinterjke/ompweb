@@ -18,6 +18,7 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
+import { NOTIFICATION_MESSAGE_EVENT, notificationClientId } from "@/lib/notification-client";
 import { ARCHIVE_OLDER_THAN_BUCKET_MS, type ArchiveOlderThanBucket } from "@/lib/archive-older-than";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
@@ -946,8 +947,9 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
 
   useEffect(() => {
     // Live running status and session-list invalidations arrive via SSE; the
-    // sidebar never has to poll while an agent is working.
-    const source = new EventSource("/api/agent/running/events");
+    // sidebar never has to poll while an agent is working. The same stream
+    // delivers this tab's notifications (handled by useNotifications).
+    const source = new EventSource(`/api/agent/running/events?clientId=${encodeURIComponent(notificationClientId)}`);
 
     source.onmessage = (e) => {
       try {
@@ -998,6 +1000,10 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
           // it so the parent renders the browser notification (clicking it
           // selects the originating session).
           onChatEventAction?.({ sessionId: data.sessionId ?? "", title: data.title ?? "", message: data.message ?? "" });
+        } else if (data.type === "notification") {
+          // Server-routed notification for this tab (see lib/notification-hub);
+          // useNotifications turns it into a toast / system notification.
+          window.dispatchEvent(new CustomEvent(NOTIFICATION_MESSAGE_EVENT, { detail: data }));
         }
       } catch {
         // ignore malformed frames

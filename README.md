@@ -140,6 +140,31 @@ cookies. The app still launches at `/` with scope `/`.
 No public manifest exception is needed; `/api/manifest` stays behind the same
 password guard as every other API route. This does not add offline support.
 
+## 🔔 Notifications
+
+Turn on notifications in **Settings → Notifications**. Each browser keeps its own
+settings: which events notify (task finished, waiting for input, run failed,
+model switched automatically) and what happens while you use omp-web in another
+tab (an in-app toast, or always a system notification). Nothing is shown for the
+session you are viewing. Clicking a notification opens its session.
+
+- **Push** reaches the browser even when no omp-web tab is open. It needs a
+  secure context (HTTPS through your reverse proxy, or `localhost`), and the
+  omp-web server needs outbound HTTPS access to the browser vendors' push
+  services. omp-web generates its push (VAPID) keys on first use and stores them
+  with the device list in `~/.omp/agent/omp-web/notifications.json` (mode 0600).
+- On **iPhone and iPad** (iOS 16.4 or later), push works only in the app added
+  to the Home Screen.
+- In a secure context without push support, system notifications appear while
+  an omp-web tab is open. Over plain HTTP on a non-localhost address, browsers
+  allow no system notifications: only the in-app toasts shown while you use
+  omp-web remain.
+- Desktop browsers show notifications through the operating system's
+  notification center. Push delivery needs the browser process running.
+
+Completion notifications use omp's `prompt_result` and `session_settled` RPC
+frames (omp 18.3.1 or later).
+
 ## 🛠️ Environment variables
 
 | Variable | Description | Default / Example |

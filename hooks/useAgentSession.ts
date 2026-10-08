@@ -451,11 +451,13 @@ export async function runHostTool(
       const message = str(args.message) ?? "";
       if (typeof Notification !== "undefined") {
         try {
-          if (Notification.permission === "granted") {
-            new Notification(title, { body: message });
-          } else if (Notification.permission === "default") {
-            const permission = await Notification.requestPermission();
-            if (permission === "granted") new Notification(title, { body: message });
+          const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+          if (permission === "granted") {
+            const options = { body: message, icon: "/favicon-192x192.png", badge: "/badge-96.png" };
+            // Chrome on Android only allows notifications through a service worker.
+            const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+            if (registration) await registration.showNotification(title, options);
+            else new Notification(title, options);
           }
         } catch {
           // Notification API blocked — the result still succeeds.

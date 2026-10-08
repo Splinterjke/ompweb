@@ -13,7 +13,7 @@ import { Tooltip } from "../ui/primitives";
  */
 import { Toast } from "@base-ui/react/toast";
 import { AlertCircle, Check, Info, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type React from "react";
 
@@ -24,6 +24,8 @@ interface ToastData {
   variant?: "update";
   /** Clamp the description to 2 lines; click the description to expand it. */
   clamp?: boolean;
+  /** Whole-card action target (see Toaster): runs on card click, then closes. */
+  onClick?: () => void;
 }
 
 interface ToastOptions {
@@ -31,6 +33,8 @@ interface ToastOptions {
   variant?: "update";
   /** Clamp the description to 2 lines; click the description to expand it. */
   clamp?: boolean;
+  /** Stable id for deduplication — same id will replace existing toast instead of stacking. */
+  id?: string;
   /**
    * Wall-clock lifetime before the toast auto-dismisses. Defaults per kind:
    * success/info 2000ms, error 3500ms. Update banners (variant: "update")
@@ -39,6 +43,11 @@ interface ToastOptions {
    * stuck on screen.
    */
   durationMs?: number;
+  /**
+   * Runs when the card itself is clicked (anywhere but its buttons, links and
+   * expandable text), then closes the toast.
+   */
+  onClick?: () => void;
 }
 
 const manager = Toast.createToastManager<ToastData>();
@@ -58,6 +67,7 @@ const BASE_UI_BACKSTOP_MS = 30_000;
 function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: ToastOptions) {
   const isUpdateBanner = options?.variant === "update";
   const id = manager.add({
+    id: options?.id,
     title,
     description,
     type: kind,
@@ -65,7 +75,7 @@ function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactN
     // dismisses (no base-ui auto timer). Everything else auto-dismisses on a
     // wall clock that hover/blur cannot pause.
     timeout: isUpdateBanner ? 0 : (options?.durationMs ?? DEFAULT_DURATION_MS[kind]),
-    data: { kind, clamp: options?.clamp, variant: options?.variant },
+    data: { kind, clamp: options?.clamp, variant: options?.variant, onClick: options?.onClick },
   });
   if (!isUpdateBanner) {
     // Force-close on a real timer: base-ui pauses its own countdown while the
@@ -193,6 +203,10 @@ export function detailNode(detail: string): React.ReactNode {
 
 function Toaster() {
   const { toasts } = Toast.useToastManager<ToastData>();
+  // Press origin for the whole-card onClick action below: a drag that turns
+  // into text selection must not fire the action, so the action judges the
+  // element that was pressed and how far the pointer travelled.
+  const press = useRef<{ x: number; y: number; target: EventTarget | null; travel: number } | null>(null);
   // All toasts live bottom-right, clear of the chat input bar / status area.
   // Bottom offset 24px on desktop, slightly higher on mobile so the on-screen
   // keyboard / input bar never covers the newest toast.
@@ -217,8 +231,41 @@ function Toaster() {
             key={t.id}
             toast={t}
             className={`toast-card${t.data?.variant === "update" ? " toast-update" : ""}`}
+            onPointerDown={(event) => {
+              press.current = { x: event.clientX, y: event.clientY, target: event.target, travel: 0 };
+            }}
+            onPointerMove={(event) => {
+              const from = press.current;
+              if (from) from.travel = Math.max(from.travel, Math.hypot(event.clientX - from.x, event.clientY - from.y));
+            }}
+            onClick={t.data?.onClick ? (event) => {
+              const onClick = t.data?.onClick;
+              const from = press.current;
+              press.current = null;
+              // Judge the element that was pressed (not the click target) so
+              // clicks retargeted by the toast root still exclude real controls.
+              const pointerClick = from && event.detail !== 0;
+              const target = pointerClick ? from.target : event.target;
+              if (!onClick || (target instanceof Element && target.closest("button, a, input, textarea, select, [aria-expanded]"))) return;
+              // A drag that merely fell short of a text selection, even one
+              // brought back to where it started, is not a click (detail 0: keyboard).
+              if (pointerClick && from && Math.max(from.travel, Math.hypot(event.clientX - from.x, event.clientY - from.y)) > 10) return;
+              // Releasing a text selection is not a request to open anything.
+              if (window.getSelection()?.isCollapsed === false) return;
+              manager.close(t.id);
+              onClick();
+            } : undefined}
+            // The card is focusable (base-ui gives it tabIndex 0): Enter on it
+            // runs the action, which has no separate button.
+            onKeyDown={t.data?.onClick ? (event) => {
+              if (event.key !== "Enter" || event.target !== event.currentTarget) return;
+              event.preventDefault();
+              manager.close(t.id);
+              t.data?.onClick?.();
+            } : undefined}
             style={{
               pointerEvents: "auto",
+              cursor: t.data?.onClick ? "pointer" : undefined,
               display: "flex",
               alignItems: "flex-start",
               gap: 8,

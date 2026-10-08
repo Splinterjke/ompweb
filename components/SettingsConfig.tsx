@@ -19,6 +19,17 @@ import { BackendDiagnosticsBody } from "./BackendDiagnostics";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import { useNotificationPrefs } from "@/hooks/useNotifications";
+import { NOTIFICATION_TYPES, renderNotification, type NotificationType } from "@/lib/notification-events";
+import {
+  ensurePushSubscription,
+  getNotificationDeviceId,
+  getNotificationPrefs,
+  getNotificationSupport,
+  showSystemNotification,
+  updateNotificationPrefs,
+  type NotificationSupport,
+} from "@/lib/notification-client";
 import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 
 const SettingsTabLoading = () => {
@@ -338,6 +349,13 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   // System & Updates
   { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System & Updates", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
   { id: "agent-env", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentEnv", descKey: "settingsConfig.agentEnvDesc", fallbackSection: "System & Updates", fallbackLabel: "Agent environment variables", fallbackDesc: "Extra environment variables passed to the omp process, one KEY=VALUE per line. Applied to sessions started after saving.", scope: "UI" },
+  // Notifications
+  { id: "notifications-enable", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.enable", descKey: "notifications.enableDesc", fallbackSection: "Notifications", fallbackLabel: "Enable notifications", fallbackDesc: "Asks the browser for permission to show notifications.", scope: "UI" },
+  { id: "notifications-completed", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.typeCompleted", descKey: "notifications.typeCompletedDesc", fallbackSection: "Notifications", fallbackLabel: "Task finished", fallbackDesc: "A prompt and the background work it started are done. Subagents never notify.", scope: "UI" },
+  { id: "notifications-input", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.typeInput", descKey: "notifications.typeInputDesc", fallbackSection: "Notifications", fallbackLabel: "Waiting for input", fallbackDesc: "The agent asks a question or needs an approval.", scope: "UI" },
+  { id: "notifications-error", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.typeError", descKey: "notifications.typeErrorDesc", fallbackSection: "Notifications", fallbackLabel: "Run failed", fallbackDesc: "A run stops with an error after retries and fallbacks, or the omp process exits.", scope: "UI" },
+  { id: "notifications-modelSwitch", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.typeModelSwitch", descKey: "notifications.typeModelSwitchDesc", fallbackSection: "Notifications", fallbackLabel: "Model switched automatically", fallbackDesc: "omp switches models on its own: a fallback after a refusal, rate limit, or usage limit, or a prewalk / plan hand-off.", scope: "UI" },
+  { id: "notifications-when-active", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.whenActive", descKey: "notifications.whenActiveDesc", fallbackSection: "Notifications", fallbackLabel: "When I'm using omp-web in another tab", fallbackDesc: "Nothing is shown for the session you are viewing.", scope: "UI" },
 ];
 
 function SearchResultsList({ results, query, onSelect }: { results: SearchResult[]; query: string; onSelect: (result: SearchResult) => void }) {
@@ -550,7 +568,161 @@ function AgentEnvSetting() {
   );
 }
 
-function NativeSetting({ label, description, scope, searchId, children, controlStyle, containerStyle }: { label: string; description: string; scope?: "UI" | "Native OMP" | "Workspace"; searchId?: string; children: ReactNode; controlStyle?: CSSProperties; containerStyle?: CSSProperties }) {
+const NOTIFICATION_TYPE_LABELS: Record<NotificationType, { label: string; desc: string }> = {
+  completed: { label: "notifications.typeCompleted", desc: "notifications.typeCompletedDesc" },
+  input: { label: "notifications.typeInput", desc: "notifications.typeInputDesc" },
+  error: { label: "notifications.typeError", desc: "notifications.typeErrorDesc" },
+  modelSwitch: { label: "notifications.typeModelSwitch", desc: "notifications.typeModelSwitchDesc" },
+};
+
+const NOTIFICATION_STATUS_KEYS: Record<Exclude<NotificationSupport, "push" | "no-push">, string> = {
+  insecure: "notifications.statusInsecure",
+  "ios-install": "notifications.statusIosInstall",
+  unsupported: "notifications.statusUnsupported",
+  denied: "notifications.statusDenied",
+};
+
+/** Per-device notification prefs (lib/notification-client.ts), mirrored to the server. */
+function NotificationSettingsPanel() {
+  const { t, locale } = useI18n();
+  const prefs = useNotificationPrefs();
+  const [support, setSupport] = useState<NotificationSupport | null>(null);
+  const [pushActive, setPushActive] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setSupport(getNotificationSupport());
+    // Enabled: join (or redo) the app's startup repair, which is single-flight,
+    // so the status reflects the subscription after any repair, not before it.
+    const pushState: Promise<boolean> = getNotificationPrefs().enabled
+      ? ensurePushSubscription()
+      : fetch(`/api/notifications/devices?deviceId=${encodeURIComponent(getNotificationDeviceId())}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data: { subscribed?: boolean } | null) => data?.subscribed === true);
+    pushState.then((active) => { if (alive) setPushActive(active); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+  const save = (patch: Parameters<typeof updateNotificationPrefs>[0]) => {
+    void updateNotificationPrefs(patch).catch((error: unknown) => toast.error(t("notifications.saveFailed"), errorText(error)));
+  };
+
+  const setEnabled = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      // First await inside the click: Safari only prompts during the user gesture.
+      if (enabled && "Notification" in window && Notification.permission === "default") await Notification.requestPermission();
+      await updateNotificationPrefs({ enabled, locale });
+      if (enabled) setPushActive(await ensurePushSubscription());
+    } catch (error) {
+      toast.error(t("notifications.enableFailed", { error: errorText(error) }));
+    } finally {
+      setSupport(getNotificationSupport());
+      setBusy(false);
+    }
+  };
+
+  // With push, the server sends a real push; otherwise this tab shows one itself.
+  const sendTest = async () => {
+    const testNotification = renderNotification({ type: "test", sessionId: "", sessionName: "omp web" }, t);
+    try {
+      if (pushActive) {
+        const res = await fetch("/api/notifications/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceId: getNotificationDeviceId() }),
+        });
+        if (!res.ok) {
+          const body: unknown = await res.json().catch(() => null);
+          // The server drops a subscription the push service reports gone;
+          // resubscribe so the next test (and real pushes) can reach this device.
+          setPushActive(await ensurePushSubscription().catch(() => false));
+          throw new Error(isRecord(body) && typeof body.error === "string" ? body.error : `HTTP ${res.status}`);
+        }
+      } else if (!(await showSystemNotification(testNotification))) {
+        // No system notifications here (plain HTTP, permission missing): in-app toasts are what this browser gets.
+        toast.info(testNotification.title, testNotification.body);
+        return;
+      }
+      toast.success(t("notifications.testSent"));
+    } catch (error) {
+      toast.error(t("notifications.testFailed"), errorText(error));
+    }
+  };
+
+  let status: string | null = null;
+  if (support && support !== "push" && support !== "no-push") status = t(NOTIFICATION_STATUS_KEYS[support]);
+  else if (support && prefs.enabled) {
+    if (Notification.permission !== "granted") status = t("notifications.statusPermission");
+    else status = t(pushActive ? "notifications.statusPush" : "notifications.statusInPage");
+  }
+
+  return (
+    <>
+      <NativeSetting searchId="notifications-enable" scope="UI" label={t("notifications.enable")} description={t("notifications.enableDesc")}>
+        <ToggleSwitch checked={prefs.enabled} disabled={busy} onChange={(next) => void setEnabled(next)} />
+      </NativeSetting>
+      {status && (
+        <div
+          role="status"
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-card)",
+            background: "var(--bg-panel)",
+            color: support === "push" || support === "no-push" ? "var(--text-muted)" : "var(--accent-strong)",
+            fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))",
+            lineHeight: 1.45,
+          }}
+        >
+          {status}
+        </div>
+      )}
+      {NOTIFICATION_TYPES.map((type) => (
+        <NativeSetting key={type} searchId={`notifications-${type}`} scope="UI" disabled={!prefs.enabled} label={t(NOTIFICATION_TYPE_LABELS[type].label)} description={t(NOTIFICATION_TYPE_LABELS[type].desc)}>
+          <ToggleSwitch checked={prefs.types[type]} disabled={!prefs.enabled} onChange={(next) => save({ types: { ...prefs.types, [type]: next } })} />
+        </NativeSetting>
+      ))}
+      <NativeSetting searchId="notifications-when-active" scope="UI" disabled={!prefs.enabled} label={t("notifications.whenActive")} description={t("notifications.whenActiveDesc")}>
+        <select
+          style={nativeSelectStyle}
+          value={prefs.whenActive}
+          disabled={!prefs.enabled}
+          onChange={(event) => save({ whenActive: event.target.value === "system" ? "system" : "toast" })}
+        >
+          <option value="toast" style={nativeOptionStyle}>{t("notifications.whenActiveToast")}</option>
+          <option value="system" style={nativeOptionStyle}>{t("notifications.whenActiveSystem")}</option>
+        </select>
+      </NativeSetting>
+      <div>
+        <button
+          type="button"
+          onClick={() => void sendTest()}
+          disabled={!prefs.enabled}
+          style={{
+            padding: "6px 14px",
+            border: "1px solid var(--accent-strong)",
+            borderRadius: "var(--radius-control)",
+            background: "var(--accent-strong)",
+            color: "var(--on-accent)",
+            cursor: prefs.enabled ? "pointer" : "not-allowed",
+            fontSize: 12,
+            fontWeight: 600,
+            opacity: prefs.enabled ? 1 : 0.6,
+          }}
+        >
+          {t("notifications.test")}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** `disabled` only dims the row; the child control must be disabled itself. */
+function NativeSetting({ label, description, scope, searchId, children, controlStyle, containerStyle, disabled }: { label: string; description: string; scope?: "UI" | "Native OMP" | "Workspace"; searchId?: string; children: ReactNode; controlStyle?: CSSProperties; containerStyle?: CSSProperties; disabled?: boolean }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const highlightId = useContext(SettingsHighlightContext);
@@ -597,7 +769,8 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
         display: "flex",
         flexDirection: "column",
         gap: 8,
-        transition: "box-shadow var(--dur-fast), border-color var(--dur-fast)",
+        opacity: disabled ? 0.5 : 1,
+        transition: "box-shadow var(--dur-fast), border-color var(--dur-fast), opacity var(--dur-fast)",
         ...(highlighted ? { borderColor: "var(--accent)", boxShadow: "0 0 0 2px var(--accent)" } : {}),
         ...containerStyle,
       }}
@@ -607,7 +780,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
           {/* flexShrink 0 keeps CJK labels from collapsing to one glyph per
               line ("vertical text"); flexWrap above moves the control below
               the label on narrow cards instead of squeezing it. */}
-          <label id={labelId} htmlFor={settingId} style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>{label}</label>
+          <label id={labelId} htmlFor={settingId} style={{ fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text)", cursor: disabled ? "default" : "pointer", flexShrink: 0 }}>{label}</label>
           {scope && (
             <span style={{ ...chipStyle, flexShrink: 0 }}>
               {formatScope(scope)}
@@ -1917,6 +2090,19 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
               <div className="settings-panel-inner" role="tabpanel" id="settings-panel-native" aria-labelledby="settings-tab-native" style={{ display: "flex", flexDirection: "column" }}>
                 <NativeSettingsPanel onOpenStandalone={() => setNativeWindowOpen(true)} />
                 {nativeWindowOpen && <NativeSettingsPanel standalone onClose={() => setNativeWindowOpen(false)} />}
+              </div>
+            )}
+
+            {/* NOTIFICATIONS TAB */}
+            {currentTab === "notifications" && (
+              <div className="settings-panel-inner" role="tabpanel" id="settings-panel-notifications" aria-labelledby="settings-tab-notifications" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("notifications.title")}</h3>
+                  <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("notifications.subtitle")}</p>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+                  <NotificationSettingsPanel />
+                </div>
               </div>
             )}
 

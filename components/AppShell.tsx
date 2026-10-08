@@ -32,7 +32,7 @@ import { AgentsPanel } from "./agents/AgentsPanel";
 import { FileExplorer } from "./FileExplorer";
 import { SubagentDetailPanel } from "./agents/SubagentDetailPanel";
 import { useTheme } from "@/hooks/useTheme";
-import { useI18n } from "@/lib/i18n";
+import { translate, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { copyText } from "@/lib/clipboard";
@@ -40,7 +40,8 @@ import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { showBrowserNotification, showCompletionNotification } from "@/lib/browser-notifications";
+import { showBrowserNotification } from "@/lib/browser-notifications";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -185,7 +186,7 @@ export function AppShell({ appName }: { appName: string }) {
   const searchParams = useSearchParams();
   const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
   const { isDark, preference, toggleTheme } = useTheme();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const isMobile = useIsMobile();
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
@@ -1458,24 +1459,34 @@ export function AppShell({ appName }: { appName: string }) {
   const handleAgentEnd = useCallback(() => {
     setRefreshKey((k) => k + 1);
     setExplorerRefreshKey((k) => k + 1);
-    if (document.visibilityState !== "hidden" || !("Notification" in window)) return;
+  }, []);
 
-    const targetSession = selectedSession;
-    const notify = () => {
-      showCompletionNotification(
-        targetSession?.name ?? t("appShell.sessionComplete"),
-        t("appShell.taskFinished"),
-        () => {
-          window.focus();
-          if (targetSession) handleSelectSession(targetSession);
-        },
-      );
-    };
-    if (Notification.permission === "granted") notify();
-    else if (Notification.permission === "default") {
-      void Notification.requestPermission().then((permission) => { if (permission === "granted") notify(); });
-    }
-  }, [handleSelectSession, selectedSession, t]);
+  // Notification clicks name a session id; the session list carries its cwd
+  // and project, which selecting needs. When the list cannot be read (the
+  // sign-in expired), load the session URL: sign-in carries it through.
+  const openSessionById = useCallback((sessionId: string) => {
+    window.focus();
+    // On narrow screens the file panel covers the chat it is about to show.
+    if (isMobile) setRightPanelOpen(false);
+    // A full load (not router navigation) so an expired sign-in reaches proxy.ts and the login page.
+    const sessionUrl = new URL(`/?session=${encodeURIComponent(sessionId)}`, window.location.origin).href;
+    void fetch("/api/sessions")
+      .then((r) => {
+        if (!r.ok) {
+          window.location.assign(sessionUrl);
+          return;
+        }
+        return (r.json() as Promise<{ sessions: SessionInfo[] }>).then((d) => {
+          const session = d.sessions.find((s) => s.id === sessionId);
+          if (session) handleSelectSession(session);
+          else toast.error(translate("notifications.sessionNotFound"));
+        });
+      })
+      .catch(() => window.location.assign(sessionUrl));
+  }, [handleSelectSession, isMobile]);
+
+  // Full-page Settings hides the chat, so its session counts as not viewed.
+  useNotifications({ sessionId: settingsTab ? null : selectedSession?.id ?? null, locale, onOpenSession: openSessionById });
   // Chat event actions of the "notification" type fire server-side (even with
   // no tab open); the running stream relays the frame here. Clicking the
   // notification selects the originating session (fetched by id, like the

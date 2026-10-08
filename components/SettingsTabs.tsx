@@ -3,7 +3,7 @@ import { Tooltip } from "./ui/primitives";
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { Activity, Blocks, Bot, Cable, Cpu, KeyRound, ListTree, RefreshCw, Settings2, ShieldCheck, Smartphone, Sparkles } from "lucide-react";
+import { Activity, Bell, Blocks, Bot, Cable, Cpu, KeyRound, ListTree, RefreshCw, Settings2, ShieldCheck, Smartphone, Sparkles } from "lucide-react";
 import type { ComponentType, CSSProperties } from "react";
 
 export type SettingsTab =
@@ -19,6 +19,7 @@ export type SettingsTab =
   | "skill-hub"
   | "plugins"
   | "native"
+  | "notifications"
   | "system"
   | "remote"
   | "diagnostics";
@@ -41,6 +42,7 @@ export const SETTINGS_CATEGORIES: TabItem[] = [
   { id: "skill-hub", label: "Skill Hub", description: "Skill catalogs, sources, marketplaces, and organization", Icon: Blocks },
   { id: "mcp", label: "Extensions & Tools", description: "MCP servers, managed skills, and OMP plugins", Icon: Cable },
   { id: "native", label: "OMP Native Settings", description: "Schema-driven full omp config (all settings, via omp CLI)", Icon: ListTree },
+  { id: "notifications", label: "Notifications", description: "Desktop and mobile notifications for your sessions", Icon: Bell },
   { id: "system", label: "System & Updates", description: "App updates, runtime version, and active session restart", Icon: RefreshCw },
   { id: "diagnostics", label: "Diagnostics & Recovery", description: "Service health, session locks, Rust host and repair actions", Icon: Activity },
   { id: "remote", label: "Remote Access", description: "Pair phones/PCs over LAN or a public tunnel", Icon: Smartphone },

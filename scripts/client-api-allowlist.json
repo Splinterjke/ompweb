@@ -3,7 +3,7 @@
   "files": {
     "app/remote/page.tsx": 1,
     "components/AgentsConfig.tsx": 5,
-    "components/AppShell.tsx": 15,
+    "components/AppShell.tsx": 16,
     "components/ArchiveBrowser.tsx": 2,
     "components/BackendDiagnostics.tsx": 12,
     "components/ChatInput.tsx": 4,
@@ -26,7 +26,7 @@
     "components/RemoteAccessSetting.tsx": 7,
     "components/SchedulerModal.tsx": 2,
     "components/SessionSidebar.tsx": 19,
-    "components/SettingsConfig.tsx": 9,
+    "components/SettingsConfig.tsx": 11,
     "components/SkillsConfig.tsx": 6,
     "components/SubagentTranscriptDialog.tsx": 2,
     "components/TerminalPanel.tsx": 6,
@@ -37,8 +37,10 @@
     "components/usage/UsageTabLogs.tsx": 1,
     "hooks/useAgentSession.ts": 20,
     "hooks/useDictation.ts": 6,
+    "hooks/useNotifications.ts": 1,
     "lib/agent-client.ts": 1,
     "lib/client/http-sse-adapter.ts": 5,
+    "lib/notification-client.ts": 2,
     "lib/workbench-client.ts": 2
   }
 }
