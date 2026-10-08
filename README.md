@@ -150,6 +150,7 @@ password guard as every other API route. This does not add offline support.
 | `OMP_WEB_ALLOWED_HOSTS` | Comma-separated non-loopback hosts allowed to reach the app | *(empty — loopback only)* |
 | `OMP_WEB_NO_OPEN` | Skip opening browser automatically | `0` (`1` to skip) |
 | `OMP_WEB_DISABLE_AUTOUPDATE` | Set to `1` to disable update checks and in-app updates; restart after changing | `0` |
+| `OMP_WEB_NAME` | Name shown in browser tabs and installed-app names. `url`, `host` or `domain` (any case) uses the hostname the browser connected to, without port; localhost and IP addresses keep `omp web`. Any other value is used as-is. Restart after changing | `omp web` |
 | `OMP_WEB_OMP_BIN` | Absolute path to `omp` binary | Resolved from `PATH` |
 | `OMP_WEB_DEV_ORIGIN` | Additional allowed hostname for the development server (no scheme or port); ignored in production | _None_ |
 | `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL | _None (disabled)_ |
