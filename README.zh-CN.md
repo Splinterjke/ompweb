@@ -146,6 +146,8 @@ compose 文件默认设置 `OMP_WEB_PASSWORD=asdf1234` —— 在登录界面使
 | `PI_CODING_AGENT_DIR` | OMP 数据与配置存放根目录 | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 后端请求所使用的代理配置 | *(系统默认)* |
 
+**`OMP_WEB_NAME` 与已安装应用。** 已安装应用（PWA）通常以安装时所在页面的名称命名。如果之后修改了 `OMP_WEB_NAME`，或在 `OMP_WEB_NAME` 为 `url`、`host` 或 `domain` 时通过其他地址访问 omp-web，操作系统可能也会重命名已安装的应用。建议将 `OMP_WEB_NAME` 留空，或设置一个无论通过哪个域名或地址访问都能识别这台 omp-web 服务器的名称。
+
 ## 📄 开源协议
 
 本项目遵循 [MIT 许可证](./LICENSE)。

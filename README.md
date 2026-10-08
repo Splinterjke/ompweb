@@ -159,6 +159,8 @@ password guard as every other API route. This does not add offline support.
 | `PI_CODING_AGENT_DIR` | OMP agent home directory | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | Proxies for server-side requests | *(System default)* |
 
+**`OMP_WEB_NAME` and installed apps.** An installed app (PWA) is usually named after the page it was installed from. If you later change `OMP_WEB_NAME`, or reach omp-web through a different address while `OMP_WEB_NAME` is `url`, `host` or `domain`, your operating system may rename the installed app as well. Leave `OMP_WEB_NAME` empty, or set a name that identifies this omp-web server whatever domain name or address is used to reach it.
+
 The development server allows loopback and RFC1918 private IPv4 origins
 (`10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`). When using a tunnel
 or reverse proxy with a custom hostname, set it without editing `next.config.ts`:

@@ -146,6 +146,8 @@ compose ファイルはデフォルトで `OMP_WEB_PASSWORD=asdf1234` を設定�
 | `PI_CODING_AGENT_DIR` | OMP エージェントディレクトリ | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | サーバーサイドリクエスト用のプロキシ | *(システムデフォルト)* |
 
+**`OMP_WEB_NAME` とインストールしたアプリ。** インストールしたアプリ（PWA）の名前は、通常インストール元のページの名前になります。あとで `OMP_WEB_NAME` を変更した場合や、`OMP_WEB_NAME` が `url`・`host`・`domain` のときに別のアドレスで omp-web にアクセスした場合、OS がインストール済みアプリの名前も変更することがあります。`OMP_WEB_NAME` は空のままにするか、どのドメイン名やアドレスでアクセスしてもこの omp-web サーバーを識別できる名前を設定することをおすすめします。
+
 ## 📄 ライセンス
 
 [MIT ライセンス](./LICENSE) のもとで公開されています。
