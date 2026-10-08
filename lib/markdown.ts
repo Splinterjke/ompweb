@@ -23,11 +23,13 @@ const markdownSanitizeSchema = {
     // rejects javascript:/data:/vbscript:.
     a: (defaultSchema.attributes?.a ?? [])
       .filter((entry) => entry !== "href")
-      // URL-encoded forms (%5C = backslash) arrive after react-markdown
-      // encodes the href, so the drive-letter/UNC branches accept both.
+      // URL-encoded forms (%5C = backslash, %3A = colon) arrive after react-markdown
+      // or the inline-code plugin encodes the href, so the drive-letter/UNC branches
+      // accept both. `~/…` names the server user's home (the file API expands it);
+      // a bare `name.ext` (optionally `:line` via `%3A`) is a same-directory file.
       // `agent://` subagent handles are opened in-app by MarkdownBody; the
       // default protocol whitelist strips them.
-      .concat([["href", /^(?:agent:\/\/|https?:|mailto:|file:|[a-zA-Z]:(?:[\\/]|%5[cC])|\\\\|%5[cC]%5[cC]|\/|\.{1,2}\/|#|\?|[\w\u4e00-\u9fff.-]+\/)/]]),
+      .concat([["href", /^(?:agent:\/\/|https?:|mailto:|file:|[a-zA-Z]:(?:[\\/]|%5[cC])|[a-zA-Z]%3[aA](?:[\\/]|%5[cC])|\\\\|%5[cC]%5[cC]|~\/|\/|\.{1,2}\/|#|\?|[\w\u4e00-\u9fff.-]+\/|[\w\u4e00-\u9fff.-]+\.[A-Za-z][A-Za-z0-9]*(?:%3A\d+)*$)/]]),
   },
   strip: [...(defaultSchema.strip || []), "iframe", "object", "style", "form"],
 };

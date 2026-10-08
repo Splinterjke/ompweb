@@ -64,11 +64,19 @@ function collectStrings(value: unknown, out: string[]): void {
   for (const item of Object.values(value)) collectStrings(item, out);
 }
 
-export function isFilePathReferencedByEntries(filePath: string, entries: SessionEntry[]): boolean {
+/**
+ * `homeDir` lets a `~/rel` mention authorize `<homeDir>/rel`: the agent's
+ * shell expands `~` to the same user's home, so it names exactly that file.
+ */
+export function isFilePathReferencedByEntries(filePath: string, entries: SessionEntry[], homeDir?: string): boolean {
+  const targets = [filePath];
+  const target = normalizeSlashes(filePath);
+  const home = homeDir ? normalizeSlashes(homeDir).replace(/\/+$/, "") : "";
+  if (home && target.startsWith(`${home}/`)) targets.push(`~${target.slice(home.length)}`);
   for (const entry of entries) {
     const strings: string[] = [];
     collectStrings(entry, strings);
-    if (strings.some((text) => containsExactPathReference(text, filePath))) return true;
+    if (strings.some((text) => targets.some((t) => containsExactPathReference(text, t)))) return true;
   }
   return false;
 }
