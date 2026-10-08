@@ -20,7 +20,7 @@ import { parseSkillDiagnosticsSnapshot, type SkillDiagnosticsSnapshot } from "@/
 import { recoverDraft, setDraft, toDraftImages, type ChatDraftImage } from "@/lib/draft-store";
 import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "@/lib/client";
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
-import { toast } from "@/components/ui/toast";
+import { toast, toastHistory } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
@@ -449,6 +449,8 @@ export async function runHostTool(
     case "notify": {
       const title = str(args.title) ?? "OMP";
       const message = str(args.message) ?? "";
+      // Logged even when the OS blocks notifications, so the message is never lost.
+      toastHistory.record("info", title, message || undefined);
       if (typeof Notification !== "undefined") {
         try {
           const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;

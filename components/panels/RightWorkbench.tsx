@@ -2,14 +2,16 @@
 import { Tooltip } from "../ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
+import { Bell, Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { createTemporarySession } from "@/lib/workbench-client";
 import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
+import { NotificationListView } from "../NotificationList";
+import { useUnreadToastCount } from "../ui/toast";
 
-export type WorkbenchView = "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
+export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
 // The workbench intentionally has one axis only.  A second axis (or a
 // draggable dock) made the right rail feel like a nested window manager and
 // was especially confusing on small screens.  The sole split is upper/lower.
@@ -20,6 +22,7 @@ type Layout = { orientation: Orientation; split: number; panes: Pane[] };
 const STORAGE_PREFIX = "omp-web:right-workbench:v1:";
 
 const VIEW_META: Record<WorkbenchView, { icon: typeof Files; labelKey: string; fallback: string }> = {
+  notifications: { icon: Bell, labelKey: "appShell.notifications", fallback: "Notifications" },
   files: { icon: Files, labelKey: "rightWorkbench.files", fallback: "Files" },
   agents: { icon: Bot, labelKey: "rightWorkbench.agents", fallback: "Agents" },
   git: { icon: GitBranch, labelKey: "rightWorkbench.git", fallback: "Git" },
@@ -38,7 +41,7 @@ function normalizeLayout(value: unknown): Layout {
   const candidate = value as Partial<Layout>;
   const panes = Array.isArray(candidate.panes) ? candidate.panes.slice(0, 2).map((pane, index) => {
     const source = pane as Partial<Pane>;
-    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "files" || tab === "agents" || tab === "git" || tab === "worktrees" || tab === "sidechat" || tab === "browser" || tab === "memory") : [];
+    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "notifications" || tab === "files" || tab === "agents" || tab === "git" || tab === "worktrees" || tab === "sidechat" || tab === "browser" || tab === "memory") : [];
     const active = tabs.includes(source.active as WorkbenchView) ? source.active as WorkbenchView : tabs[0] ?? null;
     return { id: typeof source.id === "string" ? source.id : `pane-${index + 1}`, tabs: [...new Set(tabs)], active };
   }) : [];
@@ -216,6 +219,7 @@ export function RightWorkbench({
   agents,
   worktrees,
   requestedView,
+  onActiveViewChange,
   onOpenFile,
 }: {
   storageKey?: string;
@@ -225,9 +229,12 @@ export function RightWorkbench({
   /** Right-panel Worktrees view content (rendered per `requestedView` / the + menu). */
   worktrees: ReactNode;
   requestedView?: { view: WorkbenchView; nonce: number } | null;
+  /** Reports which view the panes show, so the shell can badge/mark-read the Notifications tab. */
+  onActiveViewChange?: (view: WorkbenchView | null) => void;
   onOpenFile?: (filePath: string, fileName: string) => void;
 }) {
   const { t } = useI18n();
+  const unreadNotifications = useUnreadToastCount();
   const [layout, setLayout] = useState<Layout>(emptyLayout);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -262,6 +269,17 @@ export function RightWorkbench({
     openView(requestedView.view);
   }, [openView, requestedView]);
 
+  // The shell tracks the Notifications view through this (toggle badge +
+  // mark-all-read when the user leaves it). A view active in any pane wins,
+  // with the Notifications tab preferred when several panes are active.
+  useEffect(() => {
+    if (!onActiveViewChange) return;
+    const active = layout.panes.some((pane) => pane.active === "notifications")
+      ? "notifications"
+      : layout.panes[0]?.active ?? null;
+    onActiveViewChange(active);
+  }, [layout, onActiveViewChange]);
+
   const closeView = useCallback((paneId: string, view: WorkbenchView) => {
     setLayout((current) => {
       const ownerId = current.panes.some((pane) => pane.id === paneId && pane.tabs.includes(view))
@@ -282,6 +300,7 @@ export function RightWorkbench({
   }, []);
 
   const renderView = useCallback((view: WorkbenchView, active: boolean) => {
+    if (view === "notifications") return <NotificationListView />;
     if (view === "files") return files;
     if (view === "agents") return agents;
     if (view === "worktrees") return worktrees;
@@ -291,7 +310,7 @@ export function RightWorkbench({
     return <BrowserView />;
   }, [agents, cwd, files, onOpenFile, worktrees]);
 
-  const actions = useMemo(() => ["files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[], []);
+  const actions = useMemo(() => ["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[], []);
   const emptyActions = actions;
 
   const updateMenuPosition = useCallback(() => {
@@ -360,7 +379,7 @@ export function RightWorkbench({
           <h2 style={{ margin: "0 0 6px", fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", color: "var(--text)", fontWeight: 650 }}>{t("rightWorkbench.emptyTitle") === "rightWorkbench.emptyTitle" ? "Open a workspace" : t("rightWorkbench.emptyTitle")}</h2>
           <p style={{ margin: "0 0 18px", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", lineHeight: 1.55 }}>{t("rightWorkbench.emptyHint") === "rightWorkbench.emptyHint" ? "Pick an entry to open a workspace here; add a top/bottom split when needed." : t("rightWorkbench.emptyHint")}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, textAlign: "left" }}>
-            {emptyActions.map((view) => { const meta = VIEW_META[view]; const Icon = meta.icon; return <button key={view} type="button" onClick={() => openView(view)} style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 52, padding: "9px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", textAlign: "left", transition: "border-color var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}><Icon size={17} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" /><span><strong style={{ display: "block", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}>{labelFor(t, view)}</strong><small style={{ display: "block", marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{view === "files" ? "Browse workspace files" : view === "agents" ? "View task progress" : view === "git" ? "Working tree changes" : view === "sidechat" ? "Draft a follow-up question" : "Preview web pages"}</small></span></button>; })}
+            {emptyActions.map((view) => { const meta = VIEW_META[view]; const Icon = meta.icon; return <button key={view} type="button" onClick={() => openView(view)} style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 52, padding: "9px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", textAlign: "left", transition: "border-color var(--dur-fast) var(--ease-out-warm), transform var(--dur-fast) var(--ease-out-warm)" }}><Icon size={17} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" /><span><strong style={{ display: "block", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}>{labelFor(t, view)}</strong><small style={{ display: "block", marginTop: 2, color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{view === "notifications" ? "Review recent toasts" : view === "files" ? "Browse workspace files" : view === "agents" ? "View task progress" : view === "git" ? "Working tree changes" : view === "sidechat" ? "Draft a follow-up question" : "Preview web pages"}</small></span></button>; })}
           </div>
         </div>
       </div>
@@ -374,8 +393,8 @@ export function RightWorkbench({
         <button ref={plusRef} type="button" onClick={toggleMenu} aria-label="Add a workspace" aria-expanded={menuOpen} style={{ display: "grid", placeItems: "center", width: 26, height: 26, flexShrink: 0, border: 0, borderRadius: 5, background: menuOpen ? "var(--bg-selected)" : "transparent", color: menuOpen ? "var(--accent)" : "var(--text-muted)", cursor: "pointer" }}><Plus size={15} aria-hidden="true" /></button>
       </Tooltip>
       <div role="tablist" aria-label="Open workspaces" style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1, overflowX: "auto" }}>
-        {openTabs.map(({ view, paneId }) => { const meta = VIEW_META[view]; const Icon = meta.icon; const tabLabel = labelFor(t, view); const active = layout.panes.find((pane) => pane.id === paneId)?.active === view; return <div key={view} role="presentation" style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent", borderRadius: 5 }}><Tooltip content={tabLabel}>
-          <button type="button" role="tab" aria-selected={active} onClick={() => setLayout((current) => ({ ...current, panes: current.panes.map((pane) => pane.id === paneId ? { ...pane, active: view } : pane) }))} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 25, padding: "0 6px", border: 0, background: "transparent", color: active ? "var(--text)" : "var(--text-muted)", cursor: "pointer", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }}><Icon size={12} aria-hidden="true" />{tabLabel}</button>
+        {openTabs.map(({ view, paneId }) => { const meta = VIEW_META[view]; const Icon = meta.icon; const tabLabel = labelFor(t, view); const active = layout.panes.find((pane) => pane.id === paneId)?.active === view; const tabTitle = view === "notifications" && unreadNotifications > 0 ? t("appShell.notificationsUnreadCount", { count: unreadNotifications }) : tabLabel; return <div key={view} role="presentation" style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent", borderRadius: 5 }}><Tooltip content={tabTitle}>
+          <button type="button" role="tab" aria-selected={active} onClick={() => setLayout((current) => ({ ...current, panes: current.panes.map((pane) => pane.id === paneId ? { ...pane, active: view } : pane) }))} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 25, padding: "0 6px", border: 0, background: "transparent", color: active ? "var(--text)" : "var(--text-muted)", cursor: "pointer", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", whiteSpace: "nowrap" }}><Icon size={12} aria-hidden="true" />{tabLabel}{view === "notifications" && unreadNotifications > 0 && <span aria-hidden="true" style={{ fontFamily: "var(--font-mono)", fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", color: active ? "var(--accent)" : "var(--text-dim)", padding: "0 4px", borderRadius: 6, background: "var(--bg-subtle)" }}>{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</button>
         </Tooltip><Tooltip content={(t("rightWorkbench.close") === "rightWorkbench.close" ? "Close" : t("rightWorkbench.close")) + " " + tabLabel}>
           <button type="button" onClick={() => closeView(paneId, view)} aria-label={(t("rightWorkbench.close") === "rightWorkbench.close" ? "Close" : t("rightWorkbench.close")) + " " + tabLabel} style={{ display: "grid", placeItems: "center", width: 18, height: 18, padding: 0, border: 0, borderRadius: 4, background: "transparent", color: "var(--text-dim)", cursor: "pointer" }}><X size={10} aria-hidden="true" /></button>
         </Tooltip></div>; })}

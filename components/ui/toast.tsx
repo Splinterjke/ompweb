@@ -13,7 +13,7 @@ import { Tooltip } from "../ui/primitives";
  */
 import { Toast } from "@base-ui/react/toast";
 import { AlertCircle, Check, Info, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type React from "react";
 
@@ -63,8 +63,70 @@ const DEFAULT_DURATION_MS: Record<ToastKind, number> = {
 // Backstop for the base-ui timer: it pauses on hover/window-blur, so without
 // this the toast could linger indefinitely. 30s is far beyond any default.
 const BASE_UI_BACKSTOP_MS = 30_000;
+/** Auto-dismiss delay: an explicit `durationMs` (0 = sticky until dismissed)
+ * wins over the per-kind default; update banners stay until dismissed. */
+export function resolveToastTimeout(kind: ToastKind, options?: Pick<ToastOptions, "durationMs" | "variant">): number {
+  if (options?.variant === "update") return 0;
+  return options?.durationMs ?? DEFAULT_DURATION_MS[kind];
+}
+
+export const TOAST_HISTORY_LIMIT = 100;
+
+export interface ToastHistoryEntry {
+  id: string;
+  kind: ToastKind;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  clamp?: boolean;
+  at: number;
+  read: boolean;
+}
+
+let history: ToastHistoryEntry[] = [];
+const historyListeners = new Set<() => void>();
+function setHistory(next: ToastHistoryEntry[]) {
+  history = next;
+  for (const listener of historyListeners) listener();
+}
+
+let recordedCount = 0;
+
+/** Recent toasts and OS notifications, newest first, kept in memory for the notification center. */
+export const toastHistory = {
+  subscribe(listener: () => void) {
+    historyListeners.add(listener);
+    return () => { historyListeners.delete(listener); };
+  },
+  get: () => history,
+  /** Add an entry without showing a toast, e.g. for a notification already delivered by the OS. */
+  record(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: { id?: string; clamp?: boolean }) {
+    const id = options?.id ?? `recorded-${++recordedCount}`;
+    // A reused id replaces its toast on screen, so it replaces its history entry
+    // too. It keeps its read state: re-announcing the same notice (e.g. an
+    // update toast on every tab focus) must not re-badge it.
+    const read = history.some((e) => e.id === id && e.read);
+    const entry: ToastHistoryEntry = { id, kind, title, description, clamp: options?.clamp, at: Date.now(), read };
+    setHistory([entry, ...history.filter((e) => e.id !== id)].slice(0, TOAST_HISTORY_LIMIT));
+  },
+  markAllRead: () => {
+    if (history.some((e) => !e.read)) setHistory(history.map((e) => e.read ? e : { ...e, read: true }));
+  },
+  remove: (id: string) => setHistory(history.filter((entry) => entry.id !== id)),
+  clear: () => setHistory([]),
+};
+
+export function useToastHistory(): ToastHistoryEntry[] {
+  return useSyncExternalStore(toastHistory.subscribe, toastHistory.get, toastHistory.get);
+}
+
+const unreadCount = () => history.reduce((count, entry) => count + (entry.read ? 0 : 1), 0);
+/** Unread entry count. A primitive snapshot, so callers re-render only when the count changes. */
+export function useUnreadToastCount(): number {
+  return useSyncExternalStore(toastHistory.subscribe, unreadCount, unreadCount);
+}
 
 function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: ToastOptions) {
+  const timeout = resolveToastTimeout(kind, options);
   const isUpdateBanner = options?.variant === "update";
   const id = manager.add({
     id: options?.id,
@@ -74,18 +136,18 @@ function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactN
     // update banners are interactive announcements: keep them until the user
     // dismisses (no base-ui auto timer). Everything else auto-dismisses on a
     // wall clock that hover/blur cannot pause.
-    timeout: isUpdateBanner ? 0 : (options?.durationMs ?? DEFAULT_DURATION_MS[kind]),
+    timeout,
     data: { kind, clamp: options?.clamp, variant: options?.variant, onClick: options?.onClick },
   });
   if (!isUpdateBanner) {
     // Force-close on a real timer: base-ui pauses its own countdown while the
     // toast is hovered or the window is blurred, which made toasts appear to
     // need a manual dismiss. This guarantees the configured lifetime.
-    const lifetime = options?.durationMs ?? DEFAULT_DURATION_MS[kind];
     window.setTimeout(() => {
       manager.close(id);
-    }, Math.min(lifetime, BASE_UI_BACKSTOP_MS));
+    }, Math.min(timeout, BASE_UI_BACKSTOP_MS));
   }
+  toastHistory.record(kind, title, description, { id, clamp: options?.clamp });
   return id;
 }
 
@@ -99,14 +161,14 @@ export const toast = {
   close: (id?: string) => manager.close(id),
 };
 
-function KindIcon({ kind }: { kind?: ToastKind }) {
+export function KindIcon({ kind }: { kind?: ToastKind }) {
   const common = { size: 13, strokeWidth: 2, style: { flexShrink: 0, marginTop: 2 } } as const;
   if (kind === "success") return <Check {...common} style={{ ...common.style, color: "var(--accent)" }} aria-hidden />;
   if (kind === "error") return <AlertCircle {...common} style={{ ...common.style, color: "var(--accent-strong)" }} aria-hidden />;
   return <Info {...common} style={{ ...common.style, color: "var(--text-muted)" }} aria-hidden />;
 }
 
-const descriptionBaseStyle = {
+export const descriptionBaseStyle = {
   fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
   color: "var(--text-muted)",
   lineHeight: 1.5,
@@ -151,6 +213,21 @@ export function ClampedDescription({ children }: { children: React.ReactNode }) 
     </Tooltip>
   );
 }
+
+export const dismissButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 20,
+  height: 20,
+  padding: 0,
+  border: 0,
+  borderRadius: "var(--radius-control)",
+  background: "transparent",
+  color: "var(--text-dim)",
+  cursor: "pointer",
+  flexShrink: 0,
+} as const;
 
 /**
  * Render a diagnostic detail string for a toast description. Long text wraps
@@ -292,21 +369,9 @@ function Toaster() {
               )}
             </Toast.Content>
             <Toast.Close
+              className="toast-close-button"
               aria-label="Dismiss"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 20,
-                height: 20,
-                padding: 0,
-                border: 0,
-                borderRadius: "var(--radius-control)",
-                background: "transparent",
-                color: "var(--text-dim)",
-                cursor: "pointer",
-                flexShrink: 0,
-              }}
+              style={dismissButtonStyle}
             >
               <X size={12} strokeWidth={2} aria-hidden />
             </Toast.Close>

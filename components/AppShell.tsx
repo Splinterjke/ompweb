@@ -13,7 +13,7 @@ import { SessionSidebar } from "./SessionSidebar";
 import { BackendHealthBanner } from "./BackendDiagnostics";
 import { Tooltip, TooltipProvider } from "./ui/primitives";
 import { ToastProvider } from "./ui/toast";
-import { toast } from "./ui/toast";
+import { toast, toastHistory, useUnreadToastCount } from "./ui/toast";
 import { ChatWindow } from "./ChatWindow";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
@@ -721,7 +721,10 @@ export function AppShell({ appName }: { appName: string }) {
         toastId = toast.info(
           <UpdateToastTitle product="omp" />,
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
-          { variant: "update" },
+          // Version in the id (upstream a3da8812): re-announcing the same
+          // version keeps its notification-center read state; a newer version
+          // is a new notice.
+          { variant: "update", id: `omp-update:${data.availableVersion}` },
         );
         ompUpdateToastIdRef.current = toastId;
       })
@@ -766,7 +769,7 @@ export function AppShell({ appName }: { appName: string }) {
         toastId = toast.info(
           <UpdateToastTitle product="app" />,
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
-          { variant: "update" },
+          { variant: "update", id: `app-update:${data.availableVersion}` },
         );
       })
       .catch(() => {});
@@ -1120,6 +1123,21 @@ export function AppShell({ appName }: { appName: string }) {
     onRightOpenChange: setRightPanelOpen,
   });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
+  // Notification center (port of upstream f645b6f6/f988972a, pivoted onto the
+  // right workbench): unread toasts badge the workbench toggle, which then
+  // opens the Notifications view; entries become read once the user leaves it.
+  const unreadNotifications = useUnreadToastCount();
+  const [workbenchActiveView, setWorkbenchActiveView] = useState<WorkbenchView | null>(null);
+  const viewingNotifications = rightPanelOpen && workbenchActiveView === "notifications" && !settingsTab;
+  const wasViewingNotificationsRef = useRef(false);
+  useEffect(() => {
+    if (wasViewingNotificationsRef.current && !viewingNotifications) toastHistory.markAllRead();
+    wasViewingNotificationsRef.current = viewingNotifications;
+  }, [viewingNotifications]);
+  const opensNotifications = unreadNotifications > 0 && !viewingNotifications;
+  const panelOpenerLabel = opensNotifications
+    ? t("appShell.showNotifications", { count: unreadNotifications })
+    : rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
 
@@ -2297,14 +2315,27 @@ export function AppShell({ appName }: { appName: string }) {
             type="button"
             className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
             style={{ marginLeft: isMobile ? 0 : "auto", marginRight: "5px" }}
-            onClick={toggleFilePanel}
-            title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-            aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            onClick={() => {
+              // Unread notifications turn the workbench toggle into their shortcut.
+              if (opensNotifications) {
+                setWorkbenchRequestedView({ view: "notifications", nonce: Date.now() });
+                setRightPanelOpen(true);
+              } else {
+                toggleFilePanel();
+              }
+            }}
+            title={panelOpenerLabel}
+            aria-label={panelOpenerLabel}
             aria-expanded={rightPanelOpen}
             aria-controls="workspace-file-panel"
             aria-pressed={rightPanelOpen}
           >
             {rightPanelOpen ? <X size={16} strokeWidth={1.8} aria-hidden="true" /> : <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />}
+            {unreadNotifications > 0 && (
+              <span aria-hidden="true" className="panel-opener-badge">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
           </button>
         )}
 
@@ -2856,6 +2887,7 @@ export function AppShell({ appName }: { appName: string }) {
           )}
           <RightWorkbench
             requestedView={workbenchRequestedView}
+            onActiveViewChange={setWorkbenchActiveView}
             storageKey={selectedSession?.id ?? activeCwd ?? newSessionCwd ?? "new"}
             cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
             worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} />}

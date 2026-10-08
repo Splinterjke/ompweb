@@ -288,6 +288,7 @@ components/
   CommandPalette.tsx  ⌘K/Ctrl+K palette (cmdk): session switch, new session, theme
   ImageLightbox.tsx   click-to-preview lightbox for chat images (ClickableImage)
   BranchNavigator.tsx in-session branch switcher
+  NotificationList.tsx workbench Notifications tab: in-memory history of toasts + OS notifications (`toastHistory`)
   ChatMinimap.tsx     scroll minimap alongside the message list
   EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
   EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
@@ -1137,6 +1138,15 @@ during the wait.
 - The Settings test button pushes through the server for subscribed devices
   (502 with the push service's answer on failure) and shows a local
   notification otherwise, or a toast where none are allowed.
+- The in-app notification center (port of upstream PR #230 P2): every `toast.*`
+  call and every `toastHistory.record()` (OS-delivered notifications, the `notify`
+  host tool) lands in an in-memory history — last 100, newest first.
+  `NotificationList.tsx` renders it as a Notifications tab of the right workbench
+  (per-entry dismiss, Mark all as read, Clear all). Unread entries badge the
+  workbench toggle, which then opens that tab; entries become read when the user
+  leaves it. Chat event actions and server-routed session notifications coexist
+  with it: their toasts ride the same `toast.*` calls, so they land in the
+  history too.
 - `/sw.js` and `/badge-96.png` are exempt from the password gate (`proxy.ts`):
   browsers re-fetch the worker for updates without the session cookie.
 - Notification clicks survive an expired sign-in: `proxy.ts` sends `/?session=…`
@@ -1226,7 +1236,13 @@ motion: --dur-fast (150ms) --dur-med (220ms) --dur-slow (320ms) --ease-out-warm
 
 `components/ui/` holds the shared primitives (built on `@base-ui/react`):
 `primitives.tsx` (Dialog/Tooltip/Collapsible), `field.tsx` (form fields +
-ConfirmDialog), `toast.tsx` (`toast.success/error/info`, mounted in AppShell).
+ConfirmDialog), `toast.tsx` (`toast.success/error/info`, mounted in AppShell;
+every toast also lands in `toastHistory`, the last 100 kept in memory for the
+workbench's Notifications tab; OS notifications call `toastHistory.record()`
+so they appear there too). The `onClick` option makes the whole card the
+action: a click outside its buttons, links and expandable text, ignoring drags
+and text selection, or Enter on the focused card — there is no separate action
+button.
 Icons come from `lucide-react` — do not add new inline SVGs. The command
 palette (`components/CommandPalette.tsx`, ⌘K/Ctrl+K) is built on `cmdk`.
 
