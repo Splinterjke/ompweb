@@ -1828,6 +1828,20 @@ export function AppShell({ appName }: { appName: string }) {
   // button can be disabled (with an explanatory tooltip) when it is not.
   // The probe runs whenever the resolved cwd changes; the latest result wins.
   const gitProbeCwd = activeCwd ?? selectedSession?.cwd ?? newSessionCwd;
+
+  // The file explorer follows the OPEN session's repository (upstream 54d488df):
+  // clicking another workspace in the sidebar no longer re-points the panel
+  // while a session is open. When the session's worktree has been removed, fall
+  // back past it instead of showing a deleted folder (upstream 1a498231).
+  const sessionCwd = selectedSession?.cwd ?? null;
+  const sessionWorktreeRemoved = sessionCwd !== null && worktreeCtx !== null
+    && comparableProjectPath(selectedSession?.projectRoot ?? sessionCwd) === comparableProjectPath(worktreeCtx.projectRoot)
+    && !worktreeCtx.worktrees.some((wt) => {
+      const root = comparableProjectPath(wt.path);
+      const cwd = comparableProjectPath(sessionCwd);
+      return cwd === root || cwd.startsWith(`${root}/`);
+    });
+  const explorerCwd = (sessionWorktreeRemoved ? null : sessionCwd) ?? activeCwd ?? newSessionCwd ?? null;
   useEffect(() => {
     if (!gitProbeCwd) {
       setGitWorkspace(null);
@@ -2889,7 +2903,7 @@ export function AppShell({ appName }: { appName: string }) {
             requestedView={workbenchRequestedView}
             onActiveViewChange={setWorkbenchActiveView}
             storageKey={selectedSession?.id ?? activeCwd ?? newSessionCwd ?? "new"}
-            cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+            cwd={explorerCwd}
             worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} />}
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
