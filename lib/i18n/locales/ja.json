@@ -702,6 +702,8 @@
   "messageView.expand": "展開",
   "messageView.extensionType": "拡張機能",
   "messageView.fileContext": "ファイルコンテキスト: {parts}",
+  "messageView.passiveContext": "コンテキスト: {text}",
+  "messageView.passiveContextLabeled": "コンテキスト ({label}): {text}",
   "messageView.filesModifiedCount": "{count} 件変更",
   "messageView.filesReadCount": "{count} 件読み取り",
   "messageView.hiddenExtensionMessage": "非表示の拡張機能メッセージ",

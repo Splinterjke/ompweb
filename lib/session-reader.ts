@@ -24,6 +24,7 @@ import { taskResultRetryFailure, taskResultStructuredOutput, taskResultUsageCost
 import type { TodoPhase } from "./pi-types";
 import { projectIdentityKey, sessionPathKey } from "./paths";
 import { resolveProject, type ProjectInfo } from "./worktree";
+import { PASSIVE_TOOL_CONTEXT } from "./passive-tool-context";
 
 export { getAgentDir };
 
@@ -730,11 +731,14 @@ export function entryToUiMessage(
       // omp-only roles are folded into displayable custom messages so the
       // existing role-keyed UI renders them without new components.
       if (raw.role === "developer") {
+        // Passive tool context is display-only: it rides on its tool card
+        // (collectToolResults), never as a row or in copied transcripts.
+        const passive = raw.passiveToolContext === true;
         return {
           role: "custom",
-          customType: "developer",
+          customType: passive ? PASSIVE_TOOL_CONTEXT : "developer",
           content: raw.content,
-          display: true,
+          display: !passive,
           timestamp: raw.timestamp,
         };
       }

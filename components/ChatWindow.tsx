@@ -9,7 +9,8 @@ import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSy
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
- import { MessageView } from "./MessageView";
+import { collectToolResults } from "@/lib/passive-tool-context";
+import { MessageView } from "./MessageView";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
@@ -1121,13 +1122,12 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     return history.reverse();
   }, [messages]);
   const conversationMeta = useMemo(() => {
-    const toolResultsMap = new Map<string, ToolResultMessage>();
+    const toolResultsMap = collectToolResults(messages);
     let lastAnchorIdx = -1;
     const visibleRefIndexByMessage = new Map<number, number>();
     let refIdx = 0;
 
     messages.forEach((message, index) => {
-      if (message.role === "toolResult") toolResultsMap.set((message as ToolResultMessage).toolCallId, message as ToolResultMessage);
       if (isGroupAnchor(message)) lastAnchorIdx = index;
       if (message.role === "user" || message.role === "assistant") visibleRefIndexByMessage.set(index, refIdx++);
     });

@@ -119,6 +119,9 @@ export interface ToolResultMessage {
    * `tool_execution_update`), not a committed result. Rendering treats it as
    * "running" and keeps it out of the session's toolResult list. */
   partial?: boolean;
+  /** Sanitized one-line passive context omp emitted after this result's tool
+   * batch (`collectToolResults`); display-only, never part of the result. */
+  passiveContext?: string;
 }
 
 export interface CustomMessage {
@@ -146,6 +149,10 @@ export interface BashExecutionMessage {
 export interface DeveloperMessage {
   role: "developer";
   content: string | (TextContent | ImageContent)[];
+  /** omp marks rule/guidance reminders with this flag; the reader folds them
+   * into a hidden `passive-tool-context` custom message (`collectToolResults`
+   * attaches their text to the preceding tool batch's last card). */
+  passiveToolContext?: boolean;
   timestamp?: number;
 }
 

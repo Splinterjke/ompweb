@@ -703,6 +703,8 @@
   "messageView.expand": "Expand",
   "messageView.extensionType": "extension",
   "messageView.fileContext": "File context: {parts}",
+  "messageView.passiveContext": "Context: {text}",
+  "messageView.passiveContextLabeled": "Context ({label}): {text}",
   "messageView.filesModifiedCount": "{count} modified",
   "messageView.filesReadCount": "{count} read",
   "messageView.hiddenExtensionMessage": "hidden extension message",
