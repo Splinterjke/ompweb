@@ -28,6 +28,8 @@ export function stepZoom(zoom: number, direction: 1 | -1, fit: number): number {
 interface ClickableImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> {
   /** Image source: string URL (data:, http(s):, blob:, /api/files/...) or Blob. */
   src: ImgHTMLAttributes<HTMLImageElement>["src"];
+  /** Larger image for the lightbox when `src` is only a preview. */
+  fullSrc?: string;
 }
 
 /**
@@ -39,7 +41,7 @@ interface ClickableImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 
  * object URL that is revoked when the source changes or the component unmounts
  * — the same mechanism React's experimental `enableSrcObject` will use natively.
  */
-export function ClickableImage({ src, alt, ...imgProps }: ClickableImageProps) {
+export function ClickableImage({ src, fullSrc, alt, ...imgProps }: ClickableImageProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export function ClickableImage({ src, alt, ...imgProps }: ClickableImageProps) {
         renders when `open`, which is strictly client-side — the short-circuit
         keeps `document.body` off the SSR path.
       */}
-      {open && createPortal(<ImageLightbox src={resolvedSrc} alt={alt ?? ""} onClose={() => setOpen(false)} />, document.body)}
+      {open && createPortal(<ImageLightbox src={fullSrc ?? resolvedSrc} alt={alt ?? ""} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }

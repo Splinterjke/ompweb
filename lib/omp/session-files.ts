@@ -344,8 +344,8 @@ function containsBlobRef(value: unknown): boolean {
 }
 
 export interface ResolveBlobOptions {
-  /** Leave blob refs inside toolResult messages unresolved (the caller is about
-   * to omit those images from the payload anyway). */
+  /** Leave blob refs inside toolResult messages unresolved (the caller turns
+   * those images into /api/media URLs instead of inlining them). */
   skipToolResultImages?: boolean;
 }
 

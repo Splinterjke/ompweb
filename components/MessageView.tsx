@@ -1254,6 +1254,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
                       <ClickableImage
                         key={i}
                         src={src}
+                        fullSrc={img.url}
                         alt={`${block.toolName} result image ${i + 1}`}
                         style={{ maxWidth: "min(100%, 560px)", maxHeight: 420, objectFit: "contain", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)" }}
                       />
@@ -1871,6 +1872,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile, timeFormat = "24h" }: {
                       <ClickableImage
                         key={i}
                         src={src}
+                        fullSrc={img.url}
                         alt=""
                         style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
                       />
@@ -2139,6 +2141,7 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
                     <ClickableImage
                       key={i}
                       src={src}
+                      fullSrc={img.url}
                       alt=""
                       style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
                     />
@@ -2257,6 +2260,10 @@ function getMessageImages(content: CustomMessage["content"] | UserMessage["conte
 }
 
 function imageSource(img: ImageContent): string {
+  // Media-cache URL (tool-result images): the inline element shows the
+  // 480px preview; `?thumb=1` is baked in so every render site is small by
+  // default and the lightbox opens the full image via `fullSrc`.
+  if (img.url) return `${img.url}?thumb=1`;
   const flat = img as unknown as { data?: string; mimeType?: string };
   if (img.source) {
     return img.source.type === "base64"

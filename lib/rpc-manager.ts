@@ -17,6 +17,7 @@ import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } fro
 import { taskCompletedDiff } from "./todo-completion";
 import { createMessageUpdateCoalescer } from "./message-update-coalescer";
 import { samePath } from "./paths";
+import { eventWithToolResultImageUrls } from "./media-cache";
 import { PRESET_FULL } from "./tool-presets";
 import type {
   BashResultInfo,
@@ -1230,7 +1231,10 @@ export class AgentSessionWrapper {
    */
   private readonly frameCoalescer = createMessageUpdateCoalescer((event) => this.dispatchToListeners(event));
 
-  private emit(event: AgentEvent): void {
+  private emit(nativeEvent: AgentEvent): void {
+    // Tool-result images go out (and into the replay snapshot) as media URLs:
+    // big screenshots must never sit in the browser's chat state as base64.
+    const event = eventWithToolResultImageUrls(nativeEvent);
     this.frameCoalescer.push(event);
   }
 
