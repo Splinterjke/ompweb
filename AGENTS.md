@@ -209,7 +209,10 @@ app/api/
   agent/new/route.ts              POST { cwd, message, toolNames?, provider?, modelId? }
   agent/[id]/route.ts             GET state | POST any RPC command
   agent/[id]/events/route.ts      GET SSE stream
-  agent/running/events/route.ts   GET SSE stream of currently-running session ids + `chat_event_action` frames
+  agent/running/events/route.ts   GET SSE stream of currently-running session ids + `chat_event_action` frames (+ this tab's notifications when `clientId` is given)
+  notifications/devices/route.ts  GET VAPID key + subscribed | PUT { deviceId, prefs, subscription? }
+  notifications/presence/route.ts POST { clientId, deviceId, visible, sessionId, seq }
+  notifications/test/route.ts     POST { deviceId } send a test push (502 on push-service refusal)
   agent/host-tools/events/route.ts  GET SSE stream of cross-session host tool calls (open_url, notify, open_file) for sessions no tab is watching
   chat-event-actions/route.ts     GET/POST named actions fired on chat events
   chat-event-actions/[id]/route.ts  GET/PATCH/DELETE a single action
@@ -217,6 +220,7 @@ app/api/
   cwd/validate/route.ts           POST validate/select a cwd
   default-cwd/route.ts            POST create ~/omp-cwd-YYYYMMDD
   files/[...path]/route.ts        GET file contents for viewer
+  media/[hash]/route.ts           GET tool-result image by sha256 (?thumb=1 → 480px WebP preview)
   home/route.ts                   GET user home directory
   models/route.ts                 GET { models, modelList, defaultModel }
   models-config/route.ts          GET/PUT — read/write ~/.omp/agent/models.yml
@@ -245,12 +249,16 @@ lib/
   chat-event-actions-executors.ts  run each action type (never throws, records lastRun)
   chat-event-actions-dispatcher.ts  event → enabled actions, per-run dedupe
   file-access.ts       allowed file roots for /api/files and worktrees
+  media-cache.ts       tool-result images → /api/media URLs; media copies + thumbnails
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
   npx.ts               npx runner used by skill install
   pi-types.ts          local structural types for agent/RPC objects
   project-ordering.ts  pure project sort/group/activity helpers (client + tests)
   project-registry.ts  on-disk managed-project registry (~/.omp/agent/projects.json)
+  notification-events.ts  shared: event/prefs types, frame→event detector, renderNotification()
+  notification-hub.ts  server: presence, device store + VAPID keys, routing, Web Push
+  notification-client.ts  browser: device id, prefs store, service worker + push subscription
   rpc-manager.ts       session registry + startRpcSession over RpcProcess
   scheduler-store.ts   script-scheduler persistence (~/.omp/agent/schedulers.json) + ensureSeedSchedulers()
   scheduler-engine.ts  in-process cron (globalThis ticker): fires due scripts, manual runs
@@ -280,6 +288,7 @@ components/
   CommandPalette.tsx  ⌘K/Ctrl+K palette (cmdk): session switch, new session, theme
   ImageLightbox.tsx   click-to-preview lightbox for chat images (ClickableImage)
   BranchNavigator.tsx in-session branch switcher
+  NotificationList.tsx workbench Notifications tab: in-memory history of toasts + OS notifications (`toastHistory`)
   ChatMinimap.tsx     scroll minimap alongside the message list
   EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
   EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
@@ -291,11 +300,13 @@ components/
   FileExplorer.tsx    file tree inside sidebar
   FileViewer.tsx      file content in a tab
   TabBar.tsx          tab bar (Chat + open file tabs)
+  WorktreesPanel.tsx  right-workbench Worktrees view: list/switch/create/remove the active repo's worktrees
   ui/                 shared primitives: Dialog/Tooltip/Collapsible, fields, toast
 
 hooks/
   useAgentSession.ts       messages + streaming + SSE + fork/navigate/reconciliation logic
   useAudio.ts              completion sound + browser AudioContext unlock
+  useNotifications.ts      presence reports, toast/system delivery, notification clicks
   useBtw.ts                /btw records/active panel/history dialog fed by btw_* SSE frames
   useDragDrop.ts           shared drag/drop state
   useIsMobile.ts           responsive breakpoint hook
@@ -438,6 +449,21 @@ wait for that commit:
   and already the cheap one.
 - Live entries are cleared on `agent_start`, terminal `agent_end`, prompt
   send/settlement failure — a tool must never leak into the next run.
+
+### Tool-result images (`lib/media-cache.ts`, `/api/media/[hash]`)
+- Tool-result images never reach the browser as base64. History (`deferMedia`)
+  and live frames (`AgentSessionWrapper.emit`, which also feeds the replay
+  snapshot) replace each image with `{type:"image", mimeType, url:"/api/media/<sha256>"}`.
+  User-message and custom-message images stay inline.
+- The hash is omp's blob address (sha256 of the bytes): blob refs map directly
+  (a missing blob becomes the `[image unavailable …]` text), inline images are
+  hashed and copied to `<omp-web dir>/media/`. omp writes blobs in place, so the
+  route serves the copy until the blob has the copy's size. A daily sweep (run
+  on the next media write) deletes copies omp now holds and files older than
+  30 days.
+- `ToolCallBlock` shows `?thumb=1` (480px WebP made once with `sharp` and cached
+  next to the copies; full image if sharp is unavailable) and opens the full
+  image in the lightbox. The route serves only PNG/JPEG/GIF/WebP by magic bytes.
 
 ### Event protocol differences vs pi
 omp emits no `prompt_done` / `prompt_error` / `compaction_start` /
@@ -693,6 +719,7 @@ during the wait.
 - Worktree operations are served by `/api/worktrees` and guarded by the same allowed-root rules as `/api/files`.
 - New worktrees are created under `<repoRoot>-worktrees/<sanitized-branch>`. Existing branches are reused; otherwise `git worktree add -b` creates the branch.
 - Removing a dirty worktree returns `409` with `{ dirty: true }` so the UI can ask before retrying with `force`.
+- The right workbench's **Worktrees** view (`components/WorktreesPanel.tsx`) lists, switches, creates and removes the active Git workspace's worktrees, alongside the setting-gated inline chip on the project row; the new-session screen's worktree `<select>` (`WorkspaceSelector`, shown when the selected workspace is a Git top-level repo with 2+ worktrees) only switches. `SessionSidebar` owns the per-repo worktree cache and the actions and emits them as a `WorktreeContext` (`onWorktreeContextChange`, null unless the active workspace is a Git top-level repo); AppShell hands it to the Worktrees view (keyed by `projectRoot` so a draft branch or pending confirmation never carries over to another repo) and the new-session picker. Switching moves the sidebar's effective cwd (where a new session starts), not the open session.
 - Sessions whose cwd points at a removed worktree are inferred back into the main project instead of becoming a phantom project row.
 
 ### Managed projects sidebar (`lib/project-registry.ts`, `/api/projects`)
@@ -1065,6 +1092,68 @@ during the wait.
   TTLs; a server restart loses jobs, and the hook then re-uploads its local
   copy if it has one.
 
+### Notifications (`lib/notification-*.ts`, `public/sw.js`, Settings → Notifications)
+- Detection runs on the server in `AgentSessionWrapper.handleFrame` (and
+  `handleProcessExit` for crashes), so sessions no tab watches still notify.
+  `createNotificationDetector()` only inspects top-level frames; subagent
+  activity is wrapped in `subagent_*` frames and never notifies. "Completed"
+  fires on `session_settled` (not `prompt_result`), so background work started
+  by the prompt is done too; a failed or aborted last prompt suppresses it.
+  Auto-approved tool confirmations return before the hook and never notify.
+  omp sends `retry_fallback_applied` before the `auto_retry_start` of the same
+  failure, so the detector holds a reason-less fallback until that frame.
+  Failures also arrive as omp-web's own `prompt_error` (failed `response`) and
+  `process_exit` frames; the detector reports one failure per run.
+- A session omp moved to a new file keeps its old ids as `aliases` on the
+  event, so a tab still showing an old id counts as viewing it.
+- Presence and streams are separate on purpose. Presence: each tab reports
+  `{clientId, deviceId, visible, sessionId}` to `/api/notifications/presence`
+  (visibility/session change, input after idling, every 30 s while present;
+  expires 60 s after receipt). `visible` means visible AND input within 3 min.
+  `sessionId` is null while full-page Settings hides the chat. Streams: the
+  tab's open SSE connections (`attachNotificationClient`), which reconnect and
+  overlap independently of presence. `clientId` is per page load, `deviceId`
+  per browser (`localStorage`). Reports carry a per-page `seq`; the server
+  drops one older than the stored report (requests can arrive out of order).
+  Prefs PUTs run one at a time and read the prefs when sent, for the same reason.
+- Routing (`routeNotification`, unit-tested): a visible tab on the session
+  drops the event everywhere (presence only, so a reconnecting stream cannot
+  leak it); else if a visible tab with an open stream exists, `whenActive:
+  "toast"` devices get a toast on their active tabs only; else push (subscribed
+  devices) or in-page `showNotification` (tabs with an open stream).
+- The server decides before pushing: iOS revokes push permission for pushes
+  that display nothing, so `public/sw.js` always shows what it receives.
+- Notifications ride the sidebar's `/api/agent/running/events?clientId=` stream,
+  not a new SSE connection: browsers allow six HTTP/1.1 connections per host.
+  `SessionSidebar` re-dispatches them as a window event. The sidebar unmounts
+  while Settings is open, so that tab gets no toasts then; it also stops
+  counting as active, so other devices are not silenced.
+- Prefs and push subscriptions are per device, in `localStorage` and mirrored to
+  `~/.omp/agent/omp-web/notifications.json` (mode 0600; also holds the VAPID
+  private key). The server reads that file on every use, never caching it: an
+  installed server and `npm run dev` can share the agent dir. Push text is
+  rendered server-side in the device's locale. Browsers with saved settings (enabled or not) sync on load; never-configured browsers do not.
+- A crash notifies "Run failed" while a run is live or while background work
+  started by it has not settled yet (`unsettled`, cleared by `session_settled`).
+- The Settings test button pushes through the server for subscribed devices
+  (502 with the push service's answer on failure) and shows a local
+  notification otherwise, or a toast where none are allowed.
+- The in-app notification center (port of upstream PR #230 P2): every `toast.*`
+  call and every `toastHistory.record()` (OS-delivered notifications, the `notify`
+  host tool) lands in an in-memory history — last 100, newest first.
+  `NotificationList.tsx` renders it as a Notifications tab of the right workbench
+  (per-entry dismiss, Mark all as read, Clear all). Unread entries badge the
+  workbench toggle, which then opens that tab; entries become read when the user
+  leaves it. Chat event actions and server-routed session notifications coexist
+  with it: their toasts ride the same `toast.*` calls, so they land in the
+  history too.
+- `/sw.js` and `/badge-96.png` are exempt from the password gate (`proxy.ts`):
+  browsers re-fetch the worker for updates without the session cookie.
+- Notification clicks survive an expired sign-in: `proxy.ts` sends `/?session=…`
+  to `/login?next=/?session=…`, and `LoginForm` returns there (only `/?…`
+  targets are accepted). The worker navigates non-app windows to the session
+  URL; the app falls back to that URL when `/api/sessions` cannot be read.
+
 ### Completion sound
 - `hooks/useAudio.ts` stores the toggle in `localStorage` and reuses one `AudioContext`.
 - Browser autoplay policy means sound must be unlocked from a user gesture; `ChatInput` calls the unlock hook from interactive controls, and `ChatWindow` plays the tone from `onAgentEnd`.
@@ -1147,7 +1236,20 @@ motion: --dur-fast (150ms) --dur-med (220ms) --dur-slow (320ms) --ease-out-warm
 
 `components/ui/` holds the shared primitives (built on `@base-ui/react`):
 `primitives.tsx` (Dialog/Tooltip/Collapsible), `field.tsx` (form fields +
-ConfirmDialog), `toast.tsx` (`toast.success/error/info`, mounted in AppShell).
+ConfirmDialog), `toast.tsx` (`toast.success/error/info`, mounted in AppShell;
+every toast also lands in `toastHistory`, the last 100 kept in memory for the
+workbench's Notifications tab; OS notifications call `toastHistory.record()`
+so they appear there too). The `onClick` option makes the whole card the
+action: a click outside its buttons, links and expandable text, ignoring drags
+and text selection, or Enter on the focused card — there is no separate action
+button.
+Toasts and Notifications entries dismiss on a sideways touch/pen swipe
+(base-ui's toast swipe; `NotificationRow` for the list) and carry
+`data-swipe-dismiss`, which the mobile sidebar gesture skips.
+`useDragClickGuard` swallows the click that ends any drag on them, judged by
+the whole travel. `createSwipeTracker` cancels a swipe the finger turned back
+(16px from its farthest point), as on Android; for toasts the release is
+converted into the `pointercancel` base-ui treats as "snap back".
 Icons come from `lucide-react` — do not add new inline SVGs. The command
 palette (`components/CommandPalette.tsx`, ⌘K/Ctrl+K) is built on `cmdk`.
 

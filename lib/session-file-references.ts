@@ -1,3 +1,4 @@
+import { homedir } from "os";
 import { getSessionEntries, resolveSessionPath } from "./session-reader";
 import {
   isBashOutputPathReferencedByEntries,
@@ -23,7 +24,7 @@ async function isPathReferencedBySession(
 }
 
 export function isFilePathReferencedBySession(filePath: string, sessionId: string | null): Promise<boolean> {
-  return isPathReferencedBySession(filePath, sessionId, isFilePathReferencedByEntries);
+  return isPathReferencedBySession(filePath, sessionId, (p, entries) => isFilePathReferencedByEntries(p, entries, homedir()));
 }
 
 export function isBashOutputPathReferencedBySession(filePath: string, sessionId: string | null): Promise<boolean> {

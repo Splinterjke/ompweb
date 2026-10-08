@@ -10,6 +10,7 @@ import { translate, useI18n, type Locale } from "@/lib/i18n";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
 import { isMessageOverflowing } from "@/lib/message-overflow";
 import { isEmptyThinkingBlock } from "@/lib/message-display";
+import { isPassiveToolContext } from "@/lib/passive-tool-context";
 import { splitPathTokens } from "@/lib/markdown-path-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
  import { Tooltip, Collapsible, CollapsibleTrigger } from "./ui/primitives";
@@ -213,7 +214,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
   }
   if (message.role === "custom") {
     const custom = message as CustomMessage;
-    if (custom.customType === "xdev-mount-notice") {
+    if (custom.customType === "xdev-mount-notice" || isPassiveToolContext(custom)) {
       return null;
     }
     if (custom.customType === "compaction") {
@@ -1102,6 +1103,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   const isError = result?.isError ?? false;
   const resultDiff = expanded && result && !isError ? getResultDiff(result) : null;
   const resultMeta = getToolResultMeta(result);
+  const passiveContextText = result?.passiveContext ? contextLine(result.passiveContext, t) : null;
   const command = formatToolCommand(block);
   // Outgoing steering (`hub` op send) and the job roster (`hub` op jobs) get
   // the TUI's row titles: `IRC → X` and `waiting on N jobs`.
@@ -1198,6 +1200,11 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
           />
         </CollapsibleTrigger>
         {resultMeta && <div className="activity-row-secondary">{resultMeta}</div>}
+        {passiveContextText && !expanded && (
+          <div className="activity-row-secondary" title={passiveContextText}>
+            <span aria-hidden>↳ </span>{passiveContextText}
+          </div>
+        )}
         <div className="activity-collapsible-wrapper" data-open={expanded ? "true" : "false"}>
           <div className="activity-collapsible-inner">
             <div className={`tool-call-details${isError ? " tool-call-details-error" : ""}`}>
@@ -1254,6 +1261,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
                       <ClickableImage
                         key={i}
                         src={src}
+                        fullSrc={img.url}
                         alt={`${block.toolName} result image ${i + 1}`}
                         style={{ maxWidth: "min(100%, 560px)", maxHeight: 420, objectFit: "contain", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)" }}
                       />
@@ -1261,6 +1269,11 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
                   })}
                 </div>
               )}
+            {passiveContextText && expanded && (
+              <div className="tool-call-context">
+                <span aria-hidden>↳ </span>{passiveContextText}
+              </div>
+            )}
             </div>
           </div>
         </div>
@@ -1764,9 +1777,38 @@ function CompactionFileList({ title, files }: { title: string; files: string[] }
 function stripHiddenWrappers(text: string): string {
   let t = text.trim();
   t = t.replace(/^<!--[\s\S]*?-->\s*/, "").trim();
-  const outer = t.match(/^<([a-zA-Z0-9_-]+)(?:\s[^>]*)?>\s*([\s\S]*?)\s*<\/\1>\s*$/);
+  // No `\s*` around the lazy body: that pair backtracks super-quadratically on
+  // whitespace runs. Trim the capture instead.
+  const outer = t.match(/^<([a-zA-Z0-9_-]+)(?:\s(?:[^>"]|"[^"]*")*)?>([\s\S]*)<\/\1>$/);
   if (outer) return outer[2].trim();
   return t;
+}
+
+/**
+ * `<system-reminder reason="…" rule="…">body</system-reminder>` → tag, attributes
+ * and body. The closing tag is optional: the passive-context length cap can cut it.
+ */
+function parseLeadingWrapper(text: string): { tag: string; attrs: [string, string][]; body: string } | null {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^<([\w-]+)((?:\s+[\w-]+="[^"]*")*)\s*>/);
+  if (!match) return null;
+  const closing = `</${match[1]}>`;
+  const body = trimmed.slice(match[0].length);
+  return {
+    tag: match[1],
+    attrs: [...match[2].matchAll(/([\w-]+)="([^"]*)"/g)].map((attr) => [attr[1], attr[2]]),
+    body: (body.endsWith(closing) ? body.slice(0, -closing.length) : body).trim(),
+  };
+}
+
+/** "Context (rule_violation · ts-set-map · …): body" for a wrapped passive context, plain otherwise. */
+function contextLine(text: string, t: (key: string, params?: Record<string, string>) => string): string {
+  const wrapper = parseLeadingWrapper(text);
+  const label = wrapper?.attrs.map(([, value]) => value).filter(Boolean).join(" · ");
+  const body = wrapper ? wrapper.body : text;
+  return label
+    ? t("messageView.passiveContextLabeled", { label, text: body })
+    : t("messageView.passiveContext", { text: body });
 }
 
 function friendlyHiddenLabel(customType: string, t: (key: string) => string): string {
@@ -1871,6 +1913,7 @@ function HiddenExtensionView({ message, cwd, onOpenFile, timeFormat = "24h" }: {
                       <ClickableImage
                         key={i}
                         src={src}
+                        fullSrc={img.url}
                         alt=""
                         style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
                       />
@@ -2139,6 +2182,7 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
                     <ClickableImage
                       key={i}
                       src={src}
+                      fullSrc={img.url}
                       alt=""
                       style={{ maxWidth: 240, maxHeight: 240, borderRadius: 6, objectFit: "contain", display: "block", border: "1px solid var(--border)" }}
                     />
@@ -2257,6 +2301,10 @@ function getMessageImages(content: CustomMessage["content"] | UserMessage["conte
 }
 
 function imageSource(img: ImageContent): string {
+  // Media-cache URL (tool-result images): the inline element shows the
+  // 480px preview; `?thumb=1` is baked in so every render site is small by
+  // default and the lightbox opens the full image via `fullSrc`.
+  if (img.url) return `${img.url}?thumb=1`;
   const flat = img as unknown as { data?: string; mimeType?: string };
   if (img.source) {
     return img.source.type === "base64"

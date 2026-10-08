@@ -2,7 +2,7 @@
 import { Tooltip } from "./ui/primitives";
 
 import { useState } from "react";
-import { ChevronDown, Folder, Plus } from "lucide-react";
+import { ChevronDown, Folder, GitBranch, Plus } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import type { ManagedProject } from "@/lib/types";
@@ -31,6 +31,13 @@ interface WorkspaceSelectorProps {
   onSelect: (cwd: string) => void;
   /** Opens the add-workspace dialog. */
   onAdd: () => void;
+  /** Multi-worktree Git repo: a switch-only worktree picker rendered below the
+   *  header. Selecting one moves the new session's cwd to that worktree. */
+  worktreePicker?: {
+    currentPath: string;
+    worktrees: Array<{ path: string; branch: string | null }>;
+    onSelect: (path: string) => void;
+  };
   /** Initial expansion (default: collapsed). */
   defaultExpanded?: boolean;
 }
@@ -41,7 +48,7 @@ interface WorkspaceSelectorProps {
  * dimmed selected path, and whose expanded body is a radio group of the
  * managed workspaces plus an "Add workspace" entry.
  */
-export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, defaultExpanded = false }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, defaultExpanded = false, worktreePicker }: WorkspaceSelectorProps) {
   const { t } = useI18n();
   const [collapsed, setCollapsed] = useState(!defaultExpanded);
 
@@ -151,6 +158,22 @@ export function WorkspaceSelector({ projects, selectedPath, onSelect, onAdd, def
             <Plus size={14} strokeWidth={1.8} aria-hidden />
             {t("projects.add")}
           </button>
+        </div>
+      )}
+      {worktreePicker && (
+        <div className="flex w-full items-center gap-2 border-t border-border px-3 py-1.5">
+          <GitBranch size={15} strokeWidth={1.8} aria-hidden className="shrink-0" style={{ color: "var(--accent)" }} />
+          <select
+            aria-label={t("sessionSidebar.switchWorktree")}
+            value={worktreePicker.currentPath}
+            onChange={(event) => worktreePicker.onSelect(event.target.value)}
+            className="min-w-0 flex-1 cursor-pointer bg-transparent text-text"
+            style={{ border: "none", outline: "none", fontFamily: "var(--font-mono)", fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))" }}
+          >
+            {worktreePicker.worktrees.map((wt) => (
+              <option key={wt.path} value={wt.path}>{wt.branch ?? folderName(wt.path)}</option>
+            ))}
+          </select>
         </div>
       )}
     </section>

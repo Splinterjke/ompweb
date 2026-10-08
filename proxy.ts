@@ -178,9 +178,14 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Password required", code: "password_required" }, { status: 401 });
   }
-  return NextResponse.redirect(new URL("/login", request.url));
+  const login = new URL("/login", request.url);
+  // Keep a deep link to a session (e.g. a notification click) across sign-in.
+  if (pathname === "/" && request.nextUrl.search) login.searchParams.set("next", `/${request.nextUrl.search}`);
+  return NextResponse.redirect(login);
 }
 
 // The sign-in screen still needs its Next.js JavaScript and CSS before a
 // session exists; these are public build assets, not workspace data.
-export const config = { matcher: "/((?!_next/static|_next/image|favicon.ico).*)" };
+// The service worker script holds no data either, and the browser re-fetches
+// it for update checks even after the sign-in cookie expired.
+export const config = { matcher: "/((?!_next/static|_next/image|favicon.ico|sw\\.js|badge-96\\.png).*)" };

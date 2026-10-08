@@ -19,10 +19,12 @@ import type {
 } from "./types";
 import { normalizeToolCalls } from "./normalize";
 import { isRecord } from "./type-guards";
+import { toolResultContentAsUrls } from "./media-cache";
 import { taskResultRetryFailure, taskResultStructuredOutput, taskResultUsageCost } from "./task-result-details";
 import type { TodoPhase } from "./pi-types";
 import { projectIdentityKey, sessionPathKey } from "./paths";
 import { resolveProject, type ProjectInfo } from "./worktree";
+import { PASSIVE_TOOL_CONTEXT } from "./passive-tool-context";
 
 export { getAgentDir };
 
@@ -521,24 +523,6 @@ function parseEntryTimestamp(timestamp: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function base64ImageInfo(block: unknown): { bytes: number; mime?: string } | null {
-  if (!isRecord(block) || block.type !== "image") return null;
-
-  let data: string | undefined;
-  let mime: string | undefined;
-  if (typeof block.data === "string") {
-    data = block.data;
-    mime = typeof block.mimeType === "string" ? block.mimeType : undefined;
-  } else if (isRecord(block.source) && block.source.type === "base64" && typeof block.source.data === "string") {
-    data = block.source.data;
-    mime = typeof block.source.media_type === "string" ? block.source.media_type : undefined;
-  }
-  if (!data) return null;
-
-  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
-  return { bytes: Math.max(0, Math.floor(data.length * 3 / 4) - padding), mime };
-}
-
 /**
  * toolResult `details` is provider/tool-internal metadata that dominates real
  * history payloads (measured 643KB of a 1.34MB context on a 533-entry session),
@@ -709,32 +693,10 @@ function stripToolResultDetails(message: AgentMessage): AgentMessage {
   return rest;
 }
 
-function omitToolResultBase64Images(message: AgentMessage): AgentMessage {
+function toolResultImagesAsUrls(message: AgentMessage): AgentMessage {
   if (message.role !== "toolResult") return message;
-  // Shape-malformed-but-JSON-valid files can carry a string content here
-  // (import accepts arbitrary content); the loader tolerates such lines, so
-  // the converter must too instead of crashing the whole session view.
-  if (!Array.isArray(message.content)) return message;
-
-  let omitted = 0;
-  let bytes = 0;
-  const mimes = new Set<string>();
-  const content = message.content.filter((block) => {
-    const image = base64ImageInfo(block);
-    if (!image) return true;
-    omitted += 1;
-    bytes += image.bytes;
-    if (image.mime) mimes.add(image.mime);
-    return false;
-  });
-  if (omitted === 0) return message;
-
-  const mimeText = mimes.size > 0 ? `: ${[...mimes].join(", ")}` : "";
-  content.push({
-    type: "text",
-    text: `[${omitted} tool result image${omitted === 1 ? "" : "s"} omitted from initial history payload${mimeText}, ~${bytes} bytes]`,
-  });
-  return { ...message, content };
+  const content = toolResultContentAsUrls(message.content);
+  return content === message.content ? message : { ...message, content };
 }
 
 function compactionUiMessage(entry: CompactionEntry, active: boolean): CustomMessage {
@@ -769,11 +731,14 @@ export function entryToUiMessage(
       // omp-only roles are folded into displayable custom messages so the
       // existing role-keyed UI renders them without new components.
       if (raw.role === "developer") {
+        // Passive tool context is display-only: it rides on its tool card
+        // (collectToolResults), never as a row or in copied transcripts.
+        const passive = raw.passiveToolContext === true;
         return {
           role: "custom",
-          customType: "developer",
+          customType: passive ? PASSIVE_TOOL_CONTEXT : "developer",
           content: raw.content,
-          display: true,
+          display: !passive,
           timestamp: raw.timestamp,
         };
       }
@@ -807,7 +772,7 @@ export function entryToUiMessage(
         };
       }
       const normalized = options.deferToolResultImages
-        ? omitToolResultBase64Images(normalizeToolCalls(raw))
+        ? toolResultImagesAsUrls(normalizeToolCalls(raw))
         : normalizeToolCalls(raw);
       const message = stripToolResultDetails(normalized);
       if (!options.deferThinking || message.role !== "assistant") return message;

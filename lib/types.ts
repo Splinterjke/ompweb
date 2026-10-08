@@ -36,12 +36,15 @@ export interface TextContent {
 /**
  * Image block. omp persists the flat {data, mimeType} shape (data may be a
  * `blob:sha256:` reference until resolved); legacy pi entries used the nested
- * Anthropic-style `source` shape. The UI handles both.
+ * Anthropic-style `source` shape. The UI handles both. Tool-result images
+ * reach the browser as `url` (`/api/media/<sha256>`, `?thumb=1` for a small
+ * preview) instead of inline base64.
  */
 export interface ImageContent {
   type: "image";
   data?: string;
   mimeType?: string;
+  url?: string;
   source?: {
     type: "base64" | "url";
     media_type?: string;
@@ -116,6 +119,9 @@ export interface ToolResultMessage {
    * `tool_execution_update`), not a committed result. Rendering treats it as
    * "running" and keeps it out of the session's toolResult list. */
   partial?: boolean;
+  /** Sanitized one-line passive context omp emitted after this result's tool
+   * batch (`collectToolResults`); display-only, never part of the result. */
+  passiveContext?: string;
 }
 
 export interface CustomMessage {
@@ -143,6 +149,10 @@ export interface BashExecutionMessage {
 export interface DeveloperMessage {
   role: "developer";
   content: string | (TextContent | ImageContent)[];
+  /** omp marks rule/guidance reminders with this flag; the reader folds them
+   * into a hidden `passive-tool-context` custom message (`collectToolResults`
+   * attaches their text to the preceding tool batch's last card). */
+  passiveToolContext?: boolean;
   timestamp?: number;
 }
 

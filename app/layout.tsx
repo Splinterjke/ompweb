@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
-import { Noto_Sans_Mono, Noto_Serif_SC, Source_Serif_4 } from "next/font/google";
+import { Noto_Sans_Mono, Source_Serif_4 } from "next/font/google";
 import { BootSkeleton } from "@/components/BootSkeleton";
 import { SIDEBAR_HISTORY_BRIDGE_SCRIPT } from "@/lib/sidebar-history-bridge";
 import { getInstallName } from "@/lib/install-name";
@@ -14,21 +14,13 @@ const notoSansMono = Noto_Sans_Mono({
   display: "swap",
 });
 
-// Display serif pair for the warm-humanistic heading voice: Source Serif 4
-// covers latin, Noto Serif SC covers CJK. Both expose CSS variables consumed
-// by --font-serif in globals.css.
+// Display serif for the warm-humanistic heading voice. Source Serif 4 covers
+// latin; CJK uses a bundled Noto Serif SC subset declared in globals.css, not
+// next/font/google: Google Fonts sometimes serves it through extensionless
+// `/l/font?kit=` URLs that next/font cannot parse, which failed builds at random.
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-source-serif",
-  display: "swap",
-});
-
-const notoSerifSC = Noto_Serif_SC({
-  // CJK glyphs are served via unicode-range slices regardless of subset;
-  // "latin" satisfies next/font's preloading requirement.
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-noto-serif",
   display: "swap",
 });
 
@@ -83,7 +75,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" translate="no" className={`${notoSansMono.variable} ${sourceSerif.variable} ${notoSerifSC.variable} notranslate`} suppressHydrationWarning>
+    <html lang="en" translate="no" className={`${notoSansMono.variable} ${sourceSerif.variable} notranslate`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/api/manifest" crossOrigin="use-credentials" />
         <meta name="google" content="notranslate" />

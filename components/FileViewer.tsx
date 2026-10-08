@@ -50,6 +50,9 @@ interface FileData {
 
 type DisplayMode = "source" | "preview" | "diff";
 
+/** A web or other scheme URL (`https:`, `mailto:`, protocol-relative `//host`), as opposed to a local path. */
+const EXTERNAL_URL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+
 const DISPLAY_MODE_LABEL_KEYS: Record<DisplayMode, string> = {
   source: "fileViewer.modeSource",
   preview: "fileViewer.modePreview",
@@ -1331,7 +1334,14 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                     ? resolveLocalFileHref(href, markdownDirectory, cwd ?? markdownDirectory)
                     : null;
                   if (!linkedFile || !onOpenFile) {
-                    return <a href={href} {...props}>{children}</a>;
+                    // Never let a preview link replace omp-web itself: in-page anchors stay,
+                    // web links open a new tab, and a path the panel cannot open (such as a
+                    // relative link in a Markdown file outside the workspace) is plain text.
+                    if (href?.startsWith("#")) return <a href={href} {...props}>{children}</a>;
+                    if (href && EXTERNAL_URL_RE.test(href)) {
+                      return <a href={href} {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
+                    }
+                    return <span title={href}>{children}</span>;
                   }
 
                   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -1348,6 +1358,11 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
                   const imagePath = typeof src === "string"
                     ? resolveLocalFileHref(src, markdownDirectory, cwd ?? markdownDirectory)
                     : null;
+                  // A local path the file API cannot serve here would only request the app
+                  // origin and 404; show the alt text instead of a broken image.
+                  if (!imagePath && !(typeof src === "string" && EXTERNAL_URL_RE.test(src))) {
+                    return alt ? <span title={typeof src === "string" ? src : undefined}>{alt}</span> : null;
+                  }
                   const imageSrc = imagePath
                     ? getFileApiUrl(imagePath, "read", sourceSessionId)
                     : src;

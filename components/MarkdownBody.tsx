@@ -3,9 +3,9 @@
 import { Children, cloneElement, isValidElement, useMemo, useContext, type ComponentProps, type MouseEvent, type ReactElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
-import { resolveLocalFileHref } from "@/lib/file-links";
+import { remarkInlineCodeFileLinks, resolveLocalFileHref } from "@/lib/file-links";
 import { encodeFilePathForApi } from "@/lib/file-paths";
-import { normalizeDisplayMath, useMarkdownPlugins } from "../lib/markdown";
+import { normalizeDisplayMath, useMarkdownPlugins, type MarkdownPlugins } from "../lib/markdown";
 import { markdownCodeRenderer } from "./MarkdownCode";
 import { ClickableImage } from "./ImageLightbox";
 
@@ -25,7 +25,15 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
     () => (isStreaming ? children : normalizeDisplayMath(children)),
     [children, isStreaming],
   );
-  const { remarkPlugins, rehypePlugins } = useMarkdownPlugins(isStreaming ? "" : normalizedMarkdown, isStreaming);
+  const { remarkPlugins: baseRemarkPlugins, rehypePlugins } = useMarkdownPlugins(isStreaming ? "" : normalizedMarkdown, isStreaming);
+  // Inline-code paths link only where a click can open them. The plugin runs
+  // before the shared remarkPathLinks so its `<code>`-keeping link wins for
+  // the path shapes it recognizes (that legacy plugin clips `:line` suffixes
+  // and drops the code styling).
+  const remarkPlugins = useMemo<MarkdownPlugins["remarkPlugins"]>(
+    () => (onOpenFile ? [[remarkInlineCodeFileLinks, { cwd }], ...baseRemarkPlugins] : baseRemarkPlugins),
+    [baseRemarkPlugins, onOpenFile, cwd],
+  );
   const openAgentLink = useContext(AgentLinkContext);
 
   // Rebuilt only when its captured props change, not on every render.

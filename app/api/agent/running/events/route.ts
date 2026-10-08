@@ -1,4 +1,6 @@
 import { getExitedRpcSessions, getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
+import { isValidNotificationId } from "@/lib/notification-events";
+import { attachNotificationClient } from "@/lib/notification-hub";
 import { subscribeSessionFileChanges, getExternallyActiveIds, heldSessionsWithPendingTurn } from "@/lib/session-watcher";
 import { subscribeChatEventActions } from "@/lib/chat-event-action-bus";
 import { subscribeUiRefresh, wasUiUpdated } from "@/lib/ui-refresh-bus";
@@ -8,8 +10,11 @@ export const dynamic = "force-dynamic";
 
 // GET /api/agent/running/events - SSE stream of the set of currently-running
 // session ids. Also carries refresh hints when a live session's file metadata
-// changes, so the sidebar can show a newly-started session immediately.
+// changes, so the sidebar can show a newly-started session immediately, and
+// this tab's notifications when `clientId` is given (one stream per tab:
+// browsers allow only six HTTP/1.1 connections per host).
 export async function GET(req: Request) {
+  const clientId = new URL(req.url).searchParams.get("clientId");
   // Hoisted so the stream's cancel() (half-open disconnects that never fire
   // the abort signal) can release the heartbeat and the subscriber.
   let streamCleanup: (() => void) | null = null;
@@ -19,6 +24,7 @@ export async function GET(req: Request) {
         const text = `data: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(new TextEncoder().encode(text));
       };
+      let detachNotifications: (() => void) | null = null;
       // Rebuild signal: broadcastRefresh() (POST /api/ui/refresh) pushes a
       // { type: "refresh" } frame to every connected stream. No client
       // auto-reloads on it — on a restart the "OmpWeb updated" notice surfaces
@@ -89,6 +95,10 @@ export async function GET(req: Request) {
       });
       const unsubscribeFiles = holder.fn;
 
+      if (isValidNotificationId(clientId)) {
+        detachNotifications = attachNotificationClient(clientId, (message) => encode({ type: "notification", ...message }));
+      }
+
       // Periodically re-broadcast the externally-running set so badges expire
       // client-side once a CLI session stops writing (no event fires then). The
       // union also covers sessions held by a live omp process whose file is
@@ -135,6 +145,8 @@ export async function GET(req: Request) {
         clearInterval(externalHeartbeat);
         unsubscribeRefresh();
         unsubscribeChatActions();
+        detachNotifications?.();
+        detachNotifications = null;
         try { controller.close(); } catch { /* already closed */ }
       };
       streamCleanup = cleanup;

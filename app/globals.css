@@ -21,6 +21,18 @@
   unicode-range: U+E000-F8FF, U+F0000-FFFFD;
 }
 
+/* CJK display serif for headings, bundled instead of fetched from Google
+   Fonts (whose extensionless /l/font?kit= URLs crashed next/font builds).
+   A GB2312 + kana subset of Noto Serif SC, weights 600-700; unicode-range
+   keeps Latin-only pages from downloading it. See fonts/NotoSerifSC-README.md. */
+@font-face {
+  font-family: "Noto Serif SC";
+  src: url("./fonts/NotoSerifSC-Subset.woff2") format("woff2");
+  font-weight: 600 700;
+  font-display: swap;
+  unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+}
+
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -1457,8 +1469,9 @@ body {
 :root {
   --font-mono: "Symbols Nerd Font Mono", var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
   /* Display serif for headings / session titles / modal titles / empty states.
-     Falls back to system serifs if the webfont fails. */
-  --font-serif: "Symbols Nerd Font Mono", var(--font-source-serif), var(--font-noto-serif), Georgia, 'Songti SC', 'SimSun', serif;
+     Latin: Source Serif 4; CJK: the bundled Noto Serif SC subset, then system
+     CJK serifs for characters outside it or if a webfont fails. */
+  --font-serif: "Symbols Nerd Font Mono", var(--font-source-serif), 'Noto Serif SC', Georgia, 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'SimSun', serif;
   /* Chat typography scale. --chat-font-size (set inline on <html> by
      useTypography) drives the AI response body; the derived ui/mono/small
      variants scale with it so a font-size change also reaches tool call
@@ -2060,9 +2073,13 @@ svg.lucide:not([class*="-spin"]) {
 }
 
 .image-lightbox-dialog {
-  width: 100vw;
+  /* Viewport units ignore the root zoom (--ui-scale): divide so the viewer
+     covers exactly the window and "fit" fits the visible area. The fallback
+     is required — no local rule sets --ui-scale, and an undefined var would
+     make the whole declaration invalid, collapsing the viewer. */
+  width: calc(100vw / var(--ui-scale, 1));
   max-width: none;
-  height: 100dvh;
+  height: calc(100dvh / var(--ui-scale, 1));
   max-height: none;
   margin: 0;
   padding: 0;
@@ -2080,8 +2097,9 @@ svg.lucide:not([class*="-spin"]) {
 }
 .image-lightbox-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
   min-height: 40px;
   padding: 7px 10px;
   background: var(--bg-panel);
@@ -2099,12 +2117,15 @@ svg.lucide:not([class*="-spin"]) {
 }
 .image-lightbox-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 6px;
   margin-left: auto;
 }
 .image-lightbox-stepper {
   display: flex;
+  flex: none;
   align-items: center;
   height: 24px;
   overflow: hidden;
@@ -2138,6 +2159,19 @@ svg.lucide:not([class*="-spin"]) {
   border: 1px solid var(--border);
   border-radius: 5px;
 }
+.image-lightbox-actual-size {
+  flex-basis: auto;
+  width: auto;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.image-lightbox-icon-button[aria-pressed="true"] {
+  background: var(--bg-selected);
+  color: var(--text);
+}
+
 .image-lightbox-stepper button:hover:not(:disabled),
 .image-lightbox-icon-button:hover {
   background: var(--bg-hover);
@@ -2173,10 +2207,10 @@ svg.lucide:not([class*="-spin"]) {
 }
 .image-lightbox-dialog .image-lightbox-img {
   display: block;
+  flex: none;
   margin: auto;
   max-width: none;
-  height: auto;
-  transition: transform var(--dur-fast) var(--ease-out-warm);
+  max-height: none;
 }
 
 @media (max-width: 480px) {
@@ -2190,6 +2224,18 @@ svg.lucide:not([class*="-spin"]) {
 
   .image-lightbox-viewport {
     padding: 12px;
+  }
+
+  /* Larger touch targets for the viewer controls. Upstream gates these behind
+     html[data-touch-targets="accessible"], which nothing sets in this fork —
+     the small-screen query is where touch input needs them. */
+  .image-lightbox-stepper,
+  .image-lightbox-stepper button,
+  .image-lightbox-icon-button,
+  .image-lightbox-zoom-value {
+    min-width: 44px;
+    height: 44px;
+    line-height: 44px;
   }
 }
 
@@ -3180,7 +3226,9 @@ html.dark .dropdown-surface :is(select, option) {
   to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 .toast-card {
-  animation: toast-in var(--dur-med) var(--ease-out-warm) both;
+  /* backwards, not both: a held end transform would override base-ui's inline
+     drag transform, so a swiped toast would not follow the finger. */
+  animation: toast-in var(--dur-med) var(--ease-out-warm) backwards;
   transition: opacity var(--dur-fast) var(--ease-out-warm),
               transform var(--dur-fast) var(--ease-out-warm),
               border-color var(--dur-fast) var(--ease-out-warm),
@@ -3195,13 +3243,22 @@ html.dark .dropdown-surface :is(select, option) {
   opacity: 0;
   transform: translate3d(14px, 4px, 0) scale(0.98);
 }
+/* A swiped toast leaves from where the finger released it. */
+.toast-card[data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 110%));
+  opacity: 0;
+}
+.toast-card[data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 110%));
+  opacity: 0;
+}
 @keyframes update-toast-in {
   from { opacity: 0; transform: translate3d(24px, 10px, 0) scale(0.95); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
   65% { box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--accent) 42%, transparent); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); box-shadow: var(--shadow-pop); }
 }
 .toast-card.toast-update {
-  animation: update-toast-in var(--dur-slow) var(--ease-out-warm) both;
+  animation: update-toast-in var(--dur-slow) var(--ease-out-warm) backwards;
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border)) !important;
 }
 
@@ -3319,6 +3376,26 @@ html.dark .dropdown-surface :is(select, option) {
 .shell-toolbar-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+/* Unread-notification count on the workbench toggle (upstream f645b6f6/f988972a). */
+.shell-panel-opener {
+  position: relative;
+}
+.panel-opener-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-strong);
+  color: var(--on-accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
 }
 /* Mobile top-bar overflow popover row (⋮ menu): a full-width action row —
    icon, localized label, hover/focus treatment like the toolbar buttons. */
@@ -3790,6 +3867,17 @@ html.dark .dropdown-surface :is(select, option) {
   color: var(--text);
   font-family: var(--font-mono);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tool-call-context {
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .tool-call-output {

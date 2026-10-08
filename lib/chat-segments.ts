@@ -10,6 +10,7 @@
  * node:test can drive every path without pulling in React.
  */
 
+import { isPassiveToolContext } from "./passive-tool-context";
 import type { AssistantContentBlock, AssistantMessage, CustomMessage, AgentMessage } from "./types";
 
 /** A folded activity entry: listed blocks of an assistant message, or a whole non-assistant message. */
@@ -78,7 +79,8 @@ export function planTurnSegments(
     // Tool results render inline under their tool call inside the fold.
     if (msg.role === "toolResult") continue;
     // Mount notices never render; counting them would show an empty fold.
-    if (msg.role === "custom" && (msg as CustomMessage).customType === "xdev-mount-notice") continue;
+    // Passive tool context rides on its tool card instead of being a row.
+    if (msg.role === "custom" && ((msg as CustomMessage).customType === "xdev-mount-notice" || isPassiveToolContext(msg))) continue;
     if (msg.role !== "assistant") {
       // Job results, reminders, and other notices are activity, as in the TUI.
       addActivity({ index: idx }, 0);
@@ -137,7 +139,11 @@ export function planTurnSegments(
  * and a failed or cancelled turn is finished however its blocks are shaped.
  */
 export function looksLikeRunningTurn(messages: AgentMessage[]): boolean {
-  const last = messages[messages.length - 1];
+  // Passive tool context lands between a tool batch and the next assistant
+  // message, so it never ends a turn.
+  let end = messages.length - 1;
+  while (end >= 0 && isPassiveToolContext(messages[end])) end -= 1;
+  const last = messages[end];
   if (!last) return false;
   if (last.role === "toolResult") return true;
   if (last.role !== "assistant") return false;

@@ -13,7 +13,7 @@ import { SessionSidebar } from "./SessionSidebar";
 import { BackendHealthBanner } from "./BackendDiagnostics";
 import { Tooltip, TooltipProvider } from "./ui/primitives";
 import { ToastProvider } from "./ui/toast";
-import { toast } from "./ui/toast";
+import { toast, toastHistory, useUnreadToastCount } from "./ui/toast";
 import { ChatWindow } from "./ChatWindow";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
@@ -26,11 +26,13 @@ import { OmpSetupWizard } from "./OmpSetupWizard";
 import { TerminalTabs } from "./terminal/TerminalTabs";
 import { RightWorkbench, type WorkbenchView } from "./panels/RightWorkbench";
 import { PanelErrorBoundary } from "./panels/PanelErrorBoundary";
+import { WorktreesPanel } from "./WorktreesPanel";
+import type { WorktreeContext } from "./SessionSidebar";
 import { AgentsPanel } from "./agents/AgentsPanel";
 import { FileExplorer } from "./FileExplorer";
 import { SubagentDetailPanel } from "./agents/SubagentDetailPanel";
 import { useTheme } from "@/hooks/useTheme";
-import { useI18n } from "@/lib/i18n";
+import { translate, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { copyText } from "@/lib/clipboard";
@@ -38,7 +40,8 @@ import { getFileName } from "@/lib/file-paths";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
-import { showBrowserNotification, showCompletionNotification } from "@/lib/browser-notifications";
+import { showBrowserNotification } from "@/lib/browser-notifications";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -183,7 +186,7 @@ export function AppShell({ appName }: { appName: string }) {
   const searchParams = useSearchParams();
   const [initialNavigation] = useState(() => getInitialNavigation(searchParams));
   const { isDark, preference, toggleTheme } = useTheme();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const isMobile = useIsMobile();
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
@@ -718,7 +721,10 @@ export function AppShell({ appName }: { appName: string }) {
         toastId = toast.info(
           <UpdateToastTitle product="omp" />,
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
-          { variant: "update" },
+          // Version in the id (upstream a3da8812): re-announcing the same
+          // version keeps its notification-center read state; a newer version
+          // is a new notice.
+          { variant: "update", id: `omp-update:${data.availableVersion}` },
         );
         ompUpdateToastIdRef.current = toastId;
       })
@@ -763,7 +769,7 @@ export function AppShell({ appName }: { appName: string }) {
         toastId = toast.info(
           <UpdateToastTitle product="app" />,
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
-          { variant: "update" },
+          { variant: "update", id: `app-update:${data.availableVersion}` },
         );
       })
       .catch(() => {});
@@ -1117,6 +1123,21 @@ export function AppShell({ appName }: { appName: string }) {
     onRightOpenChange: setRightPanelOpen,
   });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
+  // Notification center (port of upstream f645b6f6/f988972a, pivoted onto the
+  // right workbench): unread toasts badge the workbench toggle, which then
+  // opens the Notifications view; entries become read once the user leaves it.
+  const unreadNotifications = useUnreadToastCount();
+  const [workbenchActiveView, setWorkbenchActiveView] = useState<WorkbenchView | null>(null);
+  const viewingNotifications = rightPanelOpen && workbenchActiveView === "notifications" && !settingsTab;
+  const wasViewingNotificationsRef = useRef(false);
+  useEffect(() => {
+    if (wasViewingNotificationsRef.current && !viewingNotifications) toastHistory.markAllRead();
+    wasViewingNotificationsRef.current = viewingNotifications;
+  }, [viewingNotifications]);
+  const opensNotifications = unreadNotifications > 0 && !viewingNotifications;
+  const panelOpenerLabel = opensNotifications
+    ? t("appShell.showNotifications", { count: unreadNotifications })
+    : rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
 
@@ -1150,6 +1171,8 @@ export function AppShell({ appName }: { appName: string }) {
 
   const initialSessionId = initialNavigation.sessionId;
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  // Owned by the sidebar; rendered by the right workbench's Worktrees view.
+  const [worktreeCtx, setWorktreeCtx] = useState<WorktreeContext | null>(null);
   // The boot gate stays closed until the sidebar has either restored a URL /
   // remembered session or conclusively found no session to restore.
   const [initialSessionRestored, setInitialSessionRestored] = useState(false);
@@ -1454,24 +1477,34 @@ export function AppShell({ appName }: { appName: string }) {
   const handleAgentEnd = useCallback(() => {
     setRefreshKey((k) => k + 1);
     setExplorerRefreshKey((k) => k + 1);
-    if (document.visibilityState !== "hidden" || !("Notification" in window)) return;
+  }, []);
 
-    const targetSession = selectedSession;
-    const notify = () => {
-      showCompletionNotification(
-        targetSession?.name ?? t("appShell.sessionComplete"),
-        t("appShell.taskFinished"),
-        () => {
-          window.focus();
-          if (targetSession) handleSelectSession(targetSession);
-        },
-      );
-    };
-    if (Notification.permission === "granted") notify();
-    else if (Notification.permission === "default") {
-      void Notification.requestPermission().then((permission) => { if (permission === "granted") notify(); });
-    }
-  }, [handleSelectSession, selectedSession, t]);
+  // Notification clicks name a session id; the session list carries its cwd
+  // and project, which selecting needs. When the list cannot be read (the
+  // sign-in expired), load the session URL: sign-in carries it through.
+  const openSessionById = useCallback((sessionId: string) => {
+    window.focus();
+    // On narrow screens the file panel covers the chat it is about to show.
+    if (isMobile) setRightPanelOpen(false);
+    // A full load (not router navigation) so an expired sign-in reaches proxy.ts and the login page.
+    const sessionUrl = new URL(`/?session=${encodeURIComponent(sessionId)}`, window.location.origin).href;
+    void fetch("/api/sessions")
+      .then((r) => {
+        if (!r.ok) {
+          window.location.assign(sessionUrl);
+          return;
+        }
+        return (r.json() as Promise<{ sessions: SessionInfo[] }>).then((d) => {
+          const session = d.sessions.find((s) => s.id === sessionId);
+          if (session) handleSelectSession(session);
+          else toast.error(translate("notifications.sessionNotFound"));
+        });
+      })
+      .catch(() => window.location.assign(sessionUrl));
+  }, [handleSelectSession, isMobile]);
+
+  // Full-page Settings hides the chat, so its session counts as not viewed.
+  useNotifications({ sessionId: settingsTab ? null : selectedSession?.id ?? null, locale, onOpenSession: openSessionById });
   // Chat event actions of the "notification" type fire server-side (even with
   // no tab open); the running stream relays the frame here. Clicking the
   // notification selects the originating session (fetched by id, like the
@@ -1795,6 +1828,20 @@ export function AppShell({ appName }: { appName: string }) {
   // button can be disabled (with an explanatory tooltip) when it is not.
   // The probe runs whenever the resolved cwd changes; the latest result wins.
   const gitProbeCwd = activeCwd ?? selectedSession?.cwd ?? newSessionCwd;
+
+  // The file explorer follows the OPEN session's repository (upstream 54d488df):
+  // clicking another workspace in the sidebar no longer re-points the panel
+  // while a session is open. When the session's worktree has been removed, fall
+  // back past it instead of showing a deleted folder (upstream 1a498231).
+  const sessionCwd = selectedSession?.cwd ?? null;
+  const sessionWorktreeRemoved = sessionCwd !== null && worktreeCtx !== null
+    && comparableProjectPath(selectedSession?.projectRoot ?? sessionCwd) === comparableProjectPath(worktreeCtx.projectRoot)
+    && !worktreeCtx.worktrees.some((wt) => {
+      const root = comparableProjectPath(wt.path);
+      const cwd = comparableProjectPath(sessionCwd);
+      return cwd === root || cwd.startsWith(`${root}/`);
+    });
+  const explorerCwd = (sessionWorktreeRemoved ? null : sessionCwd) ?? activeCwd ?? newSessionCwd ?? null;
   useEffect(() => {
     if (!gitProbeCwd) {
       setGitWorkspace(null);
@@ -1904,6 +1951,7 @@ export function AppShell({ appName }: { appName: string }) {
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
         onCwdChange={handleCwdChange}
         onWorkspaceOptionsChange={handleWorkspaceOptionsChange}
+        onWorktreeContextChange={setWorktreeCtx}
         addProjectOpen={addProjectOpen}
         setAddProjectOpen={setAddProjectOpen}
         onOpenFile={handleOpenFile}
@@ -2281,14 +2329,27 @@ export function AppShell({ appName }: { appName: string }) {
             type="button"
             className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
             style={{ marginLeft: isMobile ? 0 : "auto", marginRight: "5px" }}
-            onClick={toggleFilePanel}
-            title={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
-            aria-label={rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel")}
+            onClick={() => {
+              // Unread notifications turn the workbench toggle into their shortcut.
+              if (opensNotifications) {
+                setWorkbenchRequestedView({ view: "notifications", nonce: Date.now() });
+                setRightPanelOpen(true);
+              } else {
+                toggleFilePanel();
+              }
+            }}
+            title={panelOpenerLabel}
+            aria-label={panelOpenerLabel}
             aria-expanded={rightPanelOpen}
             aria-controls="workspace-file-panel"
             aria-pressed={rightPanelOpen}
           >
             {rightPanelOpen ? <X size={16} strokeWidth={1.8} aria-hidden="true" /> : <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />}
+            {unreadNotifications > 0 && (
+              <span aria-hidden="true" className="panel-opener-badge">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
           </button>
         )}
 
@@ -2686,6 +2747,13 @@ export function AppShell({ appName }: { appName: string }) {
                     handleNewSession("", cwd);
                   }}
                   onAdd={() => setAddProjectOpen(true)}
+                  worktreePicker={worktreeCtx && worktreeCtx.worktrees.length > 1
+                    && (comparableProjectPath(worktreeCtx.projectRoot) === comparableProjectPath(effectiveNewSessionCwd)
+                      || comparableProjectPath(worktreeCtx.currentPath) === comparableProjectPath(effectiveNewSessionCwd)) ? {
+                    currentPath: worktreeCtx.currentPath,
+                    worktrees: worktreeCtx.worktrees,
+                    onSelect: worktreeCtx.select,
+                  } : undefined}
                 />
               )}
               onAgentEnd={handleAgentEnd}
@@ -2833,8 +2901,10 @@ export function AppShell({ appName }: { appName: string }) {
           )}
           <RightWorkbench
             requestedView={workbenchRequestedView}
+            onActiveViewChange={setWorkbenchActiveView}
             storageKey={selectedSession?.id ?? activeCwd ?? newSessionCwd ?? "new"}
-            cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+            cwd={explorerCwd}
+            worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} />}
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>

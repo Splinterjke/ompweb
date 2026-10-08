@@ -20,7 +20,7 @@ import { parseSkillDiagnosticsSnapshot, type SkillDiagnosticsSnapshot } from "@/
 import { recoverDraft, setDraft, toDraftImages, type ChatDraftImage } from "@/lib/draft-store";
 import { createHttpSseClient, type OmpwebClient, type EventSubscription } from "@/lib/client";
 import { formatExitedSessionNotice, translate } from "@/lib/i18n";
-import { toast } from "@/components/ui/toast";
+import { toast, toastHistory } from "@/components/ui/toast";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
@@ -449,13 +449,17 @@ export async function runHostTool(
     case "notify": {
       const title = str(args.title) ?? "OMP";
       const message = str(args.message) ?? "";
+      // Logged even when the OS blocks notifications, so the message is never lost.
+      toastHistory.record("info", title, message || undefined);
       if (typeof Notification !== "undefined") {
         try {
-          if (Notification.permission === "granted") {
-            new Notification(title, { body: message });
-          } else if (Notification.permission === "default") {
-            const permission = await Notification.requestPermission();
-            if (permission === "granted") new Notification(title, { body: message });
+          const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+          if (permission === "granted") {
+            const options = { body: message, icon: "/favicon-192x192.png", badge: "/badge-96.png" };
+            // Chrome on Android only allows notifications through a service worker.
+            const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+            if (registration) await registration.showNotification(title, options);
+            else new Notification(title, options);
           }
         } catch {
           // Notification API blocked — the result still succeeds.

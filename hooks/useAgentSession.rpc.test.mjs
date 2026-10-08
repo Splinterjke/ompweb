@@ -45,7 +45,10 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { useAgentSession } = await jiti.import("./useAgentSession.ts");
+const { useAgentSession, runHostTool } = await jiti.import("./useAgentSession.ts");
+// The real toast module: the hook records host-tool notifies into its history
+// store (upstream 40dcb39b); no alias stub, same instance as the hook's import.
+const { toastHistory } = await jiti.import("@/components/ui/toast");
 
 // ---------------------------------------------------------------------------
 // Fake EventSource + fetch router
@@ -1181,4 +1184,12 @@ test("a fresh chat's /btw question attaches one event stream instead of an obser
   assert.deepEqual(result, { handled: true });
   assert.equal(streamsBeforeOpen, 1, "the question owns the only stream");
   assert.equal(world.esInstances.length, 1);
+});
+
+test("the notify host tool lands in the notification center even without OS notification support", async () => {
+  toastHistory.clear();
+  const result = await runHostTool("notify", { title: "Build done", message: "All green" }, { openUrl: () => "" });
+  assert.deepEqual(result, { text: "Notification shown", isError: false });
+  assert.deepEqual(toastHistory.get().map((e) => [e.kind, e.title, e.description]), [["info", "Build done", "All green"]]);
+  toastHistory.clear();
 });

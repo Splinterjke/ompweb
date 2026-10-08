@@ -3295,8 +3295,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               </div>
             )}
 
-            <div style={{ flex: 1 }} />
-
             {/* Thinking selector — compact, expressive, and consistent with models */}
             {onThinkingLevelChange && (
               <div ref={thinkingDropdownRef} className="composer-thinking-control" style={{ position: "relative", minWidth: 0 }}>
@@ -3372,6 +3370,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 )}
               </div>
             )}
+
+            <div style={{ flex: 1 }} />
 
             {/* Fast toggle — only for models that support fast mode. Stays
                 visible while the agent runs (disabled) so it does not look

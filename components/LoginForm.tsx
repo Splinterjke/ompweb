@@ -30,7 +30,9 @@ export function LoginForm() {
         setError(t("login.incorrectPassword"));
         return;
       }
-      window.location.assign("/");
+      // `next` (set by proxy.ts) may only point back into the app root.
+      const next = new URLSearchParams(window.location.search).get("next");
+      window.location.assign(next?.startsWith("/?") ? next : "/");
     } catch {
       setError(t("login.connectionFailed"));
     } finally {

@@ -153,6 +153,10 @@ export function remarkPathLinks() {
     // alone — it is code, not a reference).
     visit(tree, "inlineCode", (node, index, parent) => {
       if (!parent || typeof index !== "number") return;
+      // Same guard as the text pass: inline code already inside a link (e.g.
+      // the `link > inlineCode` nodes remarkInlineCodeFileLinks creates, or an
+      // explicit [`path`](url) link) must stay put; rewriting here nests links.
+      if (parent.type === "link" || parent.type === "linkReference") return;
       const tokens = splitPathTokens(node.value);
       if (tokens.length === 1 && !tokens[0].isPath) return;
       const children = tokens.map((token) =>

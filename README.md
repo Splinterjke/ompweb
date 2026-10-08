@@ -140,6 +140,31 @@ cookies. The app still launches at `/` with scope `/`.
 No public manifest exception is needed; `/api/manifest` stays behind the same
 password guard as every other API route. This does not add offline support.
 
+## 🔔 Notifications
+
+Turn on notifications in **Settings → Notifications**. Each browser keeps its own
+settings: which events notify (task finished, waiting for input, run failed,
+model switched automatically) and what happens while you use omp-web in another
+tab (an in-app toast, or always a system notification). Nothing is shown for the
+session you are viewing. Clicking a notification opens its session.
+
+- **Push** reaches the browser even when no omp-web tab is open. It needs a
+  secure context (HTTPS through your reverse proxy, or `localhost`), and the
+  omp-web server needs outbound HTTPS access to the browser vendors' push
+  services. omp-web generates its push (VAPID) keys on first use and stores them
+  with the device list in `~/.omp/agent/omp-web/notifications.json` (mode 0600).
+- On **iPhone and iPad** (iOS 16.4 or later), push works only in the app added
+  to the Home Screen.
+- In a secure context without push support, system notifications appear while
+  an omp-web tab is open. Over plain HTTP on a non-localhost address, browsers
+  allow no system notifications: only the in-app toasts shown while you use
+  omp-web remain.
+- Desktop browsers show notifications through the operating system's
+  notification center. Push delivery needs the browser process running.
+
+Completion notifications use omp's `prompt_result` and `session_settled` RPC
+frames (omp 18.3.1 or later).
+
 ## 🛠️ Environment variables
 
 | Variable | Description | Default / Example |
@@ -150,6 +175,7 @@ password guard as every other API route. This does not add offline support.
 | `OMP_WEB_ALLOWED_HOSTS` | Comma-separated non-loopback hosts allowed to reach the app | *(empty — loopback only)* |
 | `OMP_WEB_NO_OPEN` | Skip opening browser automatically | `0` (`1` to skip) |
 | `OMP_WEB_DISABLE_AUTOUPDATE` | Set to `1` to disable update checks and in-app updates; restart after changing | `0` |
+| `OMP_WEB_NAME` | Name shown in browser tabs and installed-app names. `url`, `host` or `domain` (any case) uses the hostname the browser connected to, without port; localhost and IP addresses keep `omp web`. Any other value is used as-is. Restart after changing | `omp web` |
 | `OMP_WEB_OMP_BIN` | Absolute path to `omp` binary | Resolved from `PATH` |
 | `OMP_WEB_DEV_ORIGIN` | Additional allowed hostname for the development server (no scheme or port); ignored in production | _None_ |
 | `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL | _None (disabled)_ |
@@ -157,6 +183,8 @@ password guard as every other API route. This does not add offline support.
 | `OMP_WEB_STT_MODEL` | Optional model name for the STT endpoint | _None_ |
 | `PI_CODING_AGENT_DIR` | OMP agent home directory | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | Proxies for server-side requests | *(System default)* |
+
+**`OMP_WEB_NAME` and installed apps.** An installed app (PWA) is usually named after the page it was installed from. If you later change `OMP_WEB_NAME`, or reach omp-web through a different address while `OMP_WEB_NAME` is `url`, `host` or `domain`, your operating system may rename the installed app as well. Leave `OMP_WEB_NAME` empty, or set a name that identifies this omp-web server whatever domain name or address is used to reach it.
 
 The development server allows loopback and RFC1918 private IPv4 origins
 (`10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`). When using a tunnel
