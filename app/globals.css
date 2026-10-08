@@ -3226,7 +3226,9 @@ html.dark .dropdown-surface :is(select, option) {
   to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 .toast-card {
-  animation: toast-in var(--dur-med) var(--ease-out-warm) both;
+  /* backwards, not both: a held end transform would override base-ui's inline
+     drag transform, so a swiped toast would not follow the finger. */
+  animation: toast-in var(--dur-med) var(--ease-out-warm) backwards;
   transition: opacity var(--dur-fast) var(--ease-out-warm),
               transform var(--dur-fast) var(--ease-out-warm),
               border-color var(--dur-fast) var(--ease-out-warm),
@@ -3241,13 +3243,22 @@ html.dark .dropdown-surface :is(select, option) {
   opacity: 0;
   transform: translate3d(14px, 4px, 0) scale(0.98);
 }
+/* A swiped toast leaves from where the finger released it. */
+.toast-card[data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 110%));
+  opacity: 0;
+}
+.toast-card[data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 110%));
+  opacity: 0;
+}
 @keyframes update-toast-in {
   from { opacity: 0; transform: translate3d(24px, 10px, 0) scale(0.95); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
   65% { box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--accent) 42%, transparent); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); box-shadow: var(--shadow-pop); }
 }
 .toast-card.toast-update {
-  animation: update-toast-in var(--dur-slow) var(--ease-out-warm) both;
+  animation: update-toast-in var(--dur-slow) var(--ease-out-warm) backwards;
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border)) !important;
 }
 

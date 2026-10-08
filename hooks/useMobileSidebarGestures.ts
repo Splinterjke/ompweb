@@ -24,7 +24,8 @@ export function useMobileSidebarGestures({ enabled, leftOpen, rightOpen, onLeftO
       const owner = rightOpen ? "workspace-file-panel" : leftOpen ? "workspace-sidebar" : null;
       const ownerElement = owner ? document.getElementById(owner) : null;
       for (const dialog of document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], dialog[open], [data-top-panel], [data-branch-panel]')) {
-        if (dialog.id === owner || dialog.closest('[inert], [hidden], [aria-hidden="true"]')) continue;
+        // A toast is a non-modal role="dialog"; it must not freeze drawer swipes while shown.
+        if (dialog.id === owner || dialog.closest('[inert], [hidden], [aria-hidden="true"], [data-swipe-dismiss]')) continue;
         if (dialog.getAttribute("role") === "listbox" && ownerElement?.contains(dialog)) continue;
         const style = getComputedStyle(dialog);
         if (style.display !== "none" && style.visibility !== "hidden") return true;
@@ -38,7 +39,8 @@ export function useMobileSidebarGestures({ enabled, leftOpen, rightOpen, onLeftO
       const blockedBeforeTouch = overlayAtPointerDown;
       cancel();
       if (event.touches.length !== 1 || !(event.target instanceof Element)) return;
-      if (event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .shell-topbar-overflow[open], [data-top-panel]')) return;
+      // [data-swipe-dismiss]: notifications own their sideways swipes.
+      if (event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .shell-topbar-overflow[open], [data-top-panel], [data-swipe-dismiss]')) return;
       if (window.getSelection()?.isCollapsed === false) return;
       // Pointerdown precedes touchstart; outside handlers may already have dismissed it.
       if (blockedBeforeTouch || hasBlockingOverlay()) return;

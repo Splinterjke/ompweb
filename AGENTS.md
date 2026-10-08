@@ -1243,6 +1243,13 @@ so they appear there too). The `onClick` option makes the whole card the
 action: a click outside its buttons, links and expandable text, ignoring drags
 and text selection, or Enter on the focused card — there is no separate action
 button.
+Toasts and Notifications entries dismiss on a sideways touch/pen swipe
+(base-ui's toast swipe; `NotificationRow` for the list) and carry
+`data-swipe-dismiss`, which the mobile sidebar gesture skips.
+`useDragClickGuard` swallows the click that ends any drag on them, judged by
+the whole travel. `createSwipeTracker` cancels a swipe the finger turned back
+(16px from its farthest point), as on Android; for toasts the release is
+converted into the `pointercancel` base-ui treats as "snap back".
 Icons come from `lucide-react` — do not add new inline SVGs. The command
 palette (`components/CommandPalette.tsx`, ⌘K/Ctrl+K) is built on `cmdk`.
 

@@ -229,6 +229,60 @@ export const dismissButtonStyle = {
   flexShrink: 0,
 } as const;
 
+/** Pointer travel beyond this is a drag, not a click (about the tap slop of mobile browsers). */
+export const DRAG_SLOP_PX = 10;
+
+/**
+ * Swallows the click that ends a drag. A swipe, or a mouse drag that selects
+ * text, must not also expand a clamped description or activate the card. It
+ * judges the whole travel, so a swipe pulled back to where it started still
+ * counts as a drag.
+ */
+export function useDragClickGuard() {
+  const press = useRef<{ x: number; y: number; travel: number } | null>(null);
+  const travelTo = (x: number, y: number) => {
+    const from = press.current;
+    if (from) from.travel = Math.max(from.travel, Math.hypot(x - from.x, y - from.y));
+  };
+  return {
+    onPointerDown: (event: React.PointerEvent) => {
+      press.current = { x: event.clientX, y: event.clientY, travel: 0 };
+    },
+    onPointerMove: (event: React.PointerEvent) => travelTo(event.clientX, event.clientY),
+    onClickCapture: (event: React.MouseEvent) => {
+      const from = press.current;
+      press.current = null;
+      // detail 0: a keyboard-activated click, which has no pointer travel.
+      if (!from || event.detail === 0) return;
+      if (Math.max(from.travel, Math.hypot(event.clientX - from.x, event.clientY - from.y)) > DRAG_SLOP_PX) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+    },
+  };
+}
+
+/** Heading back toward the start by this much cancels a swipe, as on Android. */
+const SWIPE_RETURN_PX = 16;
+
+export interface SwipeTracker {
+  /** Records a move; returns the sideways travel from the start. */
+  track: (x: number) => number;
+  /** True when the release at `x` comes after the finger turned back toward the start. */
+  pulledBack: (x: number) => boolean;
+}
+
+/** Follows one swipe's sideways travel. */
+export function createSwipeTracker(startX: number): SwipeTracker {
+  let peak = 0;
+  const track = (x: number) => {
+    const dx = x - startX;
+    if (Math.sign(dx) !== Math.sign(peak) || Math.abs(dx) > Math.abs(peak)) peak = dx;
+    return dx;
+  };
+  return { track, pulledBack: (x: number) => Math.abs(peak) - Math.abs(track(x)) >= SWIPE_RETURN_PX };
+}
+
 /**
  * Render a diagnostic detail string for a toast description. Long text wraps
  * (word-break), and any embedded JSON is pulled out into a monospace <pre> so
@@ -280,9 +334,12 @@ export function detailNode(detail: string): React.ReactNode {
 
 function Toaster() {
   const { toasts } = Toast.useToastManager<ToastData>();
-  // Press origin for the whole-card onClick action below: a drag that turns
-  // into text selection must not fire the action, so the action judges the
-  // element that was pressed and how far the pointer travelled.
+  const clickGuard = useDragClickGuard();
+  const swipe = useRef<{ id: number; tracker: SwipeTracker } | null>(null);
+  // Press origin for the whole-card onClick action below: base-ui captures the
+  // pointer for its swipe, which retargets the click to the card, so the
+  // action judges the element that was pressed and how far the pointer
+  // travelled, not the click target.
   const press = useRef<{ x: number; y: number; target: EventTarget | null; travel: number } | null>(null);
   // All toasts live bottom-right, clear of the chat input bar / status area.
   // Bottom offset 24px on desktop, slightly higher on mobile so the on-screen
@@ -308,13 +365,34 @@ function Toaster() {
             key={t.id}
             toast={t}
             className={`toast-card${t.data?.variant === "update" ? " toast-update" : ""}`}
+            // Swipe sideways to dismiss, like Android notifications.
+            swipeDirection={["left", "right"]}
+            data-swipe-dismiss=""
             onPointerDown={(event) => {
+              clickGuard.onPointerDown(event);
+              // A mouse drag selects text (e.g. to copy an error), as on any page.
+              if (event.pointerType === "mouse") event.preventBaseUIHandler();
+              else swipe.current = { id: event.pointerId, tracker: createSwipeTracker(event.clientX) };
               press.current = { x: event.clientX, y: event.clientY, target: event.target, travel: 0 };
             }}
             onPointerMove={(event) => {
+              clickGuard.onPointerMove(event);
+              if (swipe.current?.id === event.pointerId) swipe.current.tracker.track(event.clientX);
               const from = press.current;
               if (from) from.travel = Math.max(from.travel, Math.hypot(event.clientX - from.x, event.clientY - from.y));
             }}
+            onPointerUp={(event) => {
+              const current = swipe.current;
+              swipe.current = null;
+              if (current?.id !== event.pointerId || !current.tracker.pulledBack(event.clientX)) return;
+              // base-ui dismisses on distance alone. Turn this release into the
+              // pointercancel it treats as "put the toast back", and keep the
+              // original from reaching its document-level listener.
+              event.preventBaseUIHandler();
+              event.stopPropagation();
+              event.currentTarget.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerId: event.pointerId, pointerType: event.pointerType }));
+            }}
+            onClickCapture={clickGuard.onClickCapture}
             onClick={t.data?.onClick ? (event) => {
               const onClick = t.data?.onClick;
               const from = press.current;

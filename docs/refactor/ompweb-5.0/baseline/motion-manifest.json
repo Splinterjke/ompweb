@@ -63,33 +63,33 @@
         ]
       },
       {
-        "line": 3654,
+        "line": 3665,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3759,
+        "line": 3770,
         "rules": 2,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3939,
+        "line": 3950,
         "rules": 4,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 4110,
+        "line": 4121,
         "rules": 1,
         "disables": []
       },
       {
-        "line": 4722,
+        "line": 4733,
         "rules": 1,
         "disables": [
           "none"
@@ -184,6 +184,9 @@
       "inlineAnimations": [
         "savedOk"
       ]
+    },
+    "components/NotificationList.tsx": {
+      "inlineTransitions": 1
     },
     "components/OmpSetupWizard.tsx": {
       "inlineTransitions": 0,
