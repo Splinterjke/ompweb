@@ -21,6 +21,18 @@
   unicode-range: U+E000-F8FF, U+F0000-FFFFD;
 }
 
+/* CJK display serif for headings, bundled instead of fetched from Google
+   Fonts (whose extensionless /l/font?kit= URLs crashed next/font builds).
+   A GB2312 + kana subset of Noto Serif SC, weights 600-700; unicode-range
+   keeps Latin-only pages from downloading it. See fonts/NotoSerifSC-README.md. */
+@font-face {
+  font-family: "Noto Serif SC";
+  src: url("./fonts/NotoSerifSC-Subset.woff2") format("woff2");
+  font-weight: 600 700;
+  font-display: swap;
+  unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+}
+
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -1457,8 +1469,9 @@ body {
 :root {
   --font-mono: "Symbols Nerd Font Mono", var(--font-noto-mono), 'JetBrains Mono', 'Fira Code', 'Consolas', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
   /* Display serif for headings / session titles / modal titles / empty states.
-     Falls back to system serifs if the webfont fails. */
-  --font-serif: "Symbols Nerd Font Mono", var(--font-source-serif), var(--font-noto-serif), Georgia, 'Songti SC', 'SimSun', serif;
+     Latin: Source Serif 4; CJK: the bundled Noto Serif SC subset, then system
+     CJK serifs for characters outside it or if a webfont fails. */
+  --font-serif: "Symbols Nerd Font Mono", var(--font-source-serif), 'Noto Serif SC', Georgia, 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'SimSun', serif;
   /* Chat typography scale. --chat-font-size (set inline on <html> by
      useTypography) drives the AI response body; the derived ui/mono/small
      variants scale with it so a font-size change also reaches tool call
