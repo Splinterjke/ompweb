@@ -1095,6 +1095,7 @@
   "skillsConfig.visibleInPrompt": "Visible in model prompt — click to disable",
   "tabBar.close": "Close",
   "tabBar.closeTab": "Close {label}",
+  "tabBar.worktrees": "Worktrees",
   "errors.appCrash.title": "Something went wrong",
   "errors.appCrash.description": "An unexpected error occurred while rendering the interface. You can try again or reload the page.",
   "errors.appCrash.retry": "Try again",

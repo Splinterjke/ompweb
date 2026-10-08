@@ -293,6 +293,7 @@ components/
   FileExplorer.tsx    file tree inside sidebar
   FileViewer.tsx      file content in a tab
   TabBar.tsx          tab bar (Chat + open file tabs)
+  WorktreesPanel.tsx  right-workbench Worktrees view: list/switch/create/remove the active repo's worktrees
   ui/                 shared primitives: Dialog/Tooltip/Collapsible, fields, toast
 
 hooks/
@@ -710,6 +711,7 @@ during the wait.
 - Worktree operations are served by `/api/worktrees` and guarded by the same allowed-root rules as `/api/files`.
 - New worktrees are created under `<repoRoot>-worktrees/<sanitized-branch>`. Existing branches are reused; otherwise `git worktree add -b` creates the branch.
 - Removing a dirty worktree returns `409` with `{ dirty: true }` so the UI can ask before retrying with `force`.
+- The right workbench's **Worktrees** view (`components/WorktreesPanel.tsx`) lists, switches, creates and removes the active Git workspace's worktrees, alongside the setting-gated inline chip on the project row. `SessionSidebar` owns the per-repo worktree cache and the actions and emits them as a `WorktreeContext` (`onWorktreeContextChange`, null unless the active workspace is a Git top-level repo); AppShell hands it to the Worktrees view, keyed by `projectRoot` so a draft branch or pending confirmation never carries over to another repo. Switching moves the sidebar's effective cwd (where a new session starts), not the open session.
 - Sessions whose cwd points at a removed worktree are inferred back into the main project instead of becoming a phantom project row.
 
 ### Managed projects sidebar (`lib/project-registry.ts`, `/api/projects`)

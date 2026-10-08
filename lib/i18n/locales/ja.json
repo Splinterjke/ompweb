@@ -1095,6 +1095,7 @@
   "skillsConfig.visibleInPrompt": "モデルのプロンプトに表示 — クリックで無効化",
   "tabBar.close": "閉じる",
   "tabBar.closeTab": "{label} を閉じる",
+  "tabBar.worktrees": "ワークツリー",
   "errors.appCrash.title": "問題が発生しました",
   "errors.appCrash.description": "インターフェースのレンダリング中に予期しないエラーが発生しました。再試行またはページを再読み込みできます。",
   "errors.appCrash.retry": "再試行",

@@ -31,6 +31,7 @@
     "components/SubagentTranscriptDialog.tsx": 2,
     "components/TerminalPanel.tsx": 6,
     "components/UsageSidebarPanel.tsx": 2,
+    "components/WorktreesPanel.tsx": 1,
     "components/panels/RightWorkbench.tsx": 1,
     "components/usage/UsageDashboardModal.tsx": 2,
     "components/usage/UsageTabLogs.tsx": 1,

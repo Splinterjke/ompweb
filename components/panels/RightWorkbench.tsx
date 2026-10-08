@@ -2,14 +2,14 @@
 import { Tooltip } from "../ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, Brain, Columns2, ExternalLink, Files, GitBranch, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
+import { Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { createTemporarySession } from "@/lib/workbench-client";
 import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
 
-export type WorkbenchView = "files" | "agents" | "git" | "sidechat" | "browser" | "memory";
+export type WorkbenchView = "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
 // The workbench intentionally has one axis only.  A second axis (or a
 // draggable dock) made the right rail feel like a nested window manager and
 // was especially confusing on small screens.  The sole split is upper/lower.
@@ -23,6 +23,7 @@ const VIEW_META: Record<WorkbenchView, { icon: typeof Files; labelKey: string; f
   files: { icon: Files, labelKey: "rightWorkbench.files", fallback: "Files" },
   agents: { icon: Bot, labelKey: "rightWorkbench.agents", fallback: "Agents" },
   git: { icon: GitBranch, labelKey: "rightWorkbench.git", fallback: "Git" },
+  worktrees: { icon: GitFork, labelKey: "tabBar.worktrees", fallback: "Worktrees" },
   sidechat: { icon: MessageCircle, labelKey: "rightWorkbench.sideChat", fallback: "Side Chat" },
   browser: { icon: Globe2, labelKey: "rightWorkbench.browser", fallback: "Browser" },
   memory: { icon: Brain, labelKey: "rightWorkbench.memory", fallback: "Memories" },
@@ -37,7 +38,7 @@ function normalizeLayout(value: unknown): Layout {
   const candidate = value as Partial<Layout>;
   const panes = Array.isArray(candidate.panes) ? candidate.panes.slice(0, 2).map((pane, index) => {
     const source = pane as Partial<Pane>;
-    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "files" || tab === "agents" || tab === "git" || tab === "sidechat" || tab === "browser" || tab === "memory") : [];
+    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "files" || tab === "agents" || tab === "git" || tab === "worktrees" || tab === "sidechat" || tab === "browser" || tab === "memory") : [];
     const active = tabs.includes(source.active as WorkbenchView) ? source.active as WorkbenchView : tabs[0] ?? null;
     return { id: typeof source.id === "string" ? source.id : `pane-${index + 1}`, tabs: [...new Set(tabs)], active };
   }) : [];
@@ -213,6 +214,7 @@ export function RightWorkbench({
   cwd,
   files,
   agents,
+  worktrees,
   requestedView,
   onOpenFile,
 }: {
@@ -220,6 +222,8 @@ export function RightWorkbench({
   cwd: string | null;
   files: ReactNode;
   agents: ReactNode;
+  /** Right-panel Worktrees view content (rendered per `requestedView` / the + menu). */
+  worktrees: ReactNode;
   requestedView?: { view: WorkbenchView; nonce: number } | null;
   onOpenFile?: (filePath: string, fileName: string) => void;
 }) {
@@ -280,13 +284,14 @@ export function RightWorkbench({
   const renderView = useCallback((view: WorkbenchView, active: boolean) => {
     if (view === "files") return files;
     if (view === "agents") return agents;
+    if (view === "worktrees") return worktrees;
     if (view === "git") return cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
     if (view === "memory") return <MemoryPanel cwd={cwd} />;
     return <BrowserView />;
-  }, [agents, cwd, files, onOpenFile]);
+  }, [agents, cwd, files, onOpenFile, worktrees]);
 
-  const actions = useMemo(() => ["files", "agents", "git", "sidechat", "browser", "memory"] as WorkbenchView[], []);
+  const actions = useMemo(() => ["files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[], []);
   const emptyActions = actions;
 
   const updateMenuPosition = useCallback(() => {

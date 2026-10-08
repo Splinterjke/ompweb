@@ -26,6 +26,8 @@ import { OmpSetupWizard } from "./OmpSetupWizard";
 import { TerminalTabs } from "./terminal/TerminalTabs";
 import { RightWorkbench, type WorkbenchView } from "./panels/RightWorkbench";
 import { PanelErrorBoundary } from "./panels/PanelErrorBoundary";
+import { WorktreesPanel } from "./WorktreesPanel";
+import type { WorktreeContext } from "./SessionSidebar";
 import { AgentsPanel } from "./agents/AgentsPanel";
 import { FileExplorer } from "./FileExplorer";
 import { SubagentDetailPanel } from "./agents/SubagentDetailPanel";
@@ -1150,6 +1152,8 @@ export function AppShell({ appName }: { appName: string }) {
 
   const initialSessionId = initialNavigation.sessionId;
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  // Owned by the sidebar; rendered by the right workbench's Worktrees view.
+  const [worktreeCtx, setWorktreeCtx] = useState<WorktreeContext | null>(null);
   // The boot gate stays closed until the sidebar has either restored a URL /
   // remembered session or conclusively found no session to restore.
   const [initialSessionRestored, setInitialSessionRestored] = useState(false);
@@ -1904,6 +1908,7 @@ export function AppShell({ appName }: { appName: string }) {
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
         onCwdChange={handleCwdChange}
         onWorkspaceOptionsChange={handleWorkspaceOptionsChange}
+        onWorktreeContextChange={setWorktreeCtx}
         addProjectOpen={addProjectOpen}
         setAddProjectOpen={setAddProjectOpen}
         onOpenFile={handleOpenFile}
@@ -2835,6 +2840,7 @@ export function AppShell({ appName }: { appName: string }) {
             requestedView={workbenchRequestedView}
             storageKey={selectedSession?.id ?? activeCwd ?? newSessionCwd ?? "new"}
             cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+            worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} />}
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
