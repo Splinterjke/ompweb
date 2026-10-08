@@ -124,6 +124,23 @@ test("tool operations render as compact timeline rows", () => {
   assert.doesNotMatch(html, /border-radius:7px/);
 });
 
+test("parallel tool calls each render as their own row, never a merged group", () => {
+  const html = renderToStaticMarkup(React.createElement(MessageView, {
+    toolCallsDefaultCollapsed: true,
+    message: {
+      role: "assistant",
+      content: [
+        { type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "a.ts" } },
+        { type: "toolCall", toolCallId: "call-2", toolName: "read", input: { path: "b.ts" } },
+        { type: "toolCall", toolCallId: "call-3", toolName: "grep", input: { pattern: "test" } },
+      ],
+    },
+  }));
+
+  assert.equal(html.match(/class="activity-row-trigger"/g)?.length, 3);
+  for (const target of ["a.ts", "b.ts", "test"]) assert.match(html, new RegExp(target));
+});
+
 test("ask tool calls show the question text, not [object Object]", () => {
   // Malformed (header present, question missing) — falls back to the header.
   const malformed = renderToStaticMarkup(React.createElement(MessageView, {

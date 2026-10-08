@@ -6,7 +6,7 @@ import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
-import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolCallContent, ToolResultMessage } from "@/lib/types";
+import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
@@ -177,55 +177,19 @@ function withAssistantBlocks(
 
 type RenderMessage = (idx: number, options?: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] }) => ReactNode;
 
-/** Render a folded activity run; consecutive tool calls cluster into one row.
- *  Each block renders as a one-block message — `sourceBlockIndices` carries
- *  the block's index in the source entry's content so deferred thinking
- *  loads the right block (not block 0 of a one-block message). */
-function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage): ReactNode[] {
-  const rendered: ReactNode[] = [];
-  let pendingToolCalls: Array<{ block: ToolCallContent; msgIdx: number }> = [];
-
-  const flushToolCalls = () => {
-    if (pendingToolCalls.length === 0) return;
-    const first = pendingToolCalls[0];
-    rendered.push(
-      renderMessage(first.msgIdx, {
-        attachRef: false,
-        keyPrefix: `activity-tools-${first.msgIdx}-${rendered.length}`,
-        messageOverride: { ...withAssistantBlocks(messages[first.msgIdx] as AssistantMessage, pendingToolCalls.map((c) => c.block), { omitUsage: true }), errorMessage: undefined },
-        showTimestamp: false,
-      }),
-    );
-    pendingToolCalls = [];
-  };
-
-  for (const piece of pieces) {
-    if (!piece.blocks) {
-      flushToolCalls();
-      rendered.push(renderMessage(piece.index, { attachRef: false, keyPrefix: "activity" }));
-      continue;
-    }
+/** Render a folded activity run exactly as it streamed: one entry per piece, never merged across messages. */
+export function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage): ReactNode[] {
+  return pieces.map((piece, pieceIdx) => {
+    if (!piece.blocks) return renderMessage(piece.index, { attachRef: false, keyPrefix: "activity" });
     const msg = messages[piece.index] as AssistantMessage;
-    piece.blocks.forEach((block, bIdx) => {
-      if (block.type === "toolCall") {
-        pendingToolCalls.push({ block: block as ToolCallContent, msgIdx: piece.index });
-        return;
-      }
-      flushToolCalls();
-      rendered.push(
-        renderMessage(piece.index, {
-          attachRef: false,
-          keyPrefix: `activity-block-${piece.index}-${bIdx}`,
-          messageOverride: { ...withAssistantBlocks(msg, [block], { omitUsage: true }), errorMessage: undefined },
-          showTimestamp: false,
-          sourceBlockIndices: [msg.content.indexOf(block)],
-        }),
-      );
+    return renderMessage(piece.index, {
+      attachRef: false,
+      keyPrefix: `activity-${pieceIdx}`,
+      messageOverride: { ...withAssistantBlocks(msg, piece.blocks, { omitUsage: true }), errorMessage: undefined },
+      showTimestamp: false,
+      sourceBlockIndices: piece.blocks.map((block) => msg.content.indexOf(block)),
     });
-  }
-
-  flushToolCalls();
-  return rendered;
+  });
 }
 
 function ProcessDetailsGroup({ messageCount, toolCallCount, expanded, onToggle, children }: { messageCount: number; toolCallCount: number; expanded: boolean; onToggle: (expanded: boolean) => void; children: ReactNode }) {
