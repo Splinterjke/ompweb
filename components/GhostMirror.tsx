@@ -19,9 +19,11 @@ interface Props {
 }
 
 /**
- * Inline ghost text for a textarea: an invisible copy of the draft up to the
- * caret, laid out identically underneath the (transparent-background)
- * textarea, followed by the dimmed suggestion.
+ * Inline ghost text for a textarea: an invisible copy of the draft, laid out
+ * identically underneath the (transparent-background) textarea, with the
+ * dimmed suggestion spliced in at the caret. The text after the caret must be
+ * mirrored too: without it the mirror is shorter than the textarea, the
+ * browser clamps its scrollTop, and the ghost paints below the caret.
  */
 export const GhostMirror = forwardRef<HTMLDivElement, Props>(function GhostMirror({ textareaRef, prediction, value }, ref) {
   const localRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +64,8 @@ export const GhostMirror = forwardRef<HTMLDivElement, Props>(function GhostMirro
     >
       {ghost.text.slice(0, ghost.cursor)}
       <span style={{ color: "var(--text-dim)" }}>{ghost.suffix}</span>
+      {/* The zero-width space gives a trailing newline its own line, as the textarea does. */}
+      {`${ghost.text.slice(ghost.cursor)}\u200b`}
     </div>
   );
 });
