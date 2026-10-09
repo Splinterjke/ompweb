@@ -124,6 +124,8 @@ interface WorktreeEntry {
   path: string;
   branch: string | null;
   isMain: boolean;
+  /** Under omp's agent-managed worktree base (~/.omp/wt by default). */
+  agentManaged?: boolean;
 }
 
 interface WorktreeState {

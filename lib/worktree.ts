@@ -1,10 +1,12 @@
 import { execFile } from "child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "fs";
-import { basename, dirname, join, resolve } from "path";
+import { homedir } from "os";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { promisify } from "util";
 import { allowFileRoot } from "./file-access";
 import { normalizeForComparison, samePath, toNativePath } from "./paths";
 import { loadProjectRegistry } from "./project-registry";
+import { readNativeSettings } from "./omp/settings-config";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,6 +35,10 @@ export interface WorktreeInfo {
   path: string;
   branch: string | null;
   isMain: boolean;
+  /** Lives under omp's agent-managed worktree base (`worktree.base`, default
+   * ~/.omp/wt) — omp session / PR-checkout trees, removed by `omp worktree`,
+   * never through omp-web. */
+  agentManaged: boolean;
 }
 
 declare global {
@@ -214,6 +220,39 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
 // common dir, so callers can pass session cwds directly.
 // ============================================================================
 
+// ============================================================================
+// Agent-managed worktree base (omp >= 18.8.6 `worktree.onStart`/`onExit`,
+// PR checkouts, task isolation). Resolution mirrors pi-utils getWorktreeDir:
+// OMP_WORKTREE_DIR env, then the `worktree.base` setting, then ~/.omp/wt.
+// omp-web lists these trees but never removes them — only omp knows whether
+// a live session still runs inside one.
+// ============================================================================
+
+export function agentWorktreeBase(env: NodeJS.ProcessEnv = process.env): string {
+  for (const candidate of [env.OMP_WORKTREE_DIR, readNativeSettings().settings.worktree?.base]) {
+    const trimmed = candidate?.trim();
+    if (!trimmed) continue;
+    const expanded = trimmed === "~" || trimmed.startsWith("~/") || trimmed.startsWith("~\\")
+      ? join(homedir(), trimmed.slice(1))
+      : trimmed;
+    // Upstream refuses a relative base (creation and cleanup must agree);
+    // fall through to the default like pi-utils resolveAbsoluteDir does.
+    if (isAbsolute(expanded)) return resolve(expanded);
+  }
+  return join(homedir(), ".omp", "wt");
+}
+
+function isWithinDir(base: string, child: string): boolean {
+  const rel = relative(base, child);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** Whether a listed worktree path lives under the agent-managed base. */
+export function isAgentManagedWorktreePath(worktreePath: string, base = agentWorktreeBase()): boolean {
+  return isWithinDir(base, worktreePath)
+    || (process.platform === "win32" && isWithinDir(base.toLowerCase(), worktreePath.toLowerCase()));
+}
+
 /** Main repo root (parent of the shared .git dir), or throws for non-git dirs */
 async function getRepoRoot(cwd: string): Promise<string> {
   const commonDir = await git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
@@ -224,8 +263,8 @@ export async function listWorktrees(cwd: string): Promise<WorktreeInfo[]> {
   const repoRoot = await getRepoRoot(cwd);
   repairWorktreeGitdirs(repoRoot);
   const out = await git(cwd, ["worktree", "list", "--porcelain"]);
+  const agentBase = agentWorktreeBase();
   const worktrees: WorktreeInfo[] = [];
-  let current: (Partial<WorktreeInfo> & { prunable?: boolean }) | null = null;
 
   const flush = () => {
     if (current?.path) {
@@ -240,6 +279,7 @@ export async function listWorktrees(cwd: string): Promise<WorktreeInfo[]> {
           path: worktreePath,
           branch: current.branch ?? null,
           isMain: samePath(worktreePath, repoRoot),
+          agentManaged: isAgentManagedWorktreePath(worktreePath, agentBase),
         });
       }
     }
@@ -333,6 +373,9 @@ export async function removeWorktree(cwd: string, worktreePath: string, force = 
   const target = findWorktreeByPath(worktrees, worktreePath);
   if (!target) throw new Error(`Not a worktree of this repository: ${worktreePath}`);
   if (target.isMain) throw new Error("Cannot remove the main worktree");
+  if (isAgentManagedWorktreePath(target.path)) {
+    throw new Error(`Agent-managed worktree (omp's worktree.base) — remove it with omp, not omp-web: ${target.path}`);
+  }
 
   try {
     await git(cwd, ["worktree", "remove", ...(force ? ["--force"] : []), target.path.replace(/\\/g, "/")]);

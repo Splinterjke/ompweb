@@ -1037,6 +1037,7 @@
   "sessionSidebar.loadFailed": "会话加载失败：{detail}",
   "sessionSidebar.loading": "加载中...",
   "sessionSidebar.mainBadge": "main",
+  "sessionSidebar.worktreeManagedTooltip": "omp 管理的会话工作树（worktree.base）——请用 `omp worktree` 移除，omp-web 不会删除它。",
   "sessionSidebar.new": "新建会话",
   "sessionSidebar.newActivity": "新活动",
   "sessionSidebar.newSessionActivity": "新的会话活动",

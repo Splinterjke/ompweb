@@ -1037,6 +1037,7 @@
   "sessionSidebar.loadFailed": "Failed to load sessions: {detail}",
   "sessionSidebar.loading": "Loading...",
   "sessionSidebar.mainBadge": "main",
+  "sessionSidebar.worktreeManagedTooltip": "omp-managed session worktree (worktree.base) — remove it with `omp worktree`, not omp-web.",
   "sessionSidebar.new": "New Session",
   "sessionSidebar.newActivity": "New activity",
   "sessionSidebar.newSessionActivity": "New session activity",

@@ -57,6 +57,8 @@ export type NativeSettings = {
   computer?: { enabled?: boolean };
   skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean; showStartupDiagnostics?: boolean };
   bash?: { autoBackground?: { enabled?: boolean } };
+  /** omp >= 18.8.6 per-session worktrees; `worktree.base` is the agent-managed tree (read-only surface here). */
+  worktree?: { base?: string };
   providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
   security?: { enabled?: boolean };
   github?: { enabled?: boolean };
@@ -182,6 +184,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const skills = isRecord(data.skills) ? data.skills : {};
   const bash = isRecord(data.bash) ? data.bash : {};
   const bashAutoBackground = isRecord(bash.autoBackground) ? bash.autoBackground : {};
+  const worktree = isRecord(data.worktree) ? data.worktree : {};
   const providers = isRecord(data.providers) ? data.providers : {};
   const autoThinkingSource = providers.autoThinkingSource;
   const security = isRecord(data.security) ? data.security : {};
@@ -288,6 +291,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof skills.showStartupDiagnostics === "boolean" ? { showStartupDiagnostics: skills.showStartupDiagnostics } : {}),
       } } : {}),
       ...(Object.keys(bash).length ? { bash: { ...(Object.keys(bashAutoBackground).length ? { autoBackground: { ...(typeof bashAutoBackground.enabled === "boolean" ? { enabled: bashAutoBackground.enabled } : {}) } } : {}) } } : {}),
+      ...(typeof worktree.base === "string" && worktree.base.trim() ? { worktree: { base: worktree.base.trim() } } : {}),
       ...(() => {
         const providersOut = {
           ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
