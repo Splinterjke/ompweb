@@ -108,6 +108,8 @@
   "settingsConfig.restartSuccess": "アクティブな OMP セッションを {count} 件再起動しました。",
   "settingsConfig.changelog": "変更履歴",
   "settingsConfig.manualDownloadOmp": "OMP を手動ダウンロード",
+  "appShell.autoNameFallbackBody": "omp のタイトル生成器が有用な結果を返さなかったため、フォールバックのタイトルを適用しました。実際に生成されたタイトルを取得するには、omp のユーティリティモデルロール（試行順: tiny → commit → smol）を、推論のみではなく正常に回答するモデルに割り当てるか、/rename <タイトル> でタイトルを手動で設定してください。",
+  "appShell.autoNameFallbackTitle": "omp はタイトルを生成できませんでした",
   "appShell.copyFilePath": "ファイルパスをコピー",
   "appShell.copySessionId": "セッションIDをコピー",
   "appShell.fullHistory": "全履歴",

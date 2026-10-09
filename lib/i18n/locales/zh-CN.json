@@ -108,6 +108,8 @@
   "settingsConfig.restartSuccess": "已重启 {count} 个活动 OMP 会话。",
   "settingsConfig.changelog": "更新日志",
   "settingsConfig.manualDownloadOmp": "手动下载 OMP",
+  "appShell.autoNameFallbackBody": "omp 的标题生成器没有返回可用结果，已改用回退标题。要获得真正生成的标题，请将 omp 的工具模型角色（按 tiny → commit → smol 顺序尝试）映射到一个能正常作答（而非仅输出推理）的模型，或自行使用 /rename <标题> 设置标题。",
+  "appShell.autoNameFallbackTitle": "omp 未能生成标题",
   "appShell.copyFilePath": "复制文件路径",
   "appShell.copySessionId": "复制会话 ID",
   "appShell.fullHistory": "完整历史",

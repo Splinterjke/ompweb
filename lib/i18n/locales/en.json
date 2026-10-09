@@ -108,6 +108,8 @@
   "settingsConfig.restartSuccess": "Restarted {count} active OMP session(s).",
   "settingsConfig.changelog": "Changelog",
   "settingsConfig.manualDownloadOmp": "Download OMP manually",
+  "appShell.autoNameFallbackBody": "omp's title generator returned nothing usable, so the fallback title was applied. To get a real generated title, map one of omp's utility model roles — tried in order: tiny → commit → smol — to a model that answers normally instead of only reasoning, or set the title yourself with /rename <title>.",
+  "appShell.autoNameFallbackTitle": "omp could not generate a title",
   "appShell.copyFilePath": "Copy file path",
   "appShell.copySessionId": "Copy session ID",
   "appShell.fullHistory": "Full history",

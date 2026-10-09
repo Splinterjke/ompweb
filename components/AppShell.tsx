@@ -1541,7 +1541,7 @@ export function AppShell({ appName }: { appName: string }) {
       const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/auto-name`, {
         method: "POST",
       });
-      const body = (await response.json().catch(() => ({}))) as { title?: string; error?: string; code?: string };
+      const body = (await response.json().catch(() => ({}))) as { title?: string; generated?: boolean; error?: string; code?: string };
       if (!response.ok || !body.title) {
         throw new Error(body.error || body.code ? formatApiError(body) : `HTTP ${response.status}`);
       }
@@ -1551,6 +1551,12 @@ export function AppShell({ appName }: { appName: string }) {
       if (activeSessionIdRef.current !== sessionId) return;
       setSelectedSession((current) => current?.id === sessionId ? { ...current, name: title } : current);
       setSessionStats((current) => current?.sessionId === sessionId ? { ...current, sessionName: title } : current);
+      // omp's own generator produced nothing (e.g. its title-model call answered
+      // with reasoning-only content): tell the user the applied title is the
+      // fallback and how to get a real generated one.
+      if (body.generated === false) {
+        toast.info(t("appShell.autoNameFallbackTitle"), t("appShell.autoNameFallbackBody"), { durationMs: 12000 });
+      }
       setAutoNameStatus({ kind: "success" });
       autoNameTimerRef.current = setTimeout(() => setAutoNameStatus({ kind: "idle" }), 1800);
     } catch (error) {
