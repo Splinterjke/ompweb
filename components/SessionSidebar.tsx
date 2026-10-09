@@ -30,6 +30,8 @@ import { SeparatorHandle } from "./SeparatorHandle";
 import { SectionChevron } from "./SectionChevron";
 import { readStoredSectionHeight, useAdjacentSectionResize, SECTION_MIN_HEIGHT, SECTION_MIN_CONTENT } from "@/hooks/useSectionResize";
 import { useGitStats, type CwdGitStats } from "@/hooks/useGitStatus";
+import { parseTitleCard } from "@/lib/title-card";
+import { TitleCardBadge } from "./TitleCardBadge";
 
 declare global {
   interface Window {
@@ -3730,6 +3732,9 @@ const SessionItem = memo(function SessionItem({
   const contentButtonRef = useRef<HTMLButtonElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const title = session.name || session.firstMessage.slice(0, 50) || session.id.slice(0, 12);
+  // omp >= 18.8.1 generated titles may carry a title card (`🧪 FLAKY: …`);
+  // the card is part of the stored title string — split it out for display.
+  const titleCard = parseTitleCard(session.name);
   const relativeTime = formatRelativeTime(session.modified, locale, relativeTimeNow);
  const confirming = confirmArchive || confirmDelete;
  const showActions = hovered || focusWithin || actionMenuOpen;
@@ -3910,10 +3915,11 @@ const SessionItem = memo(function SessionItem({
               <Clock size={11} strokeWidth={2} style={{ flexShrink: 0, color: "var(--text-dim)" }} aria-hidden="true" />
             </Tooltip>
           )}
-          <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", flex: 1, minWidth: 0 }}>
+          <button ref={contentButtonRef} type="button" className="session-item-button" aria-current={isSelected ? "true" : undefined} onKeyDown={(event) => { if (event.key === "Delete") { event.preventDefault(); setConfirmDelete(true); } }} style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: titleCard ? 5 : 0, flex: 1, minWidth: 0 }}>
+            {titleCard && <TitleCardBadge card={titleCard} />}
             <Tooltip content={title}>
               <span style={{ minWidth: 0, maxWidth: "100%", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", fontWeight: "var(--session-name-weight, 500)", lineHeight: 1.35, letterSpacing: "-0.005em" }}>
-              {title}
+              {titleCard ? titleCard.title : title}
             </span>
             </Tooltip>
           </button>

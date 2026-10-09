@@ -37,6 +37,8 @@ import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { copyText } from "@/lib/clipboard";
 import { getFileName } from "@/lib/file-paths";
+import { parseTitleCard } from "@/lib/title-card";
+import { TitleCardBadge } from "./TitleCardBadge";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
@@ -2359,6 +2361,7 @@ export function AppShell({ appName }: { appName: string }) {
           {showChat && (() => {
             const effectiveProject = selectedSession?.projectRoot ?? selectedSession?.cwd ?? activeCwd ?? "";
             const sessionTitle = selectedSession?.name || selectedSession?.firstMessage || t("sessionSidebar.new");
+            const sessionCard = parseTitleCard(selectedSession?.name);
             const hasMessages = Boolean(
               selectedSession
               && (sessionStats?.userMessages ?? selectedSession.messageCount) > 0,
@@ -2435,6 +2438,7 @@ export function AppShell({ appName }: { appName: string }) {
                       <span style={{ color: "var(--text-dim)", flexShrink: 0, opacity: 0.5 }}>/</span>
                     </>
                   ) : null}
+                  {sessionCard && <TitleCardBadge card={sessionCard} />}
                   <Tooltip content={sessionTitle}>
                     <span
                     style={{
@@ -2446,7 +2450,7 @@ export function AppShell({ appName }: { appName: string }) {
                       minWidth: 0,
                     }}
                   >
-                    {sessionTitle}
+                    {sessionCard ? sessionCard.title : sessionTitle}
                   </span>
                   </Tooltip>
                   {selectedSession && (
