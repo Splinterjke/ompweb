@@ -4786,30 +4786,9 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   flex-shrink: 0;
 }
 
-/* ── Git graph overlay (engine webview host, components/GitGraphModal) ────
-   Fixed panel floating over the workspace — not a modal dialog. Layer map in
-   this file: chat jump-to-bottom 40, right-panel overlay 50, mobile sidebar
-   drawer 55, ring popover 60, overflow menu 70; Base UI dialogs portal at
-   1000-1001 and the skip link / toast stack live at 4000+. z-index 900 floats
-   the graph above every docked panel, popover and menu — it is the user's
-   focus surface while open — yet keeps modal dialogs and toasts on top.
-   Positioning/sizing is inline in the component (percentage of viewport /
-   expanded / mobile sheet); this class owns the layer, the flex column chrome
-   and the token-only surface. */
-.git-graph-overlay {
-  z-index: 900;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-modal);
-  box-shadow: var(--shadow-modal);
-  overflow: hidden;
-}
-
-/* Git graph as a docked bottom panel (settings → "Git graph display").
+/* ── Git graph bottom panel (engine webview host, components/GitGraphModal)
    In-flow sibling of the workspace column — no layer of its own; the host
-   drawer owns the top border context, the component owns the height
+   drawer owns the open/close display, the component owns the height
    (drag handle + persisted size / expanded flex). */
 .git-graph-panel {
   display: flex;

@@ -52,7 +52,7 @@ import type { SettingsTab } from "./SettingsTabs";
 import { SETTINGS_CATEGORIES, getNormalizedActive } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
 import { ArchiveBrowser } from "./ArchiveBrowser";
-import { GitGraphModal, type GitGraphDisplayMode } from "./GitGraphModal";
+import { GitGraphModal } from "./GitGraphModal";
 import { UpdateNoticeDialog } from "./UpdateNoticeDialog";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { UsageDashboardModal } from "./usage/UsageDashboardModal";
@@ -74,8 +74,6 @@ const OPEN_URL_AUTOMATICALLY_STORAGE_KEY = "omp-web:open-url-automatically";
 const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
 const EXTENDED_THINKING_BLOCK_STORAGE_KEY = "omp-web:extended-thinking-block";
 const EXTENDED_BLOCKS_STORAGE_KEY = "omp-web:extended-detail-blocks";
-const GIT_GRAPH_SIZE_STORAGE_KEY = "omp-web:git-graph-size";
-const GIT_GRAPH_DISPLAY_STORAGE_KEY = "omp-web:git-graph-display";
 const SESSION_INFO_BUTTON_STORAGE_KEY = "omp-web:session-info-button";
 const JUMP_TO_BOTTOM_BUTTON_STORAGE_KEY = "omp-web:jump-to-bottom-button";
 const TOOL_OUTPUT_CAP_STORAGE_KEY = "omp-web:tool-output-cap";
@@ -95,10 +93,6 @@ export type HubBarLayout = "stack" | "row";
 export type ComposerAccentBg = "off" | "dimmed" | "themed";
 export type ContextRingMobilePlacement = "composer" | "topbar" | "hidden";
 export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
-const GIT_GRAPH_DEFAULT_SIZE = 80;
-const GIT_GRAPH_MIN_SIZE = 40;
-const GIT_GRAPH_MAX_SIZE = 95;
-const GIT_GRAPH_SIZE_PRESETS = [40, 50, 60, 70, 80, 90, 95];
 export type ThinkingDisplayMode = "auto" | "collapsed" | "expanded";
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 720;
@@ -228,26 +222,9 @@ export function AppShell({ appName }: { appName: string }) {
   // yet; the GitGraph button stays disabled until the probe confirms a repo, so
   // a fresh page load never shows it as enabled for a non-repo workspace.
   const [gitWorkspace, setGitWorkspace] = useState<boolean | null>(null);
-  const [gitGraphModalSize, setGitGraphModalSize] = useState(() => {
-    if (typeof window === "undefined") return GIT_GRAPH_DEFAULT_SIZE;
-    const raw = window.localStorage.getItem(GIT_GRAPH_SIZE_STORAGE_KEY);
-    const parsed = raw === null ? Number.NaN : Number(raw);
-    if (!Number.isFinite(parsed)) return GIT_GRAPH_DEFAULT_SIZE;
-    const clamped = Math.min(GIT_GRAPH_MAX_SIZE, Math.max(GIT_GRAPH_MIN_SIZE, Math.round(parsed)));
-    // The size control is a fixed preset list; snap any legacy stored value
-    // outside it to the default so the select never renders blank.
-    return GIT_GRAPH_SIZE_PRESETS.includes(clamped) ? clamped : GIT_GRAPH_DEFAULT_SIZE;
-  });
-  // Git graph display mode: floating overlay (default) or docked bottom
-  // panel. Persisted exactly like the overlay size setting.
-  const [gitGraphDisplay, setGitGraphDisplay] = useState<GitGraphDisplayMode>(() => {
-    if (typeof window === "undefined") return "overlay";
-    try {
-      return window.localStorage.getItem(GIT_GRAPH_DISPLAY_STORAGE_KEY) === "panel" ? "panel" : "overlay";
-    } catch {
-      return "overlay";
-    }
-  });
+  // The git-graph bottom panel's host state: the panel is always docked,
+  // so AppShell tracks only open/closed plus the layout mirror of its
+  // expanded state (owned by the panel, see onExpandedChange below).
   // Layout mirrors of the docked panels' expanded states, owned here so the
   // surrounding flex column can give a maximized panel the whole workspace.
   const [gitGraphPanelExpanded, setGitGraphPanelExpanded] = useState(false);
@@ -642,24 +619,7 @@ export function AppShell({ appName }: { appName: string }) {
       // The preference still applies for this page load.
     }
   }, []);
-  const handleGitGraphModalSizeChange = useCallback((size: number) => {
-    const clamped = Math.min(GIT_GRAPH_MAX_SIZE, Math.max(GIT_GRAPH_MIN_SIZE, Math.round(size)));
-    setGitGraphModalSize(clamped);
-    try {
-      window.localStorage.setItem(GIT_GRAPH_SIZE_STORAGE_KEY, String(clamped));
-    } catch {
-      // The preference still applies for this page load.
-    }
-  }, []);
-  const handleGitGraphDisplayChange = useCallback((next: GitGraphDisplayMode) => {
-    setGitGraphDisplay(next);
-    setGitGraphPanelExpanded(false);
-    try {
-      window.localStorage.setItem(GIT_GRAPH_DISPLAY_STORAGE_KEY, next);
-    } catch {
-      // The preference still applies for this page load.
-    }
-  }, []);
+
   // Persist the committed width (after each change; skipped mid-drag, then
   // written once the drag ends). The first run is skipped so the mount-time
   // default cannot overwrite the stored width before it is loaded.
@@ -832,6 +792,15 @@ export function AppShell({ appName }: { appName: string }) {
   const handleOpenGitGraph = useCallback((cwd?: string | null) => {
     setGitGraphCwd(cwd ?? null);
     setGitGraphOpen(true);
+  }, []);
+  // Top-bar / mobile-menu GitGraph button: a toggle — pressing it again
+  // closes the docked panel (the panel's own X still closes through
+  // onOpenChange).
+  const handleToggleGitGraph = useCallback(() => {
+    setGitGraphOpen((open) => {
+      if (open) setGitGraphCwd(null);
+      return !open;
+    });
   }, []);
 
   const handleSystemPromptChange = useCallback((prompt: string | null) => {
@@ -2281,17 +2250,17 @@ export function AppShell({ appName }: { appName: string }) {
                 <History size={16} strokeWidth={1.8} aria-hidden="true" />
               </button>
               </Tooltip>
-              <Tooltip content={gitWorkspace === false ? t("appShell.githubStatusNotGit") : t("appShell.githubStatus")} side="bottom">
+              <Tooltip content={gitWorkspace === false ? t("appShell.githubStatusNotGit") : gitGraphOpen ? t("appShell.closeGitGraph") : t("appShell.githubStatus")} side="bottom">
                 <button
                   type="button"
                   // aria-disabled (not the native disabled attribute): a natively
                   // disabled button fires no mouse events, so the Tooltip could
                   // never open. This keeps the button hoverable while still
                   // rendering the disabled (grayed, default-cursor) treatment.
-                  onClick={() => { if (gitWorkspace === true) handleOpenGitGraph(); }}
+                  onClick={() => { if (gitWorkspace === true) handleToggleGitGraph(); }}
                   aria-disabled={gitWorkspace !== true}
                   aria-label={t("appShell.githubStatus")}
-                  aria-haspopup="dialog"
+                  aria-pressed={gitGraphOpen}
                   className="shell-toolbar-btn ui-focus-ring"
                   data-git-graph-trigger
                 >
@@ -2639,7 +2608,7 @@ export function AppShell({ appName }: { appName: string }) {
                 onClick={() => {
                   if (gitWorkspace !== true) return;
                   setMoreMenuOpen(false);
-                  handleOpenGitGraph();
+                  handleToggleGitGraph();
                 }}
                 disabled={gitWorkspace !== true}
               >
@@ -2861,10 +2830,9 @@ export function AppShell({ appName }: { appName: string }) {
             </div>
           )}
         </div>
-        {/* Git graph docked as a bottom panel (settings → "Git graph
-            display" = panel). The overlay variant renders at the app root
-            instead, so only one of the two is ever mounted. */}
-        {gitGraphDisplay === "panel" && (
+        {/* Git graph docked as a bottom panel (the terminal drawer's
+            sibling). Open/close is a display toggle so the embed keeps its
+            engine state (and the webview's view state) while hidden. */}
           <div
             style={{
               display: gitGraphOpen ? "flex" : "none",
@@ -2878,7 +2846,6 @@ export function AppShell({ appName }: { appName: string }) {
             }}
           >
             <GitGraphModal
-              mode="panel"
               open={gitGraphOpen}
               onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }}
               cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
@@ -2886,7 +2853,6 @@ export function AppShell({ appName }: { appName: string }) {
               onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)}
             />
           </div>
-        )}
         {/* Bottom terminal bar. It remains independent from the right
             workbench so the terminal always has a predictable home and its
             tab/PTY lifecycle is not tied to sidebar navigation. */}
@@ -3017,7 +2983,6 @@ export function AppShell({ appName }: { appName: string }) {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-    <GitGraphModal open={gitGraphOpen && gitGraphDisplay === "overlay"} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
@@ -3035,10 +3000,6 @@ export function AppShell({ appName }: { appName: string }) {
         onHideThinkingBlockChange={setHideThinkingBlock}
         extendedBlocks={extendedBlocks}
         onExtendedBlocksChange={handleExtendedBlocksChange}
-        gitGraphModalSize={gitGraphModalSize}
-        onGitGraphModalSizeChange={handleGitGraphModalSizeChange}
-        gitGraphDisplay={gitGraphDisplay}
-        onGitGraphDisplayChange={handleGitGraphDisplayChange}
         sessionInfoButtonVisible={sessionInfoButtonVisible}
         onSessionInfoButtonChange={handleSessionInfoButtonChange}
         showJumpToBottomButton={showJumpToBottomButton}

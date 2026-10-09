@@ -12,35 +12,27 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 const client = createOmpwebClient("legacy-http");
 
 /**
- * Git graph overlay: hosts the vendored vscode-git-graph engine webview
- * (served by /gitgraph, built from vendor/vscode-git-graph/web) in a
- * same-origin iframe and implements the embedding-page side of the host
+ * Git graph bottom panel: hosts the vendored vscode-git-graph engine
+ * webview (served by /gitgraph, built from vendor/vscode-git-graph/web) in
+ * a same-origin iframe and implements the embedding-page side of the host
  * protocol defined by vendor/vscode-git-graph/web/ompweb-bridge.ts:
  * theme pushes, open-file relays, and the right-hand diff pane fed by
- * open-diff relays. The overlay floats above the workspace panes (it is not
- * a modal dialog: it has its own chrome and a close button, and Escape only
- * closes it while no real dialog is open).
+ * open-diff relays. The panel docks at the bottom of the workspace column
+ * like the terminal drawer: its height is draggable (persisted), and the
+ * expand control fills the whole workspace column (also persisted, see
+ * EXPANDED_KEY). The host owns open/close; the top-bar button toggles it.
  */
 
-// Persisted expand/collapse state: collapsed = the configured percentage-of-
-// viewport size, centered; expanded = near-fullscreen with a small margin.
+// Persisted expand/collapse state: collapsed = the dragged panel height at
+// the workspace bottom; expanded = the panel fills the whole workspace
+// column (the host grows its flex basis; see onExpandedChange).
 const EXPANDED_KEY = "omp-wea...ded";
 
-// Percentage-of-viewport sizing for the collapsed overlay. Clamped to 40-95
-// so the chrome stays reachable at any setting.
-const MIN_SIZE_PERCENT = 40;
-const MAX_SIZE_PERCENT = 95;
-
-// Bottom-panel display (settings → "Git graph display"): the graph docks at
-// the bottom of the workspace column like the terminal drawer. The height is
-// draggable and persisted; dragging to the bottom edge hides the panel.
+// Docked-panel height: dragged from the top edge and persisted; dragging
+// past the minimum hides the panel (the terminal drawer's gesture).
 const PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
 const PANEL_MIN_HEIGHT = 200;
 const PANEL_DEFAULT_HEIGHT = 420;
-
-/** Where the git graph renders: floating over the workspace (overlay, the
- *  default) or docked as a bottom panel like the embedded terminal. */
-export type GitGraphDisplayMode = "overlay" | "panel";
 
 // Lane palette used by the embedded engine — mirrors the default view-config
 // palette (lib/git-graph/default-config.ts, upstream "Default" set). These
@@ -241,20 +233,17 @@ function DiffPane({ diff, loading, error, mobile, onClose }: {
 }
 
 /**
- * Fixed git-graph overlay hosting the engine webview: header chrome (title,
- * repo name, refresh / expand / close), the iframe embed filling the body,
- * and the collapsible diff pane. Not a Dialog — the panel floats over the
- * workspace and keeps its own close control (no backdrop).
+ * Docked git-graph bottom panel hosting the engine webview: header chrome
+ * (title, repo name, refresh / expand / close), the iframe embed filling
+ * the body, and the collapsible diff pane. Not a Dialog — it is an in-flow
+ * sibling of the workspace column and keeps its own close control.
  */
-export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode = "overlay", onExpandedChange, onOpenFile }: {
+export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpenFile }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cwd: string | null;
-  sizePercent?: number;
-  /** overlay = floating fixed panel; panel = docked at the workspace bottom. */
-  mode?: GitGraphDisplayMode;
-  /** Panel mode: tell the host whether the docked panel is expanded (filled),
-   *  so the surrounding flex layout can grow it into the workspace column. */
+  /** Reports whether the docked panel is expanded (filled), so the
+   *  surrounding flex layout can grow it into the workspace column. */
   onExpandedChange?: (expanded: boolean) => void;
   onOpenFile: (filePath: string) => void;
 }) {
@@ -286,8 +275,8 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode 
     }
   }, [expanded]);
 
-  // Docked-panel height (panel display mode): persisted, dragged from the
-  // top edge; dragging past the minimum hides the panel (terminal gesture).
+  // Docked-panel height: persisted, dragged from the top edge; dragging
+  // below the minimum hides the panel (the terminal drawer's gesture).
   const [panelHeight, setPanelHeight] = useState(() => {
     if (typeof window === "undefined") return PANEL_DEFAULT_HEIGHT;
     try {
@@ -301,20 +290,19 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode 
   const panelHeightRef = useRef(panelHeight);
   panelHeightRef.current = panelHeight;
   useEffect(() => {
-    if (mode !== "panel") return;
     try {
       window.localStorage.setItem(PANEL_HEIGHT_KEY, String(panelHeight));
     } catch {
       // Storage unavailable (private mode) — the height still applies this session.
     }
-  }, [mode, panelHeight]);
+  }, [panelHeight]);
 
   // The host coordinates the docked layout: an expanded panel grows into the
   // workspace column (it owns the flex basis), a restored one keeps its own
   // height. Report the effective state whenever it changes.
   useEffect(() => {
-    onExpandedChange?.(mode === "panel" && open && expanded);
-  }, [mode, open, expanded, onExpandedChange]);
+    onExpandedChange?.(open && expanded);
+  }, [open, expanded, onExpandedChange]);
 
   const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -494,7 +482,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode 
     return () => window.removeEventListener("message", onMessage);
   }, [open, postToFrame, t]);
 
-  // Escape closes the overlay — unless a real modal dialog is open on the
+  // Escape closes the panel — unless a real modal dialog is open on the
   // page, in which case it owns the key (same guard as the window-level
   // shortcuts in hooks/useKeyboardShortcuts).
   useEffect(() => {
@@ -518,10 +506,9 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode 
   // React key: remounts the iframe on repo switch and on manual refresh.
   const frameKey = src === null ? "none" : `${src}#${frameEpoch}`;
 
-  // Collapsed = centered box at the configured percentage of the viewport;
-  // expanded = near-fullscreen with a small margin; mobile = full-screen
-  // sheet (same as the mobile right panel).
-  const isPanel = mode === "panel";
+  // Collapsed = the dragged height at the workspace bottom; expanded =
+  // the panel grows into the whole workspace column (the host owns the
+  // flex basis, see onExpandedChange).
   const panelStyle: React.CSSProperties = {
     position: "relative",
     width: "100%",
@@ -529,31 +516,12 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode 
     flex: expanded ? "1 1 auto" : "0 0 auto",
     height: expanded ? "100%" : panelHeight,
   };
-  const sizePct = Math.min(MAX_SIZE_PERCENT, Math.max(MIN_SIZE_PERCENT, Math.round(sizePercent)));
-  const overlayStyle: React.CSSProperties = isMobile
-    ? {
-        position: "fixed",
-        inset: 0,
-        borderRadius: 0,
-        padding: "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)",
-      }
-    : expanded
-      ? { position: "fixed", top: 24, right: 24, bottom: 24, left: 24 }
-      : {
-          position: "fixed",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-          width: `min(${sizePct}vw, calc(100vw - 48px))`,
-          height: `min(${sizePct}dvh, 1200px)`,
-          maxHeight: "calc(100dvh - 48px)",
-        };
 
   if (!open) return null;
 
   return (
-    <section className={isPanel ? "git-graph-panel" : "git-graph-overlay"} style={isPanel ? panelStyle : overlayStyle} role="region" aria-label={t("gitGraph.title")}>
-      {isPanel && !expanded && (
+    <section className="git-graph-panel" style={panelStyle} role="region" aria-label={t("gitGraph.title")}>
+      {!expanded && (
         <Tooltip content={t("gitGraph.resizeHint")}>
           <div
             onMouseDown={handlePanelResizeStart}
