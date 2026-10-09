@@ -363,7 +363,12 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
     );
   }, [isDark]);
 
-  // Theme push once the embed boots and again on every theme change.
+  // Ready-handler access to the current pushTheme without making the message
+  // listener effect resubscribe every time the theme changes.
+  const pushThemeRef = useRef(pushTheme);
+  pushThemeRef.current = pushTheme;
+
+  /** Re-push to an already-booted embed on theme change; a fresh boot is served by the ready handler. */
   useEffect(() => {
     if (frameLoaded) pushTheme();
   }, [frameLoaded, pushTheme]);
@@ -441,7 +446,13 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
       if (!data || typeof data !== "object" || !("type" in data) || typeof data.type !== "string") return;
       switch (data.type) {
         case "ompweb-gg-ready":
+          // Every document boot must fetch the theme: closing the panel
+          // unmounts the iframe while this component keeps its state, so on
+          // a reopen `frameLoaded` never goes false→true again and the
+          // push-effect below cannot re-run — the freshly loaded document
+          // would keep its unstyled (light-fallback) defaults.
           setFrameLoaded(true);
+          pushThemeRef.current();
           break;
         case "ompweb-gg-error":
           toast.error(t("gitGraph.title"), "message" in data && typeof data.message === "string" ? data.message : "unknown error");
