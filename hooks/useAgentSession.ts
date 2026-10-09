@@ -1090,7 +1090,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         }
         byId.set(entry.id, { ...existing, ...entry });
       }
-      return [...byId.values()].sort((a, b) => a.index - b.index || a.id.localeCompare(b.id));
+      // omp 18.8.4 Agent-Hub parity: newest agents first, existing entries
+      // keep their relative order (stable sort on descending launch index).
+      return [...byId.values()].sort((a, b) => b.index - a.index || a.id.localeCompare(b.id));
     });
   }, []);
 
