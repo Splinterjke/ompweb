@@ -315,15 +315,6 @@ function NativeRegistryDetail({ models, connectedProviders, onChanged }: { model
   const disabledProviders = new Set(settings.disabledProviders ?? []);
   const providerOrder = settings.modelProviderOrder ?? [];
   const orderedProviders = [...providerOrder, ...providers.filter((provider) => !providerOrder.includes(provider))];
-  // omp >= 18.8.5 per-model auto-compaction points (`compaction.modelThresholds`).
-  const compactionThresholds = settings.compaction?.modelThresholds;
-  const thresholdEntries = Object.entries(compactionThresholds ?? {});
-  const globalThreshold: ParsedCompactionThreshold | null = settings.compaction?.thresholdTokens !== undefined
-    ? parseCompactionThreshold(settings.compaction.thresholdTokens)
-    : settings.compaction?.thresholdPercent !== undefined
-      ? parseCompactionThreshold(`${settings.compaction.thresholdPercent}%`)
-      : null;
-
   return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div>
       <SectionTitle>{t("modelsConfig.nativeRegistryTitle")}</SectionTitle>
@@ -351,27 +342,40 @@ function NativeRegistryDetail({ models, connectedProviders, onChanged }: { model
         <button type="button" disabled={saving || isReadOnly || index === orderedProviders.length - 1} onClick={() => { const next = [...orderedProviders]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; void save({ ...settings, modelProviderOrder: next }); }} aria-label={t("modelsConfig.moveProviderDown")} className="ui-focus-ring" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}><ArrowDown size={14} /></button>
       </Tooltip></div>)}</div>
     </section>
-    <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("modelsConfig.compactionLimitsTitle")}</div>
-      <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>{t("modelsConfig.compactionLimitsDesc")}</p>
-      {thresholdEntries.length > 0 ? <div style={{ borderTop: "1px solid var(--border)" }}>{thresholdEntries.map(([key, value]) => {
-        const parsed = parseCompactionThreshold(value);
-        const known = models.find((model) => `${model.provider}/${model.id}` === key);
-        const desc = parsed ? describeCompactionThreshold(parsed, known?.contextWindow) : null;
-        return <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", borderTop: key === thresholdEntries[0][0] ? "none" : "1px solid var(--border)" }}>
-          <code>{key}</code>
-          {!known && !key.endsWith("/*") && <span style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flex: 1, textAlign: "right" }}>{t("modelsConfig.compactionNotInCatalog")}</span>}
-          {(known || key.endsWith("/*")) && <span style={{ flex: 1 }} />}
-          {desc ? <Tooltip content={t("modelsConfig.compactsAtTooltip", { tokens: desc.tokens !== undefined ? formatHumanTokens(desc.tokens) : String(value), key })}>
-            <span style={{ color: "var(--text)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>{t("modelsConfig.compactsAt", { value: desc.label })}</span>
-          </Tooltip> : <span style={{ color: "var(--status-error)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>{t("modelsConfig.compactionInvalid", { value: String(value) })}</span>}
-        </div>;
-      })}</div> : <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45, borderTop: "1px solid var(--border)" }}>{t("modelsConfig.noCompactionLimits")}</p>}
-      {globalThreshold && <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45, borderTop: "1px solid var(--border)" }}>{t("modelsConfig.compactionDefault", { value: describeCompactionThreshold(globalThreshold).label })}</p>}
-    </section>
+    <CompactionLimitsSection models={models} compaction={settings.compaction} />
     {isReadOnly && <div role="status" style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.45 }}>{t("modelsConfig.pathScopedNotice")}</div>}
     {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>}
   </div>;
+}
+
+/** Per-model auto-compaction points (omp >= 18.8.5 `compaction.modelThresholds`).
+ * Exported for row-level tests and the SSR visual harness. */
+export function CompactionLimitsSection({ models, compaction }: { models: RuntimeModelEntry[]; compaction?: NativeRegistrySettings["compaction"] }) {
+  const { t } = useI18n();
+  const thresholdEntries = Object.entries(compaction?.modelThresholds ?? {});
+  const globalThreshold: ParsedCompactionThreshold | null = compaction?.thresholdTokens !== undefined
+    ? parseCompactionThreshold(compaction.thresholdTokens)
+    : compaction?.thresholdPercent !== undefined
+      ? parseCompactionThreshold(`${compaction.thresholdPercent}%`)
+      : null;
+  return <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+    <div style={{ padding: "10px 12px", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("modelsConfig.compactionLimitsTitle")}</div>
+    <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45 }}>{t("modelsConfig.compactionLimitsDesc")}</p>
+    {thresholdEntries.length > 0 ? <div style={{ borderTop: "1px solid var(--border)" }}>{thresholdEntries.map(([key, value]) => {
+      const parsed = parseCompactionThreshold(value);
+      const known = models.find((model) => `${model.provider}/${model.id}` === key);
+      const desc = parsed ? describeCompactionThreshold(parsed, known?.contextWindow) : null;
+      return <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", borderTop: key === thresholdEntries[0][0] ? "none" : "1px solid var(--border)" }}>
+        <code>{key}</code>
+        {!known && !key.endsWith("/*") && <span style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flex: 1, textAlign: "right" }}>{t("modelsConfig.compactionNotInCatalog")}</span>}
+        {(known || key.endsWith("/*")) && <span style={{ flex: 1 }} />}
+        {desc ? <Tooltip content={t("modelsConfig.compactsAtTooltip", { tokens: desc.tokens !== undefined ? formatHumanTokens(desc.tokens) : String(value), key })}>
+          <span style={{ color: "var(--text)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>{t("modelsConfig.compactsAt", { value: desc.label })}</span>
+        </Tooltip> : <span style={{ color: "var(--status-error)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>{t("modelsConfig.compactionInvalid", { value: String(value) })}</span>}
+      </div>;
+    })}</div> : <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45, borderTop: "1px solid var(--border)" }}>{t("modelsConfig.noCompactionLimits")}</p>}
+    {globalThreshold && <p style={{ margin: 0, padding: "8px 12px", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.45, borderTop: "1px solid var(--border)" }}>{t("modelsConfig.compactionDefault", { value: describeCompactionThreshold(globalThreshold).label })}</p>}
+  </section>;
 }
 
 const COMPOSER_MODELS_STORAGE_KEY = "omp-composer-models";

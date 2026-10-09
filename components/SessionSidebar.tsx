@@ -3689,7 +3689,8 @@ function UnreadSessionIndicator({ size = 14 }: { size?: number }) {
   );
 }
 
-const SessionItem = memo(function SessionItem({
+/** Exported for the SSR visual harness and row-level tests. */
+export const SessionItem = memo(function SessionItem({
   session,
   isSelected,
   isRunning,
