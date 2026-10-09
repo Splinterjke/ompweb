@@ -5,7 +5,7 @@
 
 import type { AgentEventFrame, ConnectedFrame, SessionDestroyedFrame } from "@/lib/contracts/agent-envelope";
 import type { SessionInfo } from "@/lib/types";
-import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
+import type { GitCommitFileDiff } from "@/lib/git-log";
 import type { GitStatusResponse } from "@/lib/git-types";
 import type { GitHubRepoStatus } from "@/lib/github";
 import type { NativeSettings } from "@/lib/omp/settings-config";
@@ -104,10 +104,11 @@ export interface GitClient {
   push(cwd: string): Promise<{ branch?: string }>;
   branches(cwd: string): Promise<{ name: string; current: boolean }[]>;
   checkout(cwd: string, branch: string): Promise<{ branch?: string }>;
-  /** GET /api/git/log?cwd=&limit= — commit history + graph geometry. */
-  log(cwd: string, limit?: number): Promise<{ rows: GitGraphRow[]; maxLane: number }>;
   /** GET /api/git/diff?cwd=&hash=&file= — per-file diff of one commit. */
   commitDiff(cwd: string, hash: string, file: string): Promise<GitCommitFileDiff>;
+  /** GET /api/git/diff?cwd=&from=&to=&file= — per-file diff between two refs
+   *  (`to = "*"` compares against the working tree). Embedded Git graph. */
+  refDiff(cwd: string, from: string, to: string, file: string): Promise<GitCommitFileDiff>;
 }
 /**
  * Native OMP settings (GET /api/omp-settings): the ~/.omp/agent/config.yml

@@ -30,7 +30,7 @@ import type { MemoryBankInfo, MemoryQueryPage, MemoryQueryResult, MemoryTable } 
 import type { SchedulerWithState } from "@/lib/scheduler-types";
 import type { ActionSpec, ChatEventAction, ChatEventActionInput, ChatEventActionPatch } from "@/lib/chat-event-action-types";
 import type { SessionInfo } from "@/lib/types";
-import type { GitCommitFileDiff, GitGraphRow } from "@/lib/git-log";
+import type { GitCommitFileDiff } from "@/lib/git-log";
 import type { GitStatusResponse } from "@/lib/git-types";
 import type { NativeSettings } from "@/lib/omp/settings-config";
 import { subscribeSessionsChanged } from "../session-change-bus";
@@ -241,12 +241,12 @@ class HttpGitClient implements GitClient {
   async checkout(cwd: string, branch: string): Promise<{ branch?: string }> {
     return rawRequest<{ branch?: string; error?: string }>("/api/git/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd, branch }) });
   }
-  async log(cwd: string, limit = 400): Promise<{ rows: GitGraphRow[]; maxLane: number }> {
-    const body = await rawRequest<{ rows?: GitGraphRow[]; maxLane?: number; error?: string }>(`/api/git/log?cwd=${encodeURIComponent(cwd)}&limit=${Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 400}`, { cache: "no-store" });
-    return { rows: body.rows ?? [], maxLane: body.maxLane ?? 1 };
-  }
   async commitDiff(cwd: string, hash: string, file: string): Promise<GitCommitFileDiff> {
     return rawRequest<GitCommitFileDiff & { error?: string }>(`/api/git/diff?cwd=${encodeURIComponent(cwd)}&hash=${encodeURIComponent(hash)}&file=${encodeURIComponent(file)}`, { cache: "no-store" });
+  }
+  async refDiff(cwd: string, from: string, to: string, file: string): Promise<GitCommitFileDiff> {
+    const params = new URLSearchParams({ cwd, from, to, file });
+    return rawRequest<GitCommitFileDiff & { error?: string }>(`/api/git/diff?${params.toString()}`, { cache: "no-store" });
   }
 }
 

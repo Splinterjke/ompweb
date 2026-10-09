@@ -4785,3 +4785,15 @@ html[data-animation-thinking="false"] .thinking-icon-active {
 .settings-panel-inner {
   flex-shrink: 0;
 }
+
+/* ── Git graph bottom panel (engine webview host, components/GitGraphModal)
+   In-flow sibling of the workspace column — no layer of its own; the host
+   drawer owns the open/close display, the component owns the height
+   (drag handle + persisted size / expanded flex). */
+.git-graph-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}

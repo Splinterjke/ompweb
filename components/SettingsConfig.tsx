@@ -295,7 +295,6 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
   { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
   { id: "word-completion", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
-  { id: "git-graph-modal-size", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.gitGraphModalSize", descKey: "settingsConfig.gitGraphModalSizeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "GitGraph modal size", fallbackDesc: "Size of the Git graph modal as a percentage of the window. Choose a preset size between 40% and 95%.", scope: "UI" },
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
@@ -586,6 +585,7 @@ const NOTIFICATION_STATUS_KEYS: Record<Exclude<NotificationSupport, "push" | "no
 function NotificationSettingsPanel() {
   const { t, locale } = useI18n();
   const prefs = useNotificationPrefs();
+  const isMobile = useIsMobile();
   const [support, setSupport] = useState<NotificationSupport | null>(null);
   const [pushActive, setPushActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -661,14 +661,15 @@ function NotificationSettingsPanel() {
   }
 
   return (
-    <>
-      <NativeSetting searchId="notifications-enable" scope="UI" label={t("notifications.enable")} description={t("notifications.enableDesc")}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10, width: "100%" }}>
+      <NativeSetting searchId="notifications-enable" scope="UI" label={t("notifications.enable")} description={t("notifications.enableDesc")} containerStyle={{ gridColumn: "1 / -1" }}>
         <ToggleSwitch checked={prefs.enabled} disabled={busy} onChange={(next) => void setEnabled(next)} />
       </NativeSetting>
       {status && (
         <div
           role="status"
           style={{
+            gridColumn: "1 / -1",
             padding: "8px 12px",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius-card)",
@@ -697,7 +698,10 @@ function NotificationSettingsPanel() {
           <option value="system" style={nativeOptionStyle}>{t("notifications.whenActiveSystem")}</option>
         </select>
       </NativeSetting>
-      <div>
+      <NativeSetting searchId="notifications-log-to-tab" scope="UI" label={t("notifications.logToTab")} description={t("notifications.logToTabDesc")}>
+        <ToggleSwitch checked={prefs.logToTab} onChange={(next) => save({ logToTab: next })} />
+      </NativeSetting>
+      <NativeSetting searchId="notifications-test" scope="UI" disabled={!prefs.enabled} label={t("notifications.test")} description={t("notifications.testDesc")}>
         <button
           type="button"
           onClick={() => void sendTest()}
@@ -716,8 +720,8 @@ function NotificationSettingsPanel() {
         >
           {t("notifications.test")}
         </button>
-      </div>
-    </>
+      </NativeSetting>
+    </div>
   );
 }
 
@@ -794,16 +798,13 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, gitGraphModalSize, onGitGraphModalSizeChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
   /** Show the goal token budget in the composer goal bar (default off). */
   showGoalTokenBudget?: boolean;
   onShowGoalTokenBudgetChange?: (show: boolean) => void;
-  /** Git graph modal size as a percentage of the viewport (40-95). */
-  gitGraphModalSize: number;
-  onGitGraphModalSizeChange: (size: number) => void;
   /** Show the Session Info button below the composer (Interface & Behavior). */
   sessionInfoButtonVisible?: boolean;
   onSessionInfoButtonChange?: (visible: boolean) => void;
@@ -1411,17 +1412,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="auto" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionAuto")}</option>
                       <option value="on" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOn")}</option>
                       <option value="off" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOff")}</option>
-                    </select>
-                  </NativeSetting>
-                  <NativeSetting searchId="git-graph-modal-size" label={t("settingsConfig.gitGraphModalSize")} description={t("settingsConfig.gitGraphModalSizeDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={String(gitGraphModalSize)}
-                      onChange={(event) => onGitGraphModalSizeChange(Number(event.target.value))}
-                    >
-                      {[40, 50, 60, 70, 80, 90, 95].map((v) => (
-                        <option key={v} value={v} style={nativeOptionStyle}>{v}%</option>
-                      ))}
                     </select>
                   </NativeSetting>
                   <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">

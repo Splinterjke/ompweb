@@ -9,7 +9,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { ClampedDescription, clampDescriptionStyle, resolveToastTimeout, toast, toastHistory, TOAST_HISTORY_LIMIT } = await jiti.import("./toast.tsx");
+const { ClampedDescription, clampDescriptionStyle, resolveToastTimeout, setToastHistoryRecording, toast, toastHistory, TOAST_HISTORY_LIMIT } = await jiti.import("./toast.tsx");
 
 const TOOL_LIST = "xd://: mounted mcp__ida_reverse_engineering_ida_address_context, mcp__ida_decompile";
 
@@ -118,4 +118,23 @@ test("new entries are unread until marked; a re-announced id keeps its read stat
   assert.equal(notified, 0);
   unsubscribe();
   toastHistory.clear();
+});
+
+test("while tab recording is off nothing lands in the history and readers see an empty list; entries survive and return", () => {
+  toastHistory.clear();
+  toast.info("recorded first", undefined, { durationMs: 0 });
+  setToastHistoryRecording(false);
+  assert.deepEqual(toastHistory.get(), []);
+  toast.info("not recorded", undefined, { durationMs: 0 });
+  toastHistory.record("info", "not recorded either");
+  assert.deepEqual(toastHistory.get(), []);
+  // The flag flip changes the history/unread snapshots without an entry mutation.
+  let notified = 0;
+  const unsubscribe = toastHistory.subscribe(() => { notified++; });
+  setToastHistoryRecording(true);
+  assert.equal(notified, 1);
+  unsubscribe();
+  assert.deepEqual(toastHistory.get().map((e) => e.title), ["recorded first"]);
+  toastHistory.clear();
+  setToastHistoryRecording(true);
 });

@@ -26,6 +26,8 @@ export interface NotificationPrefs {
   types: Record<NotificationType, boolean>;
   /** While the user is active in another omp-web tab: in-app toast or system notification. */
   whenActive: "toast" | "system";
+  /** Record delivered notifications and toasts in the right panel's Notifications tab. */
+  logToTab: boolean;
   /** UI locale, so pushes are written in the device's language. */
   locale: string;
 }
@@ -34,6 +36,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   enabled: false,
   types: { completed: true, input: true, error: true, modelSwitch: false },
   whenActive: "toast",
+  logToTab: true,
   locale: "en",
 };
 
@@ -49,6 +52,7 @@ export function parseNotificationPrefs(value: unknown): NotificationPrefs {
     enabled: raw.enabled === true,
     types,
     whenActive: raw.whenActive === "system" ? "system" : "toast",
+    logToTab: raw.logToTab !== false,
     locale: typeof raw.locale === "string" && /^[A-Za-z-]{2,10}$/.test(raw.locale) ? raw.locale : "en",
   };
 }
