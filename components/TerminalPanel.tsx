@@ -25,9 +25,15 @@ interface Props {
   onHeightChange?: (height: number) => void;
   /** Fill a docked workbench pane. The host owns the pane splitter in this mode. */
   embedded?: boolean;
+  /** Controlled maximize (bottom-drawer host): while true the panel fills
+   *  its container instead of its own height, and the toggle reports to the
+   *  host so the surrounding layout can grow the drawer. Without it the
+   *  button keeps the panel-local behavior (embedded pane). */
+  maximized?: boolean;
+  onMaximizedChange?: (maximized: boolean) => void;
 }
 
-export function TerminalPanel({ open, onClose, cwd, preserveSession = false, heightOverride, onHeightChange, embedded = false }: Props) {
+export function TerminalPanel({ open, onClose, cwd, preserveSession = false, heightOverride, onHeightChange, embedded = false, maximized, onMaximizedChange }: Props) {
   const { t } = useI18n();
   const { isDark, preference } = useTheme();
   // True between mount and unmount — lets the stream cleanup distinguish a
@@ -46,7 +52,9 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
       return 280;
     }
   });
-  const [maximized, setMaximized] = useState<boolean>(false);
+  const [internalMaximized, setInternalMaximized] = useState<boolean>(false);
+  // Controlled when the drawer host participates, else panel-local state.
+  const maximizedActive = maximized ?? internalMaximized;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [sessionCwd, setSessionCwd] = useState<string>(cwd || "");
@@ -354,10 +362,10 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
       }, 120);
       return () => clearTimeout(timer);
     }
-  }, [open, height, maximized, sessionId, sendTerminalResize]);
-
+  }, [open, height, maximizedActive, sessionId, sendTerminalResize]);
   // Resize drag handler with drag-to-collapse
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (maximizedActive) return;
     isDraggingRef.current = true;
     startYRef.current = e.clientY;
     startHeightRef.current = heightOverride ?? height;
@@ -387,7 +395,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
 
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
-  }, [height, heightOverride, onClose, onHeightChange]);
+  }, [height, heightOverride, onClose, onHeightChange, maximizedActive]);
 
   const effectiveHeight = heightOverride ?? height;
 
@@ -419,8 +427,8 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
         // preserveSession: the instance is a keep-mounted multi-tab terminal —
         // it always renders at its own height and visibility is driven by the
         // tab host's display, never by collapsing to zero here.
-        height: embedded ? "100%" : (open || preserveSession) ? (maximized ? "calc(100% - 40px)" : `${effectiveHeight}px`) : 0,
-        maxHeight: embedded ? "none" : "85vh",
+        height: embedded ? "100%" : (open || preserveSession) ? (maximizedActive ? "100%" : `${effectiveHeight}px`) : 0,
+        maxHeight: embedded || maximizedActive ? "none" : "85vh",
         display: "flex",
         flexDirection: "column",
         background: "var(--bg-panel)",
@@ -534,17 +542,19 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
             <RefreshCw size={13} strokeWidth={1.8} />
           </button>
           </Tooltip>
-          <Tooltip content={maximized ? t("terminal.restore") || "Restore" : t("terminal.maximize") || "Maximize"}>
+          <Tooltip content={maximizedActive ? t("terminal.restore") || "Restore" : t("terminal.maximize") || "Maximize"}>
             <button
             type="button"
             onClick={() => {
-              setMaximized((m) => !m);
+              const next = !maximizedActive;
+              setInternalMaximized(next);
+              onMaximizedChange?.(next);
               setTimeout(() => fitAddonRef.current?.fit(), 100);
             }}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ width: 24, height: 24, borderRadius: 4 }}
           >
-            {maximized ? <Minimize2 size={13} strokeWidth={1.8} /> : <Maximize2 size={13} strokeWidth={1.8} />}
+            {maximizedActive ? <Minimize2 size={13} strokeWidth={1.8} /> : <Maximize2 size={13} strokeWidth={1.8} />}
           </button>
           </Tooltip>
           <Tooltip content={t("terminal.close") || "Close Terminal"}>

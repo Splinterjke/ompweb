@@ -65,13 +65,17 @@ function baseNameOf(cwd: string | null): string {
  * TerminalPanel children are removed (their PTYs reap); the refs are reset so
  * reopening starts a fresh shell lifecycle.
  */
-export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
+export function TerminalTabs({ open, onClose, cwd, embedded = false, maximized, onMaximizedChange }: {
   open: boolean;
   onClose: () => void;
   /** Default cwd for a newly created tab (project/active session). */
   cwd: string | null;
   /** Fill the parent workbench pane instead of owning a bottom-drawer height. */
   embedded?: boolean;
+  /** Controlled maximize (AppShell drawer): the host grows the drawer to
+   *  fill the workspace column; the panel then fills the drawer. */
+  maximized?: boolean;
+  onMaximizedChange?: (maximized: boolean) => void;
 }) {
   const { t } = useI18n();
   const [tabs, setTabs] = useState<TerminalTab[]>([]);
@@ -164,7 +168,7 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
   if (!open) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: embedded ? "100%" : `${drawerHeight + 36}px`, minHeight: 0, background: "var(--bg)", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: embedded || maximized ? "100%" : `${drawerHeight + 36}px`, minHeight: 0, background: "var(--bg)", overflow: "hidden" }}>
       {/* Keep-mounted panels; only the active one is visible. */}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {tabs.map((tab) => (
@@ -185,6 +189,8 @@ export function TerminalTabs({ open, onClose, cwd, embedded = false }: {
               heightOverride={embedded ? undefined : drawerHeight}
               onHeightChange={handleHeightChange}
               embedded={embedded}
+              maximized={embedded ? undefined : maximized}
+              onMaximizedChange={embedded ? undefined : onMaximizedChange}
             />
           </div>
         ))}

@@ -31,6 +31,17 @@ const EXPANDED_KEY = "omp-wea...ded";
 const MIN_SIZE_PERCENT = 40;
 const MAX_SIZE_PERCENT = 95;
 
+// Bottom-panel display (settings → "Git graph display"): the graph docks at
+// the bottom of the workspace column like the terminal drawer. The height is
+// draggable and persisted; dragging to the bottom edge hides the panel.
+const PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
+const PANEL_MIN_HEIGHT = 200;
+const PANEL_DEFAULT_HEIGHT = 420;
+
+/** Where the git graph renders: floating over the workspace (overlay, the
+ *  default) or docked as a bottom panel like the embedded terminal. */
+export type GitGraphDisplayMode = "overlay" | "panel";
+
 // Lane palette used by the embedded engine — mirrors the default view-config
 // palette (lib/git-graph/default-config.ts, upstream "Default" set). These
 // are the webview's own --git-graph-colorN data colors, not ompweb chrome
@@ -235,11 +246,16 @@ function DiffPane({ diff, loading, error, mobile, onClose }: {
  * and the collapsible diff pane. Not a Dialog — the panel floats over the
  * workspace and keeps its own close control (no backdrop).
  */
-export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, onOpenFile }: {
+export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, mode = "overlay", onExpandedChange, onOpenFile }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cwd: string | null;
   sizePercent?: number;
+  /** overlay = floating fixed panel; panel = docked at the workspace bottom. */
+  mode?: GitGraphDisplayMode;
+  /** Panel mode: tell the host whether the docked panel is expanded (filled),
+   *  so the surrounding flex layout can grow it into the workspace column. */
+  onExpandedChange?: (expanded: boolean) => void;
   onOpenFile: (filePath: string) => void;
 }) {
   const { t } = useI18n();
@@ -269,6 +285,59 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, onOpe
       // Storage unavailable (private mode) — the state still applies this session.
     }
   }, [expanded]);
+
+  // Docked-panel height (panel display mode): persisted, dragged from the
+  // top edge; dragging past the minimum hides the panel (terminal gesture).
+  const [panelHeight, setPanelHeight] = useState(() => {
+    if (typeof window === "undefined") return PANEL_DEFAULT_HEIGHT;
+    try {
+      const raw = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+      const parsed = raw === null ? Number.NaN : Number(raw);
+      return Number.isFinite(parsed) ? Math.max(PANEL_MIN_HEIGHT, parsed) : PANEL_DEFAULT_HEIGHT;
+    } catch {
+      return PANEL_DEFAULT_HEIGHT;
+    }
+  });
+  const panelHeightRef = useRef(panelHeight);
+  panelHeightRef.current = panelHeight;
+  useEffect(() => {
+    if (mode !== "panel") return;
+    try {
+      window.localStorage.setItem(PANEL_HEIGHT_KEY, String(panelHeight));
+    } catch {
+      // Storage unavailable (private mode) — the height still applies this session.
+    }
+  }, [mode, panelHeight]);
+
+  // The host coordinates the docked layout: an expanded panel grows into the
+  // workspace column (it owns the flex basis), a restored one keeps its own
+  // height. Report the effective state whenever it changes.
+  useEffect(() => {
+    onExpandedChange?.(mode === "panel" && open && expanded);
+  }, [mode, open, expanded, onExpandedChange]);
+
+  const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = panelHeightRef.current;
+    let closed = false;
+    const onMouseMove = (ev: MouseEvent) => {
+      if (closed) return;
+      const next = startHeight + (startY - ev.clientY);
+      if (next < 120) {
+        closed = true;
+        onOpenChange(false);
+        return;
+      }
+      setPanelHeight(Math.max(PANEL_MIN_HEIGHT, Math.min(window.innerHeight * 0.8, next)));
+    };
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [onOpenChange]);
 
   const [frameLoaded, setFrameLoaded] = useState(false);
   const [frameEpoch, setFrameEpoch] = useState(0); // bumped to reload the embed (refresh)
@@ -452,6 +521,14 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, onOpe
   // Collapsed = centered box at the configured percentage of the viewport;
   // expanded = near-fullscreen with a small margin; mobile = full-screen
   // sheet (same as the mobile right panel).
+  const isPanel = mode === "panel";
+  const panelStyle: React.CSSProperties = {
+    position: "relative",
+    width: "100%",
+    minHeight: 0,
+    flex: expanded ? "1 1 auto" : "0 0 auto",
+    height: expanded ? "100%" : panelHeight,
+  };
   const sizePct = Math.min(MAX_SIZE_PERCENT, Math.max(MIN_SIZE_PERCENT, Math.round(sizePercent)));
   const overlayStyle: React.CSSProperties = isMobile
     ? {
@@ -475,7 +552,15 @@ export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, onOpe
   if (!open) return null;
 
   return (
-    <section className="git-graph-overlay" style={overlayStyle} role="region" aria-label={t("gitGraph.title")}>
+    <section className={isPanel ? "git-graph-panel" : "git-graph-overlay"} style={isPanel ? panelStyle : overlayStyle} role="region" aria-label={t("gitGraph.title")}>
+      {isPanel && !expanded && (
+        <Tooltip content={t("gitGraph.resizeHint")}>
+          <div
+            onMouseDown={handlePanelResizeStart}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, height: 6, cursor: "row-resize", zIndex: 5 }}
+          />
+        </Tooltip>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, minWidth: 0 }}>
         <GitBranch size={15} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" />
         <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 600, flexShrink: 0 }}>{t("gitGraph.title")}</span>

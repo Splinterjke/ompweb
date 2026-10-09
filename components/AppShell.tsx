@@ -52,7 +52,7 @@ import type { SettingsTab } from "./SettingsTabs";
 import { SETTINGS_CATEGORIES, getNormalizedActive } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
 import { ArchiveBrowser } from "./ArchiveBrowser";
-import { GitGraphModal } from "./GitGraphModal";
+import { GitGraphModal, type GitGraphDisplayMode } from "./GitGraphModal";
 import { UpdateNoticeDialog } from "./UpdateNoticeDialog";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { UsageDashboardModal } from "./usage/UsageDashboardModal";
@@ -75,6 +75,7 @@ const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
 const EXTENDED_THINKING_BLOCK_STORAGE_KEY = "omp-web:extended-thinking-block";
 const EXTENDED_BLOCKS_STORAGE_KEY = "omp-web:extended-detail-blocks";
 const GIT_GRAPH_SIZE_STORAGE_KEY = "omp-web:git-graph-size";
+const GIT_GRAPH_DISPLAY_STORAGE_KEY = "omp-web:git-graph-display";
 const SESSION_INFO_BUTTON_STORAGE_KEY = "omp-web:session-info-button";
 const JUMP_TO_BOTTOM_BUTTON_STORAGE_KEY = "omp-web:jump-to-bottom-button";
 const TOOL_OUTPUT_CAP_STORAGE_KEY = "omp-web:tool-output-cap";
@@ -237,6 +238,20 @@ export function AppShell({ appName }: { appName: string }) {
     // outside it to the default so the select never renders blank.
     return GIT_GRAPH_SIZE_PRESETS.includes(clamped) ? clamped : GIT_GRAPH_DEFAULT_SIZE;
   });
+  // Git graph display mode: floating overlay (default) or docked bottom
+  // panel. Persisted exactly like the overlay size setting.
+  const [gitGraphDisplay, setGitGraphDisplay] = useState<GitGraphDisplayMode>(() => {
+    if (typeof window === "undefined") return "overlay";
+    try {
+      return window.localStorage.getItem(GIT_GRAPH_DISPLAY_STORAGE_KEY) === "panel" ? "panel" : "overlay";
+    } catch {
+      return "overlay";
+    }
+  });
+  // Layout mirrors of the docked panels' expanded states, owned here so the
+  // surrounding flex column can give a maximized panel the whole workspace.
+  const [gitGraphPanelExpanded, setGitGraphPanelExpanded] = useState(false);
+  const [terminalMaximized, setTerminalMaximized] = useState(false);
   const [toolCallsDefaultCollapsed, setToolCallsDefaultCollapsed] = useState(true);
   const [showGoalTokenBudget, setShowGoalTokenBudget] = useState(false);
   const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
@@ -632,6 +647,15 @@ export function AppShell({ appName }: { appName: string }) {
     setGitGraphModalSize(clamped);
     try {
       window.localStorage.setItem(GIT_GRAPH_SIZE_STORAGE_KEY, String(clamped));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleGitGraphDisplayChange = useCallback((next: GitGraphDisplayMode) => {
+    setGitGraphDisplay(next);
+    setGitGraphPanelExpanded(false);
+    try {
+      window.localStorage.setItem(GIT_GRAPH_DISPLAY_STORAGE_KEY, next);
     } catch {
       // The preference still applies for this page load.
     }
@@ -1140,6 +1164,14 @@ export function AppShell({ appName }: { appName: string }) {
     : rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel");
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalCwd, setTerminalCwd] = useState<string | null>(null);
+  // A closed docked panel never carries a maximized layout into the next
+  // open cycle.
+  useEffect(() => {
+    if (!gitGraphOpen) setGitGraphPanelExpanded(false);
+  }, [gitGraphOpen]);
+  useEffect(() => {
+    if (!terminalOpen) setTerminalMaximized(false);
+  }, [terminalOpen]);
 
   const toggleTerminalPanel = useCallback(() => {
     setTerminalCwd((current) => current ?? selectedSession?.cwd ?? null);
@@ -2829,6 +2861,32 @@ export function AppShell({ appName }: { appName: string }) {
             </div>
           )}
         </div>
+        {/* Git graph docked as a bottom panel (settings → "Git graph
+            display" = panel). The overlay variant renders at the app root
+            instead, so only one of the two is ever mounted. */}
+        {gitGraphDisplay === "panel" && (
+          <div
+            style={{
+              display: gitGraphOpen ? "flex" : "none",
+              flexDirection: "column",
+              // Expanded: claim the whole workspace column — the 100% flex
+              // basis starves the chat area (flex-basis 0) to nothing;
+              // restored: the panel drives its own dragged height.
+              flex: gitGraphPanelExpanded ? "1 1 100%" : "0 0 auto",
+              minHeight: 0,
+              background: "var(--bg)",
+            }}
+          >
+            <GitGraphModal
+              mode="panel"
+              open={gitGraphOpen}
+              onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }}
+              cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+              onExpandedChange={setGitGraphPanelExpanded}
+              onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)}
+            />
+          </div>
+        )}
         {/* Bottom terminal bar. It remains independent from the right
             workbench so the terminal always has a predictable home and its
             tab/PTY lifecycle is not tied to sidebar navigation. */}
@@ -2836,7 +2894,11 @@ export function AppShell({ appName }: { appName: string }) {
           style={{
             display: terminalOpen ? "flex" : "none",
             flexDirection: "column",
-            flexShrink: 0,
+            // Maximized: the drawer claims the whole workspace column (the
+            // same 100% flex-basis trick as the graph panel); otherwise it
+            // keeps its dragged height.
+            flex: terminalMaximized ? "1 1 100%" : "0 0 auto",
+            minHeight: 0,
             borderTop: terminalOpen ? "1px solid var(--border)" : "none",
             background: "var(--bg)",
           }}
@@ -2845,6 +2907,8 @@ export function AppShell({ appName }: { appName: string }) {
             open={terminalOpen}
             onClose={() => setTerminalOpen(false)}
             cwd={terminalCwd ?? activeCwd ?? null}
+            maximized={terminalMaximized}
+            onMaximizedChange={setTerminalMaximized}
           />
         </div>
       </main>
@@ -2953,7 +3017,7 @@ export function AppShell({ appName }: { appName: string }) {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-    <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)} />
+    <GitGraphModal open={gitGraphOpen && gitGraphDisplay === "overlay"} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
@@ -2973,6 +3037,8 @@ export function AppShell({ appName }: { appName: string }) {
         onExtendedBlocksChange={handleExtendedBlocksChange}
         gitGraphModalSize={gitGraphModalSize}
         onGitGraphModalSizeChange={handleGitGraphModalSizeChange}
+        gitGraphDisplay={gitGraphDisplay}
+        onGitGraphDisplayChange={handleGitGraphDisplayChange}
         sessionInfoButtonVisible={sessionInfoButtonVisible}
         onSessionInfoButtonChange={handleSessionInfoButtonChange}
         showJumpToBottomButton={showJumpToBottomButton}
