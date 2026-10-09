@@ -414,6 +414,21 @@ hooks/
 - **Fork** ("Fork a new session from this point" button, `messageView.newSessionTitle`, on user and assistant messages; only offered while the session is idle — ChatWindow gates it on `!sessionBusy && !isNew`): creates a new independent `.jsonl` file via omp's `branch` RPC. Shown as a child in the sidebar tree via `parentSession` header field. `branch` only takes a user entry and keeps the history *before* it, so `lib/chat-fork.ts` maps rows: a user prompt forks at itself and its returned text prefills the fork's composer (edit-and-resend, text only — attached images are not restored); an assistant reply forks at the next user prompt so the reply is kept; the newest reply falls back to its own prompt with the prefill. Rows that would edit the very first prompt (an empty fork) offer no fork.
 - **In-session branch** (Continue button / BranchNavigator): navigates the entry tree within the same file. Multiple entries share the same `parentId`. Switching between them calls `/api/sessions/[id]/context?leafId=`.
 
+### Session title cards (`lib/title-card.ts`, `components/TitleCardBadge.tsx`)
+- omp >= 18.8.1: generated and `/rename`d session titles may carry a card —
+  `<icon> <CODE>: <title>` (e.g. `🧪 FLAKY: Fix flaky park tests`). The card is part
+  of the title string stored in the session file; every title reader receives it
+  unchanged. `parseTitleCard` mirrors upstream exactly (`CARD_LINE`
+  `^(\S+) ([A-Z0-9]{1,6}): (\S.*)$` + the icon must be 1-8 non-ASCII code points),
+  so a plain title is NEVER split apart — anything else parses to `null`.
+- `TitleCardBadge` renders the icon glyph + the code as a monospace chip from the
+  shared design tokens; rows and the chat-header breadcrumb render
+  `parseTitleCard(name).title` (card stripped) next to it. The stored title is
+  never rewritten (`formatTitleCard` exists only for rename round-trips).
+- Surfaces: sidebar session rows + project/session tree (`SessionItem`, now
+  exported for row-level tests and the SSR harness) and the chat top-bar
+  breadcrumb (`AppShell`).
+
 ### ToolCall field normalization
 Sessions store toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and streaming event handling.
 
@@ -713,6 +728,9 @@ during the wait.
   count (`inflightTaskDetails`/`extractedToolData.task` progress), and the
   `⤴` async marker (live `detached` flag or history `details.async`
   presence). Shared formatters live in `lib/subagent-format.ts`.
+- **Roster order** (omp 18.8.4 Agent-Hub parity): newest spawn first — the live
+  and on-disk rosters are a stable sort on descending launch index, so existing
+  entries keep their relative order when a new subagent appears.
 
 ### Worktrees and project grouping
 - `lib/worktree.ts` resolves linked worktree top-levels back to the main repo `projectRoot`; `listAllSessions()` attaches that to each `SessionInfo` so all worktrees for one repo are grouped together in the sidebar.
@@ -721,6 +739,14 @@ during the wait.
 - Removing a dirty worktree returns `409` with `{ dirty: true }` so the UI can ask before retrying with `force`.
 - The right workbench's **Worktrees** view (`components/WorktreesPanel.tsx`) lists, switches, creates and removes the active Git workspace's worktrees, alongside the setting-gated inline chip on the project row; the new-session screen's worktree `<select>` (`WorkspaceSelector`, shown when the selected workspace is a Git top-level repo with 2+ worktrees) only switches. `SessionSidebar` owns the per-repo worktree cache and the actions and emits them as a `WorktreeContext` (`onWorktreeContextChange`, null unless the active workspace is a Git top-level repo); AppShell hands it to the Worktrees view (keyed by `projectRoot` so a draft branch or pending confirmation never carries over to another repo) and the new-session picker. Switching moves the sidebar's effective cwd (where a new session starts), not the open session.
 - Sessions whose cwd points at a removed worktree are inferred back into the main project instead of becoming a phantom project row.
+- **omp-managed worktrees** (omp >= 18.8.6 per-session `worktree.onStart/onExit`):
+  trees under omp's agent-managed base (`OMP_WORKTREE_DIR` -> `worktree.base` in
+  `config.yml` -> `~/.omp/wt`, same chain as pi-utils `getWorktreeDir`) are marked
+  `agentManaged` by `listWorktrees` (`lib/worktree.ts` `agentWorktreeBase` /
+  `isAgentManagedWorktreePath`), show an `omp` chip and no delete affordance in
+  the Worktrees panel, and `removeWorktree` refuses the deletion even with force
+  (route -> `409 agent_managed_worktree`) — only omp knows whether a live session
+  still runs inside the tree.
 
 ### Managed projects sidebar (`lib/project-registry.ts`, `/api/projects`)
 - The sidebar lists **managed projects**: explicitly added directories (registered in
@@ -899,6 +925,13 @@ during the wait.
 - Auth flows go through RPC commands (`get_login_providers`, `login`) against the omp child process; credentials live in omp's `agent.db` (SQLite) which omp-web never touches directly.
 - The Models panel reads and writes `models.yml` in the omp agent directory (`~/.omp/agent/models.yml`, `.yaml` fallback).
 - API-key status endpoints must never return the raw key.
+- The Native registry card shows a **Compaction limits** section (`compaction.modelThresholds`,
+  omp >= 18.8.5): token points (`120k`/`1.5m`) and `NN%` thresholds resolved against
+  the model's context window (`lib/compaction-point.ts`), invalid values surfaced in
+  red, plus the global default from `thresholdTokens`/`thresholdPercent`. It's an
+  exported `CompactionLimitsSection` in `components/ModelsConfig.tsx` for row-level
+  tests; `lib/omp/settings-config.ts` additionally reads `worktree.base` (read-only
+  surface — omp owns that knob).
 
 ### Automation tasks — script + prompt schedulers (`lib/scheduler-store.ts`, `lib/scheduler-engine.ts`, `/api/schedulers`)
 - The sidebar "Automation tasks" panel (renamed from "Script schedulers") has two
