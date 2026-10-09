@@ -42,6 +42,8 @@ export type NativeSettings = {
     supersedeReads?: boolean;
     dropUseless?: boolean;
     handoffSaveToDisk?: boolean;
+    /** omp >= 18.8.5 per-model auto-compaction points; keys `provider/model-id` or `provider/*`, values `90000`/`90k`/`1M`/`80%`. */
+    modelThresholds?: Record<string, string | number>;
     experimentalContextManagement?: boolean;
   };
   goal?: { continuationModes?: string[] };
@@ -55,6 +57,8 @@ export type NativeSettings = {
   computer?: { enabled?: boolean };
   skills?: { enableCodexUser?: boolean; enableAgentsUser?: boolean; enableClaudeUser?: boolean; enableClaudeProject?: boolean; showStartupDiagnostics?: boolean };
   bash?: { autoBackground?: { enabled?: boolean } };
+  /** omp >= 18.8.6 per-session worktrees; `worktree.base` is the agent-managed tree (read-only surface here). */
+  worktree?: { base?: string };
   providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
   security?: { enabled?: boolean };
   github?: { enabled?: boolean };
@@ -180,6 +184,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const skills = isRecord(data.skills) ? data.skills : {};
   const bash = isRecord(data.bash) ? data.bash : {};
   const bashAutoBackground = isRecord(bash.autoBackground) ? bash.autoBackground : {};
+  const worktree = isRecord(data.worktree) ? data.worktree : {};
   const providers = isRecord(data.providers) ? data.providers : {};
   const autoThinkingSource = providers.autoThinkingSource;
   const security = isRecord(data.security) ? data.security : {};
@@ -248,6 +253,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof compaction.supersedeReads === "boolean" ? { supersedeReads: compaction.supersedeReads } : {}),
         ...(typeof compaction.dropUseless === "boolean" ? { dropUseless: compaction.dropUseless } : {}),
         ...(typeof compaction.handoffSaveToDisk === "boolean" ? { handoffSaveToDisk: compaction.handoffSaveToDisk } : {}),
+        ...(compactionModelThresholds(compaction.modelThresholds) ? { modelThresholds: compactionModelThresholds(compaction.modelThresholds)! } : {}),
       } } : {}),
       ...(Object.keys(goal).length ? { goal: {
         ...(goalContinuationModes(goal.continuationModes) ? { continuationModes: goalContinuationModes(goal.continuationModes)! } : {}),
@@ -285,6 +291,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof skills.showStartupDiagnostics === "boolean" ? { showStartupDiagnostics: skills.showStartupDiagnostics } : {}),
       } } : {}),
       ...(Object.keys(bash).length ? { bash: { ...(Object.keys(bashAutoBackground).length ? { autoBackground: { ...(typeof bashAutoBackground.enabled === "boolean" ? { enabled: bashAutoBackground.enabled } : {}) } } : {}) } } : {}),
+      ...(typeof worktree.base === "string" && worktree.base.trim() ? { worktree: { base: worktree.base.trim() } } : {}),
       ...(() => {
         const providersOut = {
           ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
@@ -428,6 +435,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
   if (settings.compaction?.idleThresholdTokens !== undefined && !isTokenBudget(settings.compaction.idleThresholdTokens)) throw new Error("compaction.idleThresholdTokens must be an integer between 0 and 1,000,000");
   if (settings.compaction?.idleTimeoutSeconds !== undefined && !isSeconds(settings.compaction.idleTimeoutSeconds)) throw new Error("compaction.idleTimeoutSeconds must be an integer between 1 and 86,400");
   if (settings.compaction?.keepRecentTokens !== undefined && (!Number.isInteger(settings.compaction.keepRecentTokens) || settings.compaction.keepRecentTokens < 1_000 || settings.compaction.keepRecentTokens > 1_000_000)) throw new Error("compaction.keepRecentTokens must be an integer between 1,000 and 1,000,000");
+  if (settings.compaction?.modelThresholds !== undefined && compactionModelThresholds(settings.compaction.modelThresholds) === undefined) throw new Error("compaction.modelThresholds must map non-empty keys to string or number values");
   if (settings.branchSummary?.reserveTokens !== undefined && !isTokenBudget(settings.branchSummary.reserveTokens)) throw new Error("branchSummary.reserveTokens must be an integer between 0 and 1,000,000");
   if (settings.memory?.backend !== undefined && !MEMORY_BACKENDS.has(settings.memory.backend)) throw new Error("Invalid memory backend");
   if (settings.autolearn?.minToolCalls !== undefined && (!Number.isInteger(settings.autolearn.minToolCalls) || settings.autolearn.minToolCalls < 0 || settings.autolearn.minToolCalls > 100)) throw new Error("Auto-learn minimum tool calls must be an integer between 0 and 100");
@@ -519,4 +527,14 @@ export function writeNativeSettings(settings: NativeSettings): void {
   const temp = `${path}.tmp-${process.pid}-${Date.now()}`;
   writeFileSync(temp, doc.toString(), "utf8");
   renameSync(temp, path);
+}
+
+/** `compaction.modelThresholds` (omp >= 18.8.5): a non-empty map of model
+ * selector keys to threshold values; undefined for anything malformed. */
+function compactionModelThresholds(value: unknown): Record<string, string | number> | undefined {
+  if (!isRecord(value)) return undefined;
+  const entries = Object.entries(value).filter((entry): entry is [string, string | number] =>
+    typeof entry[0] === "string" && entry[0].trim().length > 0
+    && (typeof entry[1] === "string" || (typeof entry[1] === "number" && Number.isFinite(entry[1]))));
+  return entries.length ? Object.fromEntries(entries) : undefined;
 }

@@ -128,8 +128,16 @@ export function WorktreesPanel({ ctx }: { ctx: WorktreeContext | null }) {
               )}
               <PathLabel text={wt.branch ?? displayCwd(wt.path, homeDir)} style={{ flex: 1 }} />
               {wt.isMain && <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: 10 }}>{t("sessionSidebar.mainBadge")}</span>}
+              {wt.agentManaged && (
+                <span
+                  title={t("sessionSidebar.worktreeManagedTooltip")}
+                  style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 700, lineHeight: "14px", height: 14, padding: "0 4px", borderRadius: 3, color: "var(--text-muted)", background: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                >
+                  omp
+                </span>
+              )}
             </button>
-            {!wt.isMain && (
+            {!wt.isMain && !wt.agentManaged && (
               <button
                 onClick={() => void handleRemove(wt.path, false)}
                 disabled={busy}

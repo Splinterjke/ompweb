@@ -239,7 +239,8 @@ export function extractSubagentHistory(sessionFilePath: string): SubagentHistory
       entry.resolvedModel ??= transcriptModel(candidate);
     }
   }
-  return roster.sort((a, b) => a.index - b.index || a.id.localeCompare(b.id));
+  // Newest first — same order the live roster keeps (omp 18.8.4 Agent-Hub parity).
+  return roster.sort((a, b) => b.index - a.index || a.id.localeCompare(b.id));
 }
 
 /** Bytes read from a transcript's head to find its model entries. */

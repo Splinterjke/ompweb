@@ -25,6 +25,7 @@ function worktreeErrorCode(message: string): string | undefined {
   if (message.startsWith("Directory already exists")) return "worktree_directory_exists";
   if (message.startsWith("Not a worktree of this repository")) return "not_a_worktree";
   if (message.startsWith("Cannot remove the main worktree")) return "cannot_remove_main_worktree";
+  if (message.startsWith("Agent-managed worktree")) return "agent_managed_worktree";
   return undefined;
 }
 
@@ -115,6 +116,8 @@ export async function DELETE(req: Request) {
     // the UI can offer a force-remove confirmation.
     const dirty = /contains modified or untracked files|is dirty/i.test(message);
     const code = dirty ? "worktree_dirty" : worktreeErrorCode(message);
-    return NextResponse.json({ error: message, code, dirty }, { status: dirty ? 409 : 400 });
+    // A managed-tree refusal is a state conflict, like a dirty tree.
+    const conflict = dirty || code === "agent_managed_worktree";
+    return NextResponse.json({ error: message, code, dirty }, { status: conflict ? 409 : 400 });
   }
 }
