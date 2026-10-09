@@ -1,127 +1,133 @@
 "use client";
-import { Tooltip } from "./ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, GitBranch, GitCommitHorizontal, LoaderCircle, RefreshCw, X } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/primitives";
+import { GitBranch, LoaderCircle, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
+import { Tooltip } from "./ui/primitives";
 import { useI18n } from "@/lib/i18n";
+import { toast } from "@/components/ui/toast";
 import { createOmpwebClient } from "@/lib/client";
-import type { GitCommitFile, GitCommitInfo, GitGraphRow } from "@/lib/git-log";
+import { useTheme } from "@/hooks/useTheme";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const client = createOmpwebClient("legacy-http");
-// Local branch lane colors — theme status vars only (no hardcoded colors).
-const BRANCH_PALETTE = [
-  "var(--status-success)",
-  "var(--status-renamed)",
-  "var(--status-warning)",
-  "var(--status-modified)",
-  "var(--status-error)",
-] as const;
-const DEFAULT_LANE = "var(--border)";
 
-const LANE_W = 22;
-const LANE_PAD_X = 10;
-const COMMIT_ROW_H = 44;
-const GAP_ROW_H = 12;
-// Persisted pixel widths of the resizable files-list and file-diff panes.
-// The commit tree is the flex remainder, so it keeps filling the remaining
-// space at any modal size.
-const FILES_WIDTH_KEY = "omp-web:git-graph-files-width";
-const DIFF_WIDTH_KEY = "omp-web:git-graph-diff-width";
-const FILES_MIN_WIDTH = 220;
-const DIFF_MIN_WIDTH = 220;
-const TREE_MIN_WIDTH = 260;
-const FILES_FALLBACK_WIDTH = 320;
-const DIFF_FALLBACK_WIDTH = 420;
+/**
+ * Git graph overlay: hosts the vendored vscode-git-graph engine webview
+ * (served by /gitgraph, built from vendor/vscode-git-graph/web) in a
+ * same-origin iframe and implements the embedding-page side of the host
+ * protocol defined by vendor/vscode-git-graph/web/ompweb-bridge.ts:
+ * theme pushes, open-file relays, and the right-hand diff pane fed by
+ * open-diff relays. The overlay floats above the workspace panes (it is not
+ * a modal dialog: it has its own chrome and a close button, and Escape only
+ * closes it while no real dialog is open).
+ */
+
+// Persisted expand/collapse state: collapsed = the configured percentage-of-
+// viewport size, centered; expanded = near-fullscreen with a small margin.
+const EXPANDED_KEY = "omp-wea...ded";
+
+// Percentage-of-viewport sizing for the collapsed overlay. Clamped to 40-95
+// so the chrome stays reachable at any setting.
+const MIN_SIZE_PERCENT = 40;
+const MAX_SIZE_PERCENT = 95;
+
+// Lane palette used by the embedded engine — mirrors the default view-config
+// palette (lib/git-graph/default-config.ts, upstream "Default" set). These
+// are the webview's own --git-graph-colorN data colors, not ompweb chrome
+// colors (the overlay chrome itself is token-only).
+const GG_LANE_COLORS = [
+  "#2C3E50", "#C0392B", "#27AE60", "#8E44AD", "#E67E22", "#16A085",
+  "#2980B9", "#D35400", "#1ABC9C", "#F39C12", "#3498DB", "#E74C3C",
+];
+
+/**
+ * Webview CSS variables used by the vendored Git Graph styles → ompweb
+ * design tokens. Values are read from the root element's computed styles at
+ * push time, so this single map resolves against whichever ompweb theme is
+ * active (one map, tokens auto-resolve per theme). The two font-family
+ * entries are filled from computed font stacks instead of custom
+ * properties (they are not tokenized on :root for every theme).
+ */
+const THEME_TOKEN_MAP: Readonly<Record<string, string>> = {
+  "--vscode-editor-background": "--bg",
+  "--vscode-editor-foreground": "--text",
+  "--vscode-editorWidget-background": "--bg-panel",
+  "--vscode-editorSuggestWidget-foreground": "--text",
+  "--vscode-editor-findMatchHighlightBorder": "--accent",
+  "--vscode-panel-background": "--bg-panel",
+  "--vscode-panel-border": "--border",
+  "--vscode-input-background": "--bg-panel",
+  "--vscode-input-foreground": "--text",
+  "--vscode-input-placeholderForeground": "--text-dim",
+  "--vscode-inputOption-activeBackground": "--bg-selected",
+  "--vscode-inputOption-activeBorder": "--accent",
+  "--vscode-inputOption-hoverBackground": "--bg-hover",
+  "--vscode-inputValidation-errorBackground": "--bg-panel",
+  "--vscode-inputValidation-errorBorder": "--status-error",
+  "--vscode-dropdown-background": "--bg",
+  "--vscode-dropdown-foreground": "--text",
+  "--vscode-dropdown-border": "--border",
+  "--vscode-menu-background": "--bg",
+  "--vscode-menu-foreground": "--text",
+  "--vscode-menu-border": "--border",
+  "--vscode-menu-selectionBackground": "--bg-selected",
+  "--vscode-menu-selectionForeground": "--text",
+  "--vscode-menu-selectionBorder": "--border",
+  "--vscode-menu-separatorBackground": "--border",
+  "--vscode-selection-background": "--bg-selected",
+  "--vscode-focusBorder": "--accent",
+  "--vscode-textLink-foreground": "--accent",
+  "--vscode-textLink-activeForeground": "--accent-hover",
+  "--vscode-gitDecoration-addedResourceForeground": "--status-success",
+  "--vscode-gitDecoration-modifiedResourceForeground": "--status-modified",
+  "--vscode-gitDecoration-deletedResourceForeground": "--status-error",
+  "--vscode-widget-shadow": "--shadow-modal",
+  "--vscode-descriptionForeground": "--text-muted",
+  "--vscode-errorForeground": "--status-error",
+  "--vscode-button-background": "--accent",
+  "--vscode-button-hoverBackground": "--accent-hover",
+  "--vscode-button-foreground": "--on-accent",
+  "--vscode-button-secondaryBackground": "--bg-panel",
+  "--vscode-button-secondaryHoverBackground": "--bg-hover",
+  "--vscode-button-secondaryForeground": "--text",
+  "--vscode-banner-background": "--bg-panel",
+  "--vscode-errorBackground": "--bg-panel",
+};
+
+/** Validated ompweb-gg-open-diff relay (fields narrowed at the listener). */
+interface DiffRequest {
+  repo: string | null;
+  mode: string | null;
+  filePath: string | null;
+  hash: string | null;
+  fromHash: string | null;
+  toHash: string | null;
+}
 
 type DiffState = { file: string; diff: string; binary: boolean; truncated: boolean } | null;
 
-interface CommitLogPayload {
-  rows: GitGraphRow[];
-  maxLane: number;
+/** client.git.refDiff payload: a unified diff, or an unsupported/error shape. */
+interface RefDiffPayload {
+  diff?: string;
+  binary?: boolean;
+  truncated?: boolean;
+  supported?: boolean;
+  error?: string;
 }
 
-/** Per-lane color per row: a lane takes the color of the nearest commit
- * above it that landed on that lane (HEAD → accent, branch → palette). */
-function computeRowLaneColors(rows: GitGraphRow[], maxLane: number): string[][] {
-  const branchColor: Record<string, number> = {};
-  let branchCount = 0;
-  const current: string[] = [];
-  return rows.map((row) => {
-    const out: string[] = [];
-    for (let l = 0; l < maxLane; l++) {
-      if (row.kind === "commit" && row.graph[l] === "C") {
-        const refs = row.commit.refs;
-        if (refs.head) {
-          current[l] = "var(--accent)";
-        } else if (refs.branches.length > 0) {
-          const name = refs.branches[0];
-          if (name in branchColor === false) branchColor[name] = branchCount++;
-          current[l] = BRANCH_PALETTE[branchColor[name] % BRANCH_PALETTE.length];
-        } else {
-          current[l] = "var(--text-dim)";
-        }
-      }
-      out[l] = current[l] ?? DEFAULT_LANE;
-    }
-    return out;
-  });
-}
+// ClientError is a plain object ({ code, message, retryable }), not an Error
+// instance — String(err) on it yields "[object Object]".
+const describeError = (err: unknown): string => {
+  if (err instanceof Error) return err.message;
+  if (err && typeof err === "object" && "message" in err) return String(err.message);
+  return String(err);
+};
 
-function GraphStrip({ chars, height, colors, prevChars, nextChars }: {
-  chars: string[];
-  height: number;
-  colors: string[];
-  prevChars: string[] | null;
-  nextChars: string[] | null;
-}) {
-  const width = LANE_PAD_X * 2 + (chars.length > 0 ? chars.length - 1 : 0) * LANE_W + LANE_W;
-  const elements = [];
-  for (let l = 0; l < chars.length; l++) {
-    const ch = chars[l];
-    if (ch === " ") continue;
-    const x = LANE_PAD_X + l * LANE_W;
-    const color = colors[l] ?? DEFAULT_LANE;
-    switch (ch) {
-      case "L":
-        elements.push(<line key={l} x1={x} y1={0} x2={x} y2={height} stroke={color} strokeWidth={1.5} />);
-        break;
-      case "C": {
-        const cy = 12;
-        const up = prevChars?.[l] === "L" || prevChars?.[l] === "C" || prevChars?.[l] === "o";
-        const down = nextChars?.[l] === "L" || nextChars?.[l] === "C" || nextChars?.[l] === "o";
-        if (up) elements.push(<line key={`up-${l}`} x1={x} y1={0} x2={x} y2={cy} stroke={color} strokeWidth={1.5} />);
-        if (down) elements.push(<line key={`down-${l}`} x1={x} y1={cy} x2={x} y2={height} stroke={color} strokeWidth={1.5} />);
-        elements.push(<circle key={`halo-${l}`} cx={x} cy={cy} r={5.5} fill="var(--bg)" />);
-        elements.push(<circle key={l} cx={x} cy={cy} r={4.5} fill={color} />);
-        break;
-      }
-      case "o": {
-        const cy = height / 2;
-        elements.push(<line key={`ou-${l}`} x1={x} y1={0} x2={x} y2={cy - 3.5} stroke={color} strokeWidth={1.5} />);
-        elements.push(<line key={`od-${l}`} x1={x} y1={cy + 3.5} x2={x} y2={height} stroke={color} strokeWidth={1.5} />);
-        elements.push(<circle key={l} cx={x} cy={cy} r={3.5} fill="var(--bg)" stroke={color} strokeWidth={1.5} />);
-        break;
-      }
-      case ".":
-        elements.push(<circle key={l} cx={x} cy={height / 2} r={2} fill="none" stroke={color} strokeWidth={1} />);
-        break;
-      case "/":
-        elements.push(<line key={l} x1={x} y1={0} x2={x + LANE_W} y2={height} stroke={color} strokeWidth={1.5} />);
-        break;
-      case "\\":
-        elements.push(<line key={l} x1={x} y1={0} x2={x - LANE_W} y2={height} stroke={color} strokeWidth={1.5} />);
-        break;
-      case "-":
-        elements.push(<line key={l} x1={x - LANE_W / 2} y1={height / 2} x2={x + LANE_W / 2} y2={height / 2} stroke={color} strokeWidth={1.5} />);
-        break;
-    }
-  }
-  return (
-    <svg width={width} height={height} aria-hidden="true" style={{ flexShrink: 0, display: "block" }}>
-      {elements}
-    </svg>
-  );
+/** Repo-relative → absolute path (same normalization the webview bridge applies). */
+function absoluteFilePath(filePath: string, repo: string | null): string | null {
+  if (filePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(filePath)) return filePath;
+  if (!repo) return null;
+  return repo.replace(/[\\/]+$/, "") + "/" + filePath.replace(/^[/\\]+/, "");
 }
 
 function DiffLines({ diff }: { diff: string }) {
@@ -153,231 +159,361 @@ function DiffLines({ diff }: { diff: string }) {
 }
 
 /**
- * Percentage-of-viewport sizing for the git-graph modal. Clamped to 40-95 so
- * the chrome stays reachable at any setting.
+ * Right-hand unified-diff pane (module-internal). Fed by ompweb-gg-open-diff
+ * relays: the working mode shows the file at the requested commit against
+ * the working tree, the compare mode the requested from→to range — both
+ * through the client adapter's ref diff (client.git.refDiff). Renders
+ * the unified diff as-is with +/- lines colored from the status tokens. The
+ * pane is collapsed while nothing is loaded (no diff, no load in flight, no
+ * error) and closes via its X button.
  */
-const MIN_SIZE_PERCENT = 40;
-const MAX_SIZE_PERCENT = 95;
+function DiffPane({ diff, loading, error, mobile, onClose }: {
+  diff: DiffState;
+  loading: boolean;
+  error: string | null;
+  mobile: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  if (!diff && !error && !loading) return null;
+  return (
+    <section
+      aria-label={diff ? diff.file : t("gitGraph.selectFile")}
+      style={{
+        width: mobile ? "100%" : "clamp(320px, 42%, 640px)",
+        position: mobile ? "absolute" : "relative",
+        inset: mobile ? 0 : undefined,
+        flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        background: "var(--bg)",
+        borderLeft: mobile ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, minWidth: 0 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: diff ? "var(--text-muted)" : "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {diff ? diff.file : t("gitGraph.selectFile")}
+        </span>
+        {loading && <LoaderCircle size={12} strokeWidth={1.8} className="icon-spin" style={{ flexShrink: 0 }} aria-hidden="true" />}
+        <Tooltip content={t("gitGraph.close")}>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("gitGraph.close")}
+            className="ui-focus-ring"
+            style={{ display: "inline-flex", padding: 4, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", flexShrink: 0 }}
+          >
+            <X size={13} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        </Tooltip>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "8px 10px" }}>
+        {error && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error })}</div>}
+        {loading && !error && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
+            {t("gitGraph.diffLoading")}
+          </div>
+        )}
+        {diff && !loading && !error && (
+          diff.binary ? (
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.binaryFile")}</div>
+          ) : diff.diff.length === 0 ? (
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.noDiff")}</div>
+          ) : (
+            <DiffLines diff={diff.diff} />
+          )
+        )}
+      </div>
+    </section>
+  );
+}
 
 /**
- * Fullscreen (with margins) git-graph viewer modeled on vscode-git-graph:
- * colored branch lanes, commit rows with ref chips, a commit details pane
- * with the file list, and a dedicated right-hand pane for the selected
- * file's diff.
+ * Fixed git-graph overlay hosting the engine webview: header chrome (title,
+ * repo name, refresh / expand / close), the iframe embed filling the body,
+ * and the collapsible diff pane. Not a Dialog — the panel floats over the
+ * workspace and keeps its own close control (no backdrop).
  */
-export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80 }: { open: boolean; onOpenChange: (open: boolean) => void; cwd: string | null; sizePercent?: number }) {
-  const { t, locale } = useI18n();
-  const [payload, setPayload] = useState<CommitLogPayload | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<GitCommitInfo | null>(null);
+export function GitGraphModal({ open, onOpenChange, cwd, sizePercent = 80, onOpenFile }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  cwd: string | null;
+  sizePercent?: number;
+  onOpenFile: (filePath: string) => void;
+}) {
+  const { t } = useI18n();
+  const { isDark } = useTheme();
+  const isMobile = useIsMobile();
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Stable refs so the persistent message listener always sees current props
+  // without re-subscribing on every render.
+  const cwdRef = useRef(cwd);
+  cwdRef.current = cwd;
+  const onOpenFileRef = useRef(onOpenFile);
+  onOpenFileRef.current = onOpenFile;
+
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(EXPANDED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(EXPANDED_KEY, expanded ? "1" : "0");
+    } catch {
+      // Storage unavailable (private mode) — the state still applies this session.
+    }
+  }, [expanded]);
+
+  const [frameLoaded, setFrameLoaded] = useState(false);
+  const [frameEpoch, setFrameEpoch] = useState(0); // bumped to reload the embed (refresh)
   const [diff, setDiff] = useState<DiffState>(null);
-  const [diffLoading, setDiffLoading] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [filesWidth, setFilesWidth] = useState(() => {
-    if (typeof window === "undefined") return FILES_FALLBACK_WIDTH;
-    try {
-      const raw = window.localStorage.getItem(FILES_WIDTH_KEY);
-      const parsed = raw === null ? Number.NaN : Number(raw);
-      return Number.isFinite(parsed) ? Math.max(FILES_MIN_WIDTH, Math.round(parsed)) : FILES_FALLBACK_WIDTH;
-    } catch {
-      return FILES_FALLBACK_WIDTH;
-    }
-  });
-  const [diffWidth, setDiffWidth] = useState(() => {
-    if (typeof window === "undefined") return DIFF_FALLBACK_WIDTH;
-    try {
-      const raw = window.localStorage.getItem(DIFF_WIDTH_KEY);
-      const parsed = raw === null ? Number.NaN : Number(raw);
-      return Number.isFinite(parsed) ? Math.max(DIFF_MIN_WIDTH, Math.round(parsed)) : DIFF_FALLBACK_WIDTH;
-    } catch {
-      return DIFF_FALLBACK_WIDTH;
-    }
-  });
-  const graphAreaRef = useRef<HTMLDivElement>(null);
-  const filesPaneRef = useRef<HTMLDivElement>(null);
-  const diffPaneRef = useRef<HTMLDivElement>(null);
 
-  // Persist the resized pane widths so the layout survives closing + reopening.
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(FILES_WIDTH_KEY, String(filesWidth));
-      window.localStorage.setItem(DIFF_WIDTH_KEY, String(diffWidth));
-    } catch {
-      // Storage unavailable (private mode) — the width still applies this session.
-    }
-  }, [filesWidth, diffWidth]);
-
-  // Reset both pane widths to their defaults (double-click / Enter on a
-  // divider).
-  const resetPaneWidths = useCallback(() => {
-    setFilesWidth(FILES_FALLBACK_WIDTH);
-    setDiffWidth(DIFF_FALLBACK_WIDTH);
+  const postToFrame = useCallback((msg: Record<string, unknown>) => {
+    // Same-origin embed (served by /gitgraph); post only to our own origin.
+    iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
   }, []);
 
-  // Drag handlers for the two pane dividers. Each divider sits on the LEFT
-  // edge of the pane it resizes: "files" is the commit-tree ↔ files-list
-  // divider, "diff" is the files-list ↔ file-diff divider. Because the pane
-  // is to the RIGHT of the divider, dragging the divider LEFT widens the
-  // pane (raw = startWidth - dx). The commit tree is the flex remainder, so
-  // each pane is clamped to keep the tree (and the other pane) at or above
-  // its minimum width.
-  const startResizerDrag = useCallback((which: "files" | "diff") => (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const container = graphAreaRef.current;
-    const pane = which === "files" ? filesPaneRef.current : diffPaneRef.current;
-    if (!container || !pane) return;
-    const containerWidth = container.getBoundingClientRect().width;
-    const startX = e.clientX;
-    const startWidth = pane.getBoundingClientRect().width;
-    const min = which === "files" ? FILES_MIN_WIDTH : DIFF_MIN_WIDTH;
-    const onMove = (ev: MouseEvent) => {
-      const raw = startWidth - (ev.clientX - startX);
-      const otherMin = which === "files" ? DIFF_MIN_WIDTH : FILES_MIN_WIDTH;
-      const maxWidth = Math.max(min, containerWidth - otherMin - TREE_MIN_WIDTH);
-      const clamped = Math.min(Math.max(min, raw), maxWidth);
-      (which === "files" ? setFilesWidth : setDiffWidth)(Math.round(clamped));
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, []);
-
-  // Keyboard resize (arrows) + reset (Enter/Space) for the divider, mirroring
-  // the sidebar handle. Both dividers sit on the pane's left edge, so
-  // ArrowLeft (divider moves left) widens the pane and ArrowRight narrows it.
-  const handleDividerKey = useCallback((which: "files" | "diff") => (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const setter = which === "files" ? setFilesWidth : setDiffWidth;
-    const min = which === "files" ? FILES_MIN_WIDTH : DIFF_MIN_WIDTH;
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      event.preventDefault();
-      const step = 24 * (event.key === "ArrowLeft" ? 1 : -1);
-      setter((w) => Math.max(min, Math.round(w + step)));
-    } else if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      resetPaneWidths();
-    }
-  }, [resetPaneWidths]);
-
-// ClientError is a plain object ({ code, message, retryable }), not an
-// Error instance — String(err) on it yields "[object Object]".
-const describeError = (err: unknown): string => {
-  if (err instanceof Error) return err.message;
-  if (err && typeof err === "object" && "message" in err) return String((err as { message: unknown }).message);
-  return String(err);
-};
-
-  const load = useCallback(async () => {
-    if (!cwd) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await client.git.log(cwd, 400);
-      setPayload(data);
-    } catch (loadError) {
-      setError(describeError(loadError));
-    } finally {
-      setLoading(false);
-    }
-  }, [cwd]);
-
+  // The embed document (re)mounts whenever the repo or the refresh epoch
+  // changes; drop the stale transient state with it.
   useEffect(() => {
-    if (open) {
-      setSelected(null);
-      setDiff(null);
+    setFrameLoaded(false);
+  }, [cwd, frameEpoch]);
+
+  /** Push the current ompweb theme into the webview (contract message). */
+  const pushTheme = useCallback(() => {
+    const frame = iframeRef.current;
+    if (!frame?.contentWindow) return;
+    const root = getComputedStyle(document.documentElement);
+    const vars: Record<string, string> = {};
+    for (const [name, token] of Object.entries(THEME_TOKEN_MAP)) {
+      const value = root.getPropertyValue(token).trim();
+      if (value) vars[name] = value;
+    }
+    vars["--vscode-font-family"] = getComputedStyle(document.body).fontFamily;
+    const mono = root.getPropertyValue("--font-mono").trim();
+    if (mono) vars["--vscode-editor-font-family"] = mono;
+    frame.contentWindow.postMessage(
+      { type: "ompweb-gg-theme", vars, laneColors: GG_LANE_COLORS, dark: isDark },
+      window.location.origin,
+    );
+  }, [isDark]);
+
+  // Theme push once the embed boots and again on every theme change.
+  useEffect(() => {
+    if (frameLoaded) pushTheme();
+  }, [frameLoaded, pushTheme]);
+
+  // Embedding-page side of the bridge protocol (open-file / open-diff /
+  // error relay, see vendor/vscode-git-graph/web/ompweb-bridge.ts).
+  useEffect(() => {
+    if (!open) return;
+    const openDiff = async (request: DiffRequest) => {
+      const repo = request.repo ?? cwdRef.current;
+      const filePath = request.filePath;
+      if (!repo || !filePath) {
+        postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
+        return;
+      }
+      // Map both upstream diff actions onto the client adapter. Upstream payload
+      // semantics (web/main.ts triggerViewFileDiff): `*` is the UNCOMMITTED
+      // sentinel, and fromHash === toHash means "the change this commit
+      // introduced" — which VS Code resolves against the first parent:
+      //   viewDiffWithWorkingFile(hash, file)          → refDiff(repo, hash, "*", file)
+      //   viewDiff(from, to) with from !== to          → refDiff(repo, from, to, new || old)
+      //   viewDiff(X, X) with X a commit               → commitDiff(repo, X, file)  (vs first parent)
+      //   viewDiff("*", "*") (uncommitted row)         → refDiff(repo, "HEAD", "*", file)
+      let fetchDiff: () => Promise<RefDiffPayload>;
+      const filePathIsCompare = request.mode === "compare";
+      if (filePathIsCompare) {
+        const from = request.fromHash;
+        const to = request.toHash;
+        if (!from || !to) {
+          postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
+          return;
+        }
+        if (from === "*" && to === "*") {
+          fetchDiff = () => client.git.refDiff(repo, "HEAD", "*", filePath);
+        } else if (from === to && from !== "*") {
+          fetchDiff = () => client.git.commitDiff(repo, from, filePath);
+        } else {
+          fetchDiff = () => client.git.refDiff(repo, from, to === "*" || to === "UNCOMMITTED" ? "*" : to, filePath);
+        }
+      } else {
+        const hash = request.hash;
+        if (!hash) {
+          postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
+          return;
+        }
+        fetchDiff = () => client.git.refDiff(repo, hash === "*" ? "HEAD" : hash, "*", filePath);
+      }
+      setDiffLoading(true);
       setDiffError(null);
-      void load();
-    }
-  }, [open, load]);
+      try {
+        // The declared return type under-describes the endpoint's
+        // alternative shapes ({ supported: false }); check at runtime.
+        const data: RefDiffPayload = await fetchDiff();
+        if (typeof data.diff === "string") {
+          setDiff({ file: filePath, diff: data.diff, binary: data.binary === true, truncated: data.truncated === true });
+          postToFrame({ type: "ompweb-gg-open-diff-result", ok: true });
+        } else {
+          setDiff(null);
+          setDiffError(data.error ?? (data.supported === false ? "diff not supported" : "diff not available"));
+          postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
+        }
+      } catch (error) {
+        setDiff(null);
+        setDiffError(describeError(error));
+        postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
+      } finally {
+        setDiffLoading(false);
+      }
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const frame = iframeRef.current;
+      if (!frame || event.source !== frame.contentWindow) return;
+      const data: unknown = event.data;
+      if (!data || typeof data !== "object" || !("type" in data) || typeof data.type !== "string") return;
+      switch (data.type) {
+        case "ompweb-gg-ready":
+          setFrameLoaded(true);
+          break;
+        case "ompweb-gg-error":
+          toast.error(t("gitGraph.title"), "message" in data && typeof data.message === "string" ? data.message : "unknown error");
+          break;
+        case "ompweb-gg-open-file": {
+          const filePath = "filePath" in data && typeof data.filePath === "string" ? data.filePath : "";
+          // The bridge already absolutizes; this join is the defensive path
+          // for a repo-relative leftover. No workspace → cannot open.
+          const absolute = filePath ? absoluteFilePath(filePath, cwdRef.current) : null;
+          if (!absolute || !cwdRef.current) {
+            postToFrame({ type: "ompweb-gg-open-file-result", ok: false });
+            return;
+          }
+          onOpenFileRef.current(absolute);
+          postToFrame({ type: "ompweb-gg-open-file-result", ok: true });
+          break;
+        }
+        case "ompweb-gg-open-diff": {
+          let repo: string | null = null;
+          let mode: string | null = null;
+          let filePath: string | null = null;
+          let hash: string | null = null;
+          let fromHash: string | null = null;
+          let toHash: string | null = null;
+          if ("repo" in data && typeof data.repo === "string" && data.repo.length > 0) repo = data.repo;
+          if ("mode" in data && typeof data.mode === "string") mode = data.mode;
+          if ("path" in data && typeof data.path === "string" && data.path.length > 0) filePath = data.path;
+          if ("oldPath" in data && typeof data.oldPath === "string" && data.oldPath.length > 0) filePath = filePath ?? data.oldPath;
+          if ("hash" in data && typeof data.hash === "string" && data.hash.length > 0) hash = data.hash;
+          if ("fromHash" in data && typeof data.fromHash === "string" && data.fromHash.length > 0) fromHash = data.fromHash;
+          if ("toHash" in data && typeof data.toHash === "string" && data.toHash.length > 0) toHash = data.toHash;
+          void openDiff({ repo, mode, filePath, hash, fromHash, toHash });
+          break;
+        }
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [open, postToFrame, t]);
 
-  const openDiff = useCallback(async (commit: GitCommitInfo, file: GitCommitFile) => {
-    if (!cwd) return;
-    setDiffLoading(file.path);
-    setDiffError(null);
-    try {
-      const data = await client.git.commitDiff(cwd, commit.hash, file.path);
-      setDiff({ file: file.path, diff: data.diff, binary: data.binary, truncated: data.truncated });
-    } catch (diffLoadError) {
-      setDiffError(describeError(diffLoadError));
-    } finally {
-      setDiffLoading(null);
-    }
+  // Escape closes the overlay — unless a real modal dialog is open on the
+  // page, in which case it owns the key (same guard as the window-level
+  // shortcuts in hooks/useKeyboardShortcuts).
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector('[role="dialog"], [aria-modal="true"], [data-state="open"]')) return;
+      onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onOpenChange]);
+
+  const repoName = useMemo(() => {
+    if (!cwd) return null;
+    const parts = cwd.split(/[\\/]+/).filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : cwd;
   }, [cwd]);
 
-  const copyHash = useCallback(async (commit: GitCommitInfo) => {
-    try {
-      await navigator.clipboard.writeText(commit.hash);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard unavailable (permissions) — ignore.
-    }
-  }, []);
+  const src = cwd ? `/gitgraph?repo=${encodeURIComponent(cwd)}` : null;
+  // React key: remounts the iframe on repo switch and on manual refresh.
+  const frameKey = src === null ? "none" : `${src}#${frameEpoch}`;
 
-  const rows = useMemo(() => payload?.rows ?? [], [payload]);
-  const maxLane = payload?.maxLane ?? 1;
-  const laneColors = useMemo(() => computeRowLaneColors(rows, maxLane), [rows, maxLane]);
-  const commitCount = useMemo(() => rows.reduce((n, r) => (r.kind === "commit" ? n + 1 : n), 0), [rows]);
-
-  const formatTime = (iso: string): string => {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return iso;
-    return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
-  };
-
-  // Percentage of the viewport for the modal, clamped to 40-95 so the
-  // chrome stays reachable at any setting. No pixel cap on the width: the
-  // modal follows the chosen percentage of the window (capped only by the
-  // 48px margin below so the chrome stays reachable).
+  // Collapsed = centered box at the configured percentage of the viewport;
+  // expanded = near-fullscreen with a small margin; mobile = full-screen
+  // sheet (same as the mobile right panel).
   const sizePct = Math.min(MAX_SIZE_PERCENT, Math.max(MIN_SIZE_PERCENT, Math.round(sizePercent)));
-  const widthCss = `${sizePct}vw`;
-  const heightCss = `min(${sizePct}dvh, 1200px)`;
+  const overlayStyle: React.CSSProperties = isMobile
+    ? {
+        position: "fixed",
+        inset: 0,
+        borderRadius: 0,
+        padding: "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)",
+      }
+    : expanded
+      ? { position: "fixed", top: 24, right: 24, bottom: 24, left: 24 }
+      : {
+          position: "fixed",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          width: `min(${sizePct}vw, calc(100vw - 48px))`,
+          height: `min(${sizePct}dvh, 1200px)`,
+          maxHeight: "calc(100dvh - 48px)",
+        };
+
+  if (!open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        ariaLabel={t("gitGraph.title")}
-        style={{
-          width: widthCss,
-          maxWidth: "calc(100vw - 48px)",
-          height: heightCss,
-          maxHeight: "calc(100dvh - 48px)",
-          padding: 0,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-          <GitBranch size={15} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden="true" />
-          <DialogTitle style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", margin: 0, flex: 1 }}>{t("gitGraph.title")}</DialogTitle>
-          {!loading && commitCount > 0 && (
-            <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-              {commitCount} {t("gitGraph.commits")}
-            </span>
-          )}
-          <Tooltip content={t("gitGraph.refresh")}>
-            <button
+    <section className="git-graph-overlay" style={overlayStyle} role="region" aria-label={t("gitGraph.title")}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, minWidth: 0 }}>
+        <GitBranch size={15} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} aria-hidden="true" />
+        <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 600, flexShrink: 0 }}>{t("gitGraph.title")}</span>
+        {repoName && (
+          <span
+            title={cwd ?? undefined}
+            style={{ flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", background: "var(--bg-subtle)", padding: "2px 8px", borderRadius: 4 }}
+          >
+            {repoName}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        <Tooltip content={t("gitGraph.refresh")}>
+          <button
             type="button"
-            onClick={() => void load()}
-            disabled={loading || !cwd}
+            onClick={() => { setFrameLoaded(false); setFrameEpoch((n) => n + 1); }}
+            disabled={!cwd}
             aria-label={t("gitGraph.refresh")}
             className="shell-toolbar-btn ui-focus-ring"
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6 }}
           >
-            <RefreshCw size={14} strokeWidth={1.8} style={{ opacity: loading ? 0.6 : 1 }} aria-hidden="true" />
+            <RefreshCw size={14} strokeWidth={1.8} aria-hidden="true" />
           </button>
-          </Tooltip>
-          <Tooltip content={t("gitGraph.close")}>
-            <button
+        </Tooltip>
+        <Tooltip content={expanded ? t("gitGraph.collapse") : t("gitGraph.expand")}>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? t("gitGraph.collapse") : t("gitGraph.expand")}
+            aria-pressed={expanded}
+            className="shell-toolbar-btn ui-focus-ring"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6 }}
+          >
+            {expanded ? <Minimize2 size={14} strokeWidth={1.8} aria-hidden="true" /> : <Maximize2 size={14} strokeWidth={1.8} aria-hidden="true" />}
+          </button>
+        </Tooltip>
+        <Tooltip content={t("gitGraph.close")}>
+          <button
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label={t("gitGraph.close")}
@@ -386,323 +522,40 @@ const describeError = (err: unknown): string => {
           >
             <X size={15} strokeWidth={1.8} aria-hidden="true" />
           </button>
-          </Tooltip>
-        </div>
+        </Tooltip>
+      </div>
 
-        {!cwd ? (
+      <div style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}>
+        {src === null ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             {t("gitGraph.loadError", { error: "no workspace" })}
           </div>
-        ) : loading && !payload ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-            <LoaderCircle size={14} strokeWidth={1.8} className="icon-spin" aria-hidden="true" />
-            {t("gitGraph.loading")}
-          </div>
-        ) : error ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, color: "var(--status-error)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", overflowWrap: "anywhere" }}>
-            {t("gitGraph.loadError", { error })}
-          </div>
-        ) : commitCount === 0 ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
-            {t("gitGraph.empty")}
-          </div>
         ) : (
-          <div ref={graphAreaRef} style={{ flex: 1, display: "flex", minHeight: 0 }}>
-            <div style={{ flex: "1 1 0px", minWidth: TREE_MIN_WIDTH, overflow: "auto" }}>
-              {rows.map((row, index) => {
-                if (row.kind === "gap") {
-                  return (
-                    <div key={`gap-${index}`} style={{ display: "flex", height: GAP_ROW_H }}>
-                      <GraphStrip
-                        chars={row.graph}
-                        height={GAP_ROW_H}
-                        colors={laneColors[index]}
-                        prevChars={index > 0 ? rows[index - 1].graph : null}
-                        nextChars={index < rows.length - 1 ? rows[index + 1].graph : null}
-                      />
-                    </div>
-                  );
-                }
-                const commit = row.commit;
-                const isSelected = selected?.hash === commit.hash;
-                return (
-                  <div
-                    key={`commit-${commit.hash}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      setSelected(isSelected ? null : commit);
-                      setDiff(null);
-                      setDiffError(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelected(isSelected ? null : commit);
-                        setDiff(null);
-                        setDiffError(null);
-                      }
-                    }}
-                    className="ui-focus-ring"
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      height: COMMIT_ROW_H,
-                      cursor: "pointer",
-                      background: isSelected ? "var(--bg-selected)" : undefined,
-                      borderBottom: "1px solid color-mix(in srgb, var(--border) 40%, transparent)",
-                    }}
-                  >
-                    <GraphStrip
-                      chars={row.graph}
-                      height={COMMIT_ROW_H}
-                      colors={laneColors[index]}
-                      prevChars={index > 0 ? rows[index - 1].graph : null}
-                      nextChars={index < rows.length - 1 ? rows[index + 1].graph : null}
-                    />
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0, padding: "0 10px 0 6px" }}>
-                      {commit.refs.head && (
-                        <span
-                          style={{
-                            flexShrink: 0,
-                            padding: "1px 7px",
-                            borderRadius: 4,
-                            fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
-                            fontFamily: "var(--font-mono)",
-                            fontWeight: 600,
-                            color: "var(--on-accent)",
-                            background: "var(--accent)",
-                            maxWidth: 120,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {commit.refs.head}
-                        </span>
-                      )}
-                      {commit.refs.branches.map((branch) => (
-                        <span
-                          key={branch}
-                          style={{
-                            flexShrink: 0,
-                            padding: "1px 6px",
-                            borderRadius: 4,
-                            fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
-                            fontFamily: "var(--font-mono)",
-                            color: "var(--text-muted)",
-                            background: "var(--bg-subtle)",
-                            maxWidth: 110,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {branch}
-                        </span>
-                      ))}
-                      {commit.isMerge && (
-                        <Tooltip content={t("gitGraph.merge")}>
-                          <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
-                          ⑂
-                        </span>
-                        </Tooltip>
-                      )}
-                      <Tooltip content={commit.hash}>
-                        <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
-                        {commit.shortHash}
-                      </span>
-                      </Tooltip>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text)" }}>
-                        {commit.subject}
-                      </span>
-                      <span style={{ flexShrink: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {commit.author}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {selected && (
-              <Tooltip content={t("gitGraph.resizeFiles")}>
-                <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label={t("gitGraph.resizeFiles")}
-                tabIndex={0}
-                onMouseDown={startResizerDrag("files")}
-                onDoubleClick={resetPaneWidths}
-                onKeyDown={handleDividerKey("files")}
-                style={{
-                  width: 5,
-                  flexShrink: 0,
-                  cursor: "col-resize",
-                  touchAction: "none",
-                  background: "transparent",
-                  outline: "none",
-                  transition: "background var(--dur-fast) var(--ease-out-warm)",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
-                onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
-              />
-              </Tooltip>
+          <>
+            <iframe
+              ref={iframeRef}
+              key={frameKey}
+              src={src}
+              title={t("gitGraph.title")}
+              onLoad={() => setFrameLoaded(true)}
+              style={{ flex: "1 1 auto", minWidth: 0, width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
+            />
+            {!frameLoaded && (
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", background: "var(--bg)" }}>
+                <LoaderCircle size={14} strokeWidth={1.8} className="icon-spin" aria-hidden="true" />
+                {t("gitGraph.loading")}
+              </div>
             )}
-            {selected && (
-              <aside
-                ref={filesPaneRef}
-                style={{ width: filesWidth, minWidth: FILES_MIN_WIDTH, flexShrink: 0, borderLeft: "none", background: "var(--bg-panel)", display: "flex", flexDirection: "column", minHeight: 0 }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-                  <GitCommitHorizontal size={14} strokeWidth={1.8} style={{ color: "var(--accent)", marginTop: 2 }} aria-hidden="true" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, overflowWrap: "anywhere", lineHeight: 1.4 }}>{t("gitGraph.commit")}: {selected.subject}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5 }}>
-                      <code style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", whiteSpace: "nowrap", overflowX: "auto", flex: 1, minWidth: 0, scrollbarWidth: "thin" }}>{selected.hash}</code>
-                      <Tooltip content={t("gitGraph.copyHash")}>
-                        <button
-                        type="button"
-                        onClick={() => void copyHash(selected)}
-                        aria-label={t("gitGraph.copyHash")}
-                        className="ui-focus-ring"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", border: "1px solid var(--border)", borderRadius: 4, background: "none", color: copied ? "var(--accent)" : "var(--text-dim)", cursor: "pointer", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}
-                      >
-                        {copied ? <Check size={10} strokeWidth={2} aria-hidden="true" /> : <Copy size={10} strokeWidth={1.8} aria-hidden="true" />}
-                        {copied ? t("gitGraph.copied") : t("gitGraph.copyHash")}
-                      </button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <Tooltip content={t("gitGraph.close")}>
-                    <button
-                    type="button"
-                    onClick={() => {
-                      setSelected(null);
-                      setDiff(null);
-                    }}
-                    aria-label={t("gitGraph.close")}
-                    className="ui-focus-ring"
-                    style={{ display: "inline-flex", padding: 4, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer", flexShrink: 0 }}
-                  >
-                    <X size={13} strokeWidth={1.8} aria-hidden="true" />
-                  </button>
-                  </Tooltip>
-                </div>
-                <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", display: "grid", gridTemplateColumns: "auto 1fr", gap: "5px 12px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", flexShrink: 0 }}>
-                  <span style={{ color: "var(--text-dim)" }}>{t("gitGraph.parents")}</span>
-                  <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
-                    {selected.parents.length > 0 ? selected.parents.map((p) => p.slice(0, 7)).join(" ") : "—"}
-                  </span>
-                  <span style={{ color: "var(--text-dim)" }}>Author</span>
-                  <span style={{ color: "var(--text-muted)", overflowWrap: "anywhere" }}>{selected.author} &lt;{selected.email}&gt;</span>
-                  <span style={{ color: "var(--text-dim)" }}>Date</span>
-                  <span style={{ color: "var(--text-muted)" }}>{formatTime(selected.date)}</span>
-                </div>
-                {selected.body && (
-                  <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, maxHeight: "30%", overflow: "auto" }}>
-                    <pre style={{ margin: 0, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.55, color: "var(--text)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{selected.body}</pre>
-                  </div>
-                )}
-                <div style={{ padding: "10px 14px 4px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 650, color: "var(--text-dim)", flexShrink: 0 }}>
-                  {t("gitGraph.files")} ({selected.files.length})
-                </div>
-                <div style={{ flex: 1, overflow: "auto", padding: "4px 10px 14px" }}>
-                  {selected.files.length === 0 && <div style={{ padding: "8px 4px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("gitGraph.noDiff")}</div>}
-                  {selected.files.map((file) => (
-                    <button
-                      key={file.path}
-                      type="button"
-                      onClick={() => void openDiff(selected, file)}
-                      className="ui-focus-ring"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        width: "100%",
-                        padding: "5px 6px",
-                        border: "none",
-                        borderRadius: 5,
-                        background: diff?.file === file.path ? "var(--bg-selected)" : "none",
-                        color: "var(--text)",
-                        cursor: "pointer",
-                        fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
-                        textAlign: "left",
-                      }}
-                    >
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-                        {file.path}
-                      </span>
-                      {file.additions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-success)" }}>+{file.additions}</span>}
-                      {file.deletions !== null && <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)" }}>-{file.deletions}</span>}
-                      {file.additions === null && file.deletions === null && <span style={{ flexShrink: 0, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("gitGraph.binaryFile")}</span>}
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            )}
-
-            {selected && (
-              <Tooltip content={t("gitGraph.resizeDiff")}>
-                <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label={t("gitGraph.resizeDiff")}
-                tabIndex={0}
-                onMouseDown={startResizerDrag("diff")}
-                onDoubleClick={resetPaneWidths}
-                onKeyDown={handleDividerKey("diff")}
-                style={{
-                  width: 5,
-                  flexShrink: 0,
-                  cursor: "col-resize",
-                  touchAction: "none",
-                  background: "transparent",
-                  outline: "none",
-                  transition: "background var(--dur-fast) var(--ease-out-warm)",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                onFocus={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--accent) 35%, transparent)"; }}
-                onBlur={(e) => { e.currentTarget.style.background = "transparent"; }}
-              />
-              </Tooltip>
-            )}
-
-            {selected && (
-              <section
-                ref={diffPaneRef}
-                aria-label={diff ? diff.file : t("gitGraph.selectFile")}
-                style={{ width: diffWidth, minWidth: DIFF_MIN_WIDTH, flexShrink: 0, borderLeft: "none", display: "flex", flexDirection: "column", minHeight: 0, background: "var(--bg)" }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0, minWidth: 0 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", color: diff ? "var(--text-muted)" : "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {diff ? diff.file : t("gitGraph.selectFile")}
-                  </span>
-                  {diffLoading && <LoaderCircle size={12} strokeWidth={1.8} className="icon-spin" style={{ flexShrink: 0 }} aria-hidden="true" />}
-                </div>
-                <div style={{ flex: 1, overflow: "auto", padding: "8px 10px" }}>
-                  {diffError && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error: diffError })}</div>}
-                  {diffLoading && !diffError && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
-                      {t("gitGraph.diffLoading")}
-                    </div>
-                  )}
-                  {diff && !diffLoading && !diffError && (
-                    diff.binary ? (
-                      <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.binaryFile")}</div>
-                    ) : (
-                      <DiffLines diff={diff.diff} />
-                    )
-                  )}
-                </div>
-              </section>
-            )}
-          </div>
+          </>
         )}
-      </DialogContent>
-    </Dialog>
+        <DiffPane
+          diff={diff}
+          loading={diffLoading}
+          error={diffError}
+          mobile={isMobile}
+          onClose={() => { setDiff(null); setDiffError(null); }}
+        />
+      </div>
+    </section>
   );
 }

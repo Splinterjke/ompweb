@@ -2953,7 +2953,7 @@ export function AppShell({ appName }: { appName: string }) {
             onOpenFile={(filePath, fileName) => handleOpenFile(filePath, fileName, selectedSession?.id ?? null)}
           />
         </div>
-    <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} />
+    <GitGraphModal open={gitGraphOpen} onOpenChange={(open) => { if (!open) setGitGraphCwd(null); setGitGraphOpen(open); }} cwd={gitGraphCwd ?? activeCwd ?? selectedSession?.cwd ?? newSessionCwd} sizePercent={gitGraphModalSize} onOpenFile={(p) => handleOpenFile(p, getFileName(p), selectedSession?.id ?? null)} />
     {startedNoticeVisible && (
       <UpdateNoticeDialog ompVersion={ompVersion} isUpdate={startedNoticeIsUpdate} onClose={() => setStartedNoticeVisible(false)} />
     )}
