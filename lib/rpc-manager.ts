@@ -626,6 +626,12 @@ export class AgentSessionWrapper {
 
   /** Whether omp answered `generate_title` with "Unknown command" (cached per child). */
   private generateTitleUnsupported = false;
+  /** Set while the web-initiated argument-less `/rename` run is in flight. Its
+   *  `command_output` echo — the "Renamed" line or "Could not generate a session
+   *  title…" — is web-mechanic noise, not conversation, so it never reaches the
+   *  chat; the failure text also settles the title poll immediately. */
+  private renameOutputPending = false;
+  private renameRunFailed = false;
 
   /**
    * Ask omp to generate a title for this session with its own title generator.
@@ -652,17 +658,26 @@ export class AgentSessionWrapper {
     // prompt, so it must never be sent while a run is in flight.
     if (this.isRunning()) return null;
     const before = (await this.readSessionName()) ?? "";
-    await this.send({ type: "prompt", message: "/rename" });
-    const deadline = Date.now() + RENAME_POLL_TIMEOUT_MS;
-    let title = await this.readSessionName();
-    while (!(title && title !== before) && Date.now() < deadline && this.isAlive()) {
-      const { promise, resolve } = Promise.withResolvers<void>();
-      setTimeout(resolve, RENAME_POLL_INTERVAL_MS);
-      await promise;
-      title = await this.readSessionName();
+    this.renameRunFailed = false;
+    this.renameOutputPending = true;
+    try {
+      await this.send({ type: "prompt", message: "/rename" });
+      const deadline = Date.now() + RENAME_POLL_TIMEOUT_MS;
+      let title = await this.readSessionName();
+      while (!(title && title !== before) && !this.renameRunFailed && Date.now() < deadline && this.isAlive()) {
+        const { promise, resolve } = Promise.withResolvers<void>();
+        setTimeout(resolve, RENAME_POLL_INTERVAL_MS);
+        await promise;
+        title = await this.readSessionName();
+      }
+      // Unchanged means the generator failed (omp echoed its failure text) —
+      // never report the PREVIOUS title as a generated one.
+      const generated = title && title !== before ? title : null;
+      if (generated) this.adoptSessionName(generated);
+      return generated;
+    } finally {
+      this.renameOutputPending = false;
     }
-    if (title) this.adoptSessionName(title);
-    return title;
   }
 
   private async readSessionName(): Promise<string | null> {
@@ -757,6 +772,14 @@ export class AgentSessionWrapper {
           this.mcpListWaiter = null;
           waiter.resolve(event.text);
           notifyRunningChange();
+          return;
+        }
+        // The web's own `/rename` (title generation): the run's echo stays out
+        // of the chat, and its failure text settles generateTitle's poll early.
+        if (this.renameOutputPending) {
+          this.renameOutputPending = false;
+          const output = typeof event.text === "string" ? event.text.toLowerCase() : "";
+          if (output.includes("could not generate a session title")) this.renameRunFailed = true;
           return;
         }
         break;

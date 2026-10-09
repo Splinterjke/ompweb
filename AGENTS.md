@@ -374,6 +374,16 @@ hooks/
   argument-less `/rename`, never while a run is in flight). Only when omp cannot
   does it fall back to the stored/derived title (`generated:false`), saved
   through the live process when there is one.
+- The web-initiated argument-less `/rename` is a **prompt run**, so its echo
+  (`command_output`: the success line or "Could not generate a session title…")
+  would land in the chat as a transient row. `generateTitle()` therefore arms
+  `renameOutputPending` around the run and `handleFrame` swallows that single
+  `command_output` (same precedent as the `/mcp list` waiter); the failure text
+  also settles the title poll immediately instead of burning the 20 s timeout.
+  An unchanged title means failure — `generateTitle` returns `null`, never the
+  PREVIOUS title (omp ≤ 18.8.7 has no `generate_title` RPC; `/rename` is the
+  only path and fails outright when the title call's model answers with
+  reasoning-only content, e.g. `disableReasoning` ignored server-side).
 
 ### Resume fail-closed model restore (omp ≥ 18.6.3) — `lib/session-model-check.ts`, `ModelRestoreDialog` in `components/ChatWindow.tsx`
 - omp ≥ 18.6.3 refuses to resume a session whose saved model cannot be
