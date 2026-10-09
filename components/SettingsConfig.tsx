@@ -585,6 +585,7 @@ const NOTIFICATION_STATUS_KEYS: Record<Exclude<NotificationSupport, "push" | "no
 function NotificationSettingsPanel() {
   const { t, locale } = useI18n();
   const prefs = useNotificationPrefs();
+  const isMobile = useIsMobile();
   const [support, setSupport] = useState<NotificationSupport | null>(null);
   const [pushActive, setPushActive] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -660,14 +661,15 @@ function NotificationSettingsPanel() {
   }
 
   return (
-    <>
-      <NativeSetting searchId="notifications-enable" scope="UI" label={t("notifications.enable")} description={t("notifications.enableDesc")}>
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10, width: "100%" }}>
+      <NativeSetting searchId="notifications-enable" scope="UI" label={t("notifications.enable")} description={t("notifications.enableDesc")} containerStyle={{ gridColumn: "1 / -1" }}>
         <ToggleSwitch checked={prefs.enabled} disabled={busy} onChange={(next) => void setEnabled(next)} />
       </NativeSetting>
       {status && (
         <div
           role="status"
           style={{
+            gridColumn: "1 / -1",
             padding: "8px 12px",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius-card)",
@@ -696,7 +698,10 @@ function NotificationSettingsPanel() {
           <option value="system" style={nativeOptionStyle}>{t("notifications.whenActiveSystem")}</option>
         </select>
       </NativeSetting>
-      <div>
+      <NativeSetting searchId="notifications-log-to-tab" scope="UI" label={t("notifications.logToTab")} description={t("notifications.logToTabDesc")}>
+        <ToggleSwitch checked={prefs.logToTab} onChange={(next) => save({ logToTab: next })} />
+      </NativeSetting>
+      <NativeSetting searchId="notifications-test" scope="UI" disabled={!prefs.enabled} label={t("notifications.test")} description={t("notifications.testDesc")}>
         <button
           type="button"
           onClick={() => void sendTest()}
@@ -715,8 +720,8 @@ function NotificationSettingsPanel() {
         >
           {t("notifications.test")}
         </button>
-      </div>
-    </>
+      </NativeSetting>
+    </div>
   );
 }
 

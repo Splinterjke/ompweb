@@ -1099,11 +1099,6 @@ export function AppShell({ appName }: { appName: string }) {
   const [fileTabs, setFileTabs] = useState<Tab[]>([]);
   const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
-  // Upstream cace6832: closing the panel returns focus to the header opener.
-  const closeRightPanel = useCallback(() => {
-    setRightPanelOpen(false);
-    topBarRef.current?.querySelector<HTMLButtonElement>(".shell-panel-opener")?.focus();
-  }, []);
   // Intentional horizontal swipes open/close the mobile drawers (squashed
   // port of upstream 6e772b84…fb5f536a). The hook owns a document-level
   // touch stream and skips inputs, text selections, horizontal scrollers, and
@@ -1761,6 +1756,12 @@ export function AppShell({ appName }: { appName: string }) {
       return next.length > 0 ? next[next.length - 1].id : null;
     });
   }, [fileTabs]);
+
+  /** The Files toolbar's "Close all files": empties the tab strip and returns to the explorer view; the panel itself stays open. */
+  const handleCloseAllFileTabs = useCallback(() => {
+    setFileTabs([]);
+    setActiveFileTabId(null);
+  }, []);
 
   const handleViewFullHistory = useCallback(() => {
     if (!selectedSession) return;
@@ -2938,20 +2939,23 @@ export function AppShell({ appName }: { appName: string }) {
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                  <div className="right-panel-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", minHeight: "var(--shell-topbar-height)" }}>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
+                  {/* The tab strip row exists only while file tabs are open; closed, the explorer owns the whole panel height. */}
+                  {fileTabs.length > 0 && (
+                    <div className="right-panel-toolbar" style={{ display: "flex", alignItems: "center", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", minHeight: "var(--shell-topbar-height)" }}>
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCloseAllFileTabs}
+                        title={t("appShell.closeAllFiles")}
+                        aria-label={t("appShell.closeAllFiles")}
+                        className="shell-toolbar-btn ui-focus-ring"
+                      >
+                        <X size={16} strokeWidth={1.8} aria-hidden="true" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={closeRightPanel}
-                      title={t("appShell.hideFilePanel")}
-                      aria-label={t("appShell.hideFilePanel")}
-                      className="shell-toolbar-btn right-panel-close-button ui-focus-ring"
-                    >
-                      <X size={16} strokeWidth={1.8} aria-hidden="true" />
-                    </button>
-                  </div>
+                  )}
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                     {/* The explorer stays mounted (toggled via display) so its
                         directory-browsing state survives opening/closing file

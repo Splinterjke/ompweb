@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { toast } from "@/components/ui/toast";
+import { setToastHistoryRecording, toast } from "@/components/ui/toast";
 import { translate } from "@/lib/i18n";
 import { DEFAULT_NOTIFICATION_PREFS, renderNotification, type NotificationEvent, type RenderedNotification } from "@/lib/notification-events";
 import {
@@ -43,6 +43,14 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
   useEffect(() => {
     openRef.current = onOpenSession;
   }, [onOpenSession]);
+
+  // The Notifications tab records only while the device's setting says so;
+  // a change from any tab of this browser arrives through the prefs subscription.
+  useEffect(() => {
+    const apply = () => setToastHistoryRecording(getNotificationPrefs().logToTab !== false);
+    apply();
+    return subscribeNotificationPrefs(apply);
+  }, []);
 
   // Presence: visible and recently used. Reported on every change, plus a keep-alive.
   useEffect(() => {

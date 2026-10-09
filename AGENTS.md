@@ -1155,6 +1155,13 @@ during the wait.
   leaves it. Chat event actions and server-routed session notifications coexist
   with it: their toasts ride the same `toast.*` calls, so they land in the
   history too.
+- Recording into that history is the per-device `logToTab` notification pref
+  (Settings → Notifications, default on; mirrored to the server with the other
+  prefs but only ever read in the browser). While off, `toastHistory.record()`
+  is a no-op and the tab, the unread count and the opener badge read as empty;
+  entries recorded before the toggle are only hidden and reappear when it is
+  turned back on. `useNotifications` syncs the flag via
+  `setToastHistoryRecording()` and keeps it current across this browser's tabs.
 - `/sw.js` and `/badge-96.png` are exempt from the password gate (`proxy.ts`):
   browsers re-fetch the worker for updates without the session cookie.
 - Notification clicks survive an expired sign-in: `proxy.ts` sends `/?session=…`

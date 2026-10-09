@@ -84,6 +84,9 @@ export interface ToastHistoryEntry {
 
 let history: ToastHistoryEntry[] = [];
 const historyListeners = new Set<() => void>();
+/** Stable empty snapshot while the Notifications tab recording is off. */
+const NO_ENTRIES: ToastHistoryEntry[] = [];
+let recordingEnabled = true;
 function setHistory(next: ToastHistoryEntry[]) {
   history = next;
   for (const listener of historyListeners) listener();
@@ -91,15 +94,17 @@ function setHistory(next: ToastHistoryEntry[]) {
 
 let recordedCount = 0;
 
-/** Recent toasts and OS notifications, newest first, kept in memory for the notification center. */
+/** Recent toasts and OS notifications, newest first, kept in memory for the notification center.
+ * While the recording switch (setToastHistoryRecording) is off, nothing lands here and every reader sees an empty list. */
 export const toastHistory = {
   subscribe(listener: () => void) {
     historyListeners.add(listener);
     return () => { historyListeners.delete(listener); };
   },
-  get: () => history,
+  get: () => (recordingEnabled ? history : NO_ENTRIES),
   /** Add an entry without showing a toast, e.g. for a notification already delivered by the OS. */
   record(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: { id?: string; clamp?: boolean }) {
+    if (!recordingEnabled) return;
     const id = options?.id ?? `recorded-${++recordedCount}`;
     // A reused id replaces its toast on screen, so it replaces its history entry
     // too. It keeps its read state: re-announcing the same notice (e.g. an
@@ -119,10 +124,18 @@ export function useToastHistory(): ToastHistoryEntry[] {
   return useSyncExternalStore(toastHistory.subscribe, toastHistory.get, toastHistory.get);
 }
 
-const unreadCount = () => history.reduce((count, entry) => count + (entry.read ? 0 : 1), 0);
+const unreadCount = () => (recordingEnabled ? history.reduce((count, entry) => count + (entry.read ? 0 : 1), 0) : 0);
 /** Unread entry count. A primitive snapshot, so callers re-render only when the count changes. */
 export function useUnreadToastCount(): number {
   return useSyncExternalStore(toastHistory.subscribe, unreadCount, unreadCount);
+}
+
+/** The Notifications tab switch (Settings → Notifications): while off, `record` is a no-op and the history reads as empty. Existing entries stay stored and reappear when it is turned back on. */
+export function setToastHistoryRecording(enabled: boolean) {
+  if (recordingEnabled === enabled) return;
+  recordingEnabled = enabled;
+  // The history and unread snapshots changed without any entry mutation.
+  for (const listener of historyListeners) listener();
 }
 
 function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: ToastOptions) {
