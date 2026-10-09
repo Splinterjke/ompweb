@@ -190,10 +190,10 @@ export function createFixtureClient(initialSessions: SessionInfo[] = []): { clie
     async checkout() {
       return { branch: "fixture-branch" };
     },
-    async log() {
-      return { rows: [], maxLane: 1 };
-    },
     async commitDiff() {
+      return { diff: "", binary: false, truncated: false };
+    },
+    async refDiff() {
       return { diff: "", binary: false, truncated: false };
     },
   };

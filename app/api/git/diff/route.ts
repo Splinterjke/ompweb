@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { getGitFileDiff } from "@/lib/git-changes";
-import { getCommitFileDiff } from "@/lib/git-log";
+import { getCommitFileDiff, getGitRefDiff } from "@/lib/git-log";
+
 import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
-// Two diff modes:
+// Three diff modes:
 //   working tree  — cwd + path (absolute file path), the legacy contract
 //   commit file   — cwd + hash + file (repo-relative path), per-file diff of
 //                   one commit against its first parent (git-graph modal)
-// The commit-file mode always runs the local git binary: the Rust host
-// facade (doc 16 route 10) exposes only working-tree diffs.
+//   ref compare   — cwd + from + to + file, per-file diff between two refs;
+//                   `to = "*"` compares against the working tree (embedded
+//                   Git Graph view-diff actions)
+// The commit-file and ref-compare modes always run the local git binary: the
+// Rust host facade (doc 16 route 10) exposes only working-tree diffs.
+
 export async function GET(request: NextRequest) {
   try {
     const cwd = request.nextUrl.searchParams.get("cwd")?.trim() ?? "";
@@ -19,6 +24,8 @@ export async function GET(request: NextRequest) {
     const filePath = request.nextUrl.searchParams.get("path")?.trim() ?? "";
     const commitFile = request.nextUrl.searchParams.get("file")?.trim() ?? "";
     const isCommitMode = commitHash.length > 0 || commitFile.length > 0;
+    const compareFrom = request.nextUrl.searchParams.get("from")?.trim() ?? "";
+    const compareTo = request.nextUrl.searchParams.get("to")?.trim() ?? "";
 
     if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {
       return NextResponse.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
@@ -26,6 +33,21 @@ export async function GET(request: NextRequest) {
     const allowedRoots = await getAllowedFileRoots();
     if (!isFilePathAllowed(cwd, allowedRoots) || !isExistingFilePathAllowed(cwd, allowedRoots)) {
       return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+    }
+
+    if (compareFrom && compareTo) {
+      if (!commitFile) {
+        return NextResponse.json({ error: "file is required", code: "missing_file" }, { status: 400 });
+      }
+      try {
+        return NextResponse.json(await getGitRefDiff(cwd, compareFrom, compareTo, commitFile));
+      } catch (error) {
+        if (isNonRepositoryError(error)) {
+          return NextResponse.json({ supported: false });
+        }
+        recordBackendError("git_diff_failed", error instanceof Error ? error.message : String(error));
+        return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code: "git_diff_failed" }, { status: 400 });
+      }
     }
 
     if (isCommitMode) {

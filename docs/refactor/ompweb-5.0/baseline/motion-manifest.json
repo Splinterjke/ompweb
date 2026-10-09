@@ -164,9 +164,6 @@
     "components/GitChangesPanel.tsx": {
       "inlineTransitions": 1
     },
-    "components/GitGraphModal.tsx": {
-      "inlineTransitions": 2
-    },
     "components/LanguageSwitcher.tsx": {
       "inlineTransitions": 2
     },
