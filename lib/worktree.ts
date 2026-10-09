@@ -265,6 +265,7 @@ export async function listWorktrees(cwd: string): Promise<WorktreeInfo[]> {
   const out = await git(cwd, ["worktree", "list", "--porcelain"]);
   const agentBase = agentWorktreeBase();
   const worktrees: WorktreeInfo[] = [];
+  let current: { path: string; branch?: string; prunable?: boolean } | null = null;
 
   const flush = () => {
     if (current?.path) {
