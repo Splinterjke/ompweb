@@ -7,7 +7,7 @@ import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-fo
 import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 import { getSessionAdvisorEnabled, setSessionAdvisorEnabled } from "@/lib/session-preferences";
 import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
-import { parseSessionStartupBinding } from "@/lib/session-model-check";
+import { modelSwitchRepairBinding, parseSessionStartupBinding } from "@/lib/session-model-check";
 
 // Commands that ride whatever child is alive and never spawn or replace one:
 // keystroke predictions (NOTE: stock omp 18.3.x has no predict_word RPC; see
@@ -79,7 +79,7 @@ export async function POST(
     // Optional spawn-time binding ({ modelOverride } rebinds an unrestorable
     // saved model, { forceModelCheck } skips the pre-flight). omp must never
     // see it: it is stripped before the command is forwarded.
-    const startup = parseSessionStartupBinding(body.startup);
+    const startup = parseSessionStartupBinding(body.startup) ?? modelSwitchRepairBinding(body);
     const command = { ...body };
     delete command.startup;
     // Fast path: already-running session. --advisor is a spawn-time flag with

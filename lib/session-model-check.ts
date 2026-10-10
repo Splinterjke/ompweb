@@ -227,3 +227,22 @@ export function parseSessionStartupBinding(value: unknown): SessionStartupBindin
   if (raw.forceModelCheck === true) binding.forceModelCheck = true;
   return binding.modelOverride || binding.forceModelCheck ? binding : undefined;
 }
+
+/**
+ * Model-switch repair: `set_model` against a session whose saved model is
+ * unrestorable IS the rebind — the model the user just picked replaces it,
+ * so the cold spawn must start bound to it instead of failing the pre-flight
+ * on a model the UI has already rejected. The subsequent `set_model` command
+ * then records the `model_change` entry, making the switch permanent.
+ * An explicit `startup` body field always wins over this derivation.
+ */
+export function modelSwitchRepairBinding(command: {
+  type?: unknown;
+  provider?: unknown;
+  modelId?: unknown;
+}): SessionStartupBinding | undefined {
+  if (command.type !== "set_model") return undefined;
+  return parseSessionStartupBinding({
+    modelOverride: { provider: command.provider, modelId: command.modelId },
+  });
+}
