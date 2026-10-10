@@ -875,6 +875,11 @@ during the wait.
   align line-for-line; a rows block's grid rows are offset by `renderFile`'s
   cursor so a hunk separated from the previous block by a bar cannot overlap it
   (regression tests in `components/diff/DiffViewer.test.mjs`).
+- DELETED files are diffable on the contents path too: containment falls back
+  to the deepest existing ancestor (`isPathWithinRootsAllowingMissing`), and
+  the patch comes from `git diff HEAD` with the old side from HEAD
+  (`getDeletedFileDiff`) — the no-contents default stays `supported:false`
+  for deletions (frozen by the Rust parity tests).
 - rsh appends a trailing `"\n"` to every processed line inside the deepest token
   span; `stripTrailingNewline` must recurse into nested children — a shallow pop
   leaves it and renders every row two lines tall.

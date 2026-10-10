@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
+import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isPathWithinRootsAllowingMissing, isWindowsAbsolutePath } from "@/lib/file-access";
 import { getGitFileDiff } from "@/lib/git-changes";
 import { getCommitFileDiff, getGitRefDiff } from "@/lib/git-log";
 
@@ -78,7 +78,10 @@ export async function GET(request: NextRequest) {
     if (!filePath || (!filePath.startsWith("/") && !isWindowsAbsolutePath(filePath))) {
       return NextResponse.json({ error: "path must be an absolute path", code: "path_must_be_absolute" }, { status: 400 });
     }
-    if (!isFilePathAllowed(filePath, allowedRoots) || !isExistingFilePathAllowed(filePath, allowedRoots)) {
+    // Working-tree diffs read git objects, not the file — a DELETED file is a
+    // legitimate diff subject, so containment falls back to its existing
+    // ancestor instead of requiring the leaf itself to exist.
+    if (!isFilePathAllowed(filePath, allowedRoots) || !isPathWithinRootsAllowingMissing(filePath, allowedRoots)) {
       return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 

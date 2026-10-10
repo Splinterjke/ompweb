@@ -264,6 +264,46 @@ async function createTrackedFilePatch(
   }
 }
 
+/**
+ * Working-tree diff of a file MISSING from disk (deleted in the worktree or
+ * the index): the patch comes from `git diff HEAD -- path` and the old side
+ * from HEAD, so no working-tree copy is needed. Returns null when the path is
+ * not a diffable deletion. The DEFAULT (no-contents) contract stays
+ * `{ supported: false }` for deleted files — that shape is frozen by the
+ * Rust parity tests (lib/git-parity.test.mjs); only the Node-only contents=1
+ * path, which the Git tab and FileViewer always request, serves the deletion.
+ */
+async function getDeletedFileDiff(
+  repositoryRoot: string,
+  resolvedFilePath: string,
+  withContents: boolean,
+): Promise<GitFileDiffResponse | null> {
+  let realRepositoryRoot: string;
+  try {
+    realRepositoryRoot = fs.realpathSync(repositoryRoot);
+  } catch {
+    return null;
+  }
+  const relativePath = toGitPath(path.relative(realRepositoryRoot, resolvedFilePath));
+  if (!relativePath || relativePath.startsWith("..")) return null;
+  const entry = await findStatusEntry(realRepositoryRoot, relativePath);
+  if (!entry) return null;
+  if (classifyGitStatus(entry).status !== "deleted") return null;
+  if ((await readCollapseReasons(realRepositoryRoot, [relativePath])).get(relativePath) === "no-diff") return null;
+  const patch = await createTrackedFilePatch(realRepositoryRoot, relativePath, entry.originalPath);
+  if (!patch || !patch.includes("\n@@ ")) return null;
+  if (!withContents) return null;
+  const oldSide = await readRefFile(realRepositoryRoot, "HEAD", entry.originalPath ?? relativePath);
+  return {
+    supported: true,
+    status: "deleted",
+    patch,
+    oldText: oldSide.text,
+    newText: "",
+    ...(oldSide.oversize ? { contentsTruncated: true } : {}),
+  };
+}
+
 export async function getGitFileDiff(cwd: string, filePath: string, withContents = false): Promise<GitFileDiffResponse> {
   const repositoryRoot = await findRepositoryRoot(cwd);
   if (!repositoryRoot || !isWithinPath(repositoryRoot, filePath)) return { supported: false };
@@ -273,7 +313,8 @@ export async function getGitFileDiff(cwd: string, filePath: string, withContents
   try {
     stat = fs.lstatSync(resolvedFilePath);
   } catch {
-    return { supported: false };
+    const deleted = await getDeletedFileDiff(repositoryRoot, resolvedFilePath, withContents);
+    return deleted ?? { supported: false };
   }
   if (!stat.isFile() || stat.size > TEXT_PREVIEW_MAX_BYTES) return { supported: false };
 
