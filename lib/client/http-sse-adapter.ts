@@ -241,11 +241,14 @@ class HttpGitClient implements GitClient {
   async checkout(cwd: string, branch: string): Promise<{ branch?: string }> {
     return rawRequest<{ branch?: string; error?: string }>("/api/git/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd, branch }) });
   }
-  async commitDiff(cwd: string, hash: string, file: string): Promise<GitCommitFileDiff> {
-    return rawRequest<GitCommitFileDiff & { error?: string }>(`/api/git/diff?cwd=${encodeURIComponent(cwd)}&hash=${encodeURIComponent(hash)}&file=${encodeURIComponent(file)}`, { cache: "no-store" });
+  async commitDiff(cwd: string, hash: string, file: string, options?: { contents?: boolean }): Promise<GitCommitFileDiff> {
+    const params = new URLSearchParams({ cwd, hash, file });
+    if (options?.contents) params.set("contents", "1");
+    return rawRequest<GitCommitFileDiff & { error?: string }>(`/api/git/diff?${params.toString()}`, { cache: "no-store" });
   }
-  async refDiff(cwd: string, from: string, to: string, file: string): Promise<GitCommitFileDiff> {
+  async refDiff(cwd: string, from: string, to: string, file: string, options?: { contents?: boolean }): Promise<GitCommitFileDiff> {
     const params = new URLSearchParams({ cwd, from, to, file });
+    if (options?.contents) params.set("contents", "1");
     return rawRequest<GitCommitFileDiff & { error?: string }>(`/api/git/diff?${params.toString()}`, { cache: "no-store" });
   }
 }

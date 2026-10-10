@@ -6,6 +6,7 @@ import { isNonRepositoryError } from "@/lib/git-nonrepo";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getGitStatus } from "@/lib/git-changes";
 import { withGitReadCache } from "@/lib/git-cache";
+import { applyPerFileStats } from "@/lib/git-numstat";
 
 // Short-TTL cache: the git tab, the composer git bar and the sidebar badges
 // all poll this endpoint for the same repo; the cache collapses them into a
@@ -42,10 +43,15 @@ export async function GET(request: NextRequest) {
     // the Node path exists only for the explicit OMPWEB_BACKEND=node rollback.
     // ?refresh=1 bypasses the cache (manual refresh / right after a commit).
     const refresh = request.nextUrl.searchParams.get("refresh") === "1";
+    // Per-file +/- stats are augmented on top of whichever backend answered
+    // (the frozen Node↔Rust parity shapes must not grow the fields) and
+    // inside the cache window, so the extra `git diff --numstat` collapses
+    // with the pollers like the status call itself.
+    const loadStatus = () =>
+      (rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd)).then(applyPerFileStats);
     const status = refresh
-      ? await (rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd))
-      : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, () =>
-          rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd));
+      ? await loadStatus()
+      : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, loadStatus);
     return NextResponse.json(status);
   } catch (error) {
     // A non-repo is a normal situation, not a backend failure — recording

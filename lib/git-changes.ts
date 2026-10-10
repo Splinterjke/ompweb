@@ -16,6 +16,7 @@ import {
   parseGitPorcelainV1,
   type GitPorcelainEntry,
 } from "./git-status";
+import { readRefFile } from "./git-blob.ts";
 
 const execFileAsync = promisify(execFile);
 // `git status --untracked-files=all` and `git diff HEAD --shortstat` on a
@@ -263,7 +264,7 @@ async function createTrackedFilePatch(
   }
 }
 
-export async function getGitFileDiff(cwd: string, filePath: string): Promise<GitFileDiffResponse> {
+export async function getGitFileDiff(cwd: string, filePath: string, withContents = false): Promise<GitFileDiffResponse> {
   const repositoryRoot = await findRepositoryRoot(cwd);
   if (!repositoryRoot || !isWithinPath(repositoryRoot, filePath)) return { supported: false };
 
@@ -323,5 +324,18 @@ export async function getGitFileDiff(cwd: string, filePath: string): Promise<Git
   }
 
   if (!patch.includes("\n@@ ")) return { supported: false };
-  return { supported: true, status, patch };
+  if (!withContents) return { supported: true, status, patch };
+  // The patch compares against HEAD, so that is the old side (renames read
+  // their original path). Untracked files have no old side at all.
+  const oldSide = status === "untracked"
+    ? { text: "", oversize: false }
+    : await readRefFile(realRepositoryRoot, "HEAD", entry.originalPath ?? relativePath);
+  return {
+    supported: true,
+    status,
+    patch,
+    oldText: oldSide.text,
+    newText: newContent,
+    ...(oldSide.oversize ? { contentsTruncated: true } : {}),
+  };
 }
