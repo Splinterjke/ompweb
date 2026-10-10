@@ -7,7 +7,16 @@ export interface SplitDiffCell {
 }
 
 export type SplitDiffRow =
-  | { type: "hunk"; text: string }
+  | {
+      type: "hunk";
+      text: string;
+      /** Line numbers of a real `@@` header; absent on marker/noise rows
+       *  (`\ No newline...`, `diff --git`) that reuse this row type. */
+      oldStart?: number;
+      oldCount?: number;
+      newStart?: number;
+      newCount?: number;
+    }
   | { type: "line"; left: SplitDiffCell; right: SplitDiffCell };
 
 export interface SplitDiffFile {
@@ -75,7 +84,7 @@ export function parseUnifiedPatch(text: string): SplitDiffFile[] | null {
       continue;
     }
 
-    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    const hunk = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
     if (hunk) {
       if (!current) {
         current = { rows: [] };
@@ -83,8 +92,15 @@ export function parseUnifiedPatch(text: string): SplitDiffFile[] | null {
       }
       flushChanges();
       oldLineNo = Number(hunk[1]);
-      newLineNo = Number(hunk[2]);
-      current.rows.push({ type: "hunk", text: line });
+      newLineNo = Number(hunk[3]);
+      current.rows.push({
+        type: "hunk",
+        text: line,
+        oldStart: Number(hunk[1]),
+        oldCount: hunk[2] === undefined ? 1 : Number(hunk[2]),
+        newStart: Number(hunk[3]),
+        newCount: hunk[4] === undefined ? 1 : Number(hunk[4]),
+      });
       continue;
     }
 
