@@ -40,6 +40,12 @@ export interface DiffViewerProps {
   showViewed?: boolean;
   /** Split/unified affordance — the narrow graph pane keeps it hidden. */
   showLayoutToggle?: boolean;
+  /** Working-tree status chip shown in the header (e.g. "Modified"); the
+   *  owner of the git status passes the localized label + color. */
+  statusLabel?: string;
+  statusColor?: string;
+  /** Extra header actions, rendered before the copy/open buttons. */
+  headerExtra?: React.ReactNode;
   onOpenFile?: (filePath: string) => void;
 }
 
@@ -78,6 +84,54 @@ function wordSpansBackground(spans: Array<[number, number]> | undefined, cols: n
     })
     .filter((layer): layer is string => layer !== null);
   return layers.length > 0 ? layers.join(", ") : undefined;
+}
+
+/** hast-like child accepted by rsh's createSyntaxElement. */
+type SyntaxNode = { type: string; value?: unknown; tagName?: string; properties?: Record<string, unknown>; children?: SyntaxNode[] };
+
+/**
+ * Word chips as REAL spans for wrapped rows: the `ch`-unit gradient positions
+ * against the whole multi-line box, so once content wraps the chips would
+ * sit on the wrong text. Text nodes are split at the range boundaries while
+ * walking the token tree (offsets accumulate across the row's children);
+ * covered segments become colored <span>s inside their styled tokens.
+ */
+function paintWordRanges(
+  nodes: readonly SyntaxNode[],
+  ranges: Array<[number, number]>,
+  color: string,
+  cursor: { offset: number; range: number },
+): SyntaxNode[] {
+  const out: SyntaxNode[] = [];
+  for (const node of nodes) {
+    if (node.type === "text" && typeof node.value === "string") {
+      const start = cursor.offset;
+      const end = start + node.value.length;
+      cursor.offset = end;
+      while (cursor.range < ranges.length && ranges[cursor.range][1] <= start) cursor.range += 1;
+      let pos = start;
+      for (let r = cursor.range; r < ranges.length && ranges[r][0] < end; r += 1) {
+        const [rs, re] = ranges[r];
+        if (re <= pos) continue;
+        const os = Math.max(rs, pos);
+        const oe = Math.min(re, end);
+        if (os > pos) out.push({ type: "text", value: node.value.slice(pos - start, os - start) });
+        out.push({
+          type: "element",
+          tagName: "span",
+          properties: { className: [], style: { backgroundColor: color } },
+          children: [{ type: "text", value: node.value.slice(os - start, oe - start) }],
+        });
+        pos = oe;
+      }
+      if (pos < end) out.push({ type: "text", value: node.value.slice(pos - start) });
+    } else if (node.type === "element" && Array.isArray(node.children)) {
+      out.push({ ...node, children: paintWordRanges(node.children, ranges, color, cursor) });
+    } else {
+      out.push(node);
+    }
+  }
+  return out;
 }
 
 function cellBackground(kind: DiffCell["kind"]): string {
@@ -224,13 +278,16 @@ export function DiffViewer({
   showPath = true,
   showViewed = true,
   showLayoutToggle = false,
+  statusLabel,
+  statusColor,
+  headerExtra,
   onOpenFile,
 }: DiffViewerProps) {
   const { t, tn } = useI18n();
   const { isDark } = useTheme();
   const [reveals, setReveals] = useState<number[]>([]);
   const [userLayout, setUserLayout] = useState<"split" | "unified" | null>(null);
-  const [wrap, setWrap] = useState(false);
+  const [wrap, setWrap] = useState(true);
   const [viewed, setViewedState] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -284,7 +341,7 @@ export function DiffViewer({
   }, [language]);
 
   const splitAllowed = containerWidth >= SPLIT_MIN_WIDTH_PX;
-  const split = !wrap && (userLayout ?? "split") === "split" && splitAllowed;
+  const split = (userLayout ?? "split") === "split" && splitAllowed;
 
   if (!files) {
     return (
@@ -305,9 +362,27 @@ export function DiffViewer({
       const { cell, column } = line;
       const rendererRow = rendererProps?.rows[index];
       const cols = displayColumns(cell.text);
-      const wordBg = cell.wordSpans && (cell.kind === "added" || cell.kind === "removed")
-        ? wordSpansBackground(cell.wordSpans, cols, wordSpanColor(cell.kind))
-        : undefined;
+      const wordRanges = cell.wordSpans && (cell.kind === "added" || cell.kind === "removed") ? cell.wordSpans : undefined;
+      // The `ch` gradient only positions correctly on single-line rows; with
+      // wrap on, the chips are painted as real spans instead.
+      const wordBg = !wrap && wordRanges ? wordSpansBackground(wordRanges, cols, wordSpanColor(cell.kind)) : undefined;
+      const syntaxChildren = rendererRow?.children?.length
+        ? (stripTrailingNewline(rendererRow.children) as unknown as SyntaxNode[])
+        : null;
+      const painted = wrap && wordRanges && cell.text
+        ? paintWordRanges(
+            syntaxChildren ?? [{ type: "text", value: cell.text }],
+            wordRanges,
+            wordSpanColor(cell.kind),
+            { offset: 0, range: 0 },
+          )
+        : null;
+      const renderNodes = (nodes: SyntaxNode[]): React.ReactNode[] => nodes.map((node, tokenIndex) => renderSyntaxNode({
+        node: node as never,
+        stylesheet: rendererProps?.stylesheet ?? {},
+        useInlineStyles: rendererProps?.useInlineStyles ?? true,
+        key: `tok-${blockKey}-${index}-${tokenIndex}`,
+      }));
       return (
         <div
           key={`dl-${blockKey}-${index}`}
@@ -336,6 +411,7 @@ export function DiffViewer({
             {cell.lineNo ?? ""}
           </span>
           <span
+            data-diff-content="1"
             style={{
               flex: 1,
               minWidth: 0,
@@ -346,14 +422,11 @@ export function DiffViewer({
               backgroundImage: wordBg,
             }}
           >
-            {rendererRow?.children?.length
-              ? stripTrailingNewline(rendererRow.children).map((node, tokenIndex) => renderSyntaxNode({
-                  node,
-                  stylesheet: rendererProps?.stylesheet ?? {},
-                  useInlineStyles: rendererProps?.useInlineStyles ?? true,
-                  key: `tok-${blockKey}-${index}-${tokenIndex}`,
-                }))
-              : cell.text || "\u00a0"}
+            {painted
+              ? renderNodes(painted)
+              : syntaxChildren
+                ? renderNodes(syntaxChildren)
+                : cell.text || "\u00a0"}
           </span>
         </div>
       );
@@ -461,8 +534,12 @@ export function DiffViewer({
       );
     }
 
+    // Wrapped rows need a shrinkable track (the `…ch` minimum is what keeps
+    // long lines wide when wrap is OFF and the pane scrolls horizontally).
     const gridColumns = split
-      ? `minmax(calc(${Math.ceil(leftMax)}ch + 16px), 1fr) minmax(calc(${Math.ceil(rightMax)}ch + 16px), 1fr)`
+      ? wrap
+        ? "minmax(0, 1fr) minmax(0, 1fr)"
+        : `minmax(calc(${Math.ceil(leftMax)}ch + 16px), 1fr) minmax(calc(${Math.ceil(rightMax)}ch + 16px), 1fr)`
       : "minmax(0, 1fr)";
 
     return (
@@ -478,13 +555,16 @@ export function DiffViewer({
             showPath={showPath}
             showViewed={showViewed}
             onOpenFile={onOpenFile}
+            statusLabel={statusLabel}
+            statusColor={statusColor}
+            headerExtra={headerExtra}
           />
         )}
         {showLayoutToggle && (
           <div style={{ display: "flex", gap: 4, padding: "4px 10px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
-            <LayoutButton active={split} onClick={() => { setUserLayout("split"); setWrap(false); }} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={!split && !wrap} onClick={() => { setUserLayout("unified"); setWrap(false); }} label={t("diff.unifiedView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={wrap} onClick={() => { setWrap((w) => !w); if (!wrap) setUserLayout("unified"); }} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
+            <LayoutButton active={split} onClick={() => setUserLayout("split")} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
+            <LayoutButton active={!split} onClick={() => setUserLayout("unified")} label={t("diff.inlineView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
+            <LayoutButton active={wrap} onClick={() => setWrap((w) => !w)} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
           </div>
         )}
         <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: LINE_HEIGHT, minWidth: 0 }}>
@@ -516,7 +596,7 @@ const headerIconButtonStyle: React.CSSProperties = {
   background: "none", color: "var(--text-muted)", cursor: "pointer",
 };
 
-function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed, showPath, showViewed, onOpenFile }: {
+function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed, showPath, showViewed, statusLabel, statusColor, headerExtra, onOpenFile }: {
   model: DiffFileModel;
   filePath: string | null;
   cwd: string | null;
@@ -525,6 +605,9 @@ function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed
   onToggleViewed: () => void;
   showPath: boolean;
   showViewed: boolean;
+  statusLabel?: string;
+  statusColor?: string;
+  headerExtra?: React.ReactNode;
   onOpenFile?: (filePath: string) => void;
 }) {
   const { t } = useI18n();
@@ -556,7 +639,13 @@ function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed
       <span style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", fontWeight: 600, color: "var(--status-error)", flexShrink: 0 }}>
         −{model.removed}
       </span>
+      {statusLabel && (
+        <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: statusColor ?? "var(--text-muted)", flexShrink: 0 }}>
+          {statusLabel}
+        </span>
+      )}
       <span style={{ flex: 1, minWidth: 0 }} />
+      {headerExtra}
       {filePath && copyText != null && (
         <button type="button" onClick={() => void copy(copyText)} title={t("diff.copyContent")} aria-label={t("diff.copyContent")} className="ui-focus-ring" style={headerIconButtonStyle}>
           <Copy size={12} strokeWidth={2} aria-hidden="true" />

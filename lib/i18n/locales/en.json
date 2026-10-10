@@ -2303,7 +2303,7 @@
   "diff.copied": "Copied to clipboard",
   "diff.copyFailed": "Copy failed",
   "diff.splitView": "Split view",
-  "diff.unifiedView": "Unified view",
+  "diff.inlineView": "Inline view",
   "diff.wrapLines": "Wrap lines",
   "diff.statsAria": "{added} additions, {deleted} deletions",
   "diff.hiddenLinesStatic": "Hidden lines cannot be expanded for this diff",

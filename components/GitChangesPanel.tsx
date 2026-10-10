@@ -199,11 +199,6 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   }, [files, filter, cwd]);
 
   const selectedFile = selectedPath ? files.find((f) => f.filePath === selectedPath) ?? null : null;
-  const selectedRelative = selectedPath ? getRelativeFilePath(selectedPath, cwd) : "";
-
-  const openSelected = useCallback(() => {
-    if (selectedPath) onOpenFile(selectedPath, getFileName(selectedPath));
-  }, [selectedPath, onOpenFile]);
 
   const mentionSelected = useCallback(() => {
     if (selectedPath) onAtMention?.(getRelativeFilePath(selectedPath, cwd), false);
@@ -496,95 +491,6 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
               </>
             )}
           </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "5px 12px",
-              borderBottom: "1px solid var(--border)",
-              flexShrink: 0,
-              minWidth: 0,
-            }}
-          >
-            <Tooltip content={selectedRelative}>
-              <span
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                fontFamily: "var(--font-mono)",
-                color: "var(--text)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {selectedRelative}
-            </span>
-            </Tooltip>
-            {selectedFile && (
-              <Tooltip content={t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}>
-                <span
-                style={{
-                  fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
-                  fontWeight: 700,
-                  color: GIT_STATUS_COLORS[selectedFile.status],
-                  flexShrink: 0,
-                }}
-              >
-                {t(GIT_STATUS_LABEL_KEYS[selectedFile.status])}
-              </span>
-              </Tooltip>
-            )}
-            {onAtMention && (
-              <Tooltip content={t("fileExplorer.insertPathIntoChat")}>
-                <button
-                className="git-change-mention-action"
-                type="button"
-                onClick={mentionSelected}
-                disabled={!selectedPath}
-                aria-label={t("fileExplorer.insertPathIntoChat")}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                  height: 22, padding: "0 7px",
-                  background: "var(--bg-panel)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-control)",
-                  color: selectedPath ? "var(--accent)" : "var(--text-dim)",
-                  cursor: selectedPath ? "pointer" : "default",
-                  opacity: selectedPath ? 1 : 0.6,
-                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
-                }}
-              >
-                <AtSign size={11} strokeWidth={2.2} aria-hidden="true" />
-                {t("fileExplorer.mention")}
-              </button>
-              </Tooltip>
-            )}
-            <Tooltip content={t("gitChanges.openFile")}>
-              <button
-              className="git-change-footer-open"
-              type="button"
-              onClick={openSelected}
-              disabled={!selectedPath}
-              aria-label={t("gitChanges.openFile")}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                width: 26, height: 22, padding: 0,
-                background: "var(--bg-panel)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-control)",
-                color: "var(--text-muted)",
-                cursor: selectedPath ? "pointer" : "default",
-                opacity: selectedPath ? 1 : 0.6,
-                flexShrink: 0,
-              }}
-            >
-              <ExternalLink size={11} strokeWidth={2.2} aria-hidden="true" />
-            </button>
-            </Tooltip>
-          </div>
           <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--bg)" }}>
             {patchLoading ? (
               <div role="status" aria-live="polite" style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)" }}>{t("fileViewer.loading")}</div>
@@ -614,6 +520,33 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                 cwd={cwd}
                 onOpenFile={(p) => onOpenFile(p, getFileName(p))}
                 showLayoutToggle
+                statusLabel={selectedFile ? t(GIT_STATUS_LABEL_KEYS[selectedFile.status]) : undefined}
+                statusColor={selectedFile ? GIT_STATUS_COLORS[selectedFile.status] : undefined}
+                headerExtra={onAtMention ? (
+                  <Tooltip content={t("fileExplorer.insertPathIntoChat")}>
+                    <button
+                    className="git-change-mention-action"
+                    type="button"
+                    onClick={mentionSelected}
+                    disabled={!selectedPath}
+                    aria-label={t("fileExplorer.insertPathIntoChat")}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                      height: 22, padding: "0 7px",
+                      background: "var(--bg-panel)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-control)",
+                      color: selectedPath ? "var(--accent)" : "var(--text-dim)",
+                      cursor: selectedPath ? "pointer" : "default",
+                      opacity: selectedPath ? 1 : 0.6,
+                      fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
+                    }}
+                  >
+                    <AtSign size={11} strokeWidth={2.2} aria-hidden="true" />
+                    {t("fileExplorer.mention")}
+                    </button>
+                  </Tooltip>
+                ) : null}
               />
             )}
           </div>

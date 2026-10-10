@@ -2303,7 +2303,7 @@
   "diff.copied": "已复制到剪贴板",
   "diff.copyFailed": "复制失败",
   "diff.splitView": "并排视图",
-  "diff.unifiedView": "统一视图",
+  "diff.inlineView": "行内视图",
   "diff.wrapLines": "自动换行",
   "diff.statsAria": "新增 {added}，删除 {deleted}",
   "diff.hiddenLinesStatic": "此差异无法展开隐藏行",

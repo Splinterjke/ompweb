@@ -97,16 +97,43 @@ test("split view aligns both panes, highlights changed words, persists Viewed", 
   const right = [...c.querySelectorAll('[data-diff-line="2"]')];
   assert.equal(right.length, left.length);
   assert.deepEqual(right.map((r) => r.style.gridRow), left.map((r) => r.style.gridRow));
-  // Word-level shade sits on the changed pair's content spans, in ch units.
-  const shaded = [...c.querySelectorAll("[data-diff-line] > span")]
-    .filter((s) => (s.style.backgroundImage ?? "").includes("linear-gradient"));
-  assert.equal(shaded.length, 2);
-  assert.ok(shaded.every((s) => /\d+ch/.test(s.style.backgroundImage)));
+  // Wrap is ON by default (content spans pre-wrap), and the word-level
+  // shade paints as real chip spans so it survives a wrapped row — the
+  // ch-unit gradient would sit on the wrong text once the row wraps.
+  const contents = [...c.querySelectorAll("[data-diff-content]")];
+  assert.ok(contents.length > 0, "content spans marked");
+  assert.ok(contents.every((s) => s.style.whiteSpace === "pre-wrap"));
+  const chips = contents
+    .flatMap((s) => [...s.querySelectorAll("span")])
+    .filter((s) => (s.style.backgroundColor ?? "").includes("--diff-"));
+  assert.ok(chips.length >= 2, "chips paint the changed pair on both sides");
   const viewed = [...c.querySelectorAll("button")].find((b) => /viewed/i.test(b.textContent ?? ""));
   assert.ok(viewed, "Viewed pill renders");
   fireEvent.click(viewed);
   assert.equal(viewed.getAttribute("aria-pressed"), "true");
   assert.ok((window.localStorage.getItem("omp-web:git-diff-viewed") ?? "").includes("/repo/f.ts"));
+});
+
+test("turning wrap off repaints the word shade as ch-unit gradients", () => {
+  nextWidth = 900;
+  const view = React.createElement(DiffViewer, {
+    patch: PAIR_PATCH,
+    filePath: "/repo/f.ts",
+    cwd: "/repo",
+    showLayoutToggle: true,
+  });
+  const { container: c } = render(view);
+  const wrapBtn = [...c.querySelectorAll("button")].find(
+    (b) => /wrap/i.test(b.getAttribute("aria-label") ?? ""),
+  );
+  assert.ok(wrapBtn, "wrap toggle renders with the layout bar");
+  assert.equal(wrapBtn.getAttribute("aria-pressed"), "true", "wrap starts on");
+  fireEvent.click(wrapBtn);
+  const contents = [...c.querySelectorAll("[data-diff-content]")];
+  assert.ok(contents.every((s) => s.style.whiteSpace !== "pre-wrap"));
+  const shaded = contents.filter((s) => (s.style.backgroundImage ?? "").includes("linear-gradient"));
+  assert.equal(shaded.length, 2, "gradient returns on the changed pair");
+  assert.ok(shaded.every((s) => /\d+ch/.test(s.style.backgroundImage)));
 });
 
 test("hidden-lines bars reveal 20, then 40, then all, and disappear when done", () => {

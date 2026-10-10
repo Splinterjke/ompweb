@@ -2303,7 +2303,7 @@
   "diff.copied": "コピーしました",
   "diff.copyFailed": "コピーに失敗しました",
   "diff.splitView": "分割表示",
-  "diff.unifiedView": "統合表示",
+  "diff.inlineView": "インライン表示",
   "diff.wrapLines": "行を折り返す",
   "diff.statsAria": "追加 {added}、削除 {deleted}",
   "diff.hiddenLinesStatic": "この差分では非表示の行は展開できません",
