@@ -9,6 +9,7 @@ import { createOmpwebClient } from "@/lib/client";
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { DiffViewer } from "./diff/DiffViewer";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 
 const client = createOmpwebClient("legacy-http");
 
@@ -27,11 +28,15 @@ const client = createOmpwebClient("legacy-http");
 // Persisted expand/collapse state: collapsed = the dragged panel height at
 // the workspace bottom; expanded = the panel fills the whole workspace
 // column (the host grows its flex basis; see onExpandedChange).
-const EXPANDED_KEY = "omp-wea...ded";
+const EXPANDED_KEY = "omp-web:git-graph-expanded";
+// bd5286e9 shipped both keys with literal "..." truncation; the initializers
+// migrate a stored value once and clear the junk key.
+const LEGACY_EXPANDED_KEY = "omp-wea...ded";
 
 // Docked-panel height: dragged from the top edge and persisted; dragging
 // past the minimum hides the panel (the terminal drawer's gesture).
-const PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
+const PANEL_HEIGHT_KEY = "omp-web:git-graph-panel-height";
+const LEGACY_PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
 const PANEL_MIN_HEIGHT = 200;
 const PANEL_DEFAULT_HEIGHT = 420;
 
@@ -259,7 +264,14 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
-      return window.localStorage.getItem(EXPANDED_KEY) === "1";
+      const raw = window.localStorage.getItem(EXPANDED_KEY);
+      if (raw !== null) return raw === "1";
+      const legacyExpanded = window.localStorage.getItem(LEGACY_EXPANDED_KEY);
+      if (legacyExpanded !== null) {
+        window.localStorage.removeItem(LEGACY_EXPANDED_KEY);
+        return legacyExpanded === "1";
+      }
+      return false;
     } catch {
       return false;
     }
@@ -277,7 +289,11 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
   const [panelHeight, setPanelHeight] = useState(() => {
     if (typeof window === "undefined") return PANEL_DEFAULT_HEIGHT;
     try {
-      const raw = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+      let raw = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+      if (raw === null) {
+        raw = window.localStorage.getItem(LEGACY_PANEL_HEIGHT_KEY);
+        if (raw !== null) window.localStorage.removeItem(LEGACY_PANEL_HEIGHT_KEY);
+      }
       const parsed = raw === null ? Number.NaN : Number(raw);
       return Number.isFinite(parsed) ? Math.max(PANEL_MIN_HEIGHT, parsed) : PANEL_DEFAULT_HEIGHT;
     } catch {
@@ -303,6 +319,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
 
   const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    setFrameDragGuard(true);
     const startY = e.clientY;
     const startHeight = panelHeightRef.current;
     let closed = false;
@@ -317,6 +334,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
       setPanelHeight(Math.max(PANEL_MIN_HEIGHT, Math.min(window.innerHeight * 0.8, next)));
     };
     const onMouseUp = () => {
+      setFrameDragGuard(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
