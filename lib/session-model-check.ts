@@ -25,12 +25,72 @@ const AVAILABILITY_TTL_MS = 60_000;
 const MODELS_RPC_TIMEOUT_MS = 60_000;
 
 /**
- * Read the last default-role `model_change` entry from a session file via a
- * bounded tail read (session files can be tens of MB; the saved model is
- * always near the tail). Returns null when the file records no restorable
- * model (a brand-new or role-only file) — callers must treat that as
- * "nothing to check", never as a failure.
+ * Read the last default-role `model_change` entry from a session file. A
+ * bounded tail read covers the common case (the model was switched recently);
+ * when the tail window holds no entry, a long session that never changed its
+ * model keeps the entry near the head, so the whole file is streamed once as
+ * a fallback. Returns null when the file records no restorable model (a
+ * brand-new or role-only file) — callers must treat that as "nothing to
+ * check", never as a failure.
  */
+/** Match one JSONL line against the saved-model rule; null when it is not the entry. */
+function matchSavedModelLine(line: string): SavedSessionModel | null {
+  if (!line.includes('"model_change"')) return null;
+  let entry: unknown;
+  try {
+    entry = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const record = entry as { type?: unknown; model?: unknown; role?: unknown };
+  if (record.type !== "model_change" || typeof record.model !== "string" || !record.model) return null;
+  // `role:"title"`, `role:"subagent:*"` … entries name OTHER models than
+  // the one a resume restores; only the default-role entry is the
+  // session's saved model.
+  if (record.role !== undefined && record.role !== "default") return null;
+  const full = record.model;
+  const slash = full.indexOf("/");
+  if (slash <= 0 || slash === full.length - 1) return null;
+  return { full, provider: full.slice(0, slash), modelId: full.slice(slash + 1) };
+}
+
+/**
+ * Fallback for files whose tail window holds no entry: stream the whole file
+ * forward in chunks (the fd's own position, so it never races the tail read's
+ * explicit offsets) and keep the LAST default-role match. Only whole lines
+ * are matched (a trailing fragment without a newline is the file's last line
+ * and counts); memory stays bounded by the chunk size.
+ */
+function scanWholeFileForSavedModel(fd: number): SavedSessionModel | null {
+  const CHUNK_BYTES = 1024 * 1024;
+  const chunk = Buffer.alloc(CHUNK_BYTES);
+  const EMPTY = Buffer.alloc(0);
+  let carry = EMPTY;
+  let pos = 0;
+  let last: SavedSessionModel | null = null;
+  for (;;) {
+    const got = readSync(fd, chunk, 0, CHUNK_BYTES, pos);
+    if (got <= 0) break;
+    pos += got;
+    const data = carry === EMPTY ? chunk.subarray(0, got) : Buffer.concat([carry, chunk.subarray(0, got)]);
+    let start = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] !== 0x0a) continue;
+      const found = matchSavedModelLine(data.toString("utf8", start, i).trim());
+      if (found) last = found;
+      start = i + 1;
+    }
+    // Copy: `chunk` is overwritten by the next readSync.
+    carry = start < data.length ? Buffer.from(data.subarray(start)) : EMPTY;
+  }
+  if (carry.length > 0) {
+    const found = matchSavedModelLine(carry.toString("utf8").trim());
+    if (found) last = found;
+  }
+  return last;
+}
+
 export function readSessionSavedModel(filePath: string): SavedSessionModel | null {
   let fd: number | undefined;
   try {
@@ -44,26 +104,12 @@ export function readSessionSavedModel(filePath: string): SavedSessionModel | nul
     // A tail read starts mid-line; that fragment can never be a full entry.
     if (offset > 0) lines.shift();
     for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line.includes('"model_change"')) continue;
-      let entry: unknown;
-      try {
-        entry = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (!entry || typeof entry !== "object") continue;
-      const record = entry as { type?: unknown; model?: unknown; role?: unknown };
-      if (record.type !== "model_change" || typeof record.model !== "string" || !record.model) continue;
-      // `role:"title"`, `role:"subagent:*"` … entries name OTHER models than
-      // the one a resume restores; only the default-role entry is the
-      // session's saved model.
-      if (record.role !== undefined && record.role !== "default") continue;
-      const full = record.model;
-      const slash = full.indexOf("/");
-      if (slash <= 0 || slash === full.length - 1) continue;
-      return { full, provider: full.slice(0, slash), modelId: full.slice(slash + 1) };
+      const found = matchSavedModelLine(lines[i].trim());
+      if (found) return found;
     }
+    // A long session that never switched models keeps its entry before the
+    // tail window — stream the whole file instead of reporting "no model".
+    if (offset > 0) return scanWholeFileForSavedModel(fd);
     return null;
   } catch {
     return null;
