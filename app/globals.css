@@ -4807,3 +4807,10 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   border-top: 1px solid var(--border);
   overflow: hidden;
 }
+/* While a window-level drag is in flight (setFrameDragGuard,
+ * lib/drag-frames.ts), every iframe swallows pointer events: the embedded
+ * Git Graph webview / browser tab would eat the drag's mousemove/mouseup
+ * the moment the pointer crosses it, freezing the resize. */
+body.omp-drag-resizing iframe {
+  pointer-events: none;
+}

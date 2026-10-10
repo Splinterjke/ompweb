@@ -10,6 +10,7 @@ import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { extractTerminalStreamFrames } from "@/lib/terminal-stream";
 import { timeoutSignal } from "@/lib/abort-signal";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 
 interface Props {
   open: boolean;
@@ -369,6 +370,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
     isDraggingRef.current = true;
     startYRef.current = e.clientY;
     startHeightRef.current = heightOverride ?? height;
+    setFrameDragGuard(true);
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isDraggingRef.current) return;
@@ -388,6 +390,7 @@ export function TerminalPanel({ open, onClose, cwd, preserveSession = false, hei
     };
 
     const onMouseUp = () => {
+      setFrameDragGuard(false);
       isDraggingRef.current = false;
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);

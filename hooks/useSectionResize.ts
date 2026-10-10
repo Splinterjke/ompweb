@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 
 /**
  * Height bounds for the draggable sidebar sections (Explorer / Schedulers /
@@ -101,6 +102,7 @@ export function useAdjacentSectionResize(
       const selfMin = minOfSelf();
       const partnerMin = p.getMin();
       setDragging(true);
+      setFrameDragGuard(true);
       // Track the latest values in the closure — the refs only refresh on the
       // next render, so they can be stale when the final move and mouseup land
       // in the same tick (which would persist the wrong heights).
@@ -124,6 +126,7 @@ export function useAdjacentSectionResize(
         handlersRef.current = null;
         setDragging(false);
         persist(self);
+        setFrameDragGuard(false);
       };
       handlersRef.current = { onMove, onUp };
       document.addEventListener("mousemove", onMove);
@@ -136,6 +139,7 @@ export function useAdjacentSectionResize(
   // leak and keep firing on the document.
   useEffect(
     () => () => {
+      setFrameDragGuard(false);
       const handlers = handlersRef.current;
       if (!handlers) return;
       document.removeEventListener("mousemove", handlers.onMove);

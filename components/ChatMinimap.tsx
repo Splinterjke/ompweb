@@ -5,6 +5,7 @@ import type { AgentMessage } from "@/lib/types";
 import type { ChatGroup } from "@/lib/chat-groups";
 import type { GroupHeightCache } from "@/lib/chat-groups";
 import { computeThumb, mergeNodesByMinGap, thumbTopToScrollTop, MINIMAP_MIN_GAP_PX } from "@/lib/chat-minimap";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 
 interface Props {
   messages: AgentMessage[];
@@ -270,6 +271,7 @@ export const ChatMinimap = memo(function ChatMinimap({ messages, scrollContainer
     const el = scrollContainer.current;
     if (!el) return;
     draggingRef.current = true;
+    setFrameDragGuard(true);
     const rect = e.currentTarget.getBoundingClientRect();
     const railHeight = rect.height;
     const t = thumbRef.current;
@@ -296,6 +298,7 @@ export const ChatMinimap = memo(function ChatMinimap({ messages, scrollContainer
     };
     const onUp = () => {
       draggingRef.current = false;
+      setFrameDragGuard(false);
       dragListenersRef.current = null;
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -308,6 +311,7 @@ export const ChatMinimap = memo(function ChatMinimap({ messages, scrollContainer
   }, [visible, scrollContainer, updateScroll]);
 
   useEffect(() => () => {
+    setFrameDragGuard(false);
     const listeners = dragListenersRef.current;
     if (listeners) {
       window.removeEventListener("mousemove", listeners.onMove);
