@@ -91,10 +91,41 @@ function wordSpanColor(kind: DiffCell["kind"]): string {
   return kind === "added" ? "var(--diff-add-word)" : "var(--diff-del-word)";
 }
 
+/** rsh's line splitting appends a trailing `"\n"` text node to every
+ *  processed line (in the deepest last child) — in a `white-space: pre`
+ *  cell that renders the row two lines tall. Drop it; a diff row is by
+ *  construction a single line. */
+function stripTrailingNewline<T>(nodes: readonly T[]): T[] {
+  const out = [...nodes];
+  while (out.length > 0) {
+    const last = out[out.length - 1] as { type?: string; value?: unknown; children?: unknown[] } | undefined;
+    if (!last) break;
+    if (last.type === "text" && typeof last.value === "string") {
+      if (last.value === "\n") { out.pop(); continue; }
+      if (last.value.endsWith("\n")) {
+        out[out.length - 1] = { ...(last as object), value: last.value.replace(/\n+$/, "") } as T;
+      }
+      break;
+    }
+    if (last.type === "element" && Array.isArray(last.children)) {
+      if (last.children.length === 0) { out.pop(); continue; }
+      const stripped = stripTrailingNewline(last.children as unknown as T[]);
+      if (stripped.length === 0) { out.pop(); continue; }
+      out[out.length - 1] = { ...(last as object), children: stripped } as T;
+      break;
+    }
+    break;
+  }
+  return out;
+}
+
 interface RenderLine {
   cell: DiffCell;
   /** Grid column of this line: 1 in split left / unified, 2 split right. */
   column: 1 | 2;
+  /** Grid row of this line: the model row index (split draws both sides of
+   *  a row on the same track — the panes are aligned by construction). */
+  row: number;
 }
 interface RenderedRows {
   lines: RenderLine[];
@@ -114,23 +145,28 @@ function toRenderLines(rows: DiffRow[], split: boolean): RenderedRows {
     else rightMax = Math.max(rightMax, width);
     maxLineNo = Math.max(maxLineNo, cell.lineNo ?? 0);
   };
-  for (const row of rows) {
+  rows.forEach((row, index) => {
     if (split) {
-      lines.push({ cell: row.left, column: 1 }, { cell: row.right, column: 2 });
+      lines.push({ cell: row.left, column: 1, row: index }, { cell: row.right, column: 2, row: index });
       measure(row.left, 1);
       measure(row.right, 2);
     } else {
-      // Unified: removed line first, then the added line; context once.
-      if (row.left.kind !== "empty") {
-        lines.push({ cell: row.left, column: 1 });
+      // Unified: removed line first, then the added line; context once. The
+      // single gutter follows the NEW file (monotonic), so context renders
+      // the right-side cell; removed lines keep their old-file number.
+      if (row.left.kind === "removed") {
+        lines.push({ cell: row.left, column: 1, row: lines.length });
         measure(row.left, 1);
+      } else if (row.left.kind === "context") {
+        lines.push({ cell: row.right, column: 1, row: lines.length });
+        measure(row.right, 1);
       }
       if (row.right.kind === "added") {
-        lines.push({ cell: row.right, column: 1 });
+        lines.push({ cell: row.right, column: 1, row: lines.length });
         measure(row.right, 1);
       }
     }
-  }
+  });
   return { lines, leftMax, rightMax, maxLineNo };
 }
 
@@ -261,7 +297,7 @@ export function DiffViewer({
   // One block of aligned lines (a rows item). Highlighted through
   // SyntaxHighlighter's renderer; the plain path feeds empty rows so every
   // line falls back to its raw text with identical placement.
-  const renderLineBlock = (lines: RenderLine[], blockKey: string, gutter: string, sideBorder: boolean): React.ReactNode => {
+  const renderLineBlock = (lines: RenderLine[], blockKey: string, gutter: string, sideBorder: boolean, rowOffset: number): React.ReactNode => {
     if (lines.length === 0) return null;
     const highlighted = langReady && language !== "text";
 
@@ -280,7 +316,7 @@ export function DiffViewer({
             display: "flex",
             alignItems: "flex-start",
             gridColumn: column,
-            gridRow: String(index + 1),
+            gridRow: String(rowOffset + line.row + 1),
             background: cellBackground(cell.kind),
             borderRight: sideBorder && column === 1 ? "1px solid var(--border)" : undefined,
             minHeight: `${LINE_HEIGHT}em`,
@@ -311,7 +347,7 @@ export function DiffViewer({
             }}
           >
             {rendererRow?.children?.length
-              ? rendererRow.children.map((node, tokenIndex) => renderSyntaxNode({
+              ? stripTrailingNewline(rendererRow.children).map((node, tokenIndex) => renderSyntaxNode({
                   node,
                   stylesheet: rendererProps?.stylesheet ?? {},
                   useInlineStyles: rendererProps?.useInlineStyles ?? true,
@@ -413,7 +449,7 @@ export function DiffViewer({
         continue;
       }
       if (!data || data.lines.length === 0) continue;
-      children.push(renderLineBlock(data.lines, `${fileIndex}-${item.key}`, gutter, split));
+      children.push(renderLineBlock(data.lines, `${fileIndex}-${item.key}`, gutter, split, gridRow - 1));
       gridRow += split ? data.lines.length / 2 : data.lines.length;
     }
 
