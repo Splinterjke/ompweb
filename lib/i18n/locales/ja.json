@@ -207,6 +207,7 @@
   "appShell.systemPromptLoadHint": "システムプロンプトはまだ読み込まれていません",
   "appShell.systemPromptLoading": "システムプロンプトを読み込んでいます…",
   "appShell.titleGenNeedsMessage": "セッションに名前を付ける前にメッセージを送信してください",
+  "appShell.titleGenSessionRunning": "現在のターンが完了するまで待ってください — タイトルはセッションが待機中の時に生成できます",
   "appShell.titleGenUnavailable": "タイトル生成はセッションの保存後に利用できます",
   "appShell.titleUpdated": "タイトルを更新しました",
   "appShell.tooltipCacheRead": "キャッシュ読み取り: {value}",

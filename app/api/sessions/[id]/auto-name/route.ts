@@ -39,19 +39,30 @@ export async function POST(
     }
 
     if (rpc?.isAlive?.()) {
+      let generated: string | undefined;
       try {
-        const generated = sanitizeSessionTitle((await rpc.generateTitle()) ?? undefined);
-        if (generated) {
-          // Targeted (path-scoped) invalidation is a later upstream wave.
-          invalidateSessionListCache();
-          return NextResponse.json({ title: generated, generated: true, usage: null });
-        }
+        generated = sanitizeSessionTitle((await rpc.generateTitle()) ?? undefined);
       } catch (error) {
         // A busy/restarting session reports a typed error the UI can show; any
         // other failure degrades to the fallback below.
         if (error instanceof WebRpcError) {
           return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
         }
+      }
+      if (generated) {
+        // Targeted (path-scoped) invalidation is a later upstream wave.
+        invalidateSessionListCache();
+        return NextResponse.json({ title: generated, generated: true, usage: null });
+      }
+      // generateTitle declined because a run is in flight (`/rename` is a
+      // prompt, omp cannot run it beside a turn). Say so — falling through to
+      // the stored title would show the misleading "generator returned
+      // nothing" toast for what is only a timing problem.
+      if (rpc.isRunning()) {
+        return NextResponse.json(
+          { error: "Wait for the current run to finish", code: "session_busy" },
+          { status: 409 },
+        );
       }
     }
 

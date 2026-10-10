@@ -207,6 +207,7 @@
   "appShell.systemPromptLoadHint": "系统提示词尚未加载",
   "appShell.systemPromptLoading": "正在加载系统提示词…",
   "appShell.titleGenNeedsMessage": "请先发送消息再为会话命名",
+  "appShell.titleGenSessionRunning": "请等待当前运行结束——仅在会话空闲时可生成标题",
   "appShell.titleGenUnavailable": "会话保存后才能生成标题",
   "appShell.titleUpdated": "标题已更新",
   "appShell.tooltipCacheRead": "缓存读取：{value}",

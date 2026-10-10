@@ -819,7 +819,12 @@ export function AppShell({ appName }: { appName: string }) {
   // Session stats (tokens + cost) — populated by ChatWindow, displayed in top bar
   const [sessionStats, setSessionStats] = useState<SessionStatsInfo | null>(null);
   const [autoNameStatus, setAutoNameStatus] = useState<AutoNameStatus>({ kind: "idle" });
-  const autoNameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoNameTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The selected chat's busy flag (mirrored by ChatWindow): generating a title
+  // runs omp's `/rename`, a prompt run that can never execute beside a turn in
+  // flight, so the wand disables — with an explanatory tooltip — while busy.
+  const [selectedSessionBusy, setSelectedSessionBusy] = useState(false);
+  const handleBusyChange = useCallback((busy: boolean) => setSelectedSessionBusy(busy), []);
   const activeSessionIdRef = useRef<string | null>(selectedSession?.id ?? null);
   activeSessionIdRef.current = selectedSession?.id ?? null;
   const handleSessionStatsChange = useCallback((stats: SessionStatsInfo | null) => {
@@ -1533,7 +1538,7 @@ export function AppShell({ appName }: { appName: string }) {
   const handleAutoName = useCallback(async () => {
     const sessionId = selectedSession?.id;
     if (!sessionId || autoNameStatus.kind === "naming") return;
-    if (autoNameTimerRef.current) clearTimeout(autoNameTimerRef.current);
+    clearTimeout(autoNameTimerRef.current);
     setActiveTopPanel(null);
     setAutoNameStatus({ kind: "naming" });
 
@@ -1568,8 +1573,11 @@ export function AppShell({ appName }: { appName: string }) {
   }, [autoNameStatus.kind, selectedSession?.id]);
 
   useEffect(() => {
-    if (autoNameTimerRef.current) clearTimeout(autoNameTimerRef.current);
+    clearTimeout(autoNameTimerRef.current);
     setAutoNameStatus({ kind: "idle" });
+    // A busy flag from the previous session must not gate the new one's wand;
+    // the remounted ChatWindow re-pushes the real state on mount.
+    setSelectedSessionBusy(false);
   }, [selectedSession?.id]);
 
   const handleExplorerRefresh = useCallback(() => {
@@ -2372,7 +2380,7 @@ export function AppShell({ appName }: { appName: string }) {
               selectedSession
               && (sessionStats?.userMessages ?? selectedSession.messageCount) > 0,
             );
-            const wandDisabled = !selectedSession || !hasMessages || autoNameStatus.kind === "naming";
+            const wandDisabled = !selectedSession || selectedSessionBusy || !hasMessages || autoNameStatus.kind === "naming";
             const wandIsSuccess = autoNameStatus.kind === "success";
             const wandIsError = autoNameStatus.kind === "error";
             const wandLabel = autoNameStatus.kind === "naming"
@@ -2384,11 +2392,13 @@ export function AppShell({ appName }: { appName: string }) {
                   : t("appShell.generateTitle");
             const wandTooltip = !selectedSession
               ? t("appShell.titleGenUnavailable")
-              : !hasMessages
-                ? t("appShell.titleGenNeedsMessage")
-                : wandIsError
-                  ? autoNameStatus.message
-                  : t("appShell.generateSessionTitle");
+              : selectedSessionBusy
+                ? t("appShell.titleGenSessionRunning")
+                : !hasMessages
+                  ? t("appShell.titleGenNeedsMessage")
+                  : wandIsError
+                    ? autoNameStatus.message
+                    : t("appShell.generateSessionTitle");
 
             return (
               <div
@@ -2461,11 +2471,15 @@ export function AppShell({ appName }: { appName: string }) {
                   </Tooltip>
                   {selectedSession && (
                     <Tooltip content={wandTooltip}>
-                      <button
-                      type="button"
-                      onClick={() => void handleAutoName()}
-                      disabled={wandDisabled}
-                      aria-label={wandLabel}
+                    <button
+                    type="button"
+                    // aria-disabled (not the native `disabled`): disabled buttons
+                    // swallow pointer events, which would kill the hover tooltip —
+                    // the very explanation of why the action is unavailable. The
+                    // click guard keeps the action inert.
+                    onClick={() => { if (!wandDisabled) void handleAutoName(); }}
+                    aria-disabled={wandDisabled || undefined}
+                    aria-label={wandLabel}
                       className="ui-focus-ring"
                       style={{
                         display: "inline-flex",
@@ -2779,6 +2793,7 @@ export function AppShell({ appName }: { appName: string }) {
               onSystemPromptChange={handleSystemPromptChange}
               onSystemPromptLoaderChange={handleSystemPromptLoaderChange}
               onSessionStatsChange={handleSessionStatsChange}
+              onBusyChange={handleBusyChange}
               sessionInfoButtonVisible={sessionInfoButtonVisible}
               sessionInfoContainer={sessionInfoContainer}
               contextRingMobile={contextRingMobile}

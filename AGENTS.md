@@ -373,7 +373,13 @@ hooks/
   (`AgentSessionWrapper.generateTitle()`: native `generate_title`, else
   argument-less `/rename`, never while a run is in flight). Only when omp cannot
   does it fall back to the stored/derived title (`generated:false`), saved
-  through the live process when there is one.
+  through the live process when there is one. A run in flight is NOT a silent
+  fallback: the endpoint answers `409 session_busy`, and the top-bar wand
+  disables while the session is busy — ChatWindow mirrors `sessionBusy` up
+  through the `onBusyChange` prop, and the button gates with
+  `aria-disabled` + a click guard (NEVER the native `disabled`, which
+  swallows pointer events and would make the explanatory tooltip
+  unreachable on hover).
 - The web-initiated argument-less `/rename` is a **prompt run**, so its echo
   (`command_output`: the success line or "Could not generate a session title…")
   would land in the chat as a transient row. `generateTitle()` therefore arms
@@ -1118,7 +1124,13 @@ during the wait.
   `goal`/`get` read every 15 s while the tab is visible (`useAgentSession`, keyed on the
   open session) — that poll, not the frames, is what converges the bar on an idle session.
 - Web `/goal <objective>` is PASSIVE by design: it sets the sessionStorage marker and sends
-  the prefixed instruction — never an implicit native create. The tracker (continuation loop,
+  the prefixed instruction — never an implicit native create. Composer attachments never
+  bypass a prompt-composing web command: `ChatInput.handleSend` routes `/goal`/`/plan`/…
+  with attached images through `onBuiltinCommand(msg, images)` so the hook sends the
+  EXPANDED prompt with the images and sets its marker (the old gate skipped the command
+  entirely, so the raw `/goal …` reached omp as literal text and no marker was set);
+  non-prompt action built-ins keep the raw send with the attachments (never drop them).
+  The tracker (continuation loop,
   budget) is armed only by the marker row's explicit "Track natively" control (`trackGoal`,
   `onTrackGoal`); an implicit create silently burned ~10k tokens/minutes on a passive
   wait-for-a-word rule before this split (regression test in `useAgentSession.rpc.test.mjs`).

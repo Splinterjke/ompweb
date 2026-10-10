@@ -70,6 +70,9 @@ interface Props {
   onSystemPromptChange?: (prompt: string | null) => void;
   onSystemPromptLoaderChange?: (loader: (() => Promise<void>) | null) => void;
   onSessionStatsChange?: (stats: SessionStatsInfo | null) => void;
+  /** Mirrors the session's busy state (a run or a shell command in flight) to
+   *  the shell; actions that cannot run mid-turn disable on it. */
+  onBusyChange?: (busy: boolean) => void;
   /** Show the Session Info button below the composer (Interface & Behavior switch). */
   sessionInfoButtonVisible?: boolean;
   /** Mobile top-bar mount point for the session information control. */
@@ -592,7 +595,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -1051,6 +1054,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     onSessionStatsChange?.(sessionStatsRef.current);
   }, [statsKey, onSessionStatsChange]);
   useEffect(() => () => { onSessionStatsChange?.(null); }, [onSessionStatsChange]);
+
+  // Mirror the busy flag up (same pattern as the stats push): the top bar's
+  // generate-title action must disable while a run is in flight, because
+  // omp's `/rename` is itself a prompt run and can never execute beside one.
+  useEffect(() => {
+    onBusyChange?.(sessionBusy);
+  }, [sessionBusy, onBusyChange]);
+  useEffect(() => () => { onBusyChange?.(false); }, [onBusyChange]);
 
 
   // Push the live subagent roster up for the Agents panel. The hook updates

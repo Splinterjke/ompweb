@@ -207,6 +207,7 @@
   "appShell.systemPromptLoadHint": "System prompt has not loaded yet",
   "appShell.systemPromptLoading": "Loading system prompt…",
   "appShell.titleGenNeedsMessage": "Send a message before naming this session",
+  "appShell.titleGenSessionRunning": "Wait for the current run to finish — the title is generated when the session is idle",
   "appShell.titleGenUnavailable": "Title generation is available after the session is saved",
   "appShell.titleUpdated": "Title updated",
   "appShell.tooltipCacheRead": "cache read: {value}",
