@@ -301,7 +301,7 @@ components/
   SkillsConfig.tsx    modal for loaded/search/installable skills
   FileExplorer.tsx    file tree inside sidebar
   FileViewer.tsx      file content in a tab
-  diff/DiffViewer.tsx  shared Copilot-style diff viewer (split/unified, gutters, hidden-lines bars, Viewed)
+  diff/DiffViewer.tsx  shared Copilot-style diff viewer (split/inline, wrap, gutters, hidden-lines bars, Viewed)
   TabBar.tsx          tab bar (Chat + open file tabs)
   WorktreesPanel.tsx  right-workbench Worktrees view: list/switch/create/remove the active repo's worktrees
   ui/                 shared primitives: Dialog/Tooltip/Collapsible, fields, toast
@@ -863,10 +863,11 @@ during the wait.
 - All three diff surfaces (the Git Graph panel's diff pane, the right panel's
   Git tab, and FileViewer's git-diff mode) render through ONE viewer: VSCode-agent
   file header (icon, name + dimmed dir, `+N −N`, copy/open, Viewed), split and
-  unified layouts (split from ~560px container width, toggle persisted), per-side
-  line-number gutters, word-level inline chips on changed line pairs (token LCS,
-  2000-char guard) and progressive "N hidden lines" bars (20/40/all) that reveal
-  the REAL hidden content.
+  unified layouts ("Inline view", split from ~560px container width, toggle
+  persisted), line wrap ON by default, per-side line-number gutters,
+  word-level highlighting on changed line pairs (token LCS, 2000-char guard)
+  and progressive "N hidden lines" bars (20/40/all) that reveal the REAL
+  hidden content.
 - The model parses a unified diff into hunks plus gap regions; gaps materialize
   from the real file versions fetched once per file through
   `/api/git/diff?...&contents=1` (Node-only route branch — the Rust host cannot
@@ -883,11 +884,31 @@ during the wait.
 - rsh appends a trailing `"\n"` to every processed line inside the deepest token
   span; `stripTrailingNewline` must recurse into nested children — a shallow pop
   leaves it and renders every row two lines tall.
+- The word shade paints differently per wrap mode: wrapped rows (the default)
+  get REAL `<span>` chips painted inside the syntax-token tree
+  (`paintWordRanges`) — the `ch`-unit gradient positions against the whole
+  multi-line box, so it would sit on the wrong text once a row wraps; turning
+  wrap off restores the single-line `ch` gradient. Both paths are pinned in
+  `DiffViewer.test.mjs` (`[data-diff-content]` marks the content span).
+- The right panel's Git tab renders NO own file row under the diff: the status
+  label, the @mention action and open/copy all live in `DiffFileHeader`
+  (`statusLabel`/`statusColor`/`headerExtra` props), so both git surfaces
+  share one file header.
 - Per-file `+N −N` comes from numstat augmentation in `/api/git/status`
   (`lib/git-types.ts` `added`/`deleted`); the viewer header falls back to
   patch-parsed stats when the status row has none.
 - Viewed state persists in localStorage keyed by cwd + file + the new content's
   hash, so editing the file clears it.
+
+### Iframes freeze window-level drags (`lib/drag-frames.ts`)
+- An iframe swallows `mousemove`/`mouseup`, so ANY drag tracked on
+  `window`/`document` (sidebar rail, right-panel rail, git-graph and terminal
+  dividers, sidebar section resizers, chat minimap) FREEZES the moment the
+  pointer enters an iframe — the embedded Git Graph webview or the browser
+  tab. Every such drag MUST call `setFrameDragGuard(true)` at start and
+  `(false)` at end (unmount cleanups included); it toggles
+  `body.omp-drag-resizing`, and `globals.css` turns off pointer events on all
+  iframes while it is set.
 
 ### Embedded Git Graph engine (`vendor/vscode-git-graph/`, `lib/git-graph/`, `app/api/git-graph/`, `app/gitgraph/`)
 - The Git graph bottom panel (`components/GitGraphModal.tsx`) hosts the **vendored upstream Git Graph webview** in a same-origin `<iframe src="/gitgraph?repo=<cwd>">` instead of a re-implementation: full right-click context-menu operations, dialogs, find widget, settings, commit details, and the canvas/SVG graph renderer come from upstream unchanged. It docks at the bottom of the workspace column like the terminal drawer (its only display mode — no overlay setting): the top-bar / mobile-menu button is a toggle (`aria-pressed`), the height is drag-persisted (`omp-web:git-graph-panel-height`) and the expand/collapse state is localStorage-persisted (`omp-web:git-graph-expanded`). AppShell keeps the host element mounted with `display: none` while closed, but `GitGraphModal` itself returns null while closed, so the iframe DOCUMENT unmounts on every close: a reopen boots a fresh document whose view state the bridge restores from localStorage — and every `ompweb-gg-ready` MUST re-push the live theme (the theme-push effect keyed on `frameLoaded` alone cannot re-run on reopen: the component's state survives the close, so `frameLoaded` never flips false→true again and the fresh document would keep its light-fallback defaults).
