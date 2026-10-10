@@ -315,7 +315,7 @@ export function buildViewItems(
     const revealed = section.materializable && oldLines && newLines
       ? Math.min(reveals[section.gapIndex] ?? 0, section.count)
       : 0;
-    if (revealed > 0) {
+    if (revealed > 0 && oldLines && newLines) {
       for (let i = 0; i < revealed; i++) {
         const oldIndex = section.oldStart - 1 + i;
         const newIndex = section.newStart - 1 + i;

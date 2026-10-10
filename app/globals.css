@@ -82,6 +82,13 @@
   --status-renamed: #2563EB;
   --on-accent: #FFFFFF;
   --overlay-backdrop: color-mix(in srgb, var(--text) 24%, transparent);
+  /* Copilot-style diff tints: a muted wash across the whole changed line
+     plus a stronger shade over exactly the words that changed. Derived from
+     the theme status tokens, so every palette follows automatically. */
+  --diff-add-line: color-mix(in srgb, var(--status-success) 14%, transparent);
+  --diff-del-line: color-mix(in srgb, var(--status-error) 14%, transparent);
+  --diff-add-word: color-mix(in srgb, var(--status-success) 30%, transparent);
+  --diff-del-word: color-mix(in srgb, var(--status-error) 30%, transparent);
   --omp-o: #B03E22;
   --omp-m: #D97706;
   --omp-p: #2D6A4F;
