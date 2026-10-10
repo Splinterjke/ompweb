@@ -59,6 +59,9 @@ const THEME_TOKEN_MAP: Readonly<Record<string, string>> = {
   "--vscode-editor-findMatchHighlightBorder": "--accent",
   "--vscode-panel-background": "--bg-panel",
   "--vscode-panel-border": "--border",
+  // Scrollbar thumb base (the webview's scrollbar seam applies the
+  // 45/75% alphas; see web/styles/main.css).
+  "--vscode-scrollbarSlider-background": "--text-dim",
   "--vscode-input-background": "--bg-panel",
   "--vscode-input-foreground": "--text",
   "--vscode-input-placeholderForeground": "--text-dim",

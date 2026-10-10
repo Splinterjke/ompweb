@@ -1111,3 +1111,30 @@ label > input[type=radio]:checked ~ .customRadio:after{
 	-webkit-user-select:none;
 	user-select:none;
 }
+
+/* ompweb seam: thin themed scrollbars matching the host app (globals.css).
+   The thumb base color arrives via ompweb-gg-theme as
+   --vscode-scrollbarSlider-background (the host's --text-dim); the 45/75%
+   alphas mirror the host's thumb/hover rules. Upstream styled nothing. */
+::-webkit-scrollbar{
+	width:8px;
+	height:8px;
+}
+::-webkit-scrollbar-track{
+	background:transparent;
+}
+::-webkit-scrollbar-thumb{
+	background:color-mix(in srgb, var(--vscode-scrollbarSlider-background, #888888) 45%, transparent);
+	border-radius:8px;
+	border:2px solid transparent;
+	background-clip:content-box;
+}
+::-webkit-scrollbar-thumb:hover{
+	background:color-mix(in srgb, var(--vscode-scrollbarSlider-background, #888888) 75%, transparent);
+	background-clip:content-box;
+}
+/* Firefox */
+*{
+	scrollbar-width:thin;
+	scrollbar-color:color-mix(in srgb, var(--vscode-scrollbarSlider-background, #888888) 45%, transparent) transparent;
+}

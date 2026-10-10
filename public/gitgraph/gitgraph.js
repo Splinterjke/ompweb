@@ -1,4 +1,4 @@
-/* Git Graph webview bundle - built from vendor/vscode-git-graph; regenerate with
+/* Git Graph webview bundle - built from vendor/vscode-git-graph regenerate with
    node scripts/build-git-graph.mjs */
 "use strict";
 (function (document, window) {
