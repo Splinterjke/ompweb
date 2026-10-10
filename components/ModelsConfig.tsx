@@ -81,6 +81,8 @@ interface ModelEntry {
   reasoning?: boolean;
   thinking?: ThinkingConfig;
   input?: string[];
+  tokenizer?: string;
+  supportTools?: boolean;
   contextWindow?: number;
   maxTokens?: number;
   cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
@@ -516,6 +518,32 @@ const API_OPTIONS = [
   "google-generative-ai",
   "google-gemini-cli",
   "google-vertex",
+] as const;
+
+// omp's models.yml tokenizer values, as shipped in omp's own model catalog.
+const TOKENIZER_OPTIONS = [
+  "qwen3",
+  "deepseek-v3",
+  "glm5",
+  "kimi-k2",
+  "claude-v3",
+  "claude-v47",
+  "claude-v5",
+  "claude-v5-sonnet",
+] as const;
+
+// compat.reasoningDisableMode — how omp serializes "reasoning off" on the wire
+// for this model (the switch in the omp binary). Unset = omp sends no
+// disable parameter, which silently no-ops on vLLM/sglang-style backends.
+const REASONING_DISABLE_MODE_OPTIONS = [
+  "none-effort",
+  "qwen-template-false",
+  "qwen-enable-thinking-false",
+  "chat-template-thinking-false",
+  "openrouter-enabled-false",
+  "cline-enabled-false",
+  "zai-thinking-disabled",
+  "venice-disable-thinking",
 ] as const;
 
 // ── Form field helpers ────────────────────────────────────────────────────────
@@ -1113,6 +1141,14 @@ function ModelDetail({
     const n = parseFloat(v);
     onChange({ ...model, cost: { ...(model.cost ?? {}), [k]: isNaN(n) ? undefined : n } });
   };
+  // Only touch the known compat keys: unknown, hand-written ones ride along
+  // untouched, and an emptied record drops the `compat` key itself.
+  const setCompat = (k: string, v: unknown) => {
+    const next: Record<string, unknown> = { ...(model.compat ?? {}) };
+    if (v === undefined) delete next[k];
+    else next[k] = v;
+    set("compat", Object.keys(next).length > 0 ? next : undefined);
+  };
   const idValidate = () => (!model.id.trim() ? t("modelsConfig.errorIdRequired") : null);
   const idV = useFieldValidation(idValidate);
   const testSummary = (() => {
@@ -1285,6 +1321,50 @@ function ModelDetail({
               <NumInput value={costVal(k)} onChange={(v) => setCost(k, v)} placeholder="0" />
             </FormField>
           ))}
+
+        </div>
+      </FieldGroup>
+
+      <FieldGroup label={t("modelsConfig.compatSection")}>
+        <div className="model-detail-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <FormField label={t("modelsConfig.tokenizer")}>
+            <FormSelect
+              value={model.tokenizer ?? ""}
+              onChange={(v) => set("tokenizer", v || undefined)}
+              options={TOKENIZER_OPTIONS}
+              placeholder={t("modelsConfig.inheritNone")}
+            />
+          </FormField>
+          <FormField label={t("modelsConfig.reasoningDisableMode")} hint={t("modelsConfig.reasoningDisableModeHint")}>
+            <FormSelect
+              value={typeof model.compat?.reasoningDisableMode === "string" ? model.compat.reasoningDisableMode : ""}
+              onChange={(v) => setCompat("reasoningDisableMode", v || undefined)}
+              options={REASONING_DISABLE_MODE_OPTIONS}
+              placeholder={t("modelsConfig.inheritNone")}
+            />
+          </FormField>
+        </div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <FormCheck
+            label={t("modelsConfig.supportTools")}
+            checked={model.supportTools ?? false}
+            onChange={(v) => set("supportTools", v ? true : undefined)}
+          />
+          <FormCheck
+            label={t("modelsConfig.supportsReasoningParams")}
+            checked={model.compat?.supportsReasoningParams === true}
+            onChange={(v) => setCompat("supportsReasoningParams", v ? true : undefined)}
+          />
+          <FormCheck
+            label={t("modelsConfig.qwenPreserveThinking")}
+            checked={model.compat?.qwenPreserveThinking === true}
+            onChange={(v) => setCompat("qwenPreserveThinking", v ? true : undefined)}
+          />
+          <FormCheck
+            label={t("modelsConfig.replayReasoningContent")}
+            checked={model.compat?.replayReasoningContent === true}
+            onChange={(v) => setCompat("replayReasoningContent", v ? true : undefined)}
+          />
         </div>
       </FieldGroup>
 
