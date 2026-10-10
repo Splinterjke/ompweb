@@ -2689,7 +2689,7 @@ svg.lucide:not([class*="-spin"]) {
     display: none;
   }
   .composer-thinking-control > button > .composer-thinking-glyph {
-    font-size: 18px;
+    font-size: calc(18px * var(--ui-font-scale-sm, 1));
   }
 }
 
@@ -3071,7 +3071,10 @@ span.token.table {
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  font-size: 14px;
+  /* Same icon scale variable the model selector's lucide chevron uses
+     (`svg.lucide { transform: scale(var(--ui-font-scale-sm)) }`), so both
+     composer selector icons grow together with the icon-scale setting. */
+  font-size: calc(14px * var(--ui-font-scale-sm, 1));
   line-height: 1;
 }
 /* Draw the TUI shapes instead of relying on unequal font fallback metrics.
@@ -3126,7 +3129,7 @@ span.token.table {
     padding: 5px;
   }
   .picker-thinking-card > .composer-thinking-glyph {
-    font-size: 16px;
+    font-size: calc(16px * var(--ui-font-scale-sm, 1));
   }
   .picker-panel-header { min-height: 30px; }
   .picker-panel-footer { min-height: 26px; padding: 5px 9px; }
