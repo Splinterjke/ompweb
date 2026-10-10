@@ -413,6 +413,18 @@ hooks/
   without that persist every later cold start re-asks (verified in E2E).
   The binding is stored on the wrapper (`startupModelOverride`) so `restart()`
   never falls back onto the unrestorable saved model.
+- **Rename auto-rebind**: a saved model whose provider is gone but whose
+  model id exists under exactly ONE live provider (`resolveUniqueRename`) is
+  a rename, not a loss: `checkSavedSessionModel` returns `rebind` and
+  `startRpcSession` spawns bound to the replacement (`--model`) and persists
+  it with `set_model` right after ready — the same permanence as the dialog,
+  with no dialog. Ambiguous or missing ids keep the explicit `unavailable`
+  error and the dialog.
+- **Model-switch repair**: a `set_model` command doubles as the spawn
+  binding when the client sent no `startup` field
+  (`modelSwitchRepairBinding` in the agent route) — switching the model of a
+  session with an unrestorable saved model applies the pick instead of
+  failing on the model the user just replaced.
 - **Missing-file retry**: a `missing` classification (the file moved/was
   archived between the route's resolve and the spawn) re-resolves the id
   once and retries against the current path, then fails with

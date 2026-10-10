@@ -124,18 +124,25 @@ export function readSessionSavedModel(filePath: string): SavedSessionModel | nul
   }
 }
 
-let availability: { at: number; keys: Set<string> } | null = null;
-let availabilityInFlight: Promise<Set<string> | null> | null = null;
+interface Availability {
+  at: number;
+  keys: Set<string>;
+  /** modelId -> every live provider offering it, for rename detection. */
+  providersByModelId: Map<string, Set<string>>;
+}
+
+let availability: Availability | null = null;
+let availabilityInFlight: Promise<Availability | null> | null = null;
 
 /** Invalidate the availability snapshot (after a login/logout/model change). */
 export function invalidateModelAvailability(): void {
   availability = null;
 }
 
-async function loadAvailableModelKeys(): Promise<Set<string> | null> {
-  if (availability && Date.now() - availability.at < AVAILABILITY_TTL_MS) return availability.keys;
+async function loadAvailability(): Promise<Availability | null> {
+  if (availability && Date.now() - availability.at < AVAILABILITY_TTL_MS) return availability;
   if (availabilityInFlight) return availabilityInFlight;
-  const load = (async (): Promise<Set<string> | null> => {
+  const load = (async (): Promise<Availability | null> => {
     try {
       const response = await runUtilityCommand<{ models?: unknown }>(
         { type: "get_available_models" },
@@ -149,15 +156,19 @@ async function loadAvailableModelKeys(): Promise<Set<string> | null> {
         disabled = new Set();
       }
       const keys = new Set<string>();
+      const providersByModelId = new Map<string, Set<string>>();
       for (const model of response.models) {
         if (!model || typeof model !== "object") continue;
         const { id, provider } = model as { id?: unknown; provider?: unknown };
         if (typeof id !== "string" || typeof provider !== "string") continue;
         if (disabled.has(provider)) continue;
         keys.add(`${provider}/${id}`);
+        let owners = providersByModelId.get(id);
+        if (!owners) providersByModelId.set(id, (owners = new Set()));
+        owners.add(provider);
       }
-      availability = { at: Date.now(), keys };
-      return keys;
+      availability = { at: Date.now(), keys, providersByModelId };
+      return availability;
     } catch {
       return null;
     } finally {
@@ -172,7 +183,26 @@ export type SavedModelCheck =
   /** Nothing to decide: no saved model, or availability is unknown. */
   | { status: "skip" }
   | { status: "available"; model: string }
-  | { status: "unavailable"; model: string };
+  | { status: "unavailable"; model: string }
+  /** The saved model's provider is gone but its model id exists under
+   * exactly one live provider — a rename; spawn with it as the binding. */
+  | { status: "rebind"; model: string; replacement: { provider: string; modelId: string } };
+
+/**
+ * Resolve a dead `provider/modelId` against the live catalog: a repair is
+ * only recognized when the model id belongs to exactly one live provider
+ * (and that provider is not the dead one). Anything ambiguous — zero, two,
+ * or the same provider — keeps the explicit rebind dialog.
+ */
+export function resolveUniqueRename(
+  saved: { provider: string; modelId: string },
+  providersByModelId: Map<string, Set<string>>,
+): { provider: string; modelId: string } | undefined {
+  const owners = providersByModelId.get(saved.modelId);
+  if (!owners || owners.size !== 1 || owners.has(saved.provider)) return undefined;
+  const [provider] = owners;
+  return { provider, modelId: saved.modelId };
+}
 
 /**
  * Pre-flight for omp's fail-closed model restore (omp ≥ 18.6.3): `--resume`
@@ -185,10 +215,12 @@ export type SavedModelCheck =
 export async function checkSavedSessionModel(filePath: string): Promise<SavedModelCheck> {
   const saved = readSessionSavedModel(filePath);
   if (!saved) return { status: "skip" };
-  const keys = await loadAvailableModelKeys();
-  if (!keys) return { status: "skip" };
-  return keys.has(saved.full)
-    ? { status: "available", model: saved.full }
+  const availability = await loadAvailability();
+  if (!availability) return { status: "skip" };
+  if (availability.keys.has(saved.full)) return { status: "available", model: saved.full };
+  const replacement = resolveUniqueRename(saved, availability.providersByModelId);
+  return replacement
+    ? { status: "rebind", model: saved.full, replacement }
     : { status: "unavailable", model: saved.full };
 }
 

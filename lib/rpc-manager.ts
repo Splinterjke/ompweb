@@ -2399,6 +2399,7 @@ export async function startRpcSession(
     // discards the child's stderr — the reason would be lost after the fact.
     // Check the saved model against the composer's own list first so the UI
     // can offer a rebind instead of a dead child with an opaque exit.
+    let rebindModel: { provider: string; modelId: string } | undefined;
     if (sessionFile && !startup?.modelOverride && !startup?.forceModelCheck) {
       const check = await checkSavedSessionModel(sessionFile);
       if (check.status === "unavailable") {
@@ -2408,7 +2409,12 @@ export async function startRpcSession(
           { model: check.model },
         );
       }
+      // A dead provider whose model id lives under exactly one provider is a
+      // rename: spawn bound to the replacement instead of turning every old
+      // session into a dialog. Ambiguous cases keep the explicit rebind.
+      if (check.status === "rebind") rebindModel = check.replacement;
     }
+    const modelOverride = startup?.modelOverride ?? rebindModel;
     let resumeFile = sessionFile;
     let proc: RpcProcessLike;
     let created: AgentSessionWrapper;
@@ -2419,7 +2425,7 @@ export async function startRpcSession(
           sessionId: sessionId ?? `session-${Math.random().toString(36).slice(2, 10)}`,
           // User-configured variables for MCP servers and generated configs (#104).
           env: getAgentEnvOverrides(),
-          extraArgs: buildSessionSpawnArgs(resumeFile, toolNames, advisor === true, startup?.modelOverride),
+          extraArgs: buildSessionSpawnArgs(resumeFile, toolNames, advisor === true, modelOverride),
           onExit: (info) => holder.wrapper?.handleProcessExit(info, proc),
         });
       } catch (error) {
@@ -2430,7 +2436,7 @@ export async function startRpcSession(
         }
         throw error;
       }
-      created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true, resumeFile ? sessionId : "", undefined, startup?.modelOverride);
+      created = new AgentSessionWrapper(proc, cwd, recordedCwd, advisor === true, resumeFile ? sessionId : "", undefined, modelOverride);
       holder.wrapper = created;
       created.start();
       try {
@@ -2468,6 +2474,19 @@ export async function startRpcSession(
           );
         }
         throw error;
+      }
+    }
+
+    if (rebindModel) {
+      // Make the automatic rebind permanent, exactly like the manual rebind
+      // dialog: `--model` alone binds only this live run, and without the
+      // recorded entry every later cold start hits the dead saved model
+      // again. The wrapper already holds the binding (startupModelOverride),
+      // so a failed persist still leaves this run on the replacement.
+      try {
+        await created.send({ type: "set_model", provider: rebindModel.provider, modelId: rebindModel.modelId });
+      } catch {
+        // Recorded on the next successful switch; never fail the start here.
       }
     }
 
