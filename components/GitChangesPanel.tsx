@@ -4,7 +4,7 @@ import { Tooltip } from "./ui/primitives";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AtSign, Check, ChevronRight, ExternalLink, GitBranch, RefreshCw, Search, X } from "lucide-react";
 import { getFileIcon } from "./FileIcons";
-import { DiffView } from "./FileViewer";
+import { DiffViewer } from "./diff/DiffViewer";
 import { GIT_STATUS_COLORS, GIT_STATUS_LABEL_KEYS } from "./FileExplorer";
 import { translate, useI18n } from "@/lib/i18n";
 import {
@@ -44,7 +44,7 @@ async function fetchStatus(cwd: string): Promise<GitStatusResponse> {
 }
 
 async function fetchPatch(cwd: string, filePath: string): Promise<GitFileDiffResponse> {
-  const params = new URLSearchParams({ cwd, path: filePath });
+  const params = new URLSearchParams({ cwd, path: filePath, contents: "1" });
   const res = await fetch(`/api/git/diff?${params.toString()}`);
   if (!res.ok) {
     throw new Error(translate("gitChanges.diffLoadFailed", { status: res.status }));
@@ -61,6 +61,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   const [filter, setFilter] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [patch, setPatch] = useState<string | null>(null);
+  const [patchContents, setPatchContents] = useState<{ oldText: string | null; newText: string | null; contentsTruncated: boolean } | null>(null);
   const [patchSupported, setPatchSupported] = useState(true);
   const [patchLoading, setPatchLoading] = useState(false);
   const [patchError, setPatchError] = useState<string | null>(null);
@@ -159,6 +160,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
   useEffect(() => {
     if (!selectedPath) {
       setPatch(null);
+      setPatchContents(null);
       setPatchSupported(true);
       setPatchError(null);
       return;
@@ -171,6 +173,11 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
         if (requestId !== patchRequestRef.current) return;
         setPatchSupported(diff.supported);
         setPatch(typeof diff.patch === "string" ? diff.patch : null);
+        setPatchContents(
+          typeof diff.patch === "string"
+            ? { oldText: diff.oldText ?? null, newText: diff.newText ?? null, contentsTruncated: diff.contentsTruncated === true }
+            : null,
+        );
       })
       .catch((e) => {
         if (requestId !== patchRequestRef.current) return;
@@ -598,7 +605,16 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
                 {t(selectedFile?.collapseReason === "no-diff" ? "gitChanges.diffSuppressed" : "gitChanges.diffUnavailable")}
               </div>
             ) : (
-              <DiffView patch={patch} />
+              <DiffViewer
+                patch={patch}
+                oldText={patchContents?.oldText ?? null}
+                newText={patchContents?.newText ?? null}
+                contentsTruncated={patchContents?.contentsTruncated ?? false}
+                filePath={selectedPath}
+                cwd={cwd}
+                onOpenFile={(p) => onOpenFile(p, getFileName(p))}
+                showLayoutToggle
+              />
             )}
           </div>
           <GitCommitForm
