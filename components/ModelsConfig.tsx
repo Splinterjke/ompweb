@@ -25,7 +25,7 @@ import {
   ConfirmDialog,
   useFieldValidation,
 } from "@/components/ui/field";
-import { Plus, Trash2, RefreshCw, AlertCircle, Cpu, Settings, Sparkles, Check as CheckIcon, ArrowDown, ArrowUp, ChevronRight, Layers, RotateCcw, SlidersHorizontal, BookOpen, Search, X } from "lucide-react";
+import { Plus, Trash2, RefreshCw, AlertCircle, Cpu, Settings, Sparkles, Check as CheckIcon, ArrowDown, ArrowUp, ChevronRight, Layers, RotateCcw, SlidersHorizontal, BookOpen, Search, X, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { SettingsTabs, type SettingsTab } from "./SettingsTabs";
 import { ModelCatalogPicker } from "./ModelCatalogPicker";
@@ -110,7 +110,7 @@ type ModelTestState =
   | { phase: "success"; latencyMs?: number; status?: number; responseText?: string }
   | { phase: "error"; message: string; latencyMs?: number; status?: number };
 
-type Selection =
+export type Selection =
   | { type: "provider"; name: string }
   | { type: "model"; providerName: string; index: number }
   | { type: "oauth"; providerId: string }
@@ -119,6 +119,34 @@ type Selection =
   | { type: "picker" }
   | { type: "registry" }
   | { type: "fallbacks" };
+
+/**
+ * Selection to keep after a models.yml reload (the save flow re-reads the
+ * file). A Save must never jump the editor to the first provider: the current
+ * selection survives while it still exists in the reloaded config; a removed
+ * provider falls back to the first one, exactly like the initial load
+ * (prev === null).
+ */
+export function selectionAfterConfigReload(
+  prev: Selection | null,
+  providers: Record<string, ProviderEntry | undefined>,
+): Selection | null {
+  const first = (): Selection | null => {
+    const names = Object.keys(providers);
+    return names.length > 0 ? { type: "provider", name: names[0] } : null;
+  };
+  if (!prev) return first();
+  // Non-config surfaces (accounts, roles, registry, fallbacks, picker) do not
+  // depend on the providers map — a reload must not leave them.
+  if (prev.type !== "provider" && prev.type !== "model") return prev;
+  const providerName = prev.type === "provider" ? prev.name : prev.providerName;
+  const provider = providers[providerName];
+  if (!provider) return first();
+  if (prev.type === "provider") return prev;
+  // The save drops untouched empty "Add model" draft rows, so the selected
+  // index can be past the end afterwards — land on the provider itself then.
+  return prev.index < (provider.models?.length ?? 0) ? prev : { type: "provider", name: providerName };
+}
 
 function ModelsConfigSurface({ embedded, isMobile, onClose, children }: { embedded: boolean; isMobile: boolean; onClose: () => void; children: React.ReactNode }) {
   if (embedded) return <>{children}</>;
@@ -2153,9 +2181,11 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
     }
   }, []);
 
-  const loadConfig = useCallback(() => {
-    setLoading(true);
-    fetch("/api/models-config")
+  const loadConfig = useCallback((options?: { silent?: boolean }) => {
+    // A silent reload (after a successful save) keeps the editor content on
+    // screen — only the initial load may swap in the skeleton.
+    if (!options?.silent) setLoading(true);
+    return fetch("/api/models-config")
       .then((r) => r.json())
       .then((d: ModelsFileData & { parseError?: string; code?: string; path?: string }) => {
         if (d.parseError) {
@@ -2167,8 +2197,9 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
         setParseError(null);
         const normalized = d.providers ? d : { ...d, providers: {} };
         setConfig(normalized);
-        const keys = Object.keys(normalized.providers ?? {});
-        if (keys.length > 0) setSelection({ type: "provider", name: keys[0] });
+        // Save (or any reload) must not reset the editor to the first
+        // provider — keep the current selection while it still exists.
+        setSelection((prev) => selectionAfterConfigReload(prev, normalized.providers ?? {}));
       })
       .catch(() => setConfig({ providers: {} }))
       .finally(() => setLoading(false));
@@ -2368,8 +2399,10 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
         // the write, so switch the editor into the same blocked state.
         if (d.code === "models_config_unparseable") setParseError({ message: d.error ?? formatApiError(d) });
       } else {
-        // Drop a transient empty model row after its provider edit is persisted.
-        loadConfig();
+        // Re-read the persisted file silently (no skeleton flash, selection
+        // retained) and await it so the Save button's loading state covers
+        // the whole write + reload round trip.
+        await loadConfig({ silent: true });
         await loadRuntimeModels();
         loadApiKeyProviders();
         onSaved?.();
@@ -2592,7 +2625,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
               borderRadius: 6, color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)",
               whiteSpace: "pre-wrap", wordBreak: "break-word", overflowX: "auto",
             }}>{parseError.message}</pre>
-            <button onClick={loadConfig} disabled={loading}
+            <button onClick={() => loadConfig()} disabled={loading}
               style={{ alignSelf: "flex-start", padding: "5px 12px", background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-muted)", cursor: loading ? "default" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
               {loading ? t("modelsConfig.loading") : t("modelsConfig.reload")}
             </button>
@@ -2819,7 +2852,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
           <button onClick={onClose} style={{ padding: "6px 14px", background: "none", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-muted)", cursor: "pointer", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}>
             {t("modelsConfig.cancel")}
           </button>
-          <button onClick={handleSave} disabled={saving || savedOk || parseError !== null} style={{
+          <button onClick={handleSave} disabled={saving || savedOk || parseError !== null} aria-busy={saving || undefined} style={{
             position: "relative",
             padding: "6px 16px",
             minWidth: 92,
@@ -2831,6 +2864,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
             transition: "background-color var(--dur-med) var(--ease-out-warm), color var(--dur-med) var(--ease-out-warm)",
             animation: savedOk ? "saved-pop var(--dur-theme) var(--ease-out-warm)" : undefined,
           }}>
+            {saving && <Loader2 size={13} className="animate-spin" aria-hidden="true" style={{ flexShrink: 0 }} />}
             {savedOk && (
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                 style={{ strokeDasharray: 18, animation: "saved-check-draw 0.35s ease forwards", flexShrink: 0 }}>

@@ -6,7 +6,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { providerInitials, providerCollapsePrefs, toggleCollapsedProvider } = await jiti.import("./ModelsConfig.tsx");
+const { providerInitials, providerCollapsePrefs, toggleCollapsedProvider, selectionAfterConfigReload } = await jiti.import("./ModelsConfig.tsx");
 
 // Pure mirrors of the state transitions in ModelsConfig — the rename must
 // never produce duplicate provider keys (which would silently drop one
@@ -72,4 +72,47 @@ test("provider collapse preferences reject malformed values and dedupe provider 
 test("provider collapse toggle expands and re-collapses one provider without touching peers", () => {
   assert.deepEqual(toggleCollapsedProvider(["alpha", "beta"], "alpha"), ["beta"]);
   assert.deepEqual(toggleCollapsedProvider(["beta"], "alpha"), ["beta", "alpha"]);
+});
+
+// The save flow re-reads models.yml; the editor selection must survive that
+// reload instead of jumping back to the first provider.
+test("config reload keeps the selected provider instead of jumping to the first", () => {
+  const providers = { alpha: { models: [] }, beta: { models: [{ id: "m" }] }, gamma: {} };
+  // Regression: selecting beta and pressing Save used to reset to alpha.
+  assert.deepEqual(selectionAfterConfigReload({ type: "provider", name: "beta" }, providers), { type: "provider", name: "beta" });
+  assert.deepEqual(selectionAfterConfigReload({ type: "provider", name: "gamma" }, providers), { type: "provider", name: "gamma" });
+});
+
+test("initial config load selects the first provider, empty config selects none", () => {
+  const providers = { alpha: {}, beta: {} };
+  assert.deepEqual(selectionAfterConfigReload(null, providers), { type: "provider", name: "alpha" });
+  assert.equal(selectionAfterConfigReload(null, {}), null);
+});
+
+test("reload after the selected provider was deleted falls back to the first", () => {
+  assert.deepEqual(selectionAfterConfigReload({ type: "provider", name: "beta" }, { alpha: {} }), { type: "provider", name: "alpha" });
+  assert.equal(selectionAfterConfigReload({ type: "provider", name: "beta" }, {}), null);
+  assert.deepEqual(selectionAfterConfigReload({ type: "model", providerName: "beta", index: 0 }, { gamma: { models: [{ id: "x" }] } }), { type: "provider", name: "gamma" });
+});
+
+test("model selection survives the reload unless its row disappeared with a draft", () => {
+  const providers = { beta: { models: [{ id: "m0" }, { id: "m1" }] } };
+  assert.deepEqual(selectionAfterConfigReload({ type: "model", providerName: "beta", index: 1 }, providers), { type: "model", providerName: "beta", index: 1 });
+  // The save drops untouched empty "Add model" draft rows — an index past the
+  // persisted end lands on the provider instead of another model.
+  assert.deepEqual(selectionAfterConfigReload({ type: "model", providerName: "beta", index: 2 }, providers), { type: "provider", name: "beta" });
+});
+
+test("non-config editor surfaces are untouched by a config reload", () => {
+  const providers = { alpha: {} };
+  for (const selection of [
+    { type: "oauth", providerId: "anthropic" },
+    { type: "apikey", providerId: "openai" },
+    { type: "roles" },
+    { type: "registry" },
+    { type: "fallbacks" },
+    { type: "picker" },
+  ]) {
+    assert.deepEqual(selectionAfterConfigReload(selection, providers), selection);
+  }
 });
