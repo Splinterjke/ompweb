@@ -4796,7 +4796,7 @@ html[data-animation-thinking="false"] .thinking-icon-active {
 .git-graph-panel {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--bg-panel);
   border-top: 1px solid var(--border);
   overflow: hidden;
 }

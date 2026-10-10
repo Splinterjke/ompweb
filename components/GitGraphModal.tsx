@@ -52,7 +52,10 @@ const GG_LANE_COLORS = [
  * properties (they are not tokenized on :root for every theme).
  */
 const THEME_TOKEN_MAP: Readonly<Record<string, string>> = {
-  "--vscode-editor-background": "--bg",
+  // The graph surface is the panel background (the webview punches its graph
+  // circles / sticky strips out of this same color, so one map entry carries
+  // the whole background).
+  "--vscode-editor-background": "--bg-panel",
   "--vscode-editor-foreground": "--text",
   "--vscode-editorWidget-background": "--bg-panel",
   "--vscode-editorSuggestWidget-foreground": "--text",
@@ -193,7 +196,7 @@ function DiffPane({ diff, loading, error, mobile, onClose }: {
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
-        background: "var(--bg)",
+        background: "var(--bg-panel)",
         borderLeft: mobile ? "none" : "1px solid var(--border)",
       }}
     >
@@ -605,10 +608,10 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
               src={src}
               title={t("gitGraph.title")}
               onLoad={() => setFrameLoaded(true)}
-              style={{ flex: "1 1 auto", minWidth: 0, width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
+              style={{ flex: "1 1 auto", minWidth: 0, width: "100%", height: "100%", border: "none", background: "var(--bg-panel)" }}
             />
             {!frameLoaded && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", background: "var(--bg)" }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-dim)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", background: "var(--bg-panel)" }}>
                 <LoaderCircle size={14} strokeWidth={1.8} className="icon-spin" aria-hidden="true" />
                 {t("gitGraph.loading")}
               </div>

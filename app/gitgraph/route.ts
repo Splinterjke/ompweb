@@ -135,8 +135,8 @@ export async function GET(request: NextRequest) {
 html{--vscode-font-family:var(--font-sans, ui-sans-serif, system-ui, sans-serif);--vscode-editor-font-family:var(--font-mono, ui-monospace, monospace);}
 :root{${colorVars}}
 ${colorParams}
-body{margin:0;padding:0;overflow:auto;background:#f7f4ef;color:#3d3a34;font-family:var(--vscode-font-family);font-size:13px;}
-html[data-omp-dark="1"] body{background:#1f1b16;color:#dcd5cb;}
+body{margin:0;padding:0;overflow:auto;background:#F2F0EA;color:#3d3a34;font-family:var(--vscode-font-family);font-size:13px;}
+html[data-omp-dark="1"] body{background:#231F1B;color:#dcd5cb;}
 </style>
 </head>
 ${body}
