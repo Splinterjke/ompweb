@@ -155,3 +155,73 @@ test("recovered images past the attachment cap all stay in the composer", async 
   await waitFor(() => assert.equal(getDraft(KEY)?.images.length, MAX_ATTACHED_IMAGES + 1));
   assert.equal(document.querySelectorAll("img").length >= MAX_ATTACHED_IMAGES + 1, true, "every image has a preview to remove");
 });
+
+// Reported bug: an idle `/goal …` with an attached file skipped the web
+// command path entirely — the raw slash text reached omp as a literal
+// message and its goal marker was never set. Prompt-composing commands
+// must reach the builtin handler with the images so the expanded prompt
+// (and the marker side effect) happens with the attachments riding along.
+test("an idle web command with an attached image goes to the builtin with the image", async () => {
+  const calls = [];
+  const ref = React.createRef();
+  render(React.createElement(ChatInput, {
+    ref,
+    draftKey: KEY,
+    isStreaming: false,
+    onSend: (message, images) => { calls.push({ name: "onSend", message, images }); },
+    onBuiltinCommand: async (message, images) => {
+      calls.push({ name: "builtin", message, images });
+      return { handled: true };
+    },
+  }));
+  await act(async () => {
+    ref.current.addFiles([
+      new File([Buffer.from(PNG, "base64")], "dot.png", { type: "image/png" }),
+    ]);
+  });
+  await waitFor(() => assert.equal(getDraft(KEY)?.images.length, 1));
+  // The slash palette opens while typing; jsdom has no scrollIntoView
+  // (same stand-in as the queued-expansion test).
+  window.HTMLElement.prototype.scrollIntoView = () => {};
+  typeText("/goal ship it");
+  await act(async () => { pressEnter(); });
+  await waitFor(() => assert.equal(calls.length, 1));
+  delete window.HTMLElement.prototype.scrollIntoView;
+  assert.equal(calls[0].name, "builtin", "the web command must not fall through to a raw send");
+  assert.equal(calls[0].message, "/goal ship it");
+  assertQueuedWithImage(calls[0], "/goal ship it");
+  await waitFor(() => assert.equal(getDraft(KEY), null), "a handled command clears the composer and its attachment");
+});
+
+// Action builtins (copy/compact/…) cannot carry attachments: with an image
+// attached they keep the old raw send, so the file is never silently
+// dropped by a handled non-prompt command.
+test("an action command with an attached image keeps the raw send", async () => {
+  const calls = [];
+  const ref = React.createRef();
+  render(React.createElement(ChatInput, {
+    ref,
+    draftKey: KEY,
+    isStreaming: false,
+    onSend: (message, images) => { calls.push({ name: "onSend", message, images }); },
+    onBuiltinCommand: async (message, images) => {
+      calls.push({ name: "builtin", message, images });
+      return { handled: true };
+    },
+  }));
+  await act(async () => {
+    ref.current.addFiles([
+      new File([Buffer.from(PNG, "base64")], "dot.png", { type: "image/png" }),
+    ]);
+  });
+  await waitFor(() => assert.equal(getDraft(KEY)?.images.length, 1));
+  window.HTMLElement.prototype.scrollIntoView = () => {};
+  // A trailing-argument command line: a bare "/copy" would leave the slash
+  // palette open and Enter would apply the completion instead of sending.
+  typeText("/copy the last reply");
+  await act(async () => { pressEnter(); });
+  await waitFor(() => assert.equal(calls.length, 1));
+  delete window.HTMLElement.prototype.scrollIntoView;
+  assert.equal(calls[0].name, "onSend", "the attachment must travel with the raw text, not be dropped");
+  assertQueuedWithImage(calls[0], "/copy the last reply");
+});

@@ -581,6 +581,35 @@ test("web /goal stays passive; only trackGoal arms the native tracker", async ()
   assert.equal(createCall.body.objective, "answer ok to ко", "the tracked objective is the marker objective");
 });
 
+// The `/goal` marker is set by the builtin handler, so a `/goal …` typed
+// with attached files must come through here (ChatInput routes it) and the
+// expanded prompt must carry the images — the bug was the attachment path
+// skipping the handler altogether, leaving both the marker and the
+// instruction missing.
+test("web /goal with attachments sends the prompt with the images and sets the marker", async () => {
+  resetWorld();
+  const sid = "goal-attachments";
+  primeSession(sid, [userMsg("u1", "start")]);
+  const w = await mountSession(sid);
+
+  const images = [{ data: "ZGF0YQ==", mimeType: "image/png", previewUrl: "blob:preview" }];
+  let builtinPromise;
+  await act(async () => {
+    builtinPromise = w.latest.handleBuiltinSlashCommand("/goal review the diagram", images);
+    await sleep(30);
+  });
+  await act(async () => {
+    lastEs()?.open();
+    const result = await builtinPromise;
+    assert.equal(result.handled, true);
+  });
+  assert.equal(w.latest.activeGoal?.objective, "review the diagram", "the web marker must be set even with attachments");
+  const promptCall = callsTo("POST", "/api/agent/").find((c) => c.body?.type === "prompt");
+  assert.ok(promptCall, "the /goal prompt must be sent");
+  assert.ok(promptCall.body.message.includes("review the diagram"));
+  assert.deepEqual(promptCall.body.images, [{ type: "image", data: "ZGF0YQ==", mimeType: "image/png" }], "the attachments must ride the expanded prompt");
+});
+
 // The incident behind abort_and_restore_queue: a promoted steer was still in
 // omp when Stop landed but missing from this client's snapshot, so nothing
 // withdrew it and omp ran it as a new turn after the abort. omp's atomic Esc

@@ -189,7 +189,9 @@ interface Props {
   slashCommands?: SlashCommandInfo[];
   slashCommandsLoading?: boolean;
   onLoadSlashCommands?: () => Promise<SlashCommandInfo[]> | SlashCommandInfo[];
-  onBuiltinCommand?: (message: string) => Promise<BuiltinSlashCommandResult>;
+  /** Runs a client builtin. `images` rides along only for prompt-composing
+   *  web commands: with attachments present, only those enter this path. */
+  onBuiltinCommand?: (message: string, images?: AttachedImage[]) => Promise<BuiltinSlashCommandResult>;
   onAudioUnlock?: () => void;
   draftKey?: string;
   /** Session working directory — enables the @ file autocomplete menu */
@@ -1199,12 +1201,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   /** Run a client builtin. True once handled; the composer is cleared only on
    * success and only if it still holds what was sent (the user may have
    * started typing while the command ran). */
-  const runBuiltinCommand = useCallback(async (msg: string, overrideText?: string): Promise<boolean> => {
+  const runBuiltinCommand = useCallback(async (msg: string, overrideText?: string, images?: AttachedImage[]): Promise<boolean> => {
     if (!onBuiltinCommand) return false;
     const sentValue = overrideText ?? valueRef.current;
     setIsSubmitting(true);
     try {
-      const result = await onBuiltinCommand(msg);
+      const result = await onBuiltinCommand(msg, images);
       if (!result.handled) return false;
       if (!result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
       return true;
@@ -1232,14 +1234,21 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     if (!msg && !attachedImages.length) return;
     onAudioUnlock?.();
     if (sendSideQuestion(msg, overrideText)) return;
-    if (!attachedImages.length && msg.startsWith("/") && onBuiltinCommand) {
+    if (msg.startsWith("/") && onBuiltinCommand) {
       const expansion = expandWebSlashCommand(msg);
-      const validationError = validateOutgoingPrompt(expansion.kind === "expand" ? expansion.prompt : msg, attachedImages);
-      if (validationError) {
-        setAttachError(validationError);
-        return;
+      // Attached files must not bypass a web prompt command: "/goal …" with
+      // an attachment would otherwise reach omp as literal text and its goal
+      // marker would never be set. The expanded prompt rides the normal send
+      // pipeline with the images. Action builtins (copy/compact/…) cannot
+      // carry attachments, so with attachments they keep the raw send below.
+      if (!attachedImages.length || expansion.kind === "expand") {
+        const validationError = validateOutgoingPrompt(expansion.kind === "expand" ? expansion.prompt : msg, attachedImages);
+        if (validationError) {
+          setAttachError(validationError);
+          return;
+        }
+        if (await runBuiltinCommand(msg, overrideText, attachedImages.length ? attachedImages : undefined)) return;
       }
-      if (await runBuiltinCommand(msg, overrideText)) return;
     }
     const validationError = validateOutgoingPrompt(msg, attachedImages);
     if (validationError) {

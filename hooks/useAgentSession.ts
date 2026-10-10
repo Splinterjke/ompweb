@@ -3828,7 +3828,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [ensureEventsConnected, ensureNewSession, promoteNewSession, sendBtw]);
 
-  const handleBuiltinSlashCommand = useCallback(async (text: string): Promise<BuiltinSlashCommandResult> => {
+  const handleBuiltinSlashCommand = useCallback(async (text: string, images?: AttachedImage[]): Promise<BuiltinSlashCommandResult> => {
     if (!text.startsWith("/")) return { handled: false };
     const match = text.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);
     if (!match) return { handled: false };
@@ -3942,7 +3942,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             });
           }
           if (commandName === "plan") setActivePlan({ objective: args });
-          const sent = await handleSend(expansion.prompt);
+          // Prompt-composing commands send through the normal pipeline with
+          // the composer's attachments: `/goal …` with an attached file must
+          // both carry the images and set its marker below.
+          const sent = await handleSend(expansion.prompt, images);
           if (!sent) {
             if (commandName === "plan") setActivePlan(null);
             return { handled: true, retainInput: true };
