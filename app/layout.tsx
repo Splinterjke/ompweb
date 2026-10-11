@@ -95,6 +95,11 @@ export default function RootLayout({
             __html: `(function(){try{var l=localStorage.getItem("omp-lang");if(l!=="en"&&l!=="zh-CN"&&l!=="ja"){var n=(navigator.language||"").toLowerCase();l=n.indexOf("zh")===0?"zh-CN":n.indexOf("ja")===0?"ja":"en"}document.documentElement.lang=l}catch(e){}})();`,
           }}
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("omp-touch-targets");if(t==="auto"||t==="compact"||t==="accessible")document.documentElement.setAttribute("data-touch-targets",t)}catch(e){}})();`,
+          }}
+        />
       </head>
       <body translate="no" className="notranslate" style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
         {/* iOS/iPadOS: re-apply maximum-scale=1 after hydration so focusing

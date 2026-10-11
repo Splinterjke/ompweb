@@ -446,6 +446,7 @@
   "chatWindow.askTitle": "回答智能体的问题",
   "chatWindow.askRecommended": "推荐",
   "chatWindow.askOther": "其他（输入你的回答）",
+  "chatWindow.askSubmitAnswer": "提交答案",
   "chatWindow.thinking": "思考中...",
   "chatWindow.completedSubagents": "已完成 ({count})",
   "chatWindow.subagentCount.one": "{count} 个子代理",

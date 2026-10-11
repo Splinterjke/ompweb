@@ -446,6 +446,7 @@
   "chatWindow.askTitle": "エージェントの質問に答える",
   "chatWindow.askRecommended": "推奨",
   "chatWindow.askOther": "その他（回答を入力）",
+  "chatWindow.askSubmitAnswer": "回答を送信",
   "chatWindow.thinking": "思考中...",
   "chatWindow.completedSubagents": "完了 ({count})",
   "chatWindow.subagentCount.one": "サブエージェント {count} 件",

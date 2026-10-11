@@ -446,6 +446,7 @@
   "chatWindow.askTitle": "Answer the agent's questions",
   "chatWindow.askRecommended": "Recommended",
   "chatWindow.askOther": "Other (type your answer)",
+  "chatWindow.askSubmitAnswer": "Submit answer",
   "chatWindow.thinking": "Thinking...",
   "chatWindow.completedSubagents": "Completed ({count})",
   "chatWindow.subagentCount.one": "{count} subagent",

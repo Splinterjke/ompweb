@@ -2246,6 +2246,23 @@ svg.lucide:not([class*="-spin"]) {
   }
 }
 
+/* Ported from upstream 05fb0a8d; data-touch-targets is set only by the boot script in app/layout.tsx until a Settings UI exists. */
+/* Extension request panel (components/ExtensionDialog.tsx): while the soft
+   keyboard is up the footer with Cancel / Submit must stay comfortably
+   tappable, and the inline send control beside a typed answer is reached with
+   the same finger that is typing. */
+html[data-touch-targets="accessible"] :is(.extension-dialog-footer > button, .extension-dialog-send) {
+  min-height: 44px;
+}
+html[data-touch-targets="accessible"] .extension-dialog-send {
+  min-width: 44px;
+}
+@media (max-width: 640px) and (pointer: coarse) and (hover: none) {
+  html:not([data-touch-targets="compact"]):not([data-touch-targets="accessible"]) :is(.extension-dialog-footer > button, .extension-dialog-send) {
+    min-height: 40px;
+  }
+}
+
 /* File viewer toolbar */
 .file-viewer-toolbar {
   min-width: 0;

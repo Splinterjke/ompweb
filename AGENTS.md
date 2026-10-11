@@ -313,7 +313,8 @@ hooks/
   useNotifications.ts      presence reports, toast/system delivery, notification clicks
   useBtw.ts                /btw records/active panel/history dialog fed by btw_* SSE frames
   useDragDrop.ts           shared drag/drop state
-  useIsMobile.ts           responsive breakpoint hook
+  useIsMobile.ts           responsive breakpoint hook (exports `matchMobileViewport` for reads outside render)
+  useTouchTargets.ts       touch-target density pref (localStorage "omp-touch-targets" → html[data-touch-targets], no Settings UI yet — set via layout boot script)
   useNavigationHistory.ts  in-app back/forward stack (record/peek/commit/drop) for visited chat views
   usePrefersReducedMotion.ts OS reduce-motion preference (SMIL-safe)
   useTheme.ts              theme state (localStorage key "omp-theme")

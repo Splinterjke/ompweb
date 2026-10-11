@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 // Mobile breakpoint shared with app/globals.css (max-width: 640px).
-const MOBILE_QUERY = "(max-width: 640px)";
+export const MOBILE_QUERY = "(max-width: 640px)";
 
 function subscribe(cb: () => void): () => void {
   if (typeof window === "undefined" || !window.matchMedia) return () => {};
@@ -28,4 +28,11 @@ function getServerSnapshot(): boolean {
  */
 export function useIsMobile(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+/** The same breakpoint as `useIsMobile`, readable outside render (effects,
+ * event handlers) where the hook's server snapshot would still say desktop. */
+export function matchMobileViewport(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(MOBILE_QUERY).matches;
 }
