@@ -72,6 +72,7 @@
     "invalid_sort_order",
     "invalid_subagent_id",
     "invalid_subscription",
+    "invalid_target",
     "invalid_upload_type",
     "invalid_url",
     "invalid_usage_query",
@@ -156,6 +157,9 @@
     "upload_file_too_large",
     "upload_target_not_directory",
     "upload_total_too_large",
+    "usage_reset_failed",
+    "usage_reset_parse_failed",
+    "usage_reset_spend_failed",
     "usage_summary_unavailable"
   ]
 }

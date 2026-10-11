@@ -18,7 +18,7 @@
     "components/McpConfig.tsx": 5,
     "components/MessageView.tsx": 2,
     "components/ModelCatalogPicker.tsx": 1,
-    "components/ModelsConfig.tsx": 18,
+    "components/ModelsConfig.tsx": 20,
     "components/NetworkProxyConfig.tsx": 2,
     "components/OmpSetupWizard.tsx": 1,
     "components/PluginsConfig.tsx": 3,
