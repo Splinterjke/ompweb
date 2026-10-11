@@ -25,7 +25,7 @@ import {
   ConfirmDialog,
   useFieldValidation,
 } from "@/components/ui/field";
-import { Plus, Trash2, RefreshCw, AlertCircle, Cpu, Settings, Sparkles, Check as CheckIcon, ArrowDown, ArrowUp, ChevronRight, Layers, RotateCcw, SlidersHorizontal, BookOpen, Search, X, Loader2 } from "lucide-react";
+import { Plus, Trash2, RefreshCw, AlertCircle, Cpu, Settings, Sparkles, Check as CheckIcon, ArrowDown, ArrowUp, ChevronRight, Layers, RotateCcw, SlidersHorizontal, BookOpen, Search, X, Loader2, Ticket } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { SettingsTabs, type SettingsTab } from "./SettingsTabs";
 import { ModelCatalogPicker } from "./ModelCatalogPicker";
@@ -118,7 +118,8 @@ export type Selection =
   | { type: "roles" }
   | { type: "picker" }
   | { type: "registry" }
-  | { type: "fallbacks" };
+  | { type: "fallbacks" }
+  | { type: "usage-resets" };
 
 /**
  * Selection to keep after a models.yml reload (the save flow re-reads the
@@ -194,7 +195,7 @@ type NativeRegistrySettings = {
 };
 
 type RetrySettings = {
-  retry?: { enabled?: boolean; maxRetries?: number; modelFallback?: boolean; fallbackRevertPolicy?: "cooldown-expiry" | "never"; fallbackChains?: Record<string, string[]> };
+  retry?: { enabled?: boolean; maxRetries?: number; modelFallback?: boolean; fallbackRevertPolicy?: "cooldown-expiry" | "never"; fallbackOn?: "any" | "usage-limit" | "except-usage-limit"; fallbackChains?: Record<string, string[]> };
 };
 
 function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
@@ -257,6 +258,7 @@ function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
       <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)" }}><input type="checkbox" checked={retry.modelFallback ?? true} onChange={(event) => void save({ ...settings, retry: { ...retry, modelFallback: event.target.checked } })} /> {t("modelsConfig.allowModelFallback")}</label>
       <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.retryAttempts")} <select value={retry.maxRetries ?? 10} onChange={(event) => void save({ ...settings, retry: { ...retry, maxRetries: Number(event.target.value) } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{[0, 1, 2, 3, 5, 10, 15, 20].map((count) => <option key={count} value={count}>{count}</option>)}</select></label>
       <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.returnToPrimary")} <select value={retry.fallbackRevertPolicy ?? "cooldown-expiry"} onChange={(event) => void save({ ...settings, retry: { ...retry, fallbackRevertPolicy: event.target.value as "cooldown-expiry" | "never" } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="cooldown-expiry">{t("modelsConfig.afterCooldown")}</option><option value="never">{t("modelsConfig.never")}</option></select></label>
+      <label style={{ padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.fallbackTrigger")} <select value={retry.fallbackOn ?? "any"} onChange={(event) => void save({ ...settings, retry: { ...retry, fallbackOn: event.target.value as "any" | "usage-limit" | "except-usage-limit" } })} style={{ marginLeft: 8, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}><option value="any">{t("modelsConfig.fallbackTriggerAny")}</option><option value="usage-limit">{t("modelsConfig.fallbackTriggerUsageLimit")}</option><option value="except-usage-limit">{t("modelsConfig.fallbackTriggerExceptUsageLimit")}</option></select></label>
     </div>
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
       <div style={{ padding: "10px 12px", background: "var(--bg-panel)", display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "var(--text)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("modelsConfig.fallbackChainFor")}</span><select aria-label={t("modelsConfig.fallbackChainFor")} value={role} onChange={(event) => setRole(event.target.value)} style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)" }}>{NATIVE_MODEL_ROLES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
@@ -284,6 +286,82 @@ function RetryFallbackDetail({ models }: { models: RuntimeModelEntry[] }) {
       )}
     </section>
     {error && <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>}
+  </div>;
+}
+
+type UsageResetCredit = { id: string; title?: string; program?: string; status?: string; remainingCount?: number; usable?: boolean; clears?: string; expiresAt?: number };
+type UsageResetAccount = { provider: string; credentialId: string; email?: string; accountId?: string; availableCount?: number; redeemableCount?: number; soonestExpiry?: number; unavailableReason?: string; error?: string; credits?: UsageResetCredit[] };
+
+function UsageResetDetail() {
+  const { t } = useI18n();
+  const [accounts, setAccounts] = useState<UsageResetAccount[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyTarget, setBusyTarget] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/usage-reset");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(String(data.error ?? t("modelsConfig.usageResetsLoadFailed"))); setAccounts([]); return; }
+      setAccounts(Array.isArray(data.accounts) ? (data.accounts as UsageResetAccount[]) : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setAccounts([]);
+    }
+  }, [t]);
+  useEffect(() => { void load(); }, [load]);
+
+  const redeem = async (target: string) => {
+    setBusyTarget(target);
+    try {
+      const res = await fetch("/api/usage-reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) toast.error(String(data.error ?? t("modelsConfig.usageResetsRedeemFailed")));
+      else toast.success(t("modelsConfig.usageResetsRedeemed"));
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyTarget(null);
+    }
+  };
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div><SectionTitle>{t("modelsConfig.usageResetsTitle")}</SectionTitle><p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>{t("modelsConfig.usageResetsDesc")}</p></div>
+    {accounts === null ? (
+      <div style={{ color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("modelsConfig.usageResetsLoading")}</div>
+    ) : error ? (
+      <div role="alert" style={{ color: "var(--status-error)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{error}</div>
+    ) : accounts.length === 0 ? (
+      <div style={{ padding: "10px 10px", border: "1px dashed var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg)", color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5, textAlign: "center" }}>{t("modelsConfig.usageResetsEmpty")}</div>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {accounts.map((account) => {
+          const target = `${account.provider}/${account.credentialId}`;
+          const available = account.availableCount ?? 0;
+          const busy = busyTarget === target;
+          const busyAny = busyTarget !== null;
+          return (
+            <div key={target} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", flexWrap: "wrap" }}>
+              <ProviderIcon id={account.provider} size={16} />
+              <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{account.email || account.accountId || target}</span>
+              <code style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{account.provider}</code>
+              <span style={{ padding: "2px 8px", borderRadius: 10, background: available > 0 ? "var(--status-success)" : "var(--bg-subtle)", color: available > 0 ? "#fff" : "var(--text-muted)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 600 }}>{t("modelsConfig.usageResetsAvailable", { count: available })}</span>
+              {account.soonestExpiry ? <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>{t("modelsConfig.usageResetsNextExpiry")}: {new Date(account.soonestExpiry).toLocaleString()}</span> : null}
+              {account.unavailableReason ? <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{account.unavailableReason}</span> : null}
+              <button type="button" onClick={() => void redeem(target)} disabled={busyAny || available === 0} className="ui-focus-ring" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", fontSize: "calc(11px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: busyAny || available === 0 ? "default" : "pointer", opacity: busyAny || available === 0 ? 0.55 : 1 }}>
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <Ticket size={13} />}
+                {t("modelsConfig.usageResetsRedeem")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    )}
+    <button type="button" onClick={() => void load()} disabled={busyTarget !== null} className="ui-focus-ring" style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-lg, 1))", cursor: "pointer" }}>
+      <RefreshCw size={13} /> {t("modelsConfig.usageResetsRefresh")}
+    </button>
   </div>;
 }
 
@@ -2480,6 +2558,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
     if (selection.type === "roles") return <ModelRolesDetail models={runtimeModels} />;
     if (selection.type === "registry") return <NativeRegistryDetail models={runtimeModels} connectedProviders={connectedProviders} onChanged={loadRuntimeModels} />;
     if (selection.type === "fallbacks") return <RetryFallbackDetail models={runtimeModels} />;
+    if (selection.type === "usage-resets") return <UsageResetDetail />;
     if (selection.type === "picker") {
       const pickerQuery = composerPickerSearch.trim().toLowerCase();
       const matchesPicker = (model: RuntimeModelEntry) =>
@@ -2652,6 +2731,7 @@ export function ModelsConfig({ onClose, onSelectTab, onSaved, embedded = false }
                   <TreeNavButton icon={RotateCcw} label={t("modelsConfig.navRetryFallback")} selected={selection?.type === "fallbacks"} onClick={() => setSelection({ type: "fallbacks" })} />
                   <TreeNavButton icon={BookOpen} label={t("modelsConfig.navComposerPicker")} selected={selection?.type === "picker"} onClick={() => setSelection({ type: "picker" })} />
                   <TreeNavButton icon={SlidersHorizontal} label={t("modelsConfig.navModelRoles")} selected={selection?.type === "roles"} onClick={() => setSelection({ type: "roles" })} />
+                  <TreeNavButton icon={Ticket} label={t("modelsConfig.navUsageResets")} selected={selection?.type === "usage-resets"} onClick={() => setSelection({ type: "usage-resets" })} />
                 </div>
               </section>
 

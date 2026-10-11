@@ -21,6 +21,7 @@ export type NativeSettings = {
     maxRetries?: number;
     modelFallback?: boolean;
     fallbackRevertPolicy?: "cooldown-expiry" | "never";
+    fallbackOn?: "any" | "usage-limit" | "except-usage-limit";
     fallbackChains?: Record<string, string[]>;
   };
   compaction?: {
@@ -80,6 +81,7 @@ const BACKLOGS = new Set(["off", "1", "3", "5"]);
 const APPROVAL_MODES = new Set(["always-ask", "write", "yolo"]);
 const APPROVAL_POLICIES = new Set(["allow", "prompt", "deny"]);
 const FALLBACK_REVERT_POLICIES = new Set(["cooldown-expiry", "never"]);
+const FALLBACK_ON_VALUES = new Set(["any", "usage-limit", "except-usage-limit"]);
 const COMPACTION_METHOD_ORDER = ["remote", "snapcompact", "handoff", "soft", "shake"] as const;
 export type CompactionMethod = (typeof COMPACTION_METHOD_ORDER)[number];
 const MEMORY_BACKENDS = new Set(["off", "local", "mnemopi", "hindsight"]);
@@ -231,6 +233,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof retry.maxRetries === "number" && Number.isInteger(retry.maxRetries) ? { maxRetries: retry.maxRetries } : {}),
         ...(typeof retry.modelFallback === "boolean" ? { modelFallback: retry.modelFallback } : {}),
         ...(FALLBACK_REVERT_POLICIES.has(retry.fallbackRevertPolicy as string) ? { fallbackRevertPolicy: retry.fallbackRevertPolicy as "cooldown-expiry" | "never" } : {}),
+        ...(FALLBACK_ON_VALUES.has(retry.fallbackOn as string) ? { fallbackOn: retry.fallbackOn as "any" | "usage-limit" | "except-usage-limit" } : {}),
         ...(Object.keys(fallbackChains).length ? { fallbackChains } : {}),
       } } : {}),
       ...(Object.keys(compaction).length ? { compaction: {
@@ -421,6 +424,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
   if (settings.tools?.approval?.extension !== undefined && settings.tools.approval.extension !== "allow" && settings.tools.approval.extension !== "prompt") throw new Error("Invalid extension tool approval policy");
   if (settings.retry?.maxRetries !== undefined && (!Number.isInteger(settings.retry.maxRetries) || settings.retry.maxRetries < 0 || settings.retry.maxRetries > 20)) throw new Error("Retry attempts must be an integer between 0 and 20");
   if (settings.retry?.fallbackRevertPolicy !== undefined && !FALLBACK_REVERT_POLICIES.has(settings.retry.fallbackRevertPolicy)) throw new Error("Invalid fallback revert policy");
+  if (settings.retry?.fallbackOn !== undefined && !FALLBACK_ON_VALUES.has(settings.retry.fallbackOn)) throw new Error("Invalid fallback trigger");
   if (settings.retry?.fallbackChains !== undefined) {
     for (const [role, chain] of Object.entries(settings.retry.fallbackChains)) {
       if (!role.trim() || !Array.isArray(chain) || chain.some((selector) => typeof selector !== "string" || !selector.trim())) throw new Error("Fallback chains require non-empty role and model selectors");
