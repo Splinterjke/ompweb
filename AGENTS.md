@@ -235,6 +235,7 @@ app/api/
   stt/route.ts                    POST audio (+scope) → 202 { jobId } | GET ?scope= live jobs (lib/stt-jobs.ts)
   stt/[jobId]/route.ts            GET job state | POST retry with kept audio | DELETE ?claim= claim/discard
   stt/[jobId]/audio/route.ts      GET the kept recording (audio/* only) for playback
+  usage-reset/route.ts          GET saved Codex/Claude rate-limit resets (`omp usage reset --json`) | POST {target} spend one (Settings → API Keys & Providers → Rate-limit resets)
   web-settings/route.ts          GET/PUT server settings (auto-resume sessions)
   worktrees/route.ts              GET/POST/DELETE git worktrees
 
@@ -777,6 +778,14 @@ during the wait.
   count (`inflightTaskDetails`/`extractedToolData.task` progress), and the
   `⤴` async marker (live `detached` flag or history `details.async`
   presence). Shared formatters live in `lib/subagent-format.ts`.
+- **Async-result job rows** (`CustomMessageView` in `components/MessageView.tsx`):
+  omp ≥ 19.1 attaches machine-readable job metadata to `async-result` custom
+  messages (`details.jobs[{jobId, status, agentId, label, durationMs}]`, older
+  omp keeps jobId/type/label/duration). The card renders one row per job —
+  status chip, label, type, duration — and the `agentId` chip opens the Agents
+  panel transcript (`openAsyncJobTranscript` in `ChatWindow`: roster entry when
+  still live, else `agentLinkTarget`'s history-synthesized info). Rows vanish
+  silently for messages without `details.jobs` (pre-18.9 files).
 - **Roster order** (omp 18.8.4 Agent-Hub parity): newest spawn first — the live
   and on-disk rosters are a stable sort on descending launch index, so existing
   entries keep their relative order when a new subagent appears.
