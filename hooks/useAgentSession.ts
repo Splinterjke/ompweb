@@ -226,6 +226,18 @@ function readQueueSnapshot(value: unknown): QueuedMessages | null {
   return { steering, followUp };
 }
 
+/**
+ * `lib/rpc-manager.ts` answers a prompt/steer with this when a web shell
+ * command owned the session: it forwarded the message into omp's follow-up
+ * queue instead of rejecting the frame. It reports what happened — it is not
+ * queue state, so the chip still comes from omp's own snapshot.
+ */
+function isQueuedWhileShellRunning(reply: unknown): boolean {
+  if (!reply || typeof reply !== "object") return false;
+  const value = reply as { queued?: unknown; queue?: unknown; reason?: unknown };
+  return value.queued === true && value.queue === "followUp" && value.reason === "shellRunning";
+}
+
 function normalizeThinkingLevel(level: string | undefined): ThinkingLevelOption {
   // omp's "inherit" sentinel means "no explicit selection" — show as auto.
   if (!level || level === "inherit") return "auto";
@@ -3081,6 +3093,36 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     completionScrollAllowedRef.current = true;
 
     let sentSessionId: string | null = null;
+    // The agent route degrades a prompt into omp's follow-up queue when a
+    // web shell command (`!`) owns the session (another tab or device started
+    // it, so this composer never saw a run). No turn starts then, and the
+    // optimistic one must not sit there spinning.
+    let queuedBehindShell = false;
+    const finishQueuedBehindShell = (): true => {
+      // omp accepted the text into its follow-up queue, so this turn never
+      // started: drop the optimistic bubble (the queue chip omp publishes is
+      // the message's home) without putting the text back into the composer,
+      // and say where it went instead of failing.
+      const optimisticKey = optimisticUserMessageKeyRef.current;
+      if (optimisticKey) {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          return last?.role === "user" && userMessageKey(last) === optimisticKey
+            ? prev.slice(0, -1)
+            : prev;
+        });
+      }
+      optimisticUserMessageKeyRef.current = null;
+      eventCoalescerRef.current?.reset();
+      agentRunningRef.current = false;
+      setAgentRunning(false);
+      setTurnStarting(false);
+      setAgentPhase(null);
+      clearLiveToolResults();
+      dispatch({ type: "end" });
+      addNotice({ type: "info", message: translate("agentSession.queuedWhileShellRunning") });
+      return true;
+    };
     setModelRestoreFailure(null);
     try {
       if (isNew && newSessionCwd) {
@@ -3101,11 +3143,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           await ensureEventsConnected(sid);
           void refreshSubagentRoster(sid);
-          await sendAgentCommand(sid, {
+          queuedBehindShell = isQueuedWhileShellRunning(await sendAgentCommand(sid, {
             type: "prompt",
             message,
             ...(piImages?.length ? { images: piImages } : {}),
-          });
+          }));
         }
       } else if (session) {
         sentSessionId = session.id;
@@ -3123,12 +3165,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         void refreshSubagentRoster(session.id);
         void registerHostTools(session.id);
         void registerHostUriSchemes(session.id);
-        await sendAgentCommand(session.id, {
+        queuedBehindShell = isQueuedWhileShellRunning(await sendAgentCommand(session.id, {
           type: "prompt",
           message,
           ...(piImages?.length ? { images: piImages } : {}),
-        });
+        }));
       }
+      if (queuedBehindShell) return finishQueuedBehindShell();
       if (isSlashCommandPrompt && sentSessionId) {
         void waitForPromptSettlement(sentSessionId, promptRunId);
       }
@@ -3169,11 +3212,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           void refreshSubagentRoster(sentSessionId);
           void registerHostTools(sentSessionId);
           void registerHostUriSchemes(sentSessionId);
-          await sendAgentCommand(sentSessionId, {
+          const repairPrompt = await sendAgentCommand(sentSessionId, {
             type: "prompt",
             message,
             ...(piImages?.length ? { images: piImages } : {}),
           });
+          if (isQueuedWhileShellRunning(repairPrompt)) {
+            return finishQueuedBehindShell();
+          }
           if (isSlashCommandPrompt) void waitForPromptSettlement(sentSessionId, promptRunId);
           return true;
         } catch (repairError) {
@@ -3983,11 +4029,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (!sid) return false;
     const piImages = toPiImages(images);
     try {
-      await sendAgentCommand(sid, {
+      const reply = await sendAgentCommand(sid, {
         type: "steer",
         message,
         ...(piImages?.length ? { images: piImages } : {}),
       });
+      // A web shell command (`!`) owned the session: the agent route put the
+      // text into omp's follow-up queue instead of steering a (nonexistent)
+      // turn.
+      if (isQueuedWhileShellRunning(reply)) addNotice({ type: "info", message: translate("agentSession.queuedWhileShellRunning") });
       return true;
     } catch (e) {
       console.error("Failed to steer:", e);
@@ -4006,12 +4056,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (!sid) return false;
     const piImages = toPiImages(images);
     try {
-      await sendAgentCommand(sid, {
+      const reply = await sendAgentCommand(sid, {
         type: "prompt",
         message,
         streamingBehavior: behavior,
         ...(piImages?.length ? { images: piImages } : {}),
       });
+      // Same degradation as `handleSteer`: queued behind the running shell
+      // command rather than delivered into this run.
+      if (isQueuedWhileShellRunning(reply)) addNotice({ type: "info", message: translate("agentSession.queuedWhileShellRunning") });
       return true;
     } catch (e) {
       console.error("Failed to queue prompt:", e);

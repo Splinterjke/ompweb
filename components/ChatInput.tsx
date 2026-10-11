@@ -1926,8 +1926,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         if (isMobile && !mobileEnterToSend) return;
         e.preventDefault();
         if (isStreaming && (onSteer || onFollowUp)) {
-          // Submit-during-run behavior comes from Settings (Steer current run
-          // by default, or Queue follow-up); no in-composer selector.
+          // Submit-during-run behavior comes from Settings (Queue follow-up by
+          // default, or Steer current run); no in-composer selector.
           const behavior = getSubmitDuringRunBehavior();
           if (behavior === "steer" && onSteer) sendQueued("steer");
           else sendQueued("followup");

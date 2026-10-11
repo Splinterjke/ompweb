@@ -24,6 +24,7 @@
   "agentSession.sessionRenamed": "セッション名を {name} に変更しました",
   "agentSession.shellSessionFailed": "シェルコマンド用のセッションを作成できませんでした",
   "agentSession.queuedPromotionUnavailable": "このキューされたフォローアップは、もうステアとして送信できません。",
+  "agentSession.queuedWhileShellRunning": "シェルコマンドの実行中です。メッセージはキューに追加され、コマンドの終了後に実行されます。",
   "agentSession.queuedRemovalUnavailable": "このメッセージはキューに待機しておらず、キャンセルできませんでした。",
   "agentSession.queueDiscardFailed": "実行は停止しましたが、キュー内の一部のメッセージを取り戻せませんでした。エージェントがそれらを配信する可能性があります。",
   "agentSession.queueRestoreUncertain": "実行は停止しましたが、キュー内のメッセージが入力欄に戻っていない可能性があります。再送信する前にキューとチャットを確認してください。",

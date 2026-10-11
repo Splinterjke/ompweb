@@ -24,6 +24,7 @@
   "agentSession.sessionRenamed": "Session renamed to {name}",
   "agentSession.shellSessionFailed": "Unable to create a session for the shell command",
   "agentSession.queuedPromotionUnavailable": "The queued follow-up is no longer available to steer.",
+  "agentSession.queuedWhileShellRunning": "A shell command is still running, so the message was queued and runs when it finishes.",
   "agentSession.queuedRemovalUnavailable": "This message is no longer pending in that queue and could not be cancelled.",
   "agentSession.queueDiscardFailed": "The run was stopped, but some queued messages could not be taken back. The agent may still deliver them.",
   "agentSession.queueRestoreUncertain": "The run was stopped, but the queued messages may not have come back to the composer. Check the queue and the chat before resending.",

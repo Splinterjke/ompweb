@@ -95,14 +95,30 @@ function assertQueuedWithImage(call, text) {
   assert.deepEqual(call.images?.map((image) => [image.data, image.mimeType]), [[PNG, "image/png"]]);
 }
 
-test("Enter during a run steers with the attached image, then clears it", async () => {
+test("Enter during a run queues a follow-up with the attached image, then clears it", async () => {
   const calls = await renderRunningWithAttachments();
   typeText("look at this");
   await act(async () => { pressEnter(); });
   await waitFor(() => assert.equal(calls.length, 1));
-  assert.equal(calls[0].name, "onSteer", "default submit-during-run behavior steers");
+  // Queueing is the default submit-during-run behavior: it is what survives a
+  // web shell command owning the session (see lib/rpc-manager.ts).
+  assert.equal(calls[0].name, "onFollowUp", "the default submit-during-run behavior queues");
   assertQueuedWithImage(calls[0], "look at this");
   await waitFor(() => assert.equal(getDraft(KEY), null));
+});
+
+test("a stored Steer preference still steers Enter during a run", async () => {
+  localStorage.setItem("omp-web:submit-during-run", "steer");
+  try {
+    const calls = await renderRunningWithAttachments();
+    typeText("look at this");
+    await act(async () => { pressEnter(); });
+    await waitFor(() => assert.equal(calls.length, 1));
+    assert.equal(calls[0].name, "onSteer", "an explicit stored choice stays a steer");
+    assertQueuedWithImage(calls[0], "look at this");
+  } finally {
+    localStorage.removeItem("omp-web:submit-during-run");
+  }
 });
 
 // This fork keeps the primary button as Stop whenever a run is streaming

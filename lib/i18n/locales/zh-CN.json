@@ -24,6 +24,7 @@
   "agentSession.sessionRenamed": "会话已重命名为 {name}",
   "agentSession.shellSessionFailed": "无法为 shell 命令创建会话",
   "agentSession.queuedPromotionUnavailable": "这条排队的后续消息已无法引导。",
+  "agentSession.queuedWhileShellRunning": "仍有 Shell 命令正在运行，消息已加入队列，将在该命令结束后执行。",
   "agentSession.queuedRemovalUnavailable": "这条消息已不再处于该队列中，无法取消。",
   "agentSession.queueDiscardFailed": "运行已停止，但部分排队消息未能取回。智能体仍可能发送它们。",
   "agentSession.queueRestoreUncertain": "已停止运行，但队列中的消息可能没有回到输入框。重新发送前请检查队列和聊天记录。",

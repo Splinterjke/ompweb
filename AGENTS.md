@@ -549,6 +549,15 @@ confirms. A follow-up that answers `removed: false` is retried on `steering`
 the prompt run id captured at the click, so it cannot kill a prompt started
 during the wait.
 
+A prompt/steer whose wrapper is running a web shell command (`!` RPC `bash`) is
+never rejected: the wrapper degrades the frame into omp's `follow_up` queue and
+answers `{queued:true, queue:"followUp", reason:"shellRunning"}`
+(`queueWhileShellRunning`); the hook then withdraws the optimistic bubble and
+shows `agentSession.queuedWhileShellRunning`. Chips still come only from omp's
+snapshot. The default submit-during-run behavior is queue
+(`DEFAULT_SUBMIT_DURING_RUN_BEHAVIOR` in `lib/composer-prefs.ts`); only a
+stored `omp-web:submit-during-run` choice overrides it.
+
 ### Skill-invoked first prompt (`customType: "skill-prompt"`)
 - When a session is started with a skill mention (`/skill:name …`), omp stores the
   first content entry as a `custom_message` (`customType: "skill-prompt"`,

@@ -610,6 +610,40 @@ test("web /goal with attachments sends the prompt with the images and sets the m
   assert.deepEqual(promptCall.body.images, [{ type: "image", data: "ZGF0YQ==", mimeType: "image/png" }], "the attachments must ride the expanded prompt");
 });
 
+test("a prompt queued behind a running shell command drops the phantom turn and reports it", async () => {
+  resetWorld();
+  primeSession("bash-queue", [userMsg("u0", "q")]);
+  // The agent route answers a prompt/steer with this while a web shell command
+  // owns the session (see lib/rpc-manager.ts).
+  const queuedReply = { success: true, data: { queued: true, queue: "followUp", reason: "shellRunning" } };
+  const holdReply = () => world.holds.push({
+    match: (method, _url, body) => method === "POST" && (body?.type === "prompt" || body?.type === "steer"),
+    produce: () => Promise.resolve({ value: queuedReply }),
+  });
+  holdReply();
+  holdReply();
+  const w = await mountSession("bash-queue");
+  let sending;
+  await act(async () => {
+    sending = w.latest.handleSend("after the shell finishes");
+    await sleep(30);
+  });
+  lastEs()?.open();
+  await act(async () => { await sending; });
+  assert.equal(await sending, true);
+  assert.equal(w.latest.agentRunning, false, "no turn started behind the shell command");
+  assert.deepEqual(
+    w.latest.messages.filter((message) => message.role === "user").map((message) => message.content),
+    ["q"],
+    "the text lives in omp's queue, not in an optimistic bubble",
+  );
+  const queuedNotices = () => w.latest.notices.filter((notice) => /still running, so the message was queued/.test(notice.message));
+  assert.equal(queuedNotices().length, 1, "the user is told the message was queued");
+  // A steer degrades exactly the same way instead of erroring.
+  await act(async () => { await w.latest.handleSteer("steer instead"); });
+  assert.equal(queuedNotices().length, 2);
+});
+
 // The incident behind abort_and_restore_queue: a promoted steer was still in
 // omp when Stop landed but missing from this client's snapshot, so nothing
 // withdrew it and omp ran it as a new turn after the abort. omp's atomic Esc
