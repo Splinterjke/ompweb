@@ -566,6 +566,12 @@ during the wait.
   fall back to the whole skill body); a leading web-slash-command wrapper line
   (`"Prefix:"` + blank line, e.g. `/goal`'s "Work toward this goal for the rest
   of the session:") is stripped so the session reads as the task itself.
+- First-message discovery streams lines when the 4 KiB prefix has none — no
+  fixed window cap (`scanFirstUserMessage` in `lib/omp/session-files.ts`,
+  `scan_first_user_message` in `crates/ompweb-host/src/session_scan.rs`, keep
+  the two in parity). Files past the load ceiling (1 GiB) skip the scan: the
+  oversized session stays listed without a first message, and its open route
+  answers 413 (`session_file_too_large`) instead of 404.
 
 ### "Todo reminder" chat rows are agent nudges, not errors
 - `todo-error-reminder` and `mid-run-todo-nudge` custom messages (`display:

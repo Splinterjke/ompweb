@@ -189,10 +189,14 @@ fn mtime_ms(path: &Path) -> i64 {
 /// first message, prefix message count) all live at the head of the file;
 /// reading only this window keeps the scan O(total-head-bytes) instead of
 /// O(total-file-bytes) — a 1 GiB session directory must not stall the list.
+/// The rare file whose prefix carries no message falls back to the streaming
+/// scan below, bounded by the load ceiling and the per-line cap (Node parity).
 const LIST_PREFIX_BYTES: u64 = 4096;
-// One-shot bounded extension for files whose prefix window contains no
-// message (huge session_init system prompts). Mirrors the Node scanner.
-const LIST_EXTEND_BYTES: u64 = 64 * 1024;
+
+/// Files past this size are never opened by omp-web (Node MAX_SESSION_LOAD_BYTES
+/// parity): skip the streaming scan so oversized sessions stay listed (their
+/// open route answers 413) instead of stalling the list on a multi-GB read.
+const MAX_SESSION_LOAD_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// First user-visible text of a message content value: a plain string, or
 /// an array of text blocks ([{"type":"text","text":"..."}]). Mirrors the
@@ -273,6 +277,85 @@ fn extract_skill_prompt_user(value: &JsonValue) -> Option<String> {
     Some(final_text.chars().take(240).collect())
 }
 
+/// Stream lines until the first textual user entry (message/role:user text or
+/// a skill-prompt `"User: "` trailer). A single line past Node's ~512 MiB
+/// string cap makes the Node scanner give up on the first message; mirror that
+/// instead of allocating unboundedly. Torn lines are skipped, as the lenient
+/// parsers do.
+fn scan_first_user_message(path: &Path) -> String {
+    const CHUNK_BYTES: usize = 1 << 20;
+    const LINE_CAP_BYTES: usize = 512 * 1024 * 1024;
+    use std::io::Read as _;
+    let mut text = String::new();
+    let Ok(file) = fs::File::open(path) else { return text };
+    let mut reader = std::io::BufReader::with_capacity(CHUNK_BYTES, file);
+    let mut pending: Vec<u8> = Vec::new();
+    let mut chunk = vec![0u8; CHUNK_BYTES];
+    loop {
+        let n = match reader.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => return text,
+        };
+        let mut start = 0usize;
+        while let Some(rel) = chunk[start..n].iter().position(|&b| b == b'\n') {
+            let end = start + rel;
+            pending.extend_from_slice(&chunk[start..end]);
+            start = end + 1;
+            if pending.len() > LINE_CAP_BYTES {
+                return text; // mirror Node's caught RangeError
+            }
+            let stopped = consider_streamed_line(&String::from_utf8_lossy(&pending), &mut text);
+            pending.clear();
+            if stopped {
+                return text;
+            }
+        }
+        pending.extend_from_slice(&chunk[start..n]);
+        if pending.len() > LINE_CAP_BYTES {
+            return text;
+        }
+    }
+    if !pending.is_empty() && pending.len() <= LINE_CAP_BYTES {
+        consider_streamed_line(&String::from_utf8_lossy(&pending), &mut text);
+    }
+    text
+}
+
+/// One streamed line; true stops the scan. The `'"user"'`/`"skill-prompt"`
+/// prefilter keeps ordinary lines off the JSON parser (Node parity; note
+/// skill-prompt lines never contain the quoted `"user"` token).
+fn consider_streamed_line(line: &str, text: &mut String) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if !trimmed.contains("\"user\"") && !trimmed.contains("skill-prompt") {
+        return false;
+    }
+    let Ok(value) = JsonValue::parse(trimmed) else { return false };
+    match value.get(&["type"]).and_then(|t| t.as_str()).unwrap_or("") {
+        "message" => {
+            if value.get(&["message", "role"]).and_then(|r| r.as_str()) != Some("user") {
+                return false;
+            }
+            if let Some(content) = value.get(&["message", "content"]) {
+                *text = extract_message_text(content);
+                return !text.is_empty();
+            }
+            false
+        }
+        "custom_message" => {
+            if let Some(found) = extract_skill_prompt_user(&value) {
+                *text = found;
+                return true;
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
 /// Scan one file into a projection (head-window read, Node-parity).
 pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
     let file = fs::File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
@@ -296,6 +379,7 @@ pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
     let mut parent_session = String::new();
     let mut created = String::new();
     let mut first_message = String::new();
+    let mut prefix_fallback = String::new();
     for line in raw.lines() {
         if line.trim().is_empty() {
             continue;
@@ -305,9 +389,20 @@ pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
             let kind = value.get(&["type"]).and_then(|t| t.as_str()).unwrap_or("");
             if kind == "message" {
                 messages += 1;
-                if first_message.is_empty() {
+                let role = value
+                    .get(&["message", "role"])
+                    .and_then(|r| r.as_str())
+                    .unwrap_or("");
+                if first_message.is_empty() && role == "user" {
                     if let Some(content) = value.get(&["message", "content"]) {
                         first_message = extract_message_text(content);
+                    }
+                } else if prefix_fallback.is_empty() && matches!(role, "assistant" | "developer") {
+                    // Assistant/developer text is only a fallback: Node applies
+                    // it after the streaming scan, so a real user prompt past the
+                    // prefix must win (fallback-ordering parity).
+                    if let Some(content) = value.get(&["message", "content"]) {
+                        prefix_fallback = extract_message_text(content);
                     }
                 }
             } else if kind == "session" {
@@ -346,45 +441,15 @@ pub fn project_file(path: &Path) -> Result<SessionProjection, String> {
             session_id = stem.rsplit('_').next().unwrap_or(stem).to_string();
         }
     }
-    // Bounded extension: session_init/system prompts can push the first
-    // message past the prefix window. Only files whose prefix had no message
-    // pay this extra read.
-    if first_message.is_empty() && size > LIST_PREFIX_BYTES {
-        let extended_len = size.min(LIST_PREFIX_BYTES + LIST_EXTEND_BYTES) as usize;
-        if let Ok(mut ext_file) = fs::File::open(path) {
-            use std::io::Read as _;
-            let mut ext_buf = vec![0u8; extended_len];
-            if let Ok(read) = ext_file.read(&mut ext_buf) {
-                'ext: for line in String::from_utf8_lossy(&ext_buf[..read]).lines() {
-                    if line.trim().is_empty() {
-                        continue;
-                    }
-                    if let Ok(value) = JsonValue::parse(line) {
-                        let kind = value.get(&["type"]).and_then(|t| t.as_str()).unwrap_or("");
-                        if kind == "message" {
-                            let role = value
-                                .get(&["message", "role"])
-                                .and_then(|r| r.as_str())
-                                .unwrap_or("");
-                            if role == "user" {
-                                if let Some(content) = value.get(&["message", "content"]) {
-                                    first_message = extract_message_text(content);
-                                }
-                                if !first_message.is_empty() {
-                                    break 'ext;
-                                }
-                            }
-                        }
-                        if kind == "custom_message" && first_message.is_empty() {
-                            if let Some(text) = extract_skill_prompt_user(&value) {
-                                first_message = text;
-                                break 'ext;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Streaming fallback (Node scanFirstUserMessage parity): injected context
+    // (rules, skills, memory recall) can push the first user message past the
+    // prefix window AND past any bounded extension window. Files past the load
+    // ceiling cannot be opened anyway, so skip the scan.
+    if first_message.is_empty() && size > LIST_PREFIX_BYTES && size <= MAX_SESSION_LOAD_BYTES {
+        first_message = scan_first_user_message(path);
+    }
+    if first_message.is_empty() {
+        first_message = prefix_fallback;
     }
     // Display title: when the title slot is empty, inject the opening
     // message so the sidebar never shows a bare "(no messages)" row.
@@ -601,4 +666,104 @@ mod tests {
         assert_eq!(p.first_message, "Fix the sidebar bug\n\nTreat it as the objective to prioritize when deciding what to do next.");
         fs::remove_file(&file).ok();
     }
+
+    #[test]
+    fn first_message_past_the_extension_window_is_streamed() {
+        // Rules/skills injections beyond any fixed window must not hide the prompt.
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_0000test00000000000000000000str1.jsonl");
+        let injected = format!(
+            "{{\"type\":\"custom_message\",\"customType\":\"rules\",\"content\":\"{}\",\"display\":false}}",
+            "r".repeat(70_000)
+        );
+        fs::write(
+            &file,
+            format!(
+                "{{\"type\":\"session\",\"version\":3,\"id\":\"0000test00000000000000000000str1\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}}\n{}\n\
+                 {{\"type\":\"message\",\"id\":\"m1\",\"parentId\":null,\"message\":{{\"role\":\"user\",\"content\":\"deep prompt\"}}}}\n",
+                injected
+            ),
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "deep prompt");
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn skill_prompt_past_the_extension_window_is_streamed() {
+        // Same guarantee for a `/skill:` prompt deeper than any read window:
+        // the streamed line still yields its trailing "User: " text.
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_skill0000000000000000000005.jsonl");
+        let body = "s".repeat(80_000);
+        fs::write(
+            &file,
+            format!(
+                "{{\"type\":\"session\",\"version\":3,\"id\":\"skill0000000000000000000005\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}}\n\
+                 {{\"type\":\"custom_message\",\"customType\":\"skill-prompt\",\"content\":\"{}\\nUser: find the bug\"}}\n",
+                body
+            ),
+        )
+        .unwrap();
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.first_message, "find the bug");
+        fs::remove_file(&file).ok();
+    }
+
+    #[test]
+    fn prefix_assistant_text_does_not_shadow_a_deeper_user_prompt() {
+        // Node fallback-ordering parity: assistant text in the 4 KiB prefix is
+        // only a fallback (no user message anywhere), never a veto on the
+        // streaming scan.
+        let dir = fixture_dir();
+        let injected = format!(
+            "{{\"type\":\"custom_message\",\"customType\":\"rules\",\"content\":\"{}\",\"display\":false}}",
+            "r".repeat(20_000)
+        );
+        let deeper = dir.join("20260115T120000_0000test00000000000000000000ord1.jsonl");
+        fs::write(
+            &deeper,
+            format!(
+                "{{\"type\":\"session\",\"version\":3,\"id\":\"0000test00000000000000000000ord1\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}}\n\
+                 {{\"type\":\"message\",\"id\":\"m1\",\"parentId\":null,\"message\":{{\"role\":\"assistant\",\"content\":\"prefilled\"}}}}\n{}\n\
+                 {{\"type\":\"message\",\"id\":\"m2\",\"parentId\":\"m1\",\"message\":{{\"role\":\"user\",\"content\":\"real question\"}}}}\n",
+                injected
+            ),
+        )
+        .unwrap();
+        assert_eq!(project_file(&deeper).unwrap().first_message, "real question");
+        fs::remove_file(&deeper).ok();
+
+        // Assistant-only prefix still yields the assistant text as fallback.
+        let only = dir.join("20260115T120000_0000test00000000000000000000ord2.jsonl");
+        fs::write(
+            &only,
+            "{\"type\":\"session\",\"version\":3,\"id\":\"0000test00000000000000000000ord2\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}\n\
+             {\"type\":\"message\",\"id\":\"m1\",\"parentId\":null,\"message\":{\"role\":\"assistant\",\"content\":\"prefilled\"}}\n",
+        )
+        .unwrap();
+        assert_eq!(project_file(&only).unwrap().first_message, "prefilled");
+        fs::remove_file(&only).ok();
+    }
+
+    #[test]
+    fn oversized_file_skips_the_streaming_scan_but_stays_listed() {
+        // Past MAX_SESSION_LOAD_BYTES the projection must still be produced
+        // (the list keeps the row, the open route answers 413) without reading
+        // a multi-gigabyte file. Header-only sparse fixture, so no hang.
+        use std::io::Write as _;
+        let dir = fixture_dir();
+        let file = dir.join("20260115T120000_0000test00000000000000000000big1.jsonl");
+        let mut f = fs::File::create(&file).unwrap();
+        f.write_all(b"{\"type\":\"session\",\"version\":3,\"id\":\"0000test00000000000000000000big1\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/p\"}\n")
+            .unwrap();
+        f.set_len(2 * 1024 * 1024 * 1024).unwrap(); // sparse, no disk cost
+        drop(f);
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.id, "0000test00000000000000000000big1");
+        assert_eq!(p.first_message, "");
+        fs::remove_file(&file).ok();
+    }
+
 }

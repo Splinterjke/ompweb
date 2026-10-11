@@ -398,8 +398,9 @@ export const MAX_SESSION_LOAD_BYTES = 1024 * 1024 * 1024;
  * this never materializes the whole file as a single JS string, so sessions
  * past Node's ~512 MiB string cap still open. Lines exclude the newline; the
  * decoder carries multi-byte characters across chunk boundaries.
+ * Returning false from onLine stops the read.
  */
-function forEachFileLineSync(filePath: string, onLine: (line: string) => void): void {
+function forEachFileLineSync(filePath: string, onLine: (line: string) => boolean | void): void {
   const fd = openSync(filePath, "r");
   try {
     const buffer = Buffer.allocUnsafe(SESSION_READ_CHUNK_BYTES);
@@ -428,7 +429,7 @@ function forEachFileLineSync(filePath: string, onLine: (line: string) => void): 
       let start = 0;
       let newlineIndex = joined.indexOf("\n", start);
       while (newlineIndex !== -1) {
-        onLine(joined.slice(start, newlineIndex));
+        if (onLine(joined.slice(start, newlineIndex)) === false) return;
         start = newlineIndex + 1;
         newlineIndex = joined.indexOf("\n", start);
       }
@@ -436,7 +437,9 @@ function forEachFileLineSync(filePath: string, onLine: (line: string) => void): 
     }
     const tail = decoder.end();
     if (tail) fragments.push(tail);
-    if (fragments.length > 0) onLine(fragments.join(""));
+    if (fragments.length > 0) {
+      if (onLine(fragments.join("")) === false) return;
+    }
   } finally {
     closeSync(fd);
   }
@@ -641,10 +644,6 @@ export interface OmpSessionInfo {
 }
 
 const SESSION_LIST_PREFIX_BYTES = 4096;
-// When session_init/system prompts dominate the head, the first user message
-// can start after the 4 KiB prefix. Bounded one-shot extension only for files
-// whose prefix carried no message — never for the common small-head case.
-const SESSION_LIST_EXTEND_BYTES = 64 * 1024;
 const SESSION_LIST_SUFFIX_BYTES = 32_768;
 
 function decodeJsonStringFragment(value: string): string {
@@ -722,6 +721,40 @@ function extractFirstDisplayMessageFromPrefix(content: string): string | undefin
     index = content.indexOf('"role"', index + 6);
   }
   return fallback;
+}
+
+// Injected context (rules, skills, memory recall) can push the first user
+// message past the 4 KiB prefix; stream lines until one turns up.
+function scanFirstUserMessage(filePath: string): string {
+  let text = "";
+  try {
+    forEachFileLineSync(filePath, (line) => {
+      if (!line.includes('"user"') && !line.includes("skill-prompt")) return;
+      try {
+        const entry = JSON.parse(line) as {
+          type?: string;
+          customType?: string;
+          content?: unknown;
+          message?: { role?: string; content?: unknown };
+        };
+        if (entry.type === "custom_message") {
+          text = extractSkillPromptUser(entry as { type?: string; customType?: string; content?: unknown });
+          return !text;
+        }
+        if (entry.type !== "message" || entry.message?.role !== "user") return;
+        text = extractTextFromContent(entry.message.content);
+        // Empty user text (e.g. tool-only turn) keeps the scan running; a real
+        // prompt stops it.
+        return !text;
+      } catch {
+        // Torn or hand-edited line: skip it, as parseJsonlLenient does.
+      }
+    });
+  } catch {
+    // A line past the JS string cap: keep listing the session without a first
+    // message.
+  }
+  return text;
 }
 
 function extractTextFromContent(content: unknown): string {
@@ -938,25 +971,15 @@ export function scanSessionInfo(filePath: string, withStatus = true): OmpSession
       }
     }
 
-    firstMessage ||= extractFirstDisplayMessageFromPrefix(content) ?? "";
-    // Extend the head window once (bounded) to find the first message when
-    // the 4 KiB prefix ended before it (huge session_init system prompts).
-    if (!firstMessage && size > SESSION_LIST_PREFIX_BYTES) {
-      const [extended] = readTextSlices(filePath, SESSION_LIST_PREFIX_BYTES + SESSION_LIST_EXTEND_BYTES, 0);
-      const extendedEntries = parseJsonlLenient<Record<string, unknown>>(extended);
-      for (let i = 1; i < extendedEntries.length; i++) {
-        const entry = extendedEntries[i] as { type?: string; message?: { role?: string; content?: unknown } };
-        if (entry.type === "message" && entry.message?.role === "user") {
-          firstMessage = extractTextFromContent(entry.message.content);
-          if (firstMessage) break;
-        }
-        if (entry.type === "custom_message" && !firstMessage) {
-          firstMessage = extractSkillPromptUser(entry as { type?: string; customType?: string; content?: unknown });
-          if (firstMessage) break;
-        }
-      }
-      firstMessage ||= extractFirstDisplayMessageFromPrefix(extended) ?? "";
+    // Streaming fallback: injected context (rules, skills, memory recall) can
+    // push the first user message past the 4 KiB prefix — and past any fixed
+    // window. Cap at the prefix size: the list ships firstMessage for every
+    // session. Files past the load ceiling cannot be opened anyway, so skip
+    // reading them (the open route answers 413, the list keeps the row).
+    if (!firstMessage && size > SESSION_LIST_PREFIX_BYTES && size <= MAX_SESSION_LOAD_BYTES) {
+      firstMessage = scanFirstUserMessage(filePath).slice(0, SESSION_LIST_PREFIX_BYTES);
     }
+    firstMessage ||= extractFirstDisplayMessageFromPrefix(content) ?? "";
     const messageCount = Math.max(parsedMessageCount, countMessageMarkers(content));
     // Display title: the title slot wins; auto/task summaries come next;
     // otherwise inject the opening message so the sidebar never shows a bare
