@@ -2494,7 +2494,10 @@ export function AppShell({ appName }: { appName: string }) {
                         width: 18,
                         height: 18,
                         padding: 0,
-                        marginLeft: 2,
+                        // On phones the pill stretches to the full bar width,
+                        // so the generate-title action pins to its right edge
+                        // instead of trailing a short title.
+                        marginLeft: isMobile ? "auto" : 2,
                         border: "none",
                         borderRadius: 4,
                         background: "transparent",
