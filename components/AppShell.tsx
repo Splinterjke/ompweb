@@ -821,6 +821,11 @@ export function AppShell({ appName }: { appName: string }) {
   const [sessionStats, setSessionStats] = useState<SessionStatsInfo | null>(null);
   const [autoNameStatus, setAutoNameStatus] = useState<AutoNameStatus>({ kind: "idle" });
   const autoNameTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Last title produced by the generate-title wand, handed to the sidebar's
+  // optimistic-rename overlay so the row updates immediately instead of
+  // racing omp's on-disk title write (the overlay drops itself once the
+  // fetched list agrees). The nonce re-applies a second generate.
+  const [wandTitleRename, setWandTitleRename] = useState<{ id: string; name: string; nonce: number } | null>(null);
   // The selected chat's busy flag (mirrored by ChatWindow): generating a title
   // runs omp's `/rename`, a prompt run that can never execute beside a turn in
   // flight, so the wand disables — with an explanatory tooltip — while busy.
@@ -1559,6 +1564,9 @@ export function AppShell({ appName }: { appName: string }) {
 
       const title = body.title.trim();
       setRefreshKey((key) => key + 1);
+      // Applies even when the user already switched chats: the overlay keys
+      // on the renamed session's id, not the active one.
+      setWandTitleRename({ id: sessionId, name: title, nonce: Date.now() });
       if (activeSessionIdRef.current !== sessionId) return;
       setSelectedSession((current) => current?.id === sessionId ? { ...current, name: title } : current);
       setSessionStats((current) => current?.sessionId === sessionId ? { ...current, sessionName: title } : current);
@@ -1972,6 +1980,7 @@ export function AppShell({ appName }: { appName: string }) {
         onInitialRestoreDone={handleInitialRestoreDone}
         refreshKey={refreshKey}
         onSessionDeleted={handleSessionDeleted}
+        optimisticRename={wandTitleRename}
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
         onCwdChange={handleCwdChange}
         onWorkspaceOptionsChange={handleWorkspaceOptionsChange}

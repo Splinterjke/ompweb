@@ -693,6 +693,11 @@ export class AgentSessionWrapper {
     this._sessionName = title;
     invalidateSessionListCache();
     notifyRunningChange({ refreshSessionList: true });
+    // omp reports the new title before rewriting the file's fixed-width title
+    // slot, so the sidebar refresh signalled above can win the race and
+    // re-cache the OLD title for the whole list-cache TTL. Re-signal once the
+    // slot actually carries it.
+    this.signalWhenSessionTitleLands(title);
   }
 
   /** Re-read identity after omp reported that it moved this session to a new file. */
@@ -1374,6 +1379,33 @@ export class AgentSessionWrapper {
       notifyRunningChange({ refreshSessionList: true });
     };
     this.sessionFileSignalTimer = setTimeout(check, 250);
+  }
+
+  private sessionTitleSignalTimer: NodeJS.Timeout | null = null;
+
+  /** omp generates/adopts a title before rewriting the file's fixed-width
+   *  title slot, so a sidebar refresh that wins the race reads — and the
+   *  30s list cache re-caches — the OLD title, leaving the row stale until
+   *  a page reload. Poll (250ms steps, max ~5s) until the on-disk slot
+   *  carries the adopted title, then invalidate + re-signal the sidebar;
+   *  on timeout still invalidate once so the next refresh converges. */
+  private signalWhenSessionTitleLands(title: string): void {
+    if (this.sessionTitleSignalTimer) clearTimeout(this.sessionTitleSignalTimer);
+    const wanted = sanitizeSessionTitle(title);
+    let attempts = 0;
+    const check = () => {
+      this.sessionTitleSignalTimer = null;
+      if (!this._alive || !this._sessionFile) return;
+      const onDisk = sanitizeSessionTitle(scanSessionInfo(this._sessionFile, false)?.title);
+      if (onDisk === wanted || attempts >= 20) {
+        invalidateSessionListCache();
+        notifyRunningChange({ refreshSessionList: true });
+        return;
+      }
+      attempts += 1;
+      this.sessionTitleSignalTimer = setTimeout(check, 250);
+    };
+    this.sessionTitleSignalTimer = setTimeout(check, 250);
   }
 
   private resetIdleTimer(): void {

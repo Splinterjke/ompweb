@@ -48,6 +48,11 @@ interface Props {
   selectedSessionId: string | null;
   /** The active session can exist in memory before its JSONL file is flushed. */
   optimisticSession?: SessionInfo | null;
+  /** A title generated OUTSIDE the sidebar (the chat generate-title wand).
+   *  Mirrored into the optimistic-rename overlay so the row updates at once,
+   *  even while the server list still races omp's on-disk title write; the
+   *  existing settle effect drops it once the fetched name matches. */
+  optimisticRename?: { id: string; name: string; nonce: number } | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
   onNewSession?: (sessionId: string, cwd: string) => void;
   initialSessionId?: string | null;
@@ -612,7 +617,7 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, optimisticRename, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1300,6 +1305,15 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, onSelectS
       return next;
     });
   }, []);
+
+  // Mirror a title generated outside the sidebar (the chat's generate-title
+  // wand) into the same optimistic overlay the row-rename uses: the row
+  // updates at once, and the settle effect above drops the override as soon
+  // as the fetched list carries the same name.
+  useEffect(() => {
+    if (!optimisticRename) return;
+    handleOptimisticRename(optimisticRename.id, optimisticRename.name);
+  }, [optimisticRename, handleOptimisticRename]);
   const visibleProjects = useMemo(() => {
     let base = projects;
     const hasOpt = optimisticProjectRoot ? base.some((p) => comparableProjectPath(p.path) === comparableProjectPath(optimisticProjectRoot)) : false;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { scanSessionInfo, setSessionTitle } from "@/lib/omp/session-files";
 import { deriveSessionTitleFromFirstMessage, sanitizeSessionTitle } from "@/lib/session-title";
-import { getRpcSession, resolveSpawnCwdResult, startRpcSession, WebRpcError } from "@/lib/rpc-manager";
+import { getRpcSession, notifyRunningChange, resolveSpawnCwdResult, startRpcSession, WebRpcError } from "@/lib/rpc-manager";
 import { invalidateSessionListCache, readSessionHeader } from "@/lib/session-reader";
 import { resolveSessionPathOr404 } from "@/lib/api-utils";
 
@@ -73,6 +73,11 @@ export async function POST(
     const info = scanSessionInfo(filePath, false);
     const storedTitle = sanitizeSessionTitle(info?.title);
     if (storedTitle) {
+      // A previous generate may have raced omp's title-slot write and left
+      // the (30s) list cache holding the OLD title. Clear it and re-signal
+      // every sidebar so the list converges on this title now.
+      invalidateSessionListCache();
+      notifyRunningChange({ refreshSessionList: true });
       return NextResponse.json({ title: storedTitle, generated: false, usage: null });
     }
 
