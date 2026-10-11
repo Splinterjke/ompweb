@@ -82,7 +82,11 @@ export function ComposerPanels({
   // render null; in row mode we hide its empty slot until content exists.
   const [gitPresent, setGitPresent] = useState(false);
 
-  const showTodoBar = showTasks && todoPhases.length > 0 && !planModeActive;
+  // Gate on the TASK count, not the phase count: omp keeps a phase with zero
+  // tasks after the last `rm`, which would render as a ghost "0 / 0 complete"
+  // bar (lib/todo-phases.ts prunes it server-side; this is the client backstop
+  // for snapshots produced by an already-running older wrapper).
+  const showTodoBar = showTasks && todoPhases.some((phase) => (phase.tasks?.length ?? 0) > 0) && !planModeActive;
   const showSubagentBar = showSubagents && subagents.length > 0;
 
   const gitBar = showGit ? (

@@ -22,6 +22,7 @@ import { isRecord } from "./type-guards";
 import { toolResultContentAsUrls } from "./media-cache";
 import { taskResultRetryFailure, taskResultStructuredOutput, taskResultUsageCost } from "./task-result-details";
 import type { TodoPhase } from "./pi-types";
+import { normalizeTodoPhases } from "./todo-phases";
 import { projectIdentityKey, sessionPathKey } from "./paths";
 import { resolveProject, type ProjectInfo } from "./worktree";
 import { PASSIVE_TOOL_CONTEXT } from "./passive-tool-context";
@@ -354,27 +355,6 @@ export function getSessionEntries(filePath: string): SessionEntry[] {
   return loadSessionEntriesCached(filePath);
 }
 
-function parseTodoPhases(value: unknown): TodoPhase[] | null {
-  if (!Array.isArray(value)) return null;
-  const statuses = new Set(["pending", "in_progress", "completed", "blocked", "abandoned"]);
-  const phases: TodoPhase[] = [];
-  for (const phase of value) {
-    if (!isRecord(phase) || typeof phase.name !== "string" || !Array.isArray(phase.tasks)) return null;
-    const tasks = [];
-    for (const task of phase.tasks) {
-      if (!isRecord(task) || typeof task.content !== "string" || typeof task.status !== "string" || !statuses.has(task.status)) return null;
-      if (task.blocker !== undefined && typeof task.blocker !== "string") return null;
-      tasks.push({
-        content: task.content,
-        status: task.status as TodoPhase["tasks"][number]["status"],
-        ...(typeof task.blocker === "string" ? { blocker: task.blocker } : {}),
-      });
-    }
-    phases.push({ name: phase.name, tasks });
-  }
-  return phases;
-}
-
 /** Latest valid todo snapshot on the selected branch, without exposing tool metadata to the client. */
 export function getTodoPhasesFromEntries(entries: SessionEntry[], leafId?: string | null): TodoPhase[] {
   if (leafId === null || entries.length === 0) return [];
@@ -388,16 +368,19 @@ export function getTodoPhasesFromEntries(entries: SessionEntry[], leafId?: strin
     entry = entry.parentId ? byId.get(entry.parentId) : undefined;
   }
 
-  for (let index = path.length - 1; index >= 0; index--) {
+  // Walk LEAF→root (path[0] is the leaf) so the FIRST valid snapshot found is
+  // the latest state of the branch. Scanning root→leaf returned the oldest
+  // snapshot, so a reopen showed the first todo list ever made, not the current one.
+  for (let index = 0; index < path.length; index++) {
     const current = path[index];
     if (current.type === "custom" && current.customType === "user_todo_edit") {
-      const phases = isRecord(current.data) ? parseTodoPhases(current.data.phases) : null;
+      const phases = isRecord(current.data) ? normalizeTodoPhases(current.data.phases) : null;
       if (phases) return phases;
     }
     if (current.type === "message" && isRecord(current.message) && current.message.role === "toolResult") {
       const message = current.message as { role?: string; toolName?: string; isError?: boolean; details?: unknown };
       if (message.toolName !== "todo" || message.isError) continue;
-      const phases = isRecord(message.details) ? parseTodoPhases(message.details.phases) : null;
+      const phases = isRecord(message.details) ? normalizeTodoPhases(message.details.phases) : null;
       if (phases) return phases;
     }
   }

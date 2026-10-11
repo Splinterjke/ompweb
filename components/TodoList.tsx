@@ -40,9 +40,10 @@ export function TodoList({ phases = [], collapsible = false, defaultExpanded = f
     onCollapsedChange?.(next);
   };
 
-  if (phases.length === 0) return null;
-
-  const tasks = phases.flatMap((phase) => phase.tasks);
+  const tasks = phases.flatMap((phase) => phase.tasks ?? []);
+  // Zero tasks (e.g. omp's leftover empty phase after `rm`) is an empty list:
+  // render nothing rather than a ghost "0 / 0 complete" bar.
+  if (tasks.length === 0) return null;
   const done = tasks.filter((task) => task.status === "completed").length;
   let remainingPreviewTasks = 5;
   const displayedPhases = (expanded ? phases : phases.slice(0, 4)).map((phase) => {

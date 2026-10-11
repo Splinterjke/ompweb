@@ -662,6 +662,24 @@ during the wait.
   group inside the hub, re-collapsing on every mount (not persisted).
   `TodoList` keeps a non-collapsible default (`collapsible` prop) for SSR tests.
 
+### Todo list state (`lib/todo-phases.ts`)
+- The Tasks hub bar has exactly two feeds, and both validate + normalize through
+  the shared `lib/todo-phases.ts`: the live `get_state.todoPhases` snapshot
+  (`AgentSessionWrapper.buildWebState`) and the on-disk history
+  (`getTodoPhasesFromEntries` — walk the branch LEAF→root so the first valid
+  snapshot is the latest; scanning root→leaf returned the branch's first list).
+- INSURANCE until native OMP resolves the todo-argument laxness: omp ≤ 18.8.9
+  accepts a `todo init` whose `items` are not strings and stringifies them into
+  the task text (a model nesting `{phase, items}` objects inside `items` shows
+  up as raw JSON rows in the bar), and a later `rm` cleanup leaves a zero-task
+  phase behind (ghost "0 / 0 complete" bar). `normalizeTodoPhases()` re-expands
+  mangled JSON task contents into their declared phases/tasks and drops
+  zero-task phases; when upstream validates `items` and prunes empty phases the
+  rescue path becomes dead code but the structural validation stays.
+- All task bars gate on the TASK count, not the phase count
+  (`ComposerPanels.showTodoBar`, `TodoList`, `PlanPanel.hasTasks`) — the client
+  backstop for snapshots from an already-running older wrapper.
+
 ### Mobile context ring placement (`Settings → Interface & Behavior`)
 - The context info ring (port of upstream 193047f1 chain, mobile top-bar
   mount of 3c1e8449) is placement-configurable on phone screen sizes:

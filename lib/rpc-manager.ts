@@ -15,6 +15,7 @@ import { findSessionFileHolders, partitionSessionHolders, terminateHoldersAndWai
 import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
 import { clearChatActionRunState, dispatchChatEvent, type ChatEventPayload } from "./chat-event-actions-dispatcher";
 import { taskCompletedDiff } from "./todo-completion";
+import { normalizeTodoPhases } from "./todo-phases";
 import { createMessageUpdateCoalescer } from "./message-update-coalescer";
 import { samePath } from "./paths";
 import { eventWithToolResultImageUrls } from "./media-cache";
@@ -1578,7 +1579,10 @@ export class AgentSessionWrapper {
       slowModeEnabled: state.slowModeEnabled ?? false,
       slowModeScope: state.slowModeScope,
       ...(skillDiagnostics ? { skillDiagnostics } : {}),
-      todoPhases: state.todoPhases ?? [],
+      // Insurance until native OMP validates the todo tool's `items` and
+      // prunes emptied phases (see lib/todo-phases.ts): rescue mangled task
+      // text and drop zero-task phases before the snapshot reaches any client.
+      todoPhases: normalizeTodoPhases(state.todoPhases) ?? [],
       extensionStatuses: Array.from(this.extensionStatuses, ([key, text]) => ({ key, text })),
       extensionWidgets: Array.from(this.extensionWidgets.values()),
     };

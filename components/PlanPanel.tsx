@@ -60,7 +60,9 @@ export const PlanPanel = memo(function PlanPanel({ plan, todoPhases = [], onExec
   const [critiqueText, setCritiqueText] = useState("");
 
 
-  const hasTasks = todoPhases.length > 0;
+  // Task-count gate (not phase-count): omp can leave a zero-task phase behind
+  // after `rm`, and the plan task grid must not render an empty "0/0" shell.
+  const hasTasks = todoPhases.some((p) => (p.tasks?.length ?? 0) > 0);
   // Plan panel is a plan-mode surface: plain task runs must never render it.
   // Plain todos belong to ComposerPanels' TodoList, which hides itself while
   // a plan is active so the task grid is never duplicated.

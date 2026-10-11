@@ -21,6 +21,18 @@ test("renders nothing when there are no tasks or subagents", () => {
   })), "");
 });
 
+test("hides the Tasks bar for a phase list whose tasks are all gone (omp ghost state)", () => {
+  // omp keeps the phase alive after the last `rm` (`tasks: []`); the bar must
+  // not render a "0 / 0 complete" shell for it, even if the snapshot bypassed
+  // the server-side normalizeTodoPhases prune.
+  assert.equal(renderToStaticMarkup(React.createElement(ComposerPanels, {
+    todoPhases: [{ name: "Tasks", tasks: [] }],
+    subagents: [],
+    onSelectSubagent: noop,
+    showGit: false,
+  })), "");
+});
+
 test("row layout keeps collapsed bars in one horizontal row", () => {
   const html = renderToStaticMarkup(React.createElement(ComposerPanels, {
     todoPhases: [{ name: "Implementation", tasks: [{ content: "Wire panels", status: "in_progress" }] }],
