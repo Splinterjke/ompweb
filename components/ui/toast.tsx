@@ -45,9 +45,11 @@ interface ToastOptions {
   durationMs?: number;
   /**
    * Runs when the card itself is clicked (anywhere but its buttons, links and
-   * expandable text), then closes the toast.
+   * expandable text), then closes the toast and marks its history entry read.
    */
   onClick?: () => void;
+  /** List this toast in the Notifications tab. Only for the notification types that can also be pushed. */
+  history?: boolean;
 }
 
 const manager = Toast.createToastManager<ToastData>();
@@ -78,6 +80,8 @@ export interface ToastHistoryEntry {
   title: React.ReactNode;
   description?: React.ReactNode;
   clamp?: boolean;
+  /** The toast's card action, run by clicking the entry. */
+  onClick?: () => void;
   at: number;
   read: boolean;
 }
@@ -94,7 +98,7 @@ function setHistory(next: ToastHistoryEntry[]) {
 
 let recordedCount = 0;
 
-/** Recent toasts and OS notifications, newest first, kept in memory for the notification center.
+/** Recent session notifications (`history: true` toasts) and OS notifications, newest first, kept in memory for the Notifications tab.
  * While the recording switch (setToastHistoryRecording) is off, nothing lands here and every reader sees an empty list. */
 export const toastHistory = {
   subscribe(listener: () => void) {
@@ -103,18 +107,19 @@ export const toastHistory = {
   },
   get: () => (recordingEnabled ? history : NO_ENTRIES),
   /** Add an entry without showing a toast, e.g. for a notification already delivered by the OS. */
-  record(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: { id?: string; clamp?: boolean }) {
+  record(kind: ToastKind, title: React.ReactNode, description?: React.ReactNode, options?: { id?: string; clamp?: boolean; onClick?: () => void }) {
     if (!recordingEnabled) return;
     const id = options?.id ?? `recorded-${++recordedCount}`;
-    // A reused id replaces its toast on screen, so it replaces its history entry
-    // too. It keeps its read state: re-announcing the same notice (e.g. an
-    // update toast on every tab focus) must not re-badge it.
-    const read = history.some((e) => e.id === id && e.read);
-    const entry: ToastHistoryEntry = { id, kind, title, description, clamp: options?.clamp, at: Date.now(), read };
+    // A reused id (`<sessionId>:<type>`) replaces its toast on screen, so it
+    // replaces its history entry too, unread again: it is a new notification.
+    const entry: ToastHistoryEntry = { id, kind, title, description, clamp: options?.clamp, onClick: options?.onClick, at: Date.now(), read: false };
     setHistory([entry, ...history.filter((e) => e.id !== id)].slice(0, TOAST_HISTORY_LIMIT));
   },
   markAllRead: () => {
     if (history.some((e) => !e.read)) setHistory(history.map((e) => e.read ? e : { ...e, read: true }));
+  },
+  markRead: (id: string) => {
+    if (history.some((e) => e.id === id && !e.read)) setHistory(history.map((e) => e.id === id ? { ...e, read: true } : e));
   },
   remove: (id: string) => setHistory(history.filter((entry) => entry.id !== id)),
   clear: () => setHistory([]),
@@ -160,7 +165,7 @@ function add(kind: ToastKind, title: React.ReactNode, description?: React.ReactN
       manager.close(id);
     }, Math.min(timeout, BASE_UI_BACKSTOP_MS));
   }
-  toastHistory.record(kind, title, description, { id, clamp: options?.clamp });
+  if (options?.history) toastHistory.record(kind, title, description, { id, clamp: options.clamp, onClick: options.onClick });
   return id;
 }
 
@@ -420,6 +425,8 @@ function Toaster() {
               if (pointerClick && from && Math.max(from.travel, Math.hypot(event.clientX - from.x, event.clientY - from.y)) > 10) return;
               // Releasing a text selection is not a request to open anything.
               if (window.getSelection()?.isCollapsed === false) return;
+              // Following the toast is reading it.
+              toastHistory.markRead(t.id);
               manager.close(t.id);
               onClick();
             } : undefined}
@@ -428,6 +435,7 @@ function Toaster() {
             onKeyDown={t.data?.onClick ? (event) => {
               if (event.key !== "Enter" || event.target !== event.currentTarget) return;
               event.preventDefault();
+              toastHistory.markRead(t.id);
               manager.close(t.id);
               t.data?.onClick?.();
             } : undefined}

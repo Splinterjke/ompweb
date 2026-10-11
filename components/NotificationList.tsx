@@ -85,6 +85,14 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
   return (
     <li
       data-swipe-dismiss
+      // With an action the row is the only way to run it (there is no Open link), so keyboard users can focus it.
+      tabIndex={entry.onClick ? 0 : undefined}
+      className={entry.onClick ? "ui-focus-ring" : undefined}
+      onKeyDown={entry.onClick ? (event) => {
+        if (event.key !== "Enter" || event.target !== event.currentTarget) return;
+        event.preventDefault();
+        entry.onClick?.();
+      } : undefined}
       onPointerDown={(event) => {
         clickGuard.onPointerDown(event);
         // A second finger never takes over a swipe in progress; any other
@@ -131,6 +139,12 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
         setOffset(0);
       }}
       onClickCapture={clickGuard.onClickCapture}
+      // Like the toast card: a click anywhere but the controls and expandable text opens it.
+      onClick={entry.onClick ? (event) => {
+        if (event.target instanceof Element && event.target.closest("button, a, input, textarea, select, [aria-expanded]")) return;
+        if (window.getSelection()?.isCollapsed === false) return;
+        entry.onClick?.();
+      } : undefined}
       style={{
         display: "flex",
         alignItems: "flex-start",
@@ -138,19 +152,21 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
         padding: 8,
         borderRadius: "var(--radius-control)",
         background: entry.read ? undefined : "var(--bg-subtle)",
+        cursor: entry.onClick ? "pointer" : undefined,
         touchAction: "pan-y",
         transform: leaving ? `translateX(${leaving * 110}%)` : offset ? `translateX(${offset}px)` : undefined,
         opacity: leaving ? 0 : 1 - Math.min(Math.abs(offset) / 400, 0.5),
         transition: dragging ? "none" : "transform var(--dur-fast) var(--ease-out-warm), opacity var(--dur-fast) var(--ease-out-warm)",
       }}
     >
+      {/* Unread marker in a fixed leading slot, so read and unread rows keep their text aligned. */}
+      <span style={{ width: 8, flexShrink: 0, display: "flex", justifyContent: "center", paddingTop: 6 }}>
+        {!entry.read && <span role="img" aria-label={t("appShell.notificationUnread")} style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />}
+      </span>
       <KindIcon kind={entry.kind} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-          <span className="display-serif" style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, overflowWrap: "anywhere" }}>{entry.title}</span>
-          {!entry.read && (
-            <span role="img" aria-label={t("appShell.notificationUnread")} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, alignSelf: "center" }} />
-          )}
+          <span className="display-serif" style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, overflowWrap: "anywhere", color: entry.read ? "var(--text-muted)" : "var(--text)", fontWeight: entry.read ? 400 : 600 }}>{entry.title}</span>
           <time dateTime={new Date(entry.at).toISOString()} style={{ fontSize: 11, color: "var(--text-dim)", flexShrink: 0 }}>
             {new Date(entry.at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
           </time>

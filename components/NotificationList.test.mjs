@@ -82,3 +82,48 @@ test("the click ending a drag is swallowed; taps and keyboard clicks still reach
   pointer(description(), "click", 101, 50);
   assert.equal(description().getAttribute("aria-expanded"), "false");
 });
+
+test("an entry with an action runs it on click or Enter, but not from its controls", () => {
+  const opened = [];
+  act(() => { toastHistory.record("info", "Agent finished", "A long description", { id: "n2", clamp: true, onClick: () => opened.push(1) }); });
+  const view = render(React.createElement(NotificationListView));
+  const row = view.container.querySelector("li");
+  const enter = (target) => act(() => { target.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+  act(() => view.container.querySelector(".display-serif").click());
+  assert.equal(opened.length, 1);
+  assert.equal(row.tabIndex, 0);
+  assert.equal(row.style.cursor, "pointer");
+  enter(row);
+  assert.equal(opened.length, 2);
+  // Expandable text expands instead; a released text selection and Enter on the dismiss button do nothing.
+  // The Tooltip trigger re-mounts the span when its state changes: click and read through a fresh query.
+  act(() => view.container.querySelector("[aria-expanded]").click());
+  assert.equal(view.container.querySelector("[aria-expanded]").getAttribute("aria-expanded"), "true");
+  window.getSelection().selectAllChildren(view.container.querySelector(".display-serif"));
+  act(() => view.container.querySelector(".display-serif").click());
+  window.getSelection().removeAllRanges();
+  enter(row.querySelector("button"));
+  assert.equal(opened.length, 2);
+  // The dismiss button removes the entry without running its action.
+  act(() => row.querySelector("button").click());
+  assert.equal(opened.length, 2);
+  assert.equal(toastHistory.get().length, 0);
+});
+
+test("an entry without an action is not focusable or clickable", () => {
+  act(() => { toastHistory.record("info", "Saved", "Body", { id: "n3" }); });
+  const row = render(React.createElement(NotificationListView)).container.querySelector("li");
+  assert.equal(row.hasAttribute("tabindex"), false);
+  assert.equal(row.style.cursor, "");
+});
+
+test("only unread rows carry the unread marker", () => {
+  act(() => {
+    toastHistory.record("info", "Old", undefined, { id: "old" });
+    toastHistory.markAllRead();
+    toastHistory.record("info", "New", undefined, { id: "new" });
+  });
+  const view = render(React.createElement(NotificationListView));
+  const markedRows = Array.from(view.container.querySelectorAll("li")).filter((li) => li.querySelector('[role="img"]'));
+  assert.deepEqual(markedRows.map((li) => li.querySelector(".display-serif").textContent), ["New"]);
+});

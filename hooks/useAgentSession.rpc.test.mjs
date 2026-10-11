@@ -1215,10 +1215,10 @@ test("a fresh chat's /btw question attaches one event stream instead of an obser
   assert.equal(world.esInstances.length, 1);
 });
 
-test("the notify host tool lands in the notification center even without OS notification support", async () => {
+test("the notify host tool stays out of the Notifications tab, which lists only pushable notification types", async () => {
   toastHistory.clear();
   const result = await runHostTool("notify", { title: "Build done", message: "All green" }, { openUrl: () => "" });
   assert.deepEqual(result, { text: "Notification shown", isError: false });
-  assert.deepEqual(toastHistory.get().map((e) => [e.kind, e.title, e.description]), [["info", "Build done", "All green"]]);
+  assert.deepEqual(toastHistory.get(), []);
   toastHistory.clear();
 });
