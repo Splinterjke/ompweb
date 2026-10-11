@@ -187,6 +187,28 @@ export function isExistingPathWithinRoots(target: string, roots: Set<string>): b
 export function isExistingFilePathAllowed(target: string, allowedRoots: Set<string>): boolean {
   return isExistingPathWithinRoots(target, allowedRoots);
 }
+
+/**
+ * Containment check that tolerates a MISSING file, for read-only APIs that do
+ * not read the target itself (git working-tree diffs read git objects, so a
+ * deleted or renamed-away file is a legitimate diff subject). When the path
+ * itself cannot be realpath'd, containment is decided by its deepest EXISTING
+ * ancestor — a path that runs through a directory outside the allowed roots
+ * is still rejected.
+ */
+export function isPathWithinRootsAllowingMissing(target: string, allowedRoots: Set<string>): boolean {
+  if (isExistingPathWithinRoots(target, allowedRoots)) return true;
+  if (existsSync(target)) return false;
+  let current = normalizeSlashes(path.resolve(target));
+  for (;;) {
+    const cut = current.lastIndexOf("/");
+    if (cut <= 0) return false;
+    current = current.slice(0, cut);
+    if (isExistingPathWithinRoots(current, allowedRoots)) return true;
+    if (existsSync(current)) return false;
+  }
+}
+
 const OMP_IMAGE_NAME_RE = /^omp-image-[a-f0-9]+\.(png|jpe?g|webp|gif|mp4|m4v|mov|webm|ogv|mkv)$/i;
 
 /**

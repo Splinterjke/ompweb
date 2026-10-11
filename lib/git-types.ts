@@ -15,6 +15,12 @@ export interface GitFileStatus {
   indexStatus: string;
   worktreeStatus: string;
   collapseReason?: GitCollapseReason;
+  /** Lines added vs HEAD for this file (`git diff HEAD --numstat`); an
+   *  untracked file counts its own lines. Undefined when stats are
+   *  unavailable (non-repo, no HEAD, numstat failure) — never a status failure. */
+  added?: number;
+  /** Lines removed vs HEAD for this file. */
+  deleted?: number;
 }
 
 export interface GitStatusResponse {
@@ -36,4 +42,9 @@ export interface GitFileDiffResponse {
   supported: boolean;
   status?: GitFileStatusKind;
   patch?: string;
+  /** Working-mode fields of `contents=1` (see GitCommitFileDiff): both file
+   *  versions for hidden-context expansion; omitted by default. */
+  oldText?: string | null;
+  newText?: string | null;
+  contentsTruncated?: boolean;
 }

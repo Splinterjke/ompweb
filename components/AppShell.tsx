@@ -37,6 +37,7 @@ import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { copyText } from "@/lib/clipboard";
 import { getFileName } from "@/lib/file-paths";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 import { parseTitleCard } from "@/lib/title-card";
 import { TitleCardBadge } from "./TitleCardBadge";
 import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText } from "@/lib/file-fuzzy";
@@ -920,6 +921,7 @@ export function AppShell({ appName }: { appName: string }) {
     const startX = e.clientX;
     const startWidth = sidebarWidth;
     setSidebarResizing(true);
+    setFrameDragGuard(true);
     const onMove = (ev: MouseEvent) => {
       const next = clampSidebarWidth(startWidth + (panelsSwappedActive ? startX - ev.clientX : ev.clientX - startX));
       // Write the CSS variable straight to the DOM: the flex row follows the
@@ -935,6 +937,7 @@ export function AppShell({ appName }: { appName: string }) {
       // Commit the final width so state and the persisted value agree with
       // what the user actually dragged to.
       setSidebarWidth(pendingSidebarWidthRef.current);
+      setFrameDragGuard(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
@@ -958,6 +961,7 @@ export function AppShell({ appName }: { appName: string }) {
     const startX = e.clientX;
     const startWidth = rightPanelWidth;
     setRightPanelResizing(true);
+    setFrameDragGuard(true);
     const onMove = (ev: MouseEvent) => {
       const next = clampRightPanelWidth(startWidth + (panelsSwappedActive ? ev.clientX - startX : startX - ev.clientX));
       rightPanelRef.current?.style.setProperty("width", `${next}px`);
@@ -969,6 +973,7 @@ export function AppShell({ appName }: { appName: string }) {
       rightPanelResizeHandlersRef.current = null;
       setRightPanelResizing(false);
       setRightPanelWidth(pendingRightPanelWidthRef.current);
+      setFrameDragGuard(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     };
@@ -1018,6 +1023,7 @@ export function AppShell({ appName }: { appName: string }) {
   // If the app unmounts mid-drag, remove the window listeners and restore the
   // body cursor; otherwise the handlers leak and body stays cursor:col-resize.
   useEffect(() => () => {
+    setFrameDragGuard(false);
     const handlers = sidebarResizeHandlersRef.current;
     if (!handlers) return;
     window.removeEventListener("mousemove", handlers.onMove);

@@ -16,6 +16,7 @@ import {
   parseGitPorcelainV1,
   type GitPorcelainEntry,
 } from "./git-status";
+import { readRefFile } from "./git-blob.ts";
 
 const execFileAsync = promisify(execFile);
 // `git status --untracked-files=all` and `git diff HEAD --shortstat` on a
@@ -263,7 +264,47 @@ async function createTrackedFilePatch(
   }
 }
 
-export async function getGitFileDiff(cwd: string, filePath: string): Promise<GitFileDiffResponse> {
+/**
+ * Working-tree diff of a file MISSING from disk (deleted in the worktree or
+ * the index): the patch comes from `git diff HEAD -- path` and the old side
+ * from HEAD, so no working-tree copy is needed. Returns null when the path is
+ * not a diffable deletion. The DEFAULT (no-contents) contract stays
+ * `{ supported: false }` for deleted files — that shape is frozen by the
+ * Rust parity tests (lib/git-parity.test.mjs); only the Node-only contents=1
+ * path, which the Git tab and FileViewer always request, serves the deletion.
+ */
+async function getDeletedFileDiff(
+  repositoryRoot: string,
+  resolvedFilePath: string,
+  withContents: boolean,
+): Promise<GitFileDiffResponse | null> {
+  let realRepositoryRoot: string;
+  try {
+    realRepositoryRoot = fs.realpathSync(repositoryRoot);
+  } catch {
+    return null;
+  }
+  const relativePath = toGitPath(path.relative(realRepositoryRoot, resolvedFilePath));
+  if (!relativePath || relativePath.startsWith("..")) return null;
+  const entry = await findStatusEntry(realRepositoryRoot, relativePath);
+  if (!entry) return null;
+  if (classifyGitStatus(entry).status !== "deleted") return null;
+  if ((await readCollapseReasons(realRepositoryRoot, [relativePath])).get(relativePath) === "no-diff") return null;
+  const patch = await createTrackedFilePatch(realRepositoryRoot, relativePath, entry.originalPath);
+  if (!patch || !patch.includes("\n@@ ")) return null;
+  if (!withContents) return null;
+  const oldSide = await readRefFile(realRepositoryRoot, "HEAD", entry.originalPath ?? relativePath);
+  return {
+    supported: true,
+    status: "deleted",
+    patch,
+    oldText: oldSide.text,
+    newText: "",
+    ...(oldSide.oversize ? { contentsTruncated: true } : {}),
+  };
+}
+
+export async function getGitFileDiff(cwd: string, filePath: string, withContents = false): Promise<GitFileDiffResponse> {
   const repositoryRoot = await findRepositoryRoot(cwd);
   if (!repositoryRoot || !isWithinPath(repositoryRoot, filePath)) return { supported: false };
 
@@ -272,7 +313,8 @@ export async function getGitFileDiff(cwd: string, filePath: string): Promise<Git
   try {
     stat = fs.lstatSync(resolvedFilePath);
   } catch {
-    return { supported: false };
+    const deleted = await getDeletedFileDiff(repositoryRoot, resolvedFilePath, withContents);
+    return deleted ?? { supported: false };
   }
   if (!stat.isFile() || stat.size > TEXT_PREVIEW_MAX_BYTES) return { supported: false };
 
@@ -323,5 +365,18 @@ export async function getGitFileDiff(cwd: string, filePath: string): Promise<Git
   }
 
   if (!patch.includes("\n@@ ")) return { supported: false };
-  return { supported: true, status, patch };
+  if (!withContents) return { supported: true, status, patch };
+  // The patch compares against HEAD, so that is the old side (renames read
+  // their original path). Untracked files have no old side at all.
+  const oldSide = status === "untracked"
+    ? { text: "", oversize: false }
+    : await readRefFile(realRepositoryRoot, "HEAD", entry.originalPath ?? relativePath);
+  return {
+    supported: true,
+    status,
+    patch,
+    oldText: oldSide.text,
+    newText: newContent,
+    ...(oldSide.oversize ? { contentsTruncated: true } : {}),
+  };
 }

@@ -10,6 +10,7 @@ import {
   vs,
   vscDarkPlus,
 } from "@/lib/syntax-highlight";
+import { DiffViewer } from "./diff/DiffViewer";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import { AtSign, Download, WrapText } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
@@ -27,7 +28,6 @@ import { resolveLocalFileHref } from "@/lib/file-links";
 import { normalizeDisplayMath, useMarkdownPlugins } from "@/lib/markdown";
 import { markdownCodeRenderer } from "./MarkdownCode";
 import { Tooltip } from "./ui/primitives";
-import { parseUnifiedPatch } from "@/lib/patch";
 import type { GitFileDiffResponse } from "@/lib/git-types";
 import { parseFrontmatter } from "@/lib/frontmatter";
 import { FrontmatterCard } from "./FrontmatterCard";
@@ -229,188 +229,10 @@ function DownloadLink({ filePath, sourceSessionId }: { filePath: string; sourceS
   );
 }
 
-type DiffLine = {
-  type: "unchanged" | "removed" | "added";
-  text: string;
-  oldLineNo: number | null;
-  newLineNo: number | null;
-};
-
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function diffLines(patch: string): DiffLine[] {
-  const files = parseUnifiedPatch(patch);
-  if (!files) return [];
-
-  return files.flatMap((file) => file.rows.flatMap((row): DiffLine[] => {
-    if (row.type === "hunk") return [];
-    if (row.left.type === "context" && row.right.type === "context") {
-      return [{
-        type: "unchanged",
-        text: row.right.text,
-        oldLineNo: row.left.lineNo,
-        newLineNo: row.right.lineNo,
-      }];
-    }
-
-    const lines: DiffLine[] = [];
-    if (row.left.type === "removed") {
-      lines.push({
-        type: "removed",
-        text: row.left.text,
-        oldLineNo: row.left.lineNo,
-        newLineNo: null,
-      });
-    }
-    if (row.right.type === "added") {
-      lines.push({
-        type: "added",
-        text: row.right.text,
-        oldLineNo: null,
-        newLineNo: row.right.lineNo,
-      });
-    }
-    return lines;
-  }));
-}
-
-export function DiffView({ patch }: { patch: string }) {
-  const { t, tn } = useI18n();
-  const diff = diffLines(patch);
-
-  const hasChanges = diff.some((l) => l.type !== "unchanged");
-  if (!hasChanges) {
-    return (
-      <div style={{ padding: "12px 16px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-        {t("fileViewer.noChanges")}
-      </div>
-    );
-  }
-
-  // Render with context: show 3 lines around each change, collapse the rest
-  const CONTEXT = 3;
-  const changed = new Set(diff.flatMap((l, i) => (l.type !== "unchanged" ? [i] : [])));
-  const visible = new Set<number>();
-  for (const ci of changed) {
-    for (let j = Math.max(0, ci - CONTEXT); j <= Math.min(diff.length - 1, ci + CONTEXT); j++) {
-      visible.add(j);
-    }
-  }
-
-  const segments: Array<{ hidden: true; count: number } | { hidden: false; lines: DiffLine[] }> = [];
-  let i = 0;
-  while (i < diff.length) {
-    if (visible.has(i)) {
-      const block: DiffLine[] = [];
-      while (i < diff.length && visible.has(i)) {
-        block.push(diff[i]);
-        i++;
-      }
-      segments.push({ hidden: false, lines: block });
-    } else {
-      let count = 0;
-      while (i < diff.length && !visible.has(i)) {
-        count++;
-        i++;
-      }
-      segments.push({ hidden: true, count });
-    }
-  }
-
-  return (
-    <div
-      className="file-diff-view"
-      style={{
-        width: "max-content",
-        minWidth: "100%",
-        ...FILE_CODE_STYLE,
-      }}
-    >
-      {segments.map((seg, si) => {
-        if (seg.hidden) {
-          const result = (
-            <div
-              key={si}
-              style={{
-                padding: "2px 16px",
-                color: "var(--text-dim)",
-                background: "var(--bg-panel)",
-                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                borderTop: "1px solid var(--border)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {tn("fileViewer.unchangedLines", seg.count)}
-            </div>
-          );
-          return result;
-        }
-        const lines = seg.lines.map((line, li) => {
-          const bg =
-            line.type === "added"
-              ? "color-mix(in srgb, var(--status-success) 12%, transparent)"
-              : line.type === "removed"
-              ? "color-mix(in srgb, var(--status-error) 14%, transparent)"
-              : "transparent";
-          const prefix =
-            line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
-          const prefixColor =
-            line.type === "added" ? "var(--status-success)" : line.type === "removed" ? "var(--status-error)" : "var(--text-dim)";
-
-          return (
-            <div
-              key={li}
-              className="file-diff-line"
-              style={{
-                display: "flex",
-                minWidth: "100%",
-                background: bg,
-                borderLeft: line.type === "added"
-                  ? "3px solid var(--status-success)"
-                  : line.type === "removed"
-                  ? "3px solid var(--status-error)"
-                  : "3px solid transparent",
-              }}
-            >
-              <span
-                style={FILE_LINE_NUMBER_STYLE}
-              >
-                {line.type === "removed" ? line.oldLineNo : line.newLineNo}
-              </span>
-              <span
-                style={{
-                  minWidth: 16,
-                  padding: "0 6px",
-                  color: prefixColor,
-                  userSelect: "none",
-                  flexShrink: 0,
-                  fontWeight: 600,
-                }}
-              >
-                {prefix}
-              </span>
-              <span
-                className="file-diff-line-content"
-                style={{
-                  flexShrink: 0,
-                  padding: "0 8px 0 0",
-                  whiteSpace: "pre",
-                  color: "var(--text)",
-                }}
-              >
-                {line.text || "\u00a0"}
-              </span>
-            </div>
-          );
-        });
-        return <div key={si}>{lines}</div>;
-      })}
-    </div>
-  );
 }
 
 function ImageViewer({ filePath, cwd, sourceSessionId, active = true }: Props) {
@@ -978,7 +800,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
     }
 
     try {
-      const params = new URLSearchParams({ cwd, path: targetPath });
+      const params = new URLSearchParams({ cwd, path: targetPath, contents: "1" });
       const response = await fetch(`/api/git/diff?${params.toString()}`);
       const next = await response.json() as GitFileDiffResponse & { error?: string };
       if (requestId !== gitDiffRequestRef.current) return;
@@ -1299,7 +1121,16 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
       {/* Content area */}
       <div ref={contentRef} className="file-viewer-content" style={{ flex: 1, overflow: "auto", background: "var(--bg)" }}>
         {displayMode === "diff" && hasGitDiff ? (
-          <DiffView patch={gitDiff.patch!} />
+          <DiffViewer
+            patch={gitDiff.patch!}
+            oldText={gitDiff.oldText ?? null}
+            newText={gitDiff.newText ?? null}
+            contentsTruncated={gitDiff.contentsTruncated === true}
+            filePath={filePath}
+            cwd={cwd}
+            showViewed={false}
+            showLayoutToggle
+          />
         ) : isHtml && displayMode === "preview" ? (
                     <Tooltip content={t("fileViewer.htmlPreview")}>
             <iframe

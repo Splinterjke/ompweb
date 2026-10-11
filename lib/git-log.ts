@@ -1,7 +1,8 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
-
+import { mergeDiffContents, readRefFile, readWorkingFile } from "./git-blob.ts";
 const execFileAsync = promisify(execFile);
+
 // `git diff` on large files is the heaviest call here; diff output is capped
 // by DIFF_DISPLAY_MAX_BYTES regardless.
 const GIT_TIMEOUT_MS = 60_000;
@@ -33,13 +34,19 @@ export interface GitCommitFileDiff {
   diff: string;
   binary: boolean;
   truncated: boolean;
+  /** Both file versions with `withContents`; null: side missing (added /
+   *  deleted file), binary or unreadable. Omitted together when either
+   *  side exceeds the contents size cap (`contentsTruncated`). */
+  oldText?: string | null;
+  newText?: string | null;
+  contentsTruncated?: boolean;
 }
 
 /**
  * Per-file unified diff for one commit (against its first parent; root
  * commits diff against the empty tree).
  */
-export async function getCommitFileDiff(cwd: string, hash: string, filePath: string): Promise<GitCommitFileDiff> {
+export async function getCommitFileDiff(cwd: string, hash: string, filePath: string, withContents = false): Promise<GitCommitFileDiff> {
   const root = await findRepositoryRoot(cwd);
   if (!root) throw new Error("Not a Git repository");
   if (!/^[0-9a-f]{7,40}$/.test(hash)) throw new Error("Invalid commit hash");
@@ -51,11 +58,19 @@ export async function getCommitFileDiff(cwd: string, hash: string, filePath: str
   const output = await git(root, ["diff", "--no-color", base, hash, "--", filePath]);
   const binary = /^Binary files /m.test(output);
   const truncated = output.length > DIFF_DISPLAY_MAX_BYTES;
-  return {
+  const result: GitCommitFileDiff = {
     diff: truncated ? `${output.slice(0, DIFF_DISPLAY_MAX_BYTES)}\n\n... (diff truncated) ...` : output,
     binary,
     truncated,
   };
+  if (withContents) {
+    const [oldSide, newSide] = await Promise.all([
+      readRefFile(root, base, filePath),
+      readRefFile(root, hash, filePath),
+    ]);
+    Object.assign(result, mergeDiffContents(oldSide, newSide));
+  }
+  return result;
 }
 
 /**
@@ -78,7 +93,7 @@ function isSafeGitRef(ref: string): boolean {
  * tree. Powers the embedded Git Graph view-diff actions (commit vs commit,
  * commit vs working tree, HEAD vs branch).
  */
-export async function getGitRefDiff(cwd: string, from: string, to: string, filePath: string): Promise<GitCommitFileDiff> {
+export async function getGitRefDiff(cwd: string, from: string, to: string, filePath: string, withContents = false): Promise<GitCommitFileDiff> {
   const root = await findRepositoryRoot(cwd);
   if (!root) throw new Error("Not a Git repository");
   if (!isSafeGitRef(from)) throw new Error("Invalid source ref");
@@ -98,9 +113,17 @@ export async function getGitRefDiff(cwd: string, from: string, to: string, fileP
   const output = await git(root, args);
   const binary = /^Binary files /m.test(output);
   const truncated = output.length > DIFF_DISPLAY_MAX_BYTES;
-  return {
+  const result: GitCommitFileDiff = {
     diff: truncated ? `${output.slice(0, DIFF_DISPLAY_MAX_BYTES)}\n\n... (diff truncated) ...` : output,
     binary,
     truncated,
   };
+  if (withContents) {
+    const [oldSide, newSide] = await Promise.all([
+      readRefFile(root, from, filePath),
+      to === "*" ? Promise.resolve(readWorkingFile(root, filePath)) : readRefFile(root, to, filePath),
+    ]);
+    Object.assign(result, mergeDiffContents(oldSide, newSide));
+  }
+  return result;
 }

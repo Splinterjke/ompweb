@@ -104,11 +104,13 @@ export interface GitClient {
   push(cwd: string): Promise<{ branch?: string }>;
   branches(cwd: string): Promise<{ name: string; current: boolean }[]>;
   checkout(cwd: string, branch: string): Promise<{ branch?: string }>;
-  /** GET /api/git/diff?cwd=&hash=&file= — per-file diff of one commit. */
-  commitDiff(cwd: string, hash: string, file: string): Promise<GitCommitFileDiff>;
+  /** GET /api/git/diff?cwd=&hash=&file= — per-file diff of one commit.
+   *  `contents` additionally returns both file versions (Copilot-style
+   *  hidden-context expansion). */
+  commitDiff(cwd: string, hash: string, file: string, options?: { contents?: boolean }): Promise<GitCommitFileDiff>;
   /** GET /api/git/diff?cwd=&from=&to=&file= — per-file diff between two refs
    *  (`to = "*"` compares against the working tree). Embedded Git graph. */
-  refDiff(cwd: string, from: string, to: string, file: string): Promise<GitCommitFileDiff>;
+  refDiff(cwd: string, from: string, to: string, file: string, options?: { contents?: boolean }): Promise<GitCommitFileDiff>;
 }
 /**
  * Native OMP settings (GET /api/omp-settings): the ~/.omp/agent/config.yml

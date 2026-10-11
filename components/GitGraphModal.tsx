@@ -8,6 +8,8 @@ import { toast } from "@/components/ui/toast";
 import { createOmpwebClient } from "@/lib/client";
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { DiffViewer } from "./diff/DiffViewer";
+import { setFrameDragGuard } from "@/lib/drag-frames";
 
 const client = createOmpwebClient("legacy-http");
 
@@ -26,11 +28,15 @@ const client = createOmpwebClient("legacy-http");
 // Persisted expand/collapse state: collapsed = the dragged panel height at
 // the workspace bottom; expanded = the panel fills the whole workspace
 // column (the host grows its flex basis; see onExpandedChange).
-const EXPANDED_KEY = "omp-wea...ded";
+const EXPANDED_KEY = "omp-web:git-graph-expanded";
+// bd5286e9 shipped both keys with literal "..." truncation; the initializers
+// migrate a stored value once and clear the junk key.
+const LEGACY_EXPANDED_KEY = "omp-wea...ded";
 
 // Docked-panel height: dragged from the top edge and persisted; dragging
 // past the minimum hides the panel (the terminal drawer's gesture).
-const PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
+const PANEL_HEIGHT_KEY = "omp-web:git-graph-panel-height";
+const LEGACY_PANEL_HEIGHT_KEY = "omp-web:git-gra...ght";
 const PANEL_MIN_HEIGHT = 200;
 const PANEL_DEFAULT_HEIGHT = 420;
 
@@ -113,7 +119,7 @@ interface DiffRequest {
   toHash: string | null;
 }
 
-type DiffState = { file: string; diff: string; binary: boolean; truncated: boolean } | null;
+type DiffState = { file: string; diff: string; binary: boolean; truncated: boolean; absolutePath: string | null; oldText: string | null; newText: string | null; contentsTruncated: boolean } | null;
 
 /** client.git.refDiff payload: a unified diff, or an unsupported/error shape. */
 interface RefDiffPayload {
@@ -122,6 +128,11 @@ interface RefDiffPayload {
   truncated?: boolean;
   supported?: boolean;
   error?: string;
+  /** Requested with `contents=1`: both file versions for hidden-context
+   *  expansion inside the pane's DiffViewer. */
+  oldText?: string | null;
+  newText?: string | null;
+  contentsTruncated?: boolean;
 }
 
 // ClientError is a plain object ({ code, message, retryable }), not an Error
@@ -139,34 +150,6 @@ function absoluteFilePath(filePath: string, repo: string | null): string | null 
   return repo.replace(/[\\/]+$/, "") + "/" + filePath.replace(/^[/\\]+/, "");
 }
 
-function DiffLines({ diff }: { diff: string }) {
-  const lines = useMemo(() => diff.split("\n"), [diff]);
-  return (
-    <pre style={{ margin: 0, padding: "8px 0", overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.5, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg)" }}>
-      {lines.map((line, i) => {
-        let color: string | undefined;
-        let background: string | undefined;
-        if (line.startsWith("+++") || line.startsWith("---")) {
-          color = "var(--text-dim)";
-        } else if (line.startsWith("@@")) {
-          color = "var(--accent)";
-        } else if (line.startsWith("+")) {
-          color = "var(--status-success)";
-          background = "color-mix(in srgb, var(--status-success) 10%, transparent)";
-        } else if (line.startsWith("-")) {
-          color = "var(--status-error)";
-          background = "color-mix(in srgb, var(--status-error) 10%, transparent)";
-        }
-        return (
-          <div key={i} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: color ?? "var(--text)", background }}>
-            {line || " "}
-          </div>
-        );
-      })}
-    </pre>
-  );
-}
-
 /**
  * Right-hand unified-diff pane (module-internal). Fed by ompweb-gg-open-diff
  * relays: the working mode shows the file at the requested commit against
@@ -176,11 +159,13 @@ function DiffLines({ diff }: { diff: string }) {
  * pane is collapsed while nothing is loaded (no diff, no load in flight, no
  * error) and closes via its X button.
  */
-function DiffPane({ diff, loading, error, mobile, onClose }: {
+function DiffPane({ diff, loading, error, mobile, cwd, onOpenFile, onClose }: {
   diff: DiffState;
   loading: boolean;
   error: string | null;
   mobile: boolean;
+  cwd: string | null;
+  onOpenFile: (filePath: string) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -217,20 +202,31 @@ function DiffPane({ diff, loading, error, mobile, onClose }: {
           </button>
         </Tooltip>
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 10px" }}>
-        {error && <div style={{ padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error })}</div>}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {error && <div style={{ padding: "8px 16px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--status-error)", overflowWrap: "anywhere" }}>{t("gitGraph.diffError", { error })}</div>}
         {loading && !error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 6px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
             {t("gitGraph.diffLoading")}
           </div>
         )}
         {diff && !loading && !error && (
           diff.binary ? (
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.binaryFile")}</div>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "8px 16px" }}>{t("gitGraph.binaryFile")}</div>
           ) : diff.diff.length === 0 ? (
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "6px 0" }}>{t("gitGraph.noDiff")}</div>
+            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", padding: "8px 16px" }}>{t("gitGraph.noDiff")}</div>
           ) : (
-            <DiffLines diff={diff.diff} />
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <DiffViewer
+                patch={diff.diff}
+                oldText={diff.oldText}
+                newText={diff.newText}
+                contentsTruncated={diff.contentsTruncated}
+                filePath={diff.absolutePath}
+                cwd={cwd}
+                showPath={false}
+                onOpenFile={onOpenFile}
+              />
+            </div>
           )
         )}
       </div>
@@ -268,7 +264,14 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === "undefined") return false;
     try {
-      return window.localStorage.getItem(EXPANDED_KEY) === "1";
+      const raw = window.localStorage.getItem(EXPANDED_KEY);
+      if (raw !== null) return raw === "1";
+      const legacyExpanded = window.localStorage.getItem(LEGACY_EXPANDED_KEY);
+      if (legacyExpanded !== null) {
+        window.localStorage.removeItem(LEGACY_EXPANDED_KEY);
+        return legacyExpanded === "1";
+      }
+      return false;
     } catch {
       return false;
     }
@@ -286,7 +289,11 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
   const [panelHeight, setPanelHeight] = useState(() => {
     if (typeof window === "undefined") return PANEL_DEFAULT_HEIGHT;
     try {
-      const raw = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+      let raw = window.localStorage.getItem(PANEL_HEIGHT_KEY);
+      if (raw === null) {
+        raw = window.localStorage.getItem(LEGACY_PANEL_HEIGHT_KEY);
+        if (raw !== null) window.localStorage.removeItem(LEGACY_PANEL_HEIGHT_KEY);
+      }
       const parsed = raw === null ? Number.NaN : Number(raw);
       return Number.isFinite(parsed) ? Math.max(PANEL_MIN_HEIGHT, parsed) : PANEL_DEFAULT_HEIGHT;
     } catch {
@@ -312,6 +319,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
 
   const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    setFrameDragGuard(true);
     const startY = e.clientY;
     const startHeight = panelHeightRef.current;
     let closed = false;
@@ -326,6 +334,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
       setPanelHeight(Math.max(PANEL_MIN_HEIGHT, Math.min(window.innerHeight * 0.8, next)));
     };
     const onMouseUp = () => {
+      setFrameDragGuard(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
@@ -408,11 +417,11 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
           return;
         }
         if (from === "*" && to === "*") {
-          fetchDiff = () => client.git.refDiff(repo, "HEAD", "*", filePath);
+          fetchDiff = () => client.git.refDiff(repo, "HEAD", "*", filePath, { contents: true });
         } else if (from === to && from !== "*") {
-          fetchDiff = () => client.git.commitDiff(repo, from, filePath);
+          fetchDiff = () => client.git.commitDiff(repo, from, filePath, { contents: true });
         } else {
-          fetchDiff = () => client.git.refDiff(repo, from, to === "*" || to === "UNCOMMITTED" ? "*" : to, filePath);
+          fetchDiff = () => client.git.refDiff(repo, from, to === "*" || to === "UNCOMMITTED" ? "*" : to, filePath, { contents: true });
         }
       } else {
         const hash = request.hash;
@@ -420,7 +429,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
           postToFrame({ type: "ompweb-gg-open-diff-result", ok: false });
           return;
         }
-        fetchDiff = () => client.git.refDiff(repo, hash === "*" ? "HEAD" : hash, "*", filePath);
+        fetchDiff = () => client.git.refDiff(repo, hash === "*" ? "HEAD" : hash, "*", filePath, { contents: true });
       }
       setDiffLoading(true);
       setDiffError(null);
@@ -429,7 +438,7 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
         // alternative shapes ({ supported: false }); check at runtime.
         const data: RefDiffPayload = await fetchDiff();
         if (typeof data.diff === "string") {
-          setDiff({ file: filePath, diff: data.diff, binary: data.binary === true, truncated: data.truncated === true });
+          setDiff({ file: filePath, diff: data.diff, binary: data.binary === true, truncated: data.truncated === true, absolutePath: absoluteFilePath(filePath, repo), oldText: typeof data.oldText === "string" ? data.oldText : null, newText: typeof data.newText === "string" ? data.newText : null, contentsTruncated: data.contentsTruncated === true });
           postToFrame({ type: "ompweb-gg-open-diff-result", ok: true });
         } else {
           setDiff(null);
@@ -623,6 +632,8 @@ export function GitGraphModal({ open, onOpenChange, cwd, onExpandedChange, onOpe
           loading={diffLoading}
           error={diffError}
           mobile={isMobile}
+          cwd={cwd}
+          onOpenFile={onOpenFile}
           onClose={() => { setDiff(null); setDiffError(null); }}
         />
       </div>

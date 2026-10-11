@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
+import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isPathWithinRootsAllowingMissing, isWindowsAbsolutePath } from "@/lib/file-access";
 import { getGitFileDiff } from "@/lib/git-changes";
 import { getCommitFileDiff, getGitRefDiff } from "@/lib/git-log";
 
@@ -26,6 +26,11 @@ export async function GET(request: NextRequest) {
     const isCommitMode = commitHash.length > 0 || commitFile.length > 0;
     const compareFrom = request.nextUrl.searchParams.get("from")?.trim() ?? "";
     const compareTo = request.nextUrl.searchParams.get("to")?.trim() ?? "";
+    // `contents=1` adds both file versions to the response so the client can
+    // expand hidden context. Contents always come from the local git binary
+    // (the Rust host exposes only the default working-tree diff), so a
+    // contents request bypasses the host branch below.
+    const wantContents = request.nextUrl.searchParams.get("contents") === "1";
 
     if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {
       return NextResponse.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
@@ -40,7 +45,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "file is required", code: "missing_file" }, { status: 400 });
       }
       try {
-        return NextResponse.json(await getGitRefDiff(cwd, compareFrom, compareTo, commitFile));
+        return NextResponse.json(await getGitRefDiff(cwd, compareFrom, compareTo, commitFile, wantContents));
       } catch (error) {
         if (isNonRepositoryError(error)) {
           return NextResponse.json({ supported: false });
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "file is required", code: "missing_file" }, { status: 400 });
       }
       try {
-        return NextResponse.json(await getCommitFileDiff(cwd, commitHash, commitFile));
+        return NextResponse.json(await getCommitFileDiff(cwd, commitHash, commitFile, wantContents));
       } catch (error) {
         // A non-repo is a normal situation, not a backend failure: the
         // commit-file diff simply cannot be computed.
@@ -73,14 +78,18 @@ export async function GET(request: NextRequest) {
     if (!filePath || (!filePath.startsWith("/") && !isWindowsAbsolutePath(filePath))) {
       return NextResponse.json({ error: "path must be an absolute path", code: "path_must_be_absolute" }, { status: 400 });
     }
-    if (!isFilePathAllowed(filePath, allowedRoots) || !isExistingFilePathAllowed(filePath, allowedRoots)) {
+    // Working-tree diffs read git objects, not the file — a DELETED file is a
+    // legitimate diff subject, so containment falls back to its existing
+    // ancestor instead of requiring the leaf itself to exist.
+    if (!isFilePathAllowed(filePath, allowedRoots) || !isPathWithinRootsAllowingMissing(filePath, allowedRoots)) {
       return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
     // Doc 16 route 10: in Rust mode the host owns single-file diff previews
     // (read-only parity frozen by lib/git-parity.test.mjs); the Node path
-    // exists only for the explicit OMPWEB_BACKEND=node rollback.
-    if (rustBackendActive()) {
+    // exists only for the explicit OMPWEB_BACKEND=node rollback — and for
+    // contents-enabled diffs, which the host cannot serve.
+    if (rustBackendActive() && !wantContents) {
       try {
         return NextResponse.json(await hostClient.git.diff([...allowedRoots], cwd, filePath));
       } catch (error) {
@@ -95,7 +104,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(await getGitFileDiff(cwd, filePath));
+    return NextResponse.json(await getGitFileDiff(cwd, filePath, wantContents));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
