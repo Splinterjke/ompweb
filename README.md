@@ -96,7 +96,87 @@ The launcher probes the sibling ports `SIBLING_PORTS = [30177, 30178, 30179]` (h
 
 ## 🔑 Default password
 
-The compose file ships with `OMP_WEB_PASSWORD=asdf1234` by default — use it at the login screen, or override it to your own value.
+The compose file ships a default `OMP_WEB_PASSWORD_HASH` — the hash of the dev
+password `asdf1234`. Use that password at the login screen, or generate your
+own (`ompweb hash-password`) and set `OMP_WEB_PASSWORD_HASH` in a `.env` file
+next to the compose file (`.env` values are literal; only an inline compose
+default needs its `$` written as `$$`). A legacy plaintext `OMP_WEB_PASSWORD`
+still works: the container entrypoint hashes it once, persists the hash under
+the bound `.omp` store and clears the plaintext, so restarts keep sign-ins.
+
+omp-web no longer hands a plaintext password to the server: every `omp`
+session inherits the server's environment, so an agent running `env` could
+print the password into its transcript and off to the model provider.
+`ompweb` hashes a lone `OMP_WEB_PASSWORD` at startup, keeps the plaintext out
+of the server's environment, and warns with the `OMP_WEB_PASSWORD_HASH` to set
+instead. `--password` was removed, and setting both variables stops `ompweb`;
+remove `OMP_WEB_PASSWORD`. Generate a hash with:
+
+```bash
+ompweb hash-password                                 # prompts twice, input hidden
+echo "a-long-random-password" | ompweb hash-password # or pipe it in
+OMP_WEB_PASSWORD_HASH='scrypt$15$8$1$…' ompweb
+```
+
+`ompweb hash-password` reads the password from stdin — never from a command
+line argument — so it stays out of your shell history and out of `ps`. The
+hash is scrypt (N = 2^15, r = 8, p = 1) with a fresh 16-byte salt, printed as
+`scrypt$<ln>$<r>$<p>$<salt>$<digest>`; anyone who reads it can neither sign in
+with it nor turn it back into the password. Sessions are not signed with the
+hash: a random per-installation key at
+`~/.omp/agent/omp-web/web-auth-secret.json` (mode `0600`) is mixed with it, so
+a copied hash cannot forge a session and changing the password still signs
+every browser out.
+
+### Skipping the password on trusted networks
+
+omp-web cannot see the client's address itself, so it leaves the decision to
+your reverse proxy. The proxy sends a secret in the `X-Omp-Web-Auth` header,
+and omp-web holds only that secret's SHA-256 digest in
+`OMP_WEB_TRUSTED_HEADER_SHA256`. A request whose header hashes to that digest
+is treated as signed in; everyone else still signs in with the password.
+Without a configured password hash there is nothing to skip and the header is
+ignored. Keep omp-web bound to `127.0.0.1` so only the proxy reaches it.
+
+Generate the secret without typing it on a command line, so it never lands in
+shell history — this writes it into an nginx include and prints only the
+digest:
+
+```bash
+secret=$(openssl rand -hex 32)
+printf 'map $ompweb_trusted $ompweb_auth {\n    1        "%s";\n    default  "";\n}\n' "$secret" \
+  | sudo install -m 0640 -o root -g www-data /dev/stdin /etc/nginx/ompweb-auth.conf
+printf %s "$secret" | sha256sum | cut -d' ' -f1
+unset secret
+```
+
+Set the printed digest as `OMP_WEB_TRUSTED_HEADER_SHA256`. Always generate a
+long random secret this way: omp-web stores only an unsalted SHA-256 digest,
+which is safe only against dictionary attacks on a random value. In nginx,
+pick the trusted clients with `geo` and always set the header — the empty
+value replaces any `X-Omp-Web-Auth` a client sends itself:
+
+```nginx
+# http {} context
+geo $ompweb_trusted {
+    default       0;
+    10.0.0.0/16   1;
+}
+include /etc/nginx/ompweb-auth.conf;  # the map written above
+
+# the location that proxies to omp-web
+proxy_set_header X-Omp-Web-Auth $ompweb_auth;
+```
+
+Serve omp-web only under an explicit `server_name`, with a `default_server`
+block answering every other hostname with `return 444;` — otherwise any site a
+trusted browser visits can point its own domain at your nginx (DNS rebinding)
+and have it add the secret. `geo` checks `$remote_addr`; when clients reach
+nginx through another proxy (Cloudflare, Cloudflare Tunnel, …), use the
+[`realip` module](https://nginx.org/en/docs/http/ngx_http_realip_module.html)
+(`set_real_ip_from` the provider's published ranges + `real_ip_header
+CF-Connecting-IP` for Cloudflare) so the geo check sees the real client
+address.
 
 ## 🔄 Rebuild & restart (bound repository)
 
@@ -171,7 +251,8 @@ frames (omp 18.3.1 or later).
 | :--- | :--- | :--- |
 | `PORT` / `-p` / `--port` | Server port | `6767` |
 | `OMP_WEB_HOSTNAME` / `-H` / `--hostname` | Bind hostname | `127.0.0.1` |
-| `OMP_WEB_PASSWORD` / `--password` | Web sign-in password (compose default: `asdf1234`) | *(None / disabled)* |
+| `OMP_WEB_PASSWORD_HASH` | Scrypt hash of the web sign-in password, from `ompweb hash-password`; required for a non-loopback bind (compose ships a default hash for the dev password `asdf1234` — replace it for real deployments) | *(None / disabled)* |
+| `OMP_WEB_TRUSTED_HEADER_SHA256` | SHA-256 hex digest of the secret a trusted reverse proxy sends in `X-Omp-Web-Auth` to skip the password for that request; see [Skipping the password on trusted networks](#skipping-the-password-on-trusted-networks) | *(None / disabled)* |
 | `OMP_WEB_ALLOWED_HOSTS` | Comma-separated non-loopback hosts allowed to reach the app | *(empty — loopback only)* |
 | `OMP_WEB_NO_OPEN` | Skip opening browser automatically | `0` (`1` to skip) |
 | `OMP_WEB_DISABLE_AUTOUPDATE` | Set to `1` to disable update checks and in-app updates; restart after changing | `0` |

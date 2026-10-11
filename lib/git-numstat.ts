@@ -9,6 +9,7 @@ import { execFile } from "child_process";
 import path from "path";
 import { promisify } from "util";
 import type { GitStatusResponse } from "./git-types.ts";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 const execFileAsync = promisify(execFile);
 const NUMSTAT_TIMEOUT_MS = 20_000;
@@ -73,7 +74,7 @@ export async function applyPerFileStats(status: GitStatusResponse): Promise<GitS
     const { stdout } = await execFileAsync(
       "git",
       ["-c", "safe.directory=*", "-C", status.repositoryRoot, "diff", "HEAD", "--numstat", "-z"],
-      { timeout: NUMSTAT_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, LC_ALL: "C" } },
+      { timeout: NUMSTAT_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: createChildProcessEnvironment({ LC_ALL: "C" }) },
     );
     byAbsolutePath = new Map(
       [...parseNumstatZ(String(stdout)).entries()].map(([rel, value]) => [path.resolve(status.repositoryRoot!, rel), value]),

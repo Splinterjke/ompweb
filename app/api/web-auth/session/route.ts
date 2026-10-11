@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const secure = new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
   response.cookies.set({
     name: OMP_WEB_SESSION_COOKIE,
-    value: createWebSession(process.env.OMP_WEB_PASSWORD!),
+    value: createWebSession(),
     httpOnly: true,
     secure,
     sameSite: "lax",

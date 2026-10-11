@@ -3,6 +3,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
+import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ async function runOmp(args: string[]): Promise<string> {
   const { stdout } = await execFileAsync(target.file, target.args, {
     timeout: 15_000,
     maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, LC_ALL: "C" },
+    env: createChildProcessEnvironment({ LC_ALL: "C" }),
   });
   return stdout;
 }

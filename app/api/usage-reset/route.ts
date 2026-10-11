@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
+import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
 export const runtime = "nodejs";
 
@@ -43,7 +44,7 @@ function runOmp(args: string[]): Promise<{ code: number; stdout: string; stderr:
   execFile(launch.file, launch.args, {
     timeout: CLI_TIMEOUT_MS,
     maxBuffer: 8 * 1024 * 1024,
-    env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+    env: createChildProcessEnvironment({ FORCE_COLOR: "0", NO_COLOR: "1" }),
   }, (error, stdout, stderr) => {
     if (error && typeof (error as NodeJS.ErrnoException).code !== "number") {
       reject(error);

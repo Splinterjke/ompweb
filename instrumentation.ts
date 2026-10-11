@@ -38,6 +38,21 @@ export async function register(): Promise<void> {
     // Diagnostics are best-effort.
   }
 
+  // A password that is plaintext, truncated or otherwise unusable must be
+  // visible in the terminal, not only as a 503 in the browser (issue #239).
+  // Requests are refused either way; this is the readable half.
+  void (async () => {
+    // Dynamic import cannot be static here: lib/web-auth pulls in node:fs via
+    // web-auth-secret, and this file is also bundled for the edge runtime.
+    try {
+      const { webPasswordConfigurationProblem } = await import("@/lib/web-auth");
+      const problem = webPasswordConfigurationProblem();
+      if (problem) console.error(`[omp-web] password configuration error:\n${problem}`);
+    } catch (error) {
+      console.warn(`[omp-web] password configuration check failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  })();
+
   // Resume sessions that were mid-run when omp-web last stopped (controlled
   // by the "Resume running sessions after a restart" web setting, default on).
   // Fire-and-forget: resuming must not block boot.

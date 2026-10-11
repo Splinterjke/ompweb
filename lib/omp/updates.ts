@@ -6,6 +6,7 @@ import { ProxyAgent, request } from "undici";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { proxyEnv, readProxyConfig, resolveEffectiveProxy } from "../proxy-config";
 import { isUpdateDisabled } from "../update-policy";
+import { createChildProcessEnvironment } from "../project-command-env";
 
 const OMP_RELEASE_ASSET_URL = "https://github.com/can1357/oh-my-pi/releases/latest/download/{tag}";
 
@@ -38,12 +39,11 @@ export async function runOmpUpdateStream(args: string[], onLine?: (line: string)
   const bin = resolveOmpBin();
   if (!bin) throw new Error("omp binary not found. Install oh-my-pi or set OMP_WEB_OMP_BIN.");
   const proxyUrl = await resolveEffectiveProxy().catch(() => null);
-  const env = {
-    ...process.env,
+  const env = createChildProcessEnvironment({
     FORCE_COLOR: "0",
     NO_COLOR: "1",
     ...proxyEnv(proxyUrl),
-  };
+  });
   onLine?.("[omp-web] Proxy: " + (proxyUrl ?? "not detected (direct)") + " — injected into the update command environment");
   const attemptOnce = (): Promise<{ exitCode: number; output: string }> => new Promise((resolve, reject) => {
     const target = wrapWindowsScript(bin, ["update", ...args]);
@@ -162,12 +162,11 @@ async function runOmpUpdate(args: string[]): Promise<string> {
   // The updater downloads from GitHub; a configured web proxy (FlClash etc.)
   // must be visible to it or the fetch dies with a closed-socket error.
   const proxyUrl = await resolveEffectiveProxy().catch(() => null);
-  const env = {
-    ...process.env,
+  const env = createChildProcessEnvironment({
     FORCE_COLOR: "0",
     NO_COLOR: "1",
     ...proxyEnv(proxyUrl),
-  };
+  });
   const { promise, resolve, reject } = Promise.withResolvers<string>();
   const target = wrapWindowsScript(bin, ["update", ...args]);
   execFile(target.file, target.args, {

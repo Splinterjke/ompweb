@@ -6,6 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { isRecord } from "../type-guards";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { getAgentsBundledCacheDir, getProjectAgentsDir, getUserAgentsDir } from "./paths";
+import { createChildProcessEnvironment } from "../project-command-env";
 
 export type AgentSource = "bundled" | "user" | "project";
 export type AgentInfo = {
@@ -169,7 +170,7 @@ export function unpackBundled(targetDir: string, force = false): { targetDir: st
   const before = new Set(readdirSync(safeTargetDir, { withFileTypes: true }).filter((entry) => entry.name.toLowerCase().endsWith(".md")).map((entry) => entry.name));
   const bin = resolveOmpBin() ?? "omp";
   const target = wrapWindowsScript(bin, ["agents", "unpack", "--dir", safeTargetDir, "--json", ...(force ? ["--force"] : [])]);
-  execFileSync(target.file, target.args, { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  execFileSync(target.file, target.args, { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: createChildProcessEnvironment() });
   const after = readdirSync(safeTargetDir, { withFileTypes: true }).filter((entry) => entry.name.toLowerCase().endsWith(".md")).map((entry) => entry.name);
   const written = after.filter((name) => !before.has(name)).length;
   return { targetDir, total: after.length, written, skipped: Math.max(0, after.length - written) };

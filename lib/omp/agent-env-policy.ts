@@ -6,10 +6,12 @@
  *
  * Users only ever get to add variables, never to rewrite the plumbing omp-web itself
  * depends on. Two rules enforce that:
- *   1. `lib/project-command-env.ts` strips PORT / NODE_ENV / NEXT_* from every child
- *      spawn (`sanitizeProjectCommandEnvironment`, called at lib/omp/rpc-process.ts:110
- *      AFTER the merge). Letting a user set them would be a silent no-op, so they are
- *      denied here too — the policy is deliberately mirrored, not re-invented.
+ *   1. `lib/project-command-env.ts` strips PORT / NODE_ENV / NEXT_* and omp-web's
+ *      secrets (`OMP_WEB_PASSWORD*`, `OMP_WEB_TRUSTED_HEADER*`, `OMPWEB_PEER_SECRET`)
+ *      from every child spawn (`sanitizeProjectCommandEnvironment`, called at
+ *      lib/omp/rpc-process.ts:110 AFTER the merge). Letting a user set them would be
+ *      a silent no-op, so they are denied here too — the policy is deliberately
+ *      mirrored, not re-invented.
  *   2. Names that relocate omp's own state (agent dir, config root, home) would make
  *      the child read and write a different ~/.omp than the one omp-web enumerates
  *      sessions, settings and agents from: the child would start fine and its sessions
@@ -54,6 +56,7 @@ const DENIED_NAMES: ReadonlySet<string> = new Set([
   // override would be discarded without a word.
   "PORT",
   "NODE_ENV",
+  "OMPWEB_PEER_SECRET",
 ]);
 
 /** Prefixes that may never be overridden (compared uppercased). */

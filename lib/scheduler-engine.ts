@@ -17,6 +17,7 @@ import { repairedChildPath, resolveOmpBin } from "./omp/omp-cli";
 import { getAgentDir, getSessionDirNameForCwd, getSessionsDir } from "./omp/paths";
 import { nextRunAfter } from "./schedule";
 import { modelFlagValue } from "./scheduler-types";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 // ============================================================================
 // Scheduler engine: the in-process cron. One 15-second tick checks every
@@ -368,7 +369,7 @@ function spawnOptions(cwd: string) {
     cwd,
     // The server's own PATH is minimal (container/GUI launchers omit tool
     // dirs like /opt/node24/bin); repair it so scripts can find npm/npx.
-    env: { ...process.env, PATH: repairedChildPath(process.env.PATH) },
+    env: createChildProcessEnvironment({ PATH: repairedChildPath(process.env.PATH) }),
     stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
   };
 }

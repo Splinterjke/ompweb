@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 // Server-only: the client bundle (DirectoryPicker imports the pure helpers in
 // git-clone.ts) must never pull child_process into it.
@@ -16,7 +17,7 @@ export function runGitClone(url: string, target: string, signal: AbortSignal, on
   const child = spawn("git", ["clone", "--progress", "--", url, target], {
     stdio: ["ignore", "pipe", "pipe"],
     // An empty GIT_ASKPASS also overrides core.askPass/SSH_ASKPASS fallbacks.
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS: "", GIT_ALLOW_PROTOCOL: "https:ssh" },
+    env: createChildProcessEnvironment({ GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS: "", GIT_ALLOW_PROTOCOL: "https:ssh" }),
     detached: process.platform !== "win32",
     windowsHide: true,
   });

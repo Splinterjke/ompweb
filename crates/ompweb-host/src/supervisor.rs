@@ -129,7 +129,12 @@ impl Supervisor {
         // --resume <file>, --tools, --advisor, ...
         cmd.args(["--mode", "rpc-ui", "--cwd", cwd])
             .current_dir(cwd)
+            // keep in sync with OMP_WEB_SECRET_ENV_VARS in lib/project-command-env.ts
             .env_remove("OMPWEB_PEER_SECRET")
+            .env_remove("OMP_WEB_PASSWORD")
+            .env_remove("OMP_WEB_PASSWORD_HASH")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SECRET")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SHA256")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());

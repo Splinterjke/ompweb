@@ -10,6 +10,7 @@ import { execFile } from "child_process";
 import fs from "fs";
 import path from "path";
 import { promisify } from "util";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 const execFileAsync = promisify(execFile);
 const SIZE_TIMEOUT_MS = 10_000;
@@ -38,7 +39,7 @@ async function gitText(cwd: string, args: string[], timeout: number): Promise<st
       timeout,
       maxBuffer: DIFF_CONTENTS_MAX_BYTES + 4096,
       encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C" },
+      env: createChildProcessEnvironment({ LC_ALL: "C" }),
     });
     return stdout;
   } catch {

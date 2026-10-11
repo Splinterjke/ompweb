@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
 import { once } from "node:events";
+import { createRequire } from "node:module";
 import { createJiti } from "jiti";
 import { installRequestPeerTracking, verifiedRequestPeer } from "./request-peer.js";
 
@@ -11,9 +12,27 @@ const { NextRequest } = await import("next/server.js");
 
 test("actual loopback HTTP reaches proxy; unsigned Host/socket spoof cannot issue tokens", async (t) => {
   installRequestPeerTracking();
-  const saved = process.env.OMP_WEB_TRUSTED_PROXY;
+  const saved = {
+    trusted: process.env.OMP_WEB_TRUSTED_PROXY,
+    plain: process.env.OMP_WEB_PASSWORD,
+    hash: process.env.OMP_WEB_PASSWORD_HASH,
+  };
   delete process.env.OMP_WEB_TRUSTED_PROXY;
-  t.after(() => { if (saved === undefined) delete process.env.OMP_WEB_TRUSTED_PROXY; else process.env.OMP_WEB_TRUSTED_PROXY = saved; });
+  // Hash-only model: a plaintext OMP_WEB_PASSWORD in the ambient environment
+  // is a broken configuration (every request 503s), not a gate. The pairing
+  // assertions need an unconfigured server, so run against a clean slate.
+  delete process.env.OMP_WEB_PASSWORD;
+  delete process.env.OMP_WEB_PASSWORD_HASH;
+  t.after(() => {
+    for (const [name, value] of [
+      ["OMP_WEB_TRUSTED_PROXY", saved.trusted],
+      ["OMP_WEB_PASSWORD", saved.plain],
+      ["OMP_WEB_PASSWORD_HASH", saved.hash],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
   assert.equal(verifiedRequestPeer(new Headers({ "x-ompweb-socket-peer": "127.0.0.1", "x-ompweb-socket-proof": "0".repeat(64) })), null);
   const server = http.createServer((incoming, response) => {
     const request = new NextRequest("http://localhost/api/pair/token", { method: "POST", headers: incoming.headers });
@@ -34,9 +53,28 @@ test("actual loopback HTTP reaches proxy; unsigned Host/socket spoof cannot issu
 
 test("password gate: loopback /api/ui/refresh is exempt; remote caller still 401s", async (t) => {
   installRequestPeerTracking();
-  const savedPassword = process.env.OMP_WEB_PASSWORD;
-  process.env.OMP_WEB_PASSWORD = "ompweb-test-secret";
-  t.after(() => { if (savedPassword === undefined) delete process.env.OMP_WEB_PASSWORD; else process.env.OMP_WEB_PASSWORD = savedPassword; });
+  const { hashPassword } = createRequire(import.meta.url)("./omp-web-password-hash.js");
+  const saved = {
+    plain: process.env.OMP_WEB_PASSWORD,
+    hash: process.env.OMP_WEB_PASSWORD_HASH,
+    digest: process.env.OMP_WEB_TRUSTED_HEADER_SHA256,
+  };
+  // The gate is keyed by the scrypt hash (OMP_WEB_PASSWORD_HASH); a plaintext
+  // value is refused as a configuration error, and a trusted-proxy digest in
+  // the ambient environment would vouch the "remote" request open.
+  delete process.env.OMP_WEB_PASSWORD;
+  delete process.env.OMP_WEB_TRUSTED_HEADER_SHA256;
+  process.env.OMP_WEB_PASSWORD_HASH = hashPassword("ompweb-test-secret", { logN: 12 });
+  t.after(() => {
+    for (const [name, value] of [
+      ["OMP_WEB_PASSWORD", saved.plain],
+      ["OMP_WEB_PASSWORD_HASH", saved.hash],
+      ["OMP_WEB_TRUSTED_HEADER_SHA256", saved.digest],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
   // A real loopback POST (no session cookie) must pass the password gate.
   const server = http.createServer((incoming, response) => {
     const request = new NextRequest("http://localhost/api/ui/refresh", { method: "POST", headers: incoming.headers });

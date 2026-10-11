@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runNpx } from "@/lib/npx";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     const { stdout, stderr } = await runNpx(args, {
       timeout: 60000,
       cwd: !isGlobal && cwd ? cwd : undefined,
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: createChildProcessEnvironment({ FORCE_COLOR: "0" }),
     });
 
     const output = (stdout + stderr).replace(ANSI_RE, "");

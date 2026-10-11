@@ -4,6 +4,7 @@ import type { SkillInstallScope } from "@/lib/api-types";
 import { buildSkillUpdateArgs } from "@/lib/skill-updates";
 import { loadSkillsWithInstallInfo } from "@/lib/skills-service";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
+import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     const { stdout, stderr } = await runNpx(buildSkillUpdateArgs(skill.install), {
       timeout: 60_000,
       cwd: scope === "project" ? cwd : undefined,
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: createChildProcessEnvironment({ FORCE_COLOR: "0" }),
     });
 
     const refreshed = await loadSkillsWithInstallInfo(cwd);

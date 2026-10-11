@@ -96,7 +96,9 @@ docker compose up -d --build
 
 ## 🔑 默认密码
 
-compose 文件默认设置 `OMP_WEB_PASSWORD=asdf1234` —— 在登录界面使用该密码，或自行覆盖为其他值。
+compose 文件默认提供 `OMP_WEB_PASSWORD_HASH` —— 即开发密码 `asdf1234` 的哈希。在登录界面使用该密码；正式部署请用 `ompweb hash-password` 生成自己的哈希，并在 compose 文件旁的 `.env` 文件中设置 `OMP_WEB_PASSWORD_HASH` 覆盖（`.env` 中的值是字面量；只有 compose 内联默认值里的 `$` 需要写成 `$$`）。旧版明文 `OMP_WEB_PASSWORD` 仍然可用：容器入口脚本会一次性将其哈希化、持久化到绑定的 `.omp` 存储并清除明文，因此重启后登录状态保持。
+
+omp-web **不再把明文密码交给服务器**：每个 `omp` 会话都继承服务器的环境变量，智能体只要运行 `env` 就可能把密码写进会话文件并发往模型提供商。`ompweb` 现在会在启动时对 `OMP_WEB_PASSWORD` 进行哈希，将其排除在服务器环境之外，并打印警告给出应改设的 `OMP_WEB_PASSWORD_HASH`；`--password`，或与哈希同时设置 `OMP_WEB_PASSWORD`，都会拒绝启动。请用 `ompweb hash-password` 生成哈希（只从标准输入读取，绝不接受命令行参数；scrypt N = 2^15，形式 `scrypt$<ln>$<r>$<p>$<salt>$<digest>`）。会话签名使用首次启动时在 `~/.omp/agent/omp-web/web-auth-secret.json`（权限 `0600`）生成的随机安装密钥与哈希混合而成，因此仅凭泄露的哈希无法伪造会话，修改密码仍会使所有会话失效。
 
 ## 🔄 重新构建并重启（挂载仓库时）
 
@@ -134,7 +136,8 @@ compose 文件默认设置 `OMP_WEB_PASSWORD=asdf1234` —— 在登录界面使
 | :--- | :--- | :--- |
 | `PORT` / `-p` / `--port` | Web 服务监听端口 | `6767` |
 | `OMP_WEB_HOSTNAME` / `-H` / `--hostname` | 监听主机地址 | `127.0.0.1` |
-| `OMP_WEB_PASSWORD` / `--password` | Web 访问密码（compose 默认：`asdf1234`） | *(未设置即无需密码)* |
+| `OMP_WEB_PASSWORD_HASH` | Web 访问密码的 scrypt 哈希（用 `ompweb hash-password` 生成）；非回环绑定必需（compose 默认内置开发密码 `asdf1234` 的哈希 —— 正式部署请替换） | *(未设置即无需密码)* |
+| `OMP_WEB_TRUSTED_HEADER_SHA256` | 受信任的反向代理在 `X-Omp-Web-Auth` 请求头中发送的密钥的 SHA-256 摘要（十六进制）；请求头哈希匹配的请求无需密码。omp-web 不保存密钥本身。生成方法和 nginx 配置示例见英文 README | _无（未启用）_ |
 | `OMP_WEB_ALLOWED_HOSTS` | 允许访问应用的非回环主机（逗号分隔） | *(空 — 仅回环)* |
 | `OMP_WEB_NO_OPEN` | 启动后是否跳过自动打开浏览器 | `0` (`1` 表示不自动打开) |
 | `OMP_WEB_DISABLE_AUTOUPDATE` | 设为 `1` 时禁用更新检查和应用内更新；修改后需重启 | `0` |

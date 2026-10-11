@@ -17,6 +17,7 @@ import {
   type GitPorcelainEntry,
 } from "./git-status";
 import { readRefFile } from "./git-blob.ts";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 const execFileAsync = promisify(execFile);
 // `git status --untracked-files=all` and `git diff HEAD --shortstat` on a
@@ -30,7 +31,7 @@ async function git(cwd: string, args: string[], maxBuffer = GIT_STATUS_MAX_BUFFE
   const pending = execFileAsync("git", ["-c", "safe.directory=*", "-C", cwd, ...args], {
     timeout: GIT_TIMEOUT_MS,
     maxBuffer,
-    env: { ...process.env, LC_ALL: "C" },
+    env: createChildProcessEnvironment({ LC_ALL: "C" }),
   });
   if (input !== undefined) {
     // git may exit before reading stdin (EPIPE); that failure surfaces through `pending`.

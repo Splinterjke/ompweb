@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { mergeDiffContents, readRefFile, readWorkingFile } from "./git-blob.ts";
+import { createChildProcessEnvironment } from "./project-command-env";
 const execFileAsync = promisify(execFile);
 
 // `git diff` on large files is the heaviest call here; diff output is capped
@@ -17,7 +18,7 @@ async function git(cwd: string, args: string[], maxBuffer = GIT_MAX_BUFFER): Pro
   const { stdout } = await execFileAsync("git", ["-c", "safe.directory=*", "-C", cwd, ...args], {
     timeout: GIT_TIMEOUT_MS,
     maxBuffer,
-    env: { ...process.env, LC_ALL: "C" },
+    env: createChildProcessEnvironment({ LC_ALL: "C" }),
   });
   return stdout;
 }

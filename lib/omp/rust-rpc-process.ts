@@ -18,6 +18,7 @@ import { createConnection, type Socket } from "node:net";
 import { join } from "node:path";
 import { getAgentDir } from "./paths";
 import { getAgentEnvOverrides } from "./agent-env";
+import { createChildProcessEnvironment } from "../project-command-env";
 import { assertHostAvailable, resolveHostBin, resolveModuleDir } from "./host-bin";
 import { RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
 import { RpcCommandError, RpcCommandTimeoutError } from "./rpc-process";
@@ -217,8 +218,7 @@ export class RustHostManager {
       const child = this.spawnHost(hostResolution.path, ["--ipc"], {
         stdio: ["ignore", "pipe", "ignore"],
         windowsHide: true,
-        env: {
-          ...process.env,
+        env: createChildProcessEnvironment({
           // User-configured variables for MCP servers and generated configs
           // (#104). The deny list is enforced inside getAgentEnvOverrides()
           // before merging, and OMPWEB_RUNTIME_DB below stays authoritative.
@@ -226,10 +226,12 @@ export class RustHostManager {
           // so the documented limitation is: env changes take effect for
           // Node-spawn sessions immediately (per-spawn env in rpc-manager),
           // for host-spawned children at the host's next idle teardown/restart
-          // (or a server restart).
+          // (or a server restart). The host env is itself sanitized: the web
+          // password hash and the request-peer proof secret must never reach
+          // it, or every omp child would inherit them.
           ...getAgentEnvOverrides(),
           OMPWEB_RUNTIME_DB: process.env.OMPWEB_RUNTIME_DB || join(getAgentDir(), "ompweb", "runtime.db"),
-        },
+        }),
       });
       // The host is a workhorse for this process: it must never keep the
       // process alive (tests, short-lived scripts). shutdown() owns its final

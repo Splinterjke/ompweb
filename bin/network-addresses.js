@@ -177,7 +177,7 @@ function formatAddressBanner({
 
   if (passwordEnabled) {
     lines.push("");
-    lines.push(`  ${dim("🔒 Password protection enabled (OMP_WEB_PASSWORD)")}`);
+    lines.push(`  ${dim("🔒 Password protection enabled (OMP_WEB_PASSWORD_HASH)")}`);
   }
 
   lines.push("");

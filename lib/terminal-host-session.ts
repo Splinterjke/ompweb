@@ -17,6 +17,7 @@
  */
 import fs from "fs";
 import { getAllowedFileRoots } from "./file-access";
+import { createChildProcessEnvironment } from "./project-command-env";
 import { proxyEnv } from "./proxy-config";
 import { hostClient } from "./omp/host-client";
 
@@ -82,15 +83,16 @@ export async function createTerminalSession(targetCwd?: string): Promise<{ id: s
     sessions.delete(oldestId);
   }
 
-  const mergedEnv = shallowEnv({
+  // Interactive shells are descendants of the server: the web password hash
+  // (and the request-peer proof secret) must never reach them either.
+  const mergedEnv = shallowEnv(createChildProcessEnvironment({
     ...process.env,
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
     LANG: process.env.LANG || "en_US.UTF-8",
     LC_ALL: process.env.LC_ALL || "en_US.UTF-8",
     ...proxyEnv(process.env.OMP_WEB_PROXY_URL || null),
-  });
-
+  }));
   const roots = await getAllowedFileRoots();
   let id: string;
   try {

@@ -11,6 +11,7 @@ import {
   isWindowsAbsolutePath,
 } from "@/lib/file-access";
 import { buildEntriesFromFiles, filterFileEntries, type FileIndexEntry } from "@/lib/file-fuzzy";
+import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
 const execFileAsync = promisify(execFile);
 
@@ -65,7 +66,7 @@ async function listWithGit(cwd: string): Promise<FileListing | null> {
     const { stdout } = await execFileAsync(
       "git",
       ["-c", "safe.directory=*", "-C", cwd, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-      { timeout: 10_000, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, LC_ALL: "C" } },
+      { timeout: 10_000, maxBuffer: 64 * 1024 * 1024, env: createChildProcessEnvironment({ LC_ALL: "C" }) },
     );
     const all = stdout.split("\0").filter(Boolean);
     if (all.length > GIT_HARD_CAP) {

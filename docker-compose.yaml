@@ -22,7 +22,21 @@ services:
       - LANG
       - LC_ALL
       - LLAMA_CPP_BASE_URL=http://127.0.0.1:8080
-      - OMP_WEB_PASSWORD=asdf1234
+      # Web sign-in gate, hash-only: the server accepts nothing but the scrypt
+      # hash printed by `ompweb hash-password` (never a plaintext password —
+      # every omp session inherits this environment). The default below is the
+      # dev password "asdf1234" ($-escaped for compose interpolation); for
+      # anything beyond a trusted LAN generate your own and override it in a
+      # host .env file next to this file (.env values are literal — no $$
+      # escaping needed there):
+      #   ompweb hash-password            # paste the password, copy the hash
+      #   echo 'OMP_WEB_PASSWORD_HASH=scrypt$...' > .env
+      - OMP_WEB_PASSWORD_HASH=${OMP_WEB_PASSWORD_HASH:-scrypt$$15$$8$$1$$Ue6EfXEx76bt3rgqL4z__g$$fTgDbtPxJQMb7ie8BWwSAhIHrRmVwUv__8_soQfeSig}
+      # Optional trusted-reverse-proxy vouch: a request whose X-Omp-Web-Auth
+      # header hashes (SHA-256) to this digest is signed in without a
+      # password. Pass-through — set OMP_WEB_TRUSTED_HEADER_SHA256 in the
+      # host environment or .env to enable; unset leaves the gate password-only.
+      - OMP_WEB_TRUSTED_HEADER_SHA256
       # Hosts the LAN browser is allowed to reach ompweb on the LAN.
       # REQUIRED for phone pairing via the QR: after switching to a LAN IP,
       # the Host check (isApiRequestHostAllowed) rejects non-loopback hosts

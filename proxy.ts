@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isApiRequestHostAllowed, isApiRequestOriginAllowed, shouldCheckApiRequestOrigin } from "@/lib/request-security";
-import { isValidWebSession, isWebPasswordEnabled, OMP_WEB_SESSION_COOKIE } from "@/lib/web-auth";
+import {
+  isTrustedProxyRequest,
+  isValidWebSession,
+  isWebPasswordEnabled,
+  OMP_WEB_SESSION_COOKIE,
+  OMP_WEB_TRUSTED_HEADER,
+  webPasswordConfigurationProblem,
+} from "@/lib/web-auth";
 import { readFileSync, statSync } from "fs";
 import { join } from "path";
 import { getAgentDir } from "@/lib/omp/paths";
@@ -144,6 +151,18 @@ export function proxy(request: NextRequest) {
   }
   const pairingDenied = checkPairingGate(request);
   if (pairingDenied) return pairingDenied;
+
+  // A configured-but-unusable password (plaintext, or a truncated hash) must
+  // never degrade into an open server: refuse every request with the fix. The
+  // problem is also reported once at startup (instrumentation.ts), so this
+  // deliberately logs nothing — a doomed request loop must not flood the log.
+  const passwordProblem = webPasswordConfigurationProblem();
+  if (passwordProblem) {
+    return new NextResponse(`omp-web password configuration error\n\n${passwordProblem}\n`, {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    });
+  }
   if (!isWebPasswordEnabled()) {
     return request.nextUrl.pathname === "/login"
       ? NextResponse.redirect(new URL("/", request.url))
@@ -169,7 +188,11 @@ export function proxy(request: NextRequest) {
   // and broadcasts — so a loopback-only exemption is safe. Same socket-peer
   // precedent as the pairing gate above; a non-loopback caller still 401s.
   if (pathname === "/api/ui/refresh" && isLoopbackConnection(request)) return NextResponse.next();
-  const hasSession = isValidWebSession(request.cookies.get(OMP_WEB_SESSION_COOKIE)?.value);
+  // `OMP_WEB_TRUSTED_PROXY=1` (loopback-via-forwarded-headers for the pairing
+  // gate above) is separate legacy behavior; X-Omp-Web-Auth is the only
+  // *authentication* vouch — a matching digest counts as signed in.
+  const hasSession = isTrustedProxyRequest(request.headers.get(OMP_WEB_TRUSTED_HEADER))
+    || isValidWebSession(request.cookies.get(OMP_WEB_SESSION_COOKIE)?.value);
   if (pathname === "/login") {
     return hasSession ? NextResponse.redirect(new URL("/", request.url)) : NextResponse.next();
   }

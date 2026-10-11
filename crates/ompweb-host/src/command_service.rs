@@ -48,7 +48,12 @@ fn spawn_shell_with_env(
         let mut cmd = Command::new("cmd.exe");
         cmd.args(["/d", "/s", "/c", command]);
         cmd.current_dir(cwd)
+            // keep in sync with OMP_WEB_SECRET_ENV_VARS in lib/project-command-env.ts
             .env_remove("OMPWEB_PEER_SECRET")
+            .env_remove("OMP_WEB_PASSWORD")
+            .env_remove("OMP_WEB_PASSWORD_HASH")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SECRET")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SHA256")
             .env("LC_ALL", "C")
             .stdin(Stdio::null())
             .stdout(stdout)
@@ -63,7 +68,12 @@ fn spawn_shell_with_env(
         let mut cmd = Command::new("/bin/sh");
         cmd.args(["-c", command]);
         cmd.current_dir(cwd)
+            // keep in sync with OMP_WEB_SECRET_ENV_VARS in lib/project-command-env.ts
             .env_remove("OMPWEB_PEER_SECRET")
+            .env_remove("OMP_WEB_PASSWORD")
+            .env_remove("OMP_WEB_PASSWORD_HASH")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SECRET")
+            .env_remove("OMP_WEB_TRUSTED_HEADER_SHA256")
             .env("LC_ALL", "C")
             .stdin(Stdio::null())
             .stdout(stdout)

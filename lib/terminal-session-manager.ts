@@ -5,6 +5,7 @@ import type { IPty } from "node-pty";
 import { resolveTerminalShell } from "./terminal-shell";
 import { proxyEnv } from "./proxy-config";
 import { getAllowedFileRoots } from "./file-access";
+import { createChildProcessEnvironment } from "./project-command-env";
 import { hostClient, rustBackendActive } from "./omp/host-client";
 
 /** Unified process surface shared by the Rust host PTY (doc 16 route 8) and
@@ -123,13 +124,13 @@ export function createTerminalSession(targetCwd?: string): { id: string; cwd: st
 
   let proc: IPty;
   try {
-    proc = spawnShellPty(cwd, {
+    proc = spawnShellPty(cwd, createChildProcessEnvironment({
       ...process.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
       LANG: process.env.LANG || "en_US.UTF-8",
       LC_ALL: process.env.LC_ALL || "en_US.UTF-8",
-    });
+    }));
   } catch (err) {
     // node-pty throws synchronously when the shell cannot be spawned (e.g.
     // missing prebuild for the platform). Surface it as a failed session so

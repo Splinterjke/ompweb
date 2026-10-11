@@ -7,6 +7,7 @@ import { triggerManualRun } from "./scheduler-engine";
 import { recordActionRun } from "./chat-event-action-store";
 import { broadcastChatActionRun, broadcastChatEventAction } from "./chat-event-action-bus";
 import type { ActionSpec, ChatActionRun, ChatEventAction } from "./chat-event-action-types";
+import { createChildProcessEnvironment } from "./project-command-env";
 
 // ============================================================================
 // Action executors — one per ActionSpec type (http / bash / scheduled /
@@ -201,7 +202,7 @@ function executeBash(action: ChatEventAction, payload: ChatEventPayload): void {
     try {
       child = spawn(cmd, args, {
         cwd,
-        env: { ...process.env, PATH: repairedChildPath(process.env.PATH) },
+        env: createChildProcessEnvironment({ PATH: repairedChildPath(process.env.PATH) }),
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (err) {

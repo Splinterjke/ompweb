@@ -24,17 +24,28 @@ Before you can hit the dev server's `/api/*` with `curl`, you need to clear the
 auth gate. This is the single most common thing an agent gets wrong when smoke-
 testing — read this before assuming an endpoint is broken.
 
-### Web password gate (`OMP_WEB_PASSWORD`)
+### Web password gate (`OMP_WEB_PASSWORD_HASH`)
 
 `proxy.ts` is a Next middleware that gates **all** `/api/*` requests behind a
-session. When `OMP_WEB_PASSWORD` is set (non-empty), an unauthenticated
-`/api/*` request gets `401 {"error":"Password required","code":"password_required"}`;
-non-API paths get a 302 to `/login`.
+session. The gate is keyed by the scrypt hash in `OMP_WEB_PASSWORD_HASH`
+(generated with `ompweb hash-password`); an unauthenticated `/api/*` request
+gets `401 {"error":"Password required","code":"password_required"}`, non-API
+paths get a 302 to `/login`. A configured-but-broken password (leftover
+plaintext `OMP_WEB_PASSWORD`, or a malformed hash) answers **every route**
+with `503` plain text (and logs one console error at boot) — it never
+degrades into an open server. A lone `OMP_WEB_PASSWORD` is migrated by the
+launcher: it is hashed at startup, deleted from the server's environment, and
+a warning prints the hash to set instead. With `OMP_WEB_TRUSTED_HEADER_SHA256`
+set, a request whose `X-Omp-Web-Auth` header hashes to that digest counts as
+signed in (the trusted-reverse-proxy vouch; `OMP_WEB_TRUSTED_PROXY=1` remains
+separate legacy loopback-via-forwarded-headers behavior for the pairing gate,
+not an authentication vouch).
 
-The dev server is usually launched with **no** `OMP_WEB_PASSWORD` (empty → gate
-off), so plain `curl http://127.0.0.1:30178/api/...` works. But if it's launched
-with one (e.g. via the docker compose `OMP_WEB_PASSWORD=asdf1234`), you must
-log in first.
+The dev server is usually launched with **no** password hash (gate off), so
+plain `curl http://127.0.0.1:30178/api/...` works. But if it's launched with
+one (the docker compose default ships an `OMP_WEB_PASSWORD_HASH` for the dev
+password `asdf1234`; the entrypoint also hashes a legacy `OMP_WEB_PASSWORD`
+once and persists it under the bound `.omp` store), you must log in first.
 
 **Loopback test flow** (from the same machine as the server):
 
@@ -53,14 +64,15 @@ curl -s -b /tmp/jar http://127.0.0.1:30178/api/diagnostics
   There is **no** `/api/web-auth/login`.
 - The cookie is `omp_web_session` (HttpOnly). Pass it back with `-b /tmp/jar`.
 - A wrong password returns `401` too (indistinguishable from "no password set
-  yet" by status alone) — if you get 401 on the login call, the password in
-  the env is different from what you sent. Read the actual value:
-  `tr '\0' '\n' < /proc/<next-server-pid>/environ | grep ^OMP_WEB_PASSWORD=`
+  yet" by status alone) — if you get 401 on the login call, the configured
+  password differs from what you sent. Only the hash reaches the server env
+  (a plaintext-only config 503s instead of 401s), so read the configured hash:
+  `tr '\0' '\n' < /proc/<next-server-pid>/environ | grep ^OMP_WEB_PASSWORD_HASH=`
   (the value lives in the *next-server* child's env, not the wrapper's, if you
   launched it manually; for the docker/deployed instance it's in the entrypoint
   env).
-- To read a running server's configured password without guessing: inspect its
-  `/proc/<pid>/environ`.
+- To read a running server's configured password hash without guessing: inspect
+  its `/proc/<pid>/environ`.
 - Non-loopback hosts are allowed only if listed in `OMP_WEB_ALLOWED_HOSTS`
   (comma-separated). Loopback (`127.0.0.1`, `localhost`) is always allowed.
 
@@ -109,7 +121,7 @@ host then won't boot and the card shows "未就绪/Unavailable" (binary missing,
 ### Quick checklist before testing a dev instance
 
 1. Confirm the port (dev = `30178`, `npm run start` = `30177`).
-2. Check whether the server has `OMP_WEB_PASSWORD` set (gate on/off). If on,
+2. Check whether the server has `OMP_WEB_PASSWORD_HASH` set (gate on/off). If on,
    log in via `/api/web-auth/session` and keep the cookie jar.
 3. For Rust-host features, confirm `OMPWEB_HOST_BIN` points at an existing
    binary, or that `crates/target/debug/ompweb-host` exists.
@@ -258,6 +270,7 @@ lib/
   npx.ts               npx runner used by skill install
   pi-types.ts          local structural types for agent/RPC objects
   project-ordering.ts  pure project sort/group/activity helpers (client + tests)
+  project-command-env.ts  child-process environments: strips PORT/NODE_ENV/NEXT_*, omp-web secrets and the request-peer proof secret
   project-registry.ts  on-disk managed-project registry (~/.omp/agent/projects.json)
   notification-events.ts  shared: event/prefs types, frame→event detector, renderNotification()
   notification-hub.ts  server: presence, device store + VAPID keys, routing, Web Push
@@ -276,6 +289,9 @@ lib/
   navigation-history.ts  pure back/forward view-history stack + shortcut matcher (⌘[/⌘], Alt+←/→)
   worktree.ts          project/worktree resolution and git worktree operations
   web-settings.ts      omp-web server settings (autoResumeSessions) persistence, ~/.omp/agent/omp-web-settings.json
+  web-auth.ts          hash-only sign-in check (OMP_WEB_PASSWORD_HASH) + per-install-keyed session cookie
+  web-auth-secret.ts   per-installation session-signing key (~/.omp/agent/omp-web/web-auth-secret.json, 0600)
+  web-password-hash.ts typed view of bin/omp-web-password-hash.js (scrypt$ln$r$p$salt$digest)
 
 components/
   AppShell.tsx        layout + URL state + tab management
