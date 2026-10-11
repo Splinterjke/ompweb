@@ -714,3 +714,42 @@ test("user messages fork at their own entry and edit the prompt", async (t) => {
   assert.deepEqual(forked, [["user-7", true]]);
   view.unmount();
 });
+
+test("async-result details render job metadata rows with a working transcript action", () => {
+  const opened = [];
+  const view = render(React.createElement(MessageView, {
+    message: {
+      role: "custom",
+      customType: "async-result",
+      content: "<system-notice>Background job finished.</system-notice>",
+      details: {
+        jobs: [
+          { jobId: "Worker-t1-2", type: "task", status: "failed", agentId: "Worker-t1", label: "audit pass", durationMs: 65_000 },
+          { jobId: "plain-job", status: "completed" },
+        ],
+      },
+    },
+    onOpenSubagent: (agentId, fallback) => opened.push([agentId, fallback]),
+  }));
+  assert.match(view.container.textContent, /audit pass/);
+  assert.match(view.container.textContent, /failed/);
+  assert.match(view.container.textContent, /1m/);
+  // The second job has no agentId: its row shows the jobId and no button.
+  assert.match(view.container.textContent, /plain-job/);
+  fireEvent.click(view.getByRole("button", { name: /Worker-t1/ }));
+  assert.deepEqual(opened, [["Worker-t1", { label: "audit pass", status: "failed" }]]);
+  view.unmount();
+});
+
+test("async-result messages without job details render no metadata rows", () => {
+  const view = render(React.createElement(MessageView, {
+    message: {
+      role: "custom",
+      customType: "async-result",
+      content: "<system-notice>Job output body.</system-notice>",
+    },
+  }));
+  assert.match(view.container.textContent, /Job output body/);
+  assert.doesNotMatch(view.container.textContent, /completed/);
+  view.unmount();
+});

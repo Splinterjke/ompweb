@@ -248,6 +248,7 @@ interface CommittedTranscriptProps {
   modelNames: Record<string, string>;
   messageCwd: string | undefined;
   onOpenFile?: (filePath: string) => void;
+  onOpenSubagent?: (agentId: string, fallback?: { label?: string; status?: string }) => void;
   sessionId: string | undefined;
   toolCallsDefaultCollapsed: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
@@ -275,7 +276,7 @@ interface CommittedTranscriptProps {
  */
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
-  handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, sessionId,
+  handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
   toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
@@ -327,6 +328,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
         modelNames={modelNames}
         cwd={messageCwd}
         onOpenFile={onOpenFile}
+        onOpenSubagent={onOpenSubagent}
         entryId={entryIds[idx]}
         forkEntryId={forkTarget?.entryId}
         forkEditsPrompt={forkTarget?.editPrompt}
@@ -1078,6 +1080,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   const openAgentLink = useCallback((candidateIds: string[]) => {
     onSelectSubagent?.(agentLinkTarget(candidateIds, subagentsRef.current));
   }, [onSelectSubagent]);
+  // Opens the Agents panel for the subagent an async-result job row names:
+  // the roster entry when it is still there, else a history-synthesized one
+  // carrying the job's own label/status.
+  const openAsyncJobTranscript = useCallback((agentId: string, fallback?: { label?: string; status?: string }) => {
+    if (!onSelectSubagent) return;
+    const known = (subagentsRef.current ?? []).find((subagent) => subagent.id === agentId);
+    onSelectSubagent(known ?? agentLinkTarget([agentId], subagentsRef.current ?? []));
+  }, [onSelectSubagent]);
 
   const onDrop = useCallback((files: File[]) => {
     chatInputRef?.current?.addFiles(files);
@@ -1475,6 +1485,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               modelNames={modelNames}
               messageCwd={messageCwd}
               onOpenFile={onOpenFile}
+              onOpenSubagent={openAsyncJobTranscript}
               sessionId={session?.id ?? sessionIdRef.current ?? undefined}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
               thinkingDisplayMode={thinkingDisplayMode}

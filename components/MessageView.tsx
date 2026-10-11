@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useContext, type ComponentProps } from "react";
-import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square } from "lucide-react";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot } from "lucide-react";
 import { useSpeechContext } from "@/hooks/useSpeechSynthesis";
 import { MarkdownBody } from "./MarkdownBody";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
@@ -21,6 +21,7 @@ import type { MessageTimeFormat } from "./AppShell";
  import { getHubSendSummary, getHubJobs, getHubJobsHeader } from "./MessageView-tool-format";
  import { parseUnifiedPatch, type SplitDiffCell } from "@/lib/patch";
 import { formatCompactNumber } from "@/lib/format";
+import { formatDuration } from "@/lib/subagent-format";
 import type {
   AgentMessage,
   UserMessage,
@@ -116,6 +117,8 @@ interface Props {
   modelNames?: Record<string, string>;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
+  /** Opens the subagent transcript for an agent id carried by an async-result job. */
+  onOpenSubagent?: (agentId: string, fallback?: { label?: string; status?: string }) => void;
   entryId?: string;
   /** Branch point omp's `branch` command accepts for this message (a user entry; see lib/chat-fork.ts). */
   forkEntryId?: string;
@@ -201,7 +204,7 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, entryId, forkEntryId, forkEditsPrompt, onFork, forking, forkDisabled, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSubagent, entryId, forkEntryId, forkEditsPrompt, onFork, forking, forkDisabled, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
   if (message.role === "user") {
     return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} forkDisabled={forkDisabled} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
@@ -230,7 +233,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     if (custom.customType === "skill-prompt") {
       return <SkillPromptView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
     }
-    return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} timeFormat={timeFormat} />;
+    return <CustomMessageView message={custom} cwd={cwd} onOpenFile={onOpenFile} onOpenSubagent={onOpenSubagent} timeFormat={timeFormat} />;
   }
   if (message.role === "bashExecution") {
     return <BashExecutionView message={message as BashExecutionMessage} sessionId={sessionId} />;
@@ -243,6 +246,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.modelNames === next.modelNames
     && prev.cwd === next.cwd
     && prev.onOpenFile === next.onOpenFile
+    && prev.onOpenSubagent === next.onOpenSubagent
     && prev.entryId === next.entryId
     && prev.forkEntryId === next.forkEntryId
     && prev.forkEditsPrompt === next.forkEditsPrompt
@@ -2117,7 +2121,18 @@ function SkillPromptView({ message, cwd, onOpenFile, timeFormat = "24h" }: { mes
   );
 }
 
-function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; timeFormat?: MessageTimeFormat }) {
+type AsyncResultJob = { jobId: string; type?: string; status?: string; agentId?: string; label?: string; durationMs?: number };
+
+/** omp ≥ 19.1 attaches machine-readable job metadata (`{ jobs: [{ jobId, status, agentId, label, durationMs }] }`)
+ *  to async-result custom messages in `details`. Older messages lack it — render without rows. */
+function parseAsyncResultJobs(details: unknown): AsyncResultJob[] {
+  if (!details || typeof details !== "object") return [];
+  const jobs = "jobs" in details ? details.jobs : undefined;
+  if (!Array.isArray(jobs)) return [];
+  return jobs.filter((job): job is AsyncResultJob => !!job && typeof job === "object" && "jobId" in job && typeof job.jobId === "string");
+}
+
+function CustomMessageView({ message, cwd, onOpenFile, onOpenSubagent, timeFormat = "24h" }: { message: CustomMessage; cwd?: string; onOpenFile?: (filePath: string) => void; onOpenSubagent?: (agentId: string, fallback?: { label?: string; status?: string }) => void; timeFormat?: MessageTimeFormat }) {
   const { t, locale } = useI18n();
   const [contentExpanded, setContentExpanded] = useState(true);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -2126,6 +2141,8 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
   const images = getMessageImages(message.content);
   const hasDetails = message.details !== undefined;
   const detailsText = hasDetails ? safeJson(message.details) : "";
+  // omp >= 19.1 attaches machine-readable job metadata; surface it as rows above the body.
+  const asyncJobs = message.customType === "async-result" ? parseAsyncResultJobs(message.details) : [];
   const isIrc = IRC_CUSTOM_TYPES.has(message.customType);
   const ircEnvelope = isIrc ? parseIrcEnvelope(text) : null;
   // Async results (raw job output) and late LSP diagnostics are plain text wrapped
@@ -2173,6 +2190,31 @@ function CustomMessageView({ message, cwd, onOpenFile, timeFormat = "24h" }: { m
 
         {contentExpanded ? (
           <div style={{ padding: "6px 9px" }}>
+            {asyncJobs.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: images.length > 0 || displayText ? 8 : 0 }}>
+                {asyncJobs.map((job) => {
+                  const agentId = job.agentId;
+                  const statusLabel = job.status === "completed" ? t("messageView.asyncJobCompleted") : job.status === "failed" ? t("messageView.asyncJobFailed") : job.status === "cancelled" ? t("messageView.asyncJobCancelled") : job.status === "running" ? t("messageView.asyncJobRunning") : job.status;
+                  const statusColor = job.status === "completed" ? "var(--status-success)" : job.status === "failed" ? "var(--status-error)" : job.status === "cancelled" ? "var(--text-dim)" : "var(--accent)";
+                  const duration = formatDuration(job.durationMs);
+                  return (
+                    <div key={`${job.jobId}:${agentId ?? ""}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: "calc(11px * var(--ui-font-scale-lg, 1))" }}>
+                      {statusLabel ? <span style={{ padding: "1px 7px", borderRadius: 9, border: `1px solid ${statusColor}`, color: statusColor, fontWeight: 600, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{statusLabel}</span> : null}
+                      <span style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{job.label ?? job.jobId}</span>
+                      {job.type ? <code style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{job.type}</code> : null}
+                      {duration ? <span style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{duration}</span> : null}
+                      {agentId && onOpenSubagent ? (
+                        <Tooltip content={t("messageView.openSubagentTranscript")}>
+                          <button type="button" onClick={() => onOpenSubagent(agentId, { label: job.label, status: job.status })} className="ui-focus-ring" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 7px", border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg-panel)", color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", cursor: "pointer" }}>
+                            <Bot size={10} />{agentId}
+                          </button>
+                        </Tooltip>
+                      ) : agentId ? <code style={{ color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))" }}>{agentId}</code> : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {images.length > 0 && (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: displayText ? 8 : 0 }}>
                 {images.map((img, i) => {
