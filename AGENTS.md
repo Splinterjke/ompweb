@@ -492,10 +492,11 @@ hooks/
   `generate_title` RPC; `/rename` is a prompt run which `PI_NO_TITLE` forces
   on rpc-ui children; native auto-tiling needs interactive mode), so the
   trigger is first completion — after turn 1 settles.
-- Toggle: Settings → Interface & Behavior → "Auto-generate session titles"
-  (default ON), persisted with the other server settings via
-  `/api/web-settings` (`autoGenerateSessionTitles` in
-  `~/.omp/agent/omp-web-settings.json`).
+- Toggle: Settings → Interface & Behavior (Session & Agent Behavior) →
+  "Auto-generate session titles" — **default OFF**, a deliberate opt-in; the
+  fallback first-message naming and the top-bar wand work regardless.
+  Persisted with the other server settings via `/api/web-settings`
+  (`autoGenerateSessionTitles` in `~/.omp/agent/omp-web-settings.json`).
 - Wand gating invariants (pinned by `AppShell.test.mjs`): "anything to name"
   counts ANY committed turn — stats only count when their `sessionId` matches
   the selected session (leaked stats from the previous one armed the wand of a

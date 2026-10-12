@@ -10,7 +10,8 @@ export interface WebServerSettings {
   /**
    * Generate a session title automatically when a session's FIRST run
    * completes (omp's own generator, tried in role order tiny → commit →
-   * smol). Once per session; the top-bar wand stays available afterwards.
+   * smol). OFF by default: the fallback first-message naming is unaffected
+   * by this setting and the top-bar wand stays available either way.
    */
   autoGenerateSessionTitles: boolean;
   /**
@@ -21,9 +22,10 @@ export interface WebServerSettings {
   agentEnv: Record<string, string>;
 }
 
-// Default ON: preserves the previous always-on auto-resume behavior (the local
-// restoreActiveRpcSessions had no off switch), while still exposing an opt-out.
-const DEFAULTS: WebServerSettings = { autoResumeSessions: true, autoGenerateSessionTitles: true, agentEnv: {} };
+// auto-resume defaults ON (it preserves the previous always-on behavior — the
+// local restoreActiveRpcSessions had no off switch); auto-title generation
+// defaults OFF, so naming stays a deliberate opt-in.
+const DEFAULTS: WebServerSettings = { autoResumeSessions: true, autoGenerateSessionTitles: false, agentEnv: {} };
 
 /** String-valued entries only — the allow-list lives in lib/omp/agent-env.ts. */
 function readAgentEnvRecord(value: unknown): Record<string, string> {
@@ -55,7 +57,7 @@ export function loadWebServerSettings(): WebServerSettings {
       if (isRecord(raw)) {
         settings = {
           autoResumeSessions: raw.autoResumeSessions === true,
-          autoGenerateSessionTitles: raw.autoGenerateSessionTitles !== false,
+          autoGenerateSessionTitles: raw.autoGenerateSessionTitles === true,
           agentEnv: readAgentEnvRecord(raw.agentEnv),
         };
       }

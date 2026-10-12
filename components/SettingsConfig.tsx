@@ -311,7 +311,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "tts-autoplay", tab: "general", sectionKey: "settingsConfig.sectionSound", labelKey: "settingsConfig.ttsAutoplay", descKey: "settingsConfig.ttsAutoplayDesc", fallbackSection: "Sound & Speech", fallbackLabel: "Auto-read assistant responses", fallbackDesc: "Automatically read aloud new assistant replies when completed.", scope: "UI" },
   { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.sectionSound", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Sound & Speech", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
   // Interface & Behavior — Session & Agent Behavior
-  { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "Name a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the top-bar wand can always re-generate.", scope: "UI" },
+  { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "When enabled, names a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the first-message title is used otherwise, and the top-bar wand can re-generate at any later turn.", scope: "UI" },
   { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
   { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
   // Interface & Behavior — Sidebar & Panels
@@ -482,8 +482,8 @@ function AutoSessionTitlesSetting() {
     let alive = true;
     fetch("/api/web-settings")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { autoGenerateSessionTitles?: boolean } | null) => { if (alive) setEnabled(data?.autoGenerateSessionTitles !== false); })
-      .catch(() => { if (alive) setEnabled(true); });
+      .then((data: { autoGenerateSessionTitles?: boolean } | null) => { if (alive) setEnabled(data?.autoGenerateSessionTitles === true); })
+      .catch(() => { if (alive) setEnabled(false); });
     return () => { alive = false; };
   }, []);
   const change = async (next: boolean) => {
@@ -503,7 +503,7 @@ function AutoSessionTitlesSetting() {
   };
   return (
     <NativeSetting searchId="auto-session-titles" label={t("settingsConfig.autoSessionTitles")} description={t("settingsConfig.autoSessionTitlesDesc")} scope="UI">
-      <ToggleSwitch checked={enabled !== false} disabled={enabled === null} onChange={(next) => void change(next)} />
+      <ToggleSwitch checked={enabled === true} disabled={enabled === null} onChange={(next) => void change(next)} />
     </NativeSetting>
   );
 }

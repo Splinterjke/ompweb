@@ -84,7 +84,7 @@
   "settingsConfig.autoResumeSessionsDesc": "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.",
   "settingsConfig.autoResumeSessionsSaveFailed": "Could not save the resume setting",
   "settingsConfig.autoSessionTitles": "Auto-generate session titles",
-  "settingsConfig.autoSessionTitlesDesc": "Name a new session automatically as soon as its first response finishes, using omp's own title generator — it tries omp's utility model roles in order: tiny, then commit, then smol. If none of those roles is usable (unmapped, or the model only reasons), the session keeps the plain title taken from its first message. This runs once, when a session starts; you can still re-generate the title at any later turn with the top-bar wand.",
+  "settingsConfig.autoSessionTitlesDesc": "When enabled, a new session is named automatically once its first response finishes, using omp's own title generator - it tries omp's utility model roles in order: tiny, then commit, then smol. Runs once per new session; the plain title taken from the first message is used otherwise, and the top-bar wand can re-generate the title at any later turn.",
   "settingsConfig.autoSessionTitlesSaveFailed": "Could not save the auto-title setting",
   "settingsConfig.agentEnv": "Agent environment variables",
   "settingsConfig.agentEnvDesc": "Extra environment variables handed to the omp process, for example the API key an MCP server needs. One KEY=VALUE per line; # comments and blank lines are ignored.",
