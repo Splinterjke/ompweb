@@ -100,14 +100,24 @@ export type ThinkingDisplayMode = "auto" | "collapsed" | "expanded";
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 720;
 const RIGHT_PANEL_MIN_WIDTH = 220;
+/** Fallback ceiling for SSR / no-window passes. On a live desktop viewport the
+ *  resizable ceiling is viewport-aware (see `clampRightPanelWidth`). */
 const RIGHT_PANEL_MAX_WIDTH = 880;
+/** Chat column pixels the widest workbench must leave visible — mirrors the
+ *  container's CSS `max-width: calc(100vw - 220px)` backstop. */
+const RIGHT_PANEL_VIEWPORT_RESERVE = 220;
 const RIGHT_PANEL_DEFAULT_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 260;
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
 }
 function clampRightPanelWidth(width: number): number {
-  return Math.min(RIGHT_PANEL_MAX_WIDTH, Math.max(RIGHT_PANEL_MIN_WIDTH, Math.round(width)));
+  // Viewport-aware ceiling: the workbench may grow until only the reserve is
+  // left of the chat column, mirroring the container CSS max-width backstop.
+  const max = typeof window === "undefined"
+    ? RIGHT_PANEL_MAX_WIDTH
+    : Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - RIGHT_PANEL_VIEWPORT_RESERVE);
+  return Math.min(max, Math.max(RIGHT_PANEL_MIN_WIDTH, Math.round(width)));
 }
 function loadSidebarWidth(): number {
   if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
@@ -1165,7 +1175,7 @@ export function AppShell({ appName }: { appName: string }) {
   // same CSS clamp as the viewer instead of allowing the button to disappear
   // behind the preview panel.
   const rightPanelInset = rightPanelOpen && !isMobile
-    ? `clamp(0px, ${rightPanelWidth}px, calc(100vw - 220px))`
+    ? `clamp(0px, ${rightPanelWidth}px, calc(100vw - ${RIGHT_PANEL_VIEWPORT_RESERVE}px))`
     : "0px";
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
@@ -2951,7 +2961,7 @@ export function AppShell({ appName }: { appName: string }) {
             // Keep a readable chat column when the panel is resized.
             width: rightPanelOpen ? (isMobile ? "100%" : `${rightPanelWidth}px`) : 0,
             minWidth: rightPanelOpen ? (isMobile ? 0 : RIGHT_PANEL_MIN_WIDTH) : 0,
-            maxWidth: rightPanelOpen && !isMobile ? "calc(100vw - 220px)" : undefined,
+            maxWidth: rightPanelOpen && !isMobile ? `calc(100vw - ${RIGHT_PANEL_VIEWPORT_RESERVE}px)` : undefined,
             position: "relative",
           }}
         >
