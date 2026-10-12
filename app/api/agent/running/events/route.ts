@@ -1,4 +1,4 @@
-import { getExitedRpcSessions, getRunningRpcSessionIds, subscribeRunningSessions } from "@/lib/rpc-manager";
+import { getExitedRpcSessions, getRunningRpcSessionIds, getRunningRpcSessionMeta, subscribeRunningSessions } from "@/lib/rpc-manager";
 import { isValidNotificationId } from "@/lib/notification-events";
 import { attachNotificationClient } from "@/lib/notification-hub";
 import { subscribeSessionFileChanges, getExternallyActiveIds, heldSessionsWithPendingTurn } from "@/lib/session-watcher";
@@ -57,11 +57,12 @@ export async function GET(req: Request) {
 
       // Subscribe BEFORE taking the initial snapshot so no state change can slip
       // through the gap between snapshot and subscription.
-      const unsubscribe = subscribeRunningSessions(({ ids, refreshSessionList, exitedSessions }) => {
+      const unsubscribe = subscribeRunningSessions(({ ids, meta, refreshSessionList, exitedSessions }) => {
         try {
           encode({
             type: "running",
             runningSessionIds: ids,
+            meta,
             exitedSessions,
             ...(refreshSessionList ? { refreshSessionList: true } : {}),
           });
@@ -124,7 +125,7 @@ export async function GET(req: Request) {
 
       // Initial snapshot so the client renders the correct state immediately.
       // (A duplicate frame here is harmless: the client just sets the same set.)
-      encode({ type: "running", runningSessionIds: getRunningRpcSessionIds(), exitedSessions: getExitedRpcSessions() });
+      encode({ type: "running", runningSessionIds: getRunningRpcSessionIds(), meta: getRunningRpcSessionMeta(), exitedSessions: getExitedRpcSessions() });
       const initialExternal = externallyRunningIds();
       if (initialExternal.length > 0) {
         encode({ type: "externally-running", externallyRunning: initialExternal });

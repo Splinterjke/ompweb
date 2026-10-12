@@ -478,6 +478,25 @@ hooks/
   exported for row-level tests and the SSR harness) and the chat top-bar
   breadcrumb (`AppShell`).
 
+### Auto-generated titles at session start (web setting `autoGenerateSessionTitles`)
+- When the FIRST settled run of a brand-new session completes (the same
+  `conversation_completed` signal — `prompt_result` settled or the deferred
+  `session_settled`), `AgentSessionWrapper.maybeAutoTitleOnStart()` fires omp's
+  own title generator once (one-shot flag per wrapper). New sessions only
+  (`recordedCwd === null` — resumed sessions keep their saved names), and only
+  when no title exists yet (memory or title slot). The generator is omp's
+  utility model role chain: **tiny → commit → smol** (verified from the 18.10.1
+  binary); a role that is unmapped or answers reasoning-only is skipped, and
+  the first-message-derived title is the honest fallback. Naming strictly
+  BEFORE the first assistant response is impossible (omp has no
+  `generate_title` RPC; `/rename` is a prompt run which `PI_NO_TITLE` forces
+  on rpc-ui children; native auto-tiling needs interactive mode), so the
+  trigger is first completion — after turn 1 settles.
+- Toggle: Settings → Interface & Behavior → "Auto-generate session titles"
+  (default ON), persisted with the other server settings via
+  `/api/web-settings` (`autoGenerateSessionTitles` in
+  `~/.omp/agent/omp-web-settings.json`).
+
 ### ToolCall field normalization
 Sessions store toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and streaming event handling.
 
@@ -619,10 +638,11 @@ stored `omp-web:submit-during-run` choice overrides it.
 
 ### External session detection (`lib/session-watcher.ts`, `/api/sessions/[id]/state`)
 - When ompweb restarts mid-run, the old `omp --mode rpc-ui` child survives (it is a child of the Rust host daemon, not the server). The new server detects such "externally held" sessions by scanning `/proc` for `omp` processes with `--resume <file>` on the command line, or — for host-spawned children whose cmdline has no file — with a session file held open (fd scan). Web-owned children (direct children of this node process or of the host daemon) are excluded by PPid, NOT by the RPC registry: after a restart a session can hold a freshly restored idle RPC while a stale previous-server child still owns the file.
-- `GET /api/sessions/[id]/state` reports `external: true` when the file had a recent write (90 s `EXTERNAL_ACTIVITY_WINDOW_MS`) or a live holder has a turn in flight. "Turn in flight" = the last committed `message` entry is a user/toolResult (model generating) or an assistant with a pending toolCall. Idle holders (a terminal waiting for input, a leftover child after its turn finished) end on a final assistant message and must not keep the session "running" forever. A holder whose file has been quiet for `STALE_HOLDER_MS` (5 min, mirrors the client's `EXTERNAL_RUN_END_SILENCE_MS`) is treated as stalled (hung tool, crashed API call, orphaned child) and dropped by the `/proc` scan — otherwise a dead-end process would keep the session "running" forever; a live run re-announces itself on its next file write and the badge returns.
+- `GET /api/sessions/[id]/state` reports `external: true` ONLY from a live holder (`isExternallyActive`) with a turn in flight (`heldSessionsWithPendingTurn`). "Turn in flight" = the last committed `message` entry is a user/toolResult (model generating) or an assistant with a pending toolCall. **A recent file write is NOT a running signal** — the 90 s `EXTERNAL_ACTIVITY_WINDOW_MS` remains only as the client's reclaim-poll gate (`isRecentlyActive`, a quiet-THINKING run stays external so it can still be reclaimed). Trusting mtime made every freshly edited session file answer "running" on visit: the page rendered committed running-looking toolCalls with an idle composer until the next write flipped the badge on (the exact symptom this replaced). Idle holders (a terminal waiting for input, a leftover child after its turn finished) end on a final assistant message and must not keep the session "running" forever. `STALE_HOLDER_MS` (5 min) silence drops a holder **only when its tail is final** (a run that truly ended on an idle prompt); a mid-run tail keeps the holder listed — a long silent tool (subagent collecting results, a build) is a live run, and `hasRunningTurn`/fd probes cannot see another process's in-flight assistant stream. A dead-end process is dropped once its turn settles or the file is deleted; a live run re-announces itself on its next file write.
 - Client (`useAgentSession` `enterExternalMode`): external sessions render as running (Stop button, "running in an external omp terminal" notice), never attach a per-session RPC stream or registry reconcile, and a 10 s poller reclaims to idle once the file is quiet and the committed tail is final. Stop/send/steer/compact are rejected with the same notice — the web server has no RPC channel to the external process, so it must be stopped at its source (the terminal). The session-file watcher re-enters external mode on the next write (which also reloads via `loadContext(sid, null, true)` so an open pre-compaction view survives external writes).
 - The session-file watcher uses per-directory non-recursive inotify watches (one per project dir, lazily added with a one-shot resync). Node's recursive `fs.watch` lstats every directory entry on folder events, which raises an uncaught EIO on WSL2/9p (dentry race on transient `.jsonl.lock` files) and killed the server. `instrumentation.ts` additionally suppresses exactly those errors.
 - **inotify is silent on 9p/drvfs mounts** (WSL2 with the agent dir on a Windows drive, e.g. `/root/.omp` → `C:\`): no events at all, so external sessions never updated in real time there. The watcher therefore also runs a **polling fallback** (`pollForChanges()`, exported for tests): a 2 s stat-based sweep over known session files feeding the same `pendingPaths` → `flush` → listeners pipeline (size baselines shared with inotify via `lastSizeByPath`, `pendingPaths` dedupes both sources), plus a 15 s directory rescan that discovers new `.jsonl` files. On native filesystems the sweep is a cheap no-op once inotify has delivered the event.
+- **Sessions waiting for their first response** (sidebar naming before the file exists): the running-stream SSE carries `meta: { cwd, firstPrompt }` frames for live RPC sessions (`getRunningRpcSessionMeta`; `firstPrompt` is captured once by the wrapper at the first real `prompt` send and NEVER by `/rename`-style title runs or resumed sessions). `SessionSidebar` keeps these as `pendingSessions` and renders placeholder rows under the SPAWNED cwd with the prompt text as the title — a bare file-less id gets no row (never a GUID slice, never attached to the currently-viewed workspace), so a switching user sees the running session where it was created until omp writes the real file.
 
 ### Auto-resume after a restart (`lib/session-resume.ts`, `lib/web-settings.ts`)
 - ON by default (`autoResumeSessions` in `~/.omp/agent/omp-web-settings.json`, toggle in

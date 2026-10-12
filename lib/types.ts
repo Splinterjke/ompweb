@@ -522,3 +522,13 @@ export interface ExitedRpcSession {
   /** Last stderr line, if any. */
   detail: string;
 }
+
+/** Per-running-session display metadata broadcast with the running ids
+ *  (mirrors RunningSessionUpdate.meta in lib/rpc-manager.ts): it lets the
+ *  sidebar render a running session whose JSONL file does not exist yet
+ *  under its real workspace, titled by the first prompt. */
+export interface RunningSessionMeta {
+  id: string;
+  cwd: string;
+  prompt?: string;
+}

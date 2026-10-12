@@ -535,15 +535,15 @@ export function parseHeldSession(
 }
 
 /**
- * A holder whose session file has been quiet this long is treated as
- * stalled (crashed API call, hung tool, orphaned child) rather than
- * mid-turn: an external omp goes quiet while the model thinks or a long
- * tool runs, but a process that has not written for minutes while its tail
- * still shows a pending tool call is not going to finish on its own. The
- * client reclaims such sessions to idle after the same silence, so server
- * and client agree; a genuinely long tool re-announces itself on its next
- * file write and the badge comes straight back. Mirrors
- * EXTERNAL_RUN_END_SILENCE_MS in hooks/useAgentSession.ts.
+ * A holder whose session file has been quiet this long stops counting for
+ * the sidebar "running" badge: a process that has not written for minutes
+ * while its tail still shows a pending tool call is more likely stalled
+ * (crashed API call, hung tool, orphaned child) than mid-turn, and the
+ * badge must not stay pinned forever. The per-session state route does NOT
+ * apply this cut — there the live holder process itself is the evidence,
+ * and a long silent tool is normal (see heldSessionsWithLivePendingTurn).
+ * Mirrors EXTERNAL_RUN_END_SILENCE_MS in hooks/useAgentSession.ts, which
+ * reclaims a quiet page back to idle.
  */
 export const STALE_HOLDER_MS = 5 * 60_000;
 
@@ -554,8 +554,7 @@ export const STALE_HOLDER_MS = 5 * 60_000;
  * excluded by process-tree check, NOT by the RPC registry: after a restart a
  * session can hold a freshly restored (idle) RPC while a stale child of the
  * previous server still owns the file, and a registry check would exclude
- * exactly the case that must be detected. Holders whose file has been quiet
- * for STALE_HOLDER_MS are dropped as stalled (see above).
+ * exactly the case that must be detected.
  * Linux only: on other platforms the write-window check alone still applies.
  */
 function scanExternallyHeldSessions(): Map<string, string> {
@@ -622,19 +621,20 @@ function scanExternallyHeldSessions(): Map<string, string> {
       // Process exited between the readdir and the fd walk.
     }
   }
-  // A holder whose file has been quiet for STALE_HOLDER_MS is stalled (hung
-  // tool, crashed API call, orphaned child) — drop it so a dead end cannot
-  // keep the session "running" forever. A live run re-announces itself on its
-  // next file write, and the badge returns on the next heartbeat.
+  // Every live holder counts. Silence is NOT evidence of a dead run: a long
+  // tool (a `wait` on subagents, a build, a test suite) leaves the session
+  // file untouched for minutes while the holder works, so callers decide
+  // what a quiet holder means — the running-badge set drops it as stalled
+  // after STALE_HOLDER_MS, while the per-session state route keeps trusting
+  // the live process as long as its committed tail shows a turn in flight.
   const byId = new Map<string, string>();
   for (const { id, file } of candidates) {
-    let mtimeMs = 0;
     try {
-      mtimeMs = statSync(file).mtimeMs;
+      statSync(file);
+      byId.set(id, file);
     } catch {
-      continue; // file deleted between the fd walk and the stat
+      // File deleted between the fd walk and the stat — nothing is held.
     }
-    if (now - mtimeMs < STALE_HOLDER_MS) byId.set(id, file);
   }
   heldCache = { at: now, byId };
   return heldCache.byId;
@@ -645,12 +645,44 @@ export function findExternallyHeldSessionIds(): string[] {
 }
 
 /**
- * Externally-held sessions whose committed tail still shows a turn in flight.
- * An idle holder — a terminal waiting for input, or a leftover child of a
- * restarted server after its turn finished — ends on a final assistant
- * message and must not keep the session "running" forever.
+ * Externally-held sessions whose committed tail still shows a turn in flight
+ * AND whose file was written within STALE_HOLDER_MS. The silence cut keeps a
+ * hung-but-alive holder (crashed API call, stuck tool) from pinning the
+ * sidebar "running" badge forever. An idle holder — a terminal waiting for
+ * input, or a leftover child of a restarted server after its turn finished —
+ * ends on a final assistant message and drops out at once.
  */
 export function heldSessionsWithPendingTurn(): string[] {
+  const now = Date.now();
+  const ids: string[] = [];
+  for (const [id, file] of scanExternallyHeldSessions()) {
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(file).mtimeMs;
+    } catch {
+      continue; // deleted between the scan and the stat
+    }
+    if (now - mtimeMs >= STALE_HOLDER_MS) continue;
+    if (heldTurnInFlight(file)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Externally-held sessions whose committed tail shows a turn in flight,
+ * ignoring how long the file has been quiet. This is the per-session
+ * "is something alive still driving this run?" answer: a live holder
+ * process is the strongest liveness evidence the server has, and a long
+ * tool (a `wait` on subagents, a build, a test suite) legitimately leaves
+ * the file silent for minutes. The state route reports these as
+ * externally running so visiting the session shows the running UI from the
+ * first paint instead of an idle composer until the next file write. The
+ * client's external poller still reclaims a page to idle after
+ * EXTERNAL_RUN_END_SILENCE_MS of silence, so a genuinely hung holder stays
+ * recoverable from the UI; a live run re-enters external mode on its next
+ * write.
+ */
+export function heldSessionsWithLivePendingTurn(): string[] {
   const ids: string[] = [];
   for (const [id, file] of scanExternallyHeldSessions()) {
     if (heldTurnInFlight(file)) ids.push(id);

@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
-import type { AgentMessage, ExitedRpcSession, ManagedProject, SessionInfo } from "@/lib/types";
+import type { AgentMessage, ExitedRpcSession, ManagedProject, RunningSessionMeta, SessionInfo } from "@/lib/types";
 import type { GitStatsPlacement } from "./AppShell";
 import { formatExitedSessionNotice, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
@@ -724,6 +724,10 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   const listRef = useRef<HTMLDivElement>(null);
 
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
+  /** id -> workspace/first-prompt metadata for running sessions whose file
+   *  may not exist yet; keeps placeholder rows anchored to the SPAWNING
+   *  workspace (not the one being viewed) and titled by the prompt. */
+  const [runningMeta, setRunningMeta] = useState<Map<string, RunningSessionMeta>>(() => new Map());
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
   const [exitedSessions, setExitedSessions] = useState<Map<string, ExitedRpcSession>>(() => new Map());
   const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
@@ -846,12 +850,13 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const etag = res.headers.get("ETag");
       if (etag) sessionsEtagRef.current = etag;
-      const data = await res.json() as { sessions: SessionInfo[]; runningSessionIds?: string[] };
+      const data = await res.json() as { sessions: SessionInfo[]; runningSessionIds?: string[]; runningSessionMeta?: RunningSessionMeta[] };
       setAllSessions(data.sessions);
       // Treat the fetched running set as an initial fallback only. Once SSE is
       // live it owns this state, so a slow fetch can't revive a stale snapshot.
       if (!sseAuthoritativeRef.current) {
         setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+        setRunningMeta(new Map((data.runningSessionMeta ?? []).map((m) => [m.id, m])));
       }
       // Drop unread markers for sessions that no longer exist (e.g. deleted).
       const existingIds = new Set(data.sessions.map((s) => s.id));
@@ -965,6 +970,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         const data = JSON.parse(e.data) as {
           type?: string;
           runningSessionIds?: string[];
+          meta?: RunningSessionMeta[];
           exitedSessions?: ExitedRpcSession[];
           refreshSessionList?: boolean;
           sessionIds?: string[];
@@ -996,6 +1002,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         } else if (data.type === "running") {
           sseAuthoritativeRef.current = true;
           setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+          setRunningMeta(new Map((data.meta ?? []).map((m) => [m.id, m])));
           if (data.exitedSessions) setExitedSessions(new Map(data.exitedSessions.map((s) => [s.id, s])));
           if (data.refreshSessionList) scheduleRefresh();
         } else if (data.type === "sessions-changed") {
@@ -1232,6 +1239,14 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     if (reg) return reg.path;
     return cw;
   })();
+  // Synchronous registered-project match for placeholder rows — the async
+  // /api/worktrees lookup would park the row in the cwd bucket and then jump
+  // it to the repo bucket once resolved (the optimisticProjectRoot trap).
+  const placeholderRootForCwd = useCallback((cw: string): string => {
+    if (!cw) return "";
+    const reg = projects.find((p) => comparableProjectPath(p.path) === comparableProjectPath(cw));
+    return reg ? reg.path : cw;
+  }, [projects]);
   // Stable placeholder timestamps: Date.now() inside the memo would churn every refresh and bust downstream memos.
   const placeholderTsRef = useRef<Map<string, string>>(new Map());
   const visibleSessions = useMemo(() => {
@@ -1253,17 +1268,25 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         ts = new Date().toISOString();
         placeholderTsRef.current.set(id, ts);
       }
-      const phRoot = optimisticProjectRoot ?? selectedCwd ?? "";
+      const meta = runningMeta.get(id);
+      // Anchor to the workspace the server SPAWNED the session in — never the
+      // one currently being viewed: before the JSONL landed, a running new
+      // session used to get re-attributed to whichever workspace the user
+      // switched to.
+      const phCwd = meta?.cwd ?? selectedCwd ?? "";
+      const phRoot = meta ? placeholderRootForCwd(meta.cwd) : optimisticProjectRoot ?? phCwd;
       const phKey = phRoot ? comparableProjectPath(phRoot) : undefined;
       placeholders.push({
         id,
         path: "",
-        cwd: selectedCwd ?? "",
+        cwd: phCwd,
         name: undefined,
         created: ts,
         modified: ts,
         messageCount: 1,
-        firstMessage: "",
+        // The first prompt is the row's title until the file lands; without
+        // it the title would fall back to the raw session GUID fragment.
+        firstMessage: meta?.prompt ?? "",
         projectRoot: phRoot,
         ...(phKey ? { projectKey: phKey } : {}),
       });
@@ -1280,7 +1303,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         : list.map((s) => (s.id in pendingRenames ? { ...s, name: pendingRenames[s.id] } : s));
     const raw = placeholders.length ? [...base, ...placeholders] : base;
     return withRenames(raw);
-  }, [allSessions, optimisticSession, optimisticProjectRoot, runningSessionIds, selectedCwd, pendingRenames]);
+  }, [allSessions, optimisticSession, optimisticProjectRoot, runningSessionIds, runningMeta, placeholderRootForCwd, selectedCwd, pendingRenames]);
   // Once the server-authoritative list reflects a pending rename, the
   // optimistic override is no longer needed.
   useEffect(() => {
@@ -1326,14 +1349,15 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     const knownFolded = new Set(base.map((p) => comparableProjectPath(p.path)));
     for (const id of runningSessionIds) {
       if (allSessions.some((s) => s.id === id)) continue;
-      const phPath = optimisticProjectRoot ?? selectedCwd ?? "";
+      const meta = runningMeta.get(id);
+      const phPath = meta ? placeholderRootForCwd(meta.cwd) : optimisticProjectRoot ?? selectedCwd ?? "";
       if (phPath && !knownFolded.has(comparableProjectPath(phPath))) {
         base = [...base, { path: phPath }];
         knownFolded.add(comparableProjectPath(phPath));
       }
     }
     return base;
-  }, [optimisticProjectRoot, projects, runningSessionIds, allSessions, selectedCwd]);
+  }, [optimisticProjectRoot, projects, runningSessionIds, runningMeta, allSessions, placeholderRootForCwd, selectedCwd]);
 
   // ---- Derived project list ---------------------------------------------------
   const selectedProject = useMemo(() => projectRootFor(selectedCwd), [projectRootFor, selectedCwd]);

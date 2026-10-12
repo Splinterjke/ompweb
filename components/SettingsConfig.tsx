@@ -294,6 +294,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
   { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
   { id: "completion-sound", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.completionSound", descKey: "settingsConfig.completionSoundDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Completion sound", fallbackDesc: "Play a tone when the agent completes a run.", scope: "UI" },
+  { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "Name a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the top-bar wand can always re-generate.", scope: "UI" },
   { id: "tts-autoplay", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsAutoplay", descKey: "settingsConfig.ttsAutoplayDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-read assistant responses", fallbackDesc: "Automatically read aloud new assistant replies when completed.", scope: "UI" },
   { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
   { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
@@ -440,6 +441,41 @@ function AutoResumeSessionsSetting() {
   return (
     <NativeSetting searchId="auto-resume-sessions" label={t("settingsConfig.autoResumeSessions")} description={t("settingsConfig.autoResumeSessionsDesc")}>
       <ToggleSwitch checked={enabled === true} disabled={enabled === null} onChange={(next) => void change(next)} />
+    </NativeSetting>
+  );
+}
+
+/** Server-side omp-web setting (lib/web-settings.ts): generate a title with
+ *  omp's own generator when a brand-new session's first run completes. */
+function AutoSessionTitlesSetting() {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/web-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { autoGenerateSessionTitles?: boolean } | null) => { if (alive) setEnabled(data?.autoGenerateSessionTitles !== false); })
+      .catch(() => { if (alive) setEnabled(true); });
+    return () => { alive = false; };
+  }, []);
+  const change = async (next: boolean) => {
+    const previous = enabled;
+    setEnabled(next);
+    try {
+      const res = await fetch("/api/web-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoGenerateSessionTitles: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      setEnabled(previous);
+      toast.error(t("settingsConfig.autoSessionTitlesSaveFailed"), error instanceof Error ? error.message : String(error));
+    }
+  };
+  return (
+    <NativeSetting searchId="auto-session-titles" label={t("settingsConfig.autoSessionTitles")} description={t("settingsConfig.autoSessionTitlesDesc")} scope="UI">
+      <ToggleSwitch checked={enabled !== false} disabled={enabled === null} onChange={(next) => void change(next)} />
     </NativeSetting>
   );
 }
@@ -1356,6 +1392,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       }}
                     />
                   </NativeSetting>
+                  <AutoSessionTitlesSetting />
                   <NativeSetting
                     searchId="tts-autoplay"
                     label={t("settingsConfig.ttsAutoplay") || "Auto-read assistant responses"}

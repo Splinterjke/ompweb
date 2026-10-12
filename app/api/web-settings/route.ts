@@ -27,7 +27,7 @@ export async function PUT(req: Request) {
   if (!isRecord(body)) {
     return NextResponse.json({ error: "Request body must be a settings object", code: "invalid_settings" }, { status: 400 });
   }
-  const payload = body as { autoResumeSessions?: unknown; agentEnv?: unknown };
+  const payload = body as { autoResumeSessions?: unknown; autoGenerateSessionTitles?: unknown; agentEnv?: unknown };
   const patch: Partial<WebServerSettings> = {};
 
   // Both keys are optional so a caller can update one without reading the other;
@@ -39,6 +39,12 @@ export async function PUT(req: Request) {
     }
     patch.autoResumeSessions = payload.autoResumeSessions;
     resumeProvided = true;
+  }
+  if (payload.autoGenerateSessionTitles !== undefined) {
+    if (typeof payload.autoGenerateSessionTitles !== "boolean") {
+      return NextResponse.json({ error: "autoGenerateSessionTitles must be a boolean", code: "invalid_settings" }, { status: 400 });
+    }
+    patch.autoGenerateSessionTitles = payload.autoGenerateSessionTitles;
   }
 
   if (payload.agentEnv !== undefined) {

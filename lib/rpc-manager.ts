@@ -20,6 +20,7 @@ import { createMessageUpdateCoalescer } from "./message-update-coalescer";
 import { samePath } from "./paths";
 import { eventWithToolResultImageUrls } from "./media-cache";
 import { PRESET_FULL } from "./tool-presets";
+import { loadWebServerSettings } from "./web-settings";
 import type {
   BashResultInfo,
   OmpModel,
@@ -425,6 +426,10 @@ export class AgentSessionWrapper {
   /** Most recent assistant text reply (captured at message_end) — fed to
    *  chat event actions as the $last_reply variable. */
   private _lastAssistantReply: string | null = null;
+  /** First operator prompt text (one line, truncated) — the sidebar uses it
+   *  as the display title for a running session whose JSONL file does not
+   *  exist yet, instead of a bare session-id fragment. */
+  firstPrompt = "";
   private proc: RpcProcessLike;
   /** Process whose exit is expected because reload/restart is deliberately
    *  disposing it — its exit must not be recorded as a crash. */
@@ -478,6 +483,26 @@ export class AgentSessionWrapper {
 
   isRunning(): boolean {
     return this.isAlive() && (this.promptRunning || this.streaming || this.compacting || this.bashRunning);
+  }
+
+  /** Remember the first prompt's text for the sidebar placeholder row. */
+  private notePromptText(command: Record<string, unknown>): void {
+    if (this.firstPrompt) return;
+    const raw = command.message;
+    let text = "";
+    if (typeof raw === "string") text = raw;
+    else if (Array.isArray(raw)) {
+      text = raw
+        .map((block) => {
+          if (!block || typeof block !== "object") return "";
+          if (!("type" in block) || block.type !== "text") return "";
+          if (!("text" in block) || typeof block.text !== "string") return "";
+          return block.text;
+        })
+        .join(" ");
+    }
+    text = text.replace(/\s+/g, " ").trim().slice(0, 160);
+    if (text) this.firstPrompt = text;
   }
 
   /** A web UI (SSE stream) is currently attached to this session. */
@@ -625,6 +650,9 @@ export class AgentSessionWrapper {
     }
   }
 
+  /** Whether the one-shot automatic title for a brand-new session was already
+   *  attempted after its first run completed. */
+  private autoTitleAttempted = false;
   /** Whether omp answered `generate_title` with "Unknown command" (cached per child). */
   private generateTitleUnsupported = false;
   /** Set while the web-initiated argument-less `/rename` run is in flight. Its
@@ -679,6 +707,29 @@ export class AgentSessionWrapper {
     } finally {
       this.renameOutputPending = false;
     }
+  }
+
+  /**
+   * One-shot automatic naming at session start: when the FIRST run of a
+   * brand-new session completes with no title, ask omp for a generated one —
+   * the same generator the top-bar wand uses (title model roles tried in
+   * order: tiny → commit → smol; no title model answers before the first
+   * response starts, which is why this waits for the run to settle).
+   * Gated by the Interface & Behavior setting; best-effort — a failure leaves
+   * the session titled by its first message, and the wand stays available.
+   */
+  private maybeAutoTitleOnStart(): void {
+    if (this.autoTitleAttempted) return;
+    this.autoTitleAttempted = true;
+    // Only brand-new web sessions: a session resumed from a file may already
+    // carry a stored title (and re-titling an existing conversation is the
+    // wand's job, never a side effect of continuing it).
+    if (this.recordedCwd !== null) return;
+    if (this._sessionName) return;
+    if (!loadWebServerSettings().autoGenerateSessionTitles) return;
+    void this.generateTitle().catch(() => {
+      // The automatic title must never surface as an error.
+    });
   }
 
   private async readSessionName(): Promise<string | null> {
@@ -877,7 +928,10 @@ export class AgentSessionWrapper {
             if (event.sessionSettled === false) this._completionDeferred = true;
             // Chat event action: conversation_completed (the same signal the
             // built-in completion notification uses).
-            else dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "prompt_result", settled: true }));
+            else {
+              dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "prompt_result", settled: true }));
+              this.maybeAutoTitleOnStart();
+            }
           }
         }
         // Local-only prompt (builtin/extension slash command) — no agent run.
@@ -892,6 +946,7 @@ export class AgentSessionWrapper {
         if (this._completionDeferred) {
           this._completionDeferred = false;
           dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "session_settled", settled: true }));
+          this.maybeAutoTitleOnStart();
         }
         break;
       case "auto_compaction_start":
@@ -1762,6 +1817,10 @@ export class AgentSessionWrapper {
 
     switch (type) {
       case "prompt": {
+        // Remember the first prompt's text for the sidebar placeholder row:
+        // until this session's JSONL lands on disk, the row shows this instead
+        // of a session-id fragment (and it belongs to the spawning workspace).
+        this.notePromptText(command);
         // A running web shell command (`!`, the `bash` RPC) owns the session
         // until it exits (omp rejects a prompt then, and treating that as a
         // hard error tore down the client's optimistic turn and lost the
@@ -2217,8 +2276,20 @@ export class AgentSessionWrapper {
 // ============================================================================
 // Session registry
 // ============================================================================
+/** Per-running-session display metadata, broadcast with the running ids so
+ *  the sidebar can render a placeholder row for a session whose JSONL file
+ *  does not exist yet (first turn still starting): which workspace it belongs
+ *  to and what it was asked to do — never a bare session-id fragment parked
+ *  under whichever workspace the user happens to be viewing. */
+export interface RunningSessionMeta {
+  id: string;
+  cwd: string;
+  prompt?: string;
+}
+
 export interface RunningSessionUpdate {
   ids: string[];
+  meta: RunningSessionMeta[];
   refreshSessionList: boolean;
   exitedSessions: ExitedRpcSession[];
 }
@@ -2281,6 +2352,20 @@ export function getRunningRpcSessionIds(): string[] {
     if (session.isRunning()) ids.add(session.sessionId || sessionId);
   }
   return [...ids];
+}
+
+/** Display metadata for every running RPC session, keyed to the ids
+ *  getRunningRpcSessionIds reports (moved sessions report their current id;
+ *  registry aliases never duplicate an entry). */
+export function getRunningRpcSessionMeta(): RunningSessionMeta[] {
+  const byId = new Map<string, RunningSessionMeta>();
+  for (const [sessionId, session] of getRegistry()) {
+    if (!session.isRunning()) continue;
+    const id = session.sessionId || sessionId;
+    if (byId.has(id)) continue;
+    byId.set(id, { id, cwd: session.cwd, ...(session.firstPrompt ? { prompt: session.firstPrompt } : {}) });
+  }
+  return [...byId.values()];
 }
 
 /** Stop all live omp children after an explicit runtime update. The browser will
@@ -2347,13 +2432,16 @@ let lastRunningSnapshot = "";
  */
 export function notifyRunningChange({ refreshSessionList = false }: { refreshSessionList?: boolean } = {}): void {
   const ids = getRunningRpcSessionIds();
+  const meta = getRunningRpcSessionMeta();
   const exitedSessions = getExitedRpcSessions();
   const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
-  const snapshot = JSON.stringify([ids.slice().sort(), exitedSessions.slice().sort(byId)]);
+  // meta is part of the change signature: the first prompt's text arrives
+  // after the id starts running, and the placeholder row must update then.
+  const snapshot = JSON.stringify([ids.slice().sort(), meta.slice().sort(byId), exitedSessions.slice().sort(byId)]);
   if (snapshot === lastRunningSnapshot && !refreshSessionList) return;
   lastRunningSnapshot = snapshot;
   syncInterruptibleSessions();
-  const update: RunningSessionUpdate = { ids, refreshSessionList, exitedSessions };
+  const update: RunningSessionUpdate = { ids, meta, refreshSessionList, exitedSessions };
   for (const listener of getRunningListeners()) {
     try { listener(update); } catch { /* ignore listener errors */ }
   }

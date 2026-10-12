@@ -8,6 +8,12 @@ export interface WebServerSettings {
   /** Resume sessions that were mid-run when omp-web stopped. */
   autoResumeSessions: boolean;
   /**
+   * Generate a session title automatically when a session's FIRST run
+   * completes (omp's own generator, tried in role order tiny → commit →
+   * smol). Once per session; the top-bar wand stays available afterwards.
+   */
+  autoGenerateSessionTitles: boolean;
+  /**
    * Environment variables merged into the `omp` child process (issue #104).
    * Stored as a validated record; lib/omp/agent-env.ts owns the policy and
    * re-checks every name before handing it to a spawn.
@@ -17,7 +23,7 @@ export interface WebServerSettings {
 
 // Default ON: preserves the previous always-on auto-resume behavior (the local
 // restoreActiveRpcSessions had no off switch), while still exposing an opt-out.
-const DEFAULTS: WebServerSettings = { autoResumeSessions: true, agentEnv: {} };
+const DEFAULTS: WebServerSettings = { autoResumeSessions: true, autoGenerateSessionTitles: true, agentEnv: {} };
 
 /** String-valued entries only — the allow-list lives in lib/omp/agent-env.ts. */
 function readAgentEnvRecord(value: unknown): Record<string, string> {
@@ -49,6 +55,7 @@ export function loadWebServerSettings(): WebServerSettings {
       if (isRecord(raw)) {
         settings = {
           autoResumeSessions: raw.autoResumeSessions === true,
+          autoGenerateSessionTitles: raw.autoGenerateSessionTitles !== false,
           agentEnv: readAgentEnvRecord(raw.agentEnv),
         };
       }

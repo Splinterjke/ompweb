@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { listAllSessions } from "@/lib/session-reader";
-import { getRunningRpcSessionIds } from "@/lib/rpc-manager";
+import { getRunningRpcSessionIds, getRunningRpcSessionMeta } from "@/lib/rpc-manager";
 import { getAutomationSessions } from "@/lib/scheduler-store";
 
 // The session list mixes on-disk sessions with the live runningSessionIds set,
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       ? sessions.map((s) => (automation[s.id] ? { ...s, automation: automation[s.id] } : s))
       : sessions;
     const runningSessionIds = getRunningRpcSessionIds();
-    const body = { sessions: annotated, runningSessionIds };
+    const body = { sessions: annotated, runningSessionIds, runningSessionMeta: getRunningRpcSessionMeta() };
     const bodyJson = JSON.stringify(body);
     const etag = `"${createHash("sha1").update(bodyJson).digest("hex").slice(0, 16)}"`;
     if (req.headers.get("if-none-match") === etag) {

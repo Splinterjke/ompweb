@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { clearExitedRpcSession, getExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
-import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
+import { isExternallyActive, heldSessionsWithLivePendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
 
 // An external omp goes quiet while the model is thinking or a long tool runs
-// (no session-file writes). The window must outlast typical thinking gaps or
-// the client's reclaim poller drops the running state mid-run; the trade-off
-// is a genuinely finished run stays "running" until the window lapses.
+// (no session-file writes). Silence alone must not idle the page: a LIVE
+// holder process whose committed tail still shows a pending turn is the
+// authority (heldSessionsWithLivePendingTurn), or a visiting tab would show
+// an idle composer with a running tool call in the transcript until the next
+// write. The stale-holder silence cut applies to the sidebar badge only.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -32,7 +34,7 @@ export async function GET(
         const state = await rpc.send({ type: "get_state" }) as { isPromptRunning?: boolean; isStreaming?: boolean; isBashRunning?: boolean; isCompacting?: boolean } | undefined;
         const idle = !state?.isStreaming && !state?.isPromptRunning && !state?.isBashRunning && !state?.isCompacting;
         if (idle) {
-          const externallyHeld = heldSessionsWithPendingTurn().includes(id);
+          const externallyHeld = heldSessionsWithLivePendingTurn().includes(id);
           return NextResponse.json(externallyHeld
             ? { running: true, external: true, state: null }
             : { running: true, external: false, state });
@@ -56,7 +58,7 @@ export async function GET(
     if (exited) {
       const externallyActive =
         (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
-        heldSessionsWithPendingTurn().includes(id);
+        heldSessionsWithLivePendingTurn().includes(id);
       if (externallyActive) {
         clearExitedRpcSession(id);
         return NextResponse.json({ running: true, external: true, state: null });
@@ -68,12 +70,13 @@ export async function GET(
     if ("response" in resolved) return resolved.response;
     // File activity alone lapses after EXTERNAL_ACTIVITY_WINDOW_MS of silence,
     // but a live external holder goes quiet while the model thinks or a long
-    // tool runs. The holder's committed tail (heldTurnInFlight) is the
-    // authority for that case — same union the running-events stream uses,
-    // so the badge and the state route never disagree.
+    // tool runs. The holder's process being alive with a pending committed
+    // tail (heldSessionsWithLivePendingTurn) is the authority for that case —
+    // the client's external poller bounds a hung holder back to idle, and a
+    // live run re-enters external mode on its next write.
     const externallyActive =
       (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
-      heldSessionsWithPendingTurn().includes(id);
+      heldSessionsWithLivePendingTurn().includes(id);
     return NextResponse.json({
       running: externallyActive,
       external: externallyActive,
