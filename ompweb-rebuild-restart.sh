@@ -370,6 +370,13 @@ log "build: done in $(( $(date +%s) - T_BUILD ))s"
 T_HOST=$(date +%s)
 case "$(uname -m)" in aarch64|arm64) HOST_ARCH=arm64 ;; *) HOST_ARCH=x64 ;; esac
 HOST_DST="$DST/vendor/ompweb-host/linux-${HOST_ARCH}/ompweb-host"
+# cargo is frequently off PATH: rustup installs into ~/.cargo/bin and container
+# images install into /usr/local/cargo/bin. Probe both before the check, so a
+# host rebuild is never silently skipped because of the launching shell's PATH.
+for CARGO_DIR in /usr/local/cargo/bin "$HOME/.cargo/bin"; do
+  if [ -x "$CARGO_DIR/cargo" ]; then PATH="$CARGO_DIR:$PATH"; fi
+done
+export PATH
 if command -v cargo >/dev/null 2>&1; then
   log "host: cargo build --locked --bin ompweb-host in $REPO/crates"
   ( cd "$REPO" && cargo build --locked --manifest-path crates/Cargo.toml --bin ompweb-host ) 2>&1 | tee -a "$LOG"
