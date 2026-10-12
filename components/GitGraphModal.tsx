@@ -224,6 +224,7 @@ function DiffPane({ diff, loading, error, mobile, cwd, onOpenFile, onClose }: {
                 filePath={diff.absolutePath}
                 cwd={cwd}
                 showPath={false}
+                showLayoutToggle
                 onOpenFile={onOpenFile}
               />
             </div>

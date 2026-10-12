@@ -204,3 +204,37 @@ test("rows blocks after gap bars continue on later grid rows (no overlap)", () =
   assert.deepEqual(rows, [2, 3, 4, 6, 7, 8], "second hunk starts after the middle bar");
   assert.equal(new Set(rows).size, rows.length, "no two rows share a grid row");
 });
+
+const layoutButton = (c, label) =>
+  [...c.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "") === label);
+
+test("layout and wrap choices persist to localStorage and restore on remount", () => {
+  nextWidth = 900;
+  const props = { patch: PAIR_PATCH, filePath: "/repo/f.ts", cwd: "/repo", showLayoutToggle: true };
+  const view = render(React.createElement(DiffViewer, props));
+  fireEvent.click(layoutButton(view.container, "Inline view"));
+  assert.equal(window.localStorage.getItem("omp-web:diff-layout"), "unified");
+  fireEvent.click(layoutButton(view.container, "Wrap lines"));
+  assert.equal(window.localStorage.getItem("omp-web:diff-wrap"), "0");
+  view.unmount();
+
+  const again = render(React.createElement(DiffViewer, props));
+  assert.equal(again.container.querySelectorAll('[data-diff-line="2"]').length, 0, "remount restores the inline layout");
+  assert.equal(layoutButton(again.container, "Inline view").getAttribute("aria-pressed"), "true");
+  assert.equal(layoutButton(again.container, "Split view").getAttribute("aria-pressed"), "false");
+  assert.equal(layoutButton(again.container, "Wrap lines").getAttribute("aria-pressed"), "false");
+  assert.ok(
+    [...again.container.querySelectorAll("[data-diff-content]")].every((s) => s.style.whiteSpace !== "pre-wrap"),
+    "wrap stays off after remount",
+  );
+});
+
+test("a layout change in one diff surface restyles another open surface", () => {
+  nextWidth = 900;
+  const props = { patch: PAIR_PATCH, filePath: "/repo/f.ts", cwd: "/repo", showLayoutToggle: true };
+  const graph = render(React.createElement(DiffViewer, props));
+  const panel = render(React.createElement(DiffViewer, props));
+  fireEvent.click(layoutButton(panel.container, "Inline view"));
+  assert.equal(graph.container.querySelectorAll('[data-diff-line="2"]').length, 0, "the other pane followed to inline");
+  assert.equal(layoutButton(graph.container, "Inline view").getAttribute("aria-pressed"), "true");
+});

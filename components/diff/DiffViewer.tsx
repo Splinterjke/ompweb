@@ -38,7 +38,10 @@ export interface DiffViewerProps {
   showHeader?: boolean;
   showPath?: boolean;
   showViewed?: boolean;
-  /** Split/unified affordance — the narrow graph pane keeps it hidden. */
+  /** Layout toolbar row (Split / Inline / Wrap), shared by every diff pane
+   *  (git-graph pane, right-panel Git tab, FileViewer diffs). The layout
+   *  choice persists in localStorage; split/inline self-hide under the
+   *  split-width gate. */
   showLayoutToggle?: boolean;
   /** Working-tree status chip shown in the header (e.g. "Modified"); the
    *  owner of the git status passes the localized label + color. */
@@ -265,6 +268,45 @@ function persistViewed(entryKey: string, viewed: boolean): void {
   }
 }
 
+// ---------- shared view prefs (layout + wrap) ----------
+
+const LAYOUT_STORAGE_KEY = "omp-web:diff-layout";
+const WRAP_STORAGE_KEY = "omp-web:diff-wrap";
+/** `storage` never fires in the writing tab, but two DiffViewers can be
+ *  open at once there (git-graph diff pane + right-panel Git tab) — this
+ *  window event keeps every instance on the same choice immediately. */
+const VIEW_PREFS_EVENT = "omp-web:diff-view-prefs";
+
+function readStoredLayout(): "split" | "unified" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_STORAGE_KEY);
+    return raw === "split" || raw === "unified" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Wrap is ON by default; only an explicit "0" turns it off. */
+function readStoredWrap(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(WRAP_STORAGE_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function persistViewPref(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage disabled (private mode) — the choice just dies with the page.
+  }
+  window.dispatchEvent(new CustomEvent(VIEW_PREFS_EVENT, { detail: { key } }));
+}
+
 // ---------- component ----------
 
 export function DiffViewer({
@@ -286,8 +328,8 @@ export function DiffViewer({
   const { t, tn } = useI18n();
   const { isDark } = useTheme();
   const [reveals, setReveals] = useState<number[]>([]);
-  const [userLayout, setUserLayout] = useState<"split" | "unified" | null>(null);
-  const [wrap, setWrap] = useState(true);
+  const [userLayout, setUserLayout] = useState<"split" | "unified" | null>(readStoredLayout);
+  const [wrap, setWrap] = useState<boolean>(readStoredWrap);
   const [viewed, setViewedState] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -308,6 +350,34 @@ export function DiffViewer({
     });
     observer.observe(node);
     return () => observer.disconnect();
+  }, []);
+
+  // The layout/wrap choice is ONE choice shared by every diff surface:
+  // adopt it the moment another DiffViewer (same tab) or another tab
+  // persists a change.
+  useEffect(() => {
+    const adopt = () => {
+      setUserLayout(readStoredLayout());
+      setWrap(readStoredWrap());
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === LAYOUT_STORAGE_KEY || event.key === WRAP_STORAGE_KEY) adopt();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(VIEW_PREFS_EVENT, adopt);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(VIEW_PREFS_EVENT, adopt);
+    };
+  }, []);
+
+  const chooseLayout = useCallback((layout: "split" | "unified") => {
+    setUserLayout(layout);
+    persistViewPref(LAYOUT_STORAGE_KEY, layout);
+  }, []);
+  const applyWrap = useCallback((next: boolean) => {
+    setWrap(next);
+    persistViewPref(WRAP_STORAGE_KEY, next ? "1" : "0");
   }, []);
 
   // Viewed state follows (repo, file, patch) — a new revision is un-viewed.
@@ -562,9 +632,9 @@ export function DiffViewer({
         )}
         {showLayoutToggle && (
           <div style={{ display: "flex", gap: 4, padding: "4px 10px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
-            <LayoutButton active={split} onClick={() => setUserLayout("split")} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={!split} onClick={() => setUserLayout("unified")} label={t("diff.inlineView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={wrap} onClick={() => setWrap((w) => !w)} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
+            <LayoutButton active={split} onClick={() => chooseLayout("split")} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
+            <LayoutButton active={!split} onClick={() => chooseLayout("unified")} label={t("diff.inlineView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
+            <LayoutButton active={wrap} onClick={() => applyWrap(!wrap)} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
           </div>
         )}
         <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: LINE_HEIGHT, minWidth: 0 }}>
