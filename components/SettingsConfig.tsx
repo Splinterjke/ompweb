@@ -284,32 +284,39 @@ type SettingIndexEntry = {
 };
 
 const SETTING_INDEX: SettingIndexEntry[] = [
-  // Interface & Behavior
-  { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
-  { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
-  { id: "thinking-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hide Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
-  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
-  { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
-  { id: "thinking-display-mode", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingDisplayMode", descKey: "settingsConfig.thinkingDisplayModeDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking Display Behavior", fallbackDesc: "Configure whether model thinking blocks default to collapsed, auto-collapse, or always expanded.", scope: "UI" },
-  { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
-  { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
-  { id: "completion-sound", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.completionSound", descKey: "settingsConfig.completionSoundDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Completion sound", fallbackDesc: "Play a tone when the agent completes a run.", scope: "UI" },
-  { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "Name a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the top-bar wand can always re-generate.", scope: "UI" },
-  { id: "tts-autoplay", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsAutoplay", descKey: "settingsConfig.ttsAutoplayDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Auto-read assistant responses", fallbackDesc: "Automatically read aloud new assistant replies when completed.", scope: "UI" },
-  { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
-  { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
-  { id: "word-completion", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
-  { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
-  { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
-  { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
-  { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
-  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Compact hub bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
-  { id: "composer-accent-bg", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.composerAccentBg", descKey: "settingsConfig.composerAccentBgDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat input background secondary color", fallbackDesc: "Secondary color for the chat input shell: Off keeps the plain page background, Dimmed uses the panel background, Themed tints it with a subtle accent color.", scope: "UI" },
-  { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
-  { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
-  { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
-  { id: "message-time-format", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.timeFormat", descKey: "settingsConfig.timeFormatDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Message time format", fallbackDesc: "How timestamps next to chat messages are displayed: 24 hours or AM/PM.", scope: "UI" },
-  { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
+  // Interface & Behavior — Messages & Transcript
+  { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
+  { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
+  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
+  { id: "extended-thinking-block", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.extendedThinkingBlock", descKey: "settingsConfig.extendedThinkingBlockDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Extended thinking block", fallbackDesc: "Make thinking/tool detail rows fill the full width of the message instead of the indented card.", scope: "UI" },
+  { id: "extended-detail-blocks", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.extendedDetailBlocks", descKey: "settingsConfig.extendedDetailBlocksDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Extended detail blocks", fallbackDesc: "Expanded Interrupted/Compaction blocks use the full message width instead of a 640px cap.", scope: "UI" },
+  { id: "message-actions-visible", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.messageActions", descKey: "settingsConfig.messageActionsDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Message action buttons", fallbackDesc: "Show the copy, fork and edit buttons under messages.", scope: "UI" },
+  { id: "message-time-format", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.timeFormat", descKey: "settingsConfig.timeFormatDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Message time format", fallbackDesc: "How timestamps next to chat messages are displayed: 24 hours or AM/PM.", scope: "UI" },
+  // Interface & Behavior — Thinking Blocks
+  { id: "thinking-blocks", tab: "general", sectionKey: "settingsConfig.sectionThinking", labelKey: "settingsConfig.thinkingBlocks", descKey: "settingsConfig.thinkingBlocksDesc", fallbackSection: "Thinking Blocks", fallbackLabel: "Hide Thinking Blocks", fallbackDesc: "Hide model reasoning from output view.", scope: "Native OMP" },
+  { id: "thinking-display-mode", tab: "general", sectionKey: "settingsConfig.sectionThinking", labelKey: "settingsConfig.thinkingDisplayMode", descKey: "settingsConfig.thinkingDisplayModeDesc", fallbackSection: "Thinking Blocks", fallbackLabel: "Thinking Display Behavior", fallbackDesc: "Configure whether model thinking blocks default to collapsed, auto-collapse, or always expanded.", scope: "UI" },
+  { id: "thinking-auto-follow", tab: "general", sectionKey: "settingsConfig.sectionThinking", labelKey: "settingsConfig.thinkingAutoFollow", descKey: "settingsConfig.thinkingAutoFollowDesc", fallbackSection: "Thinking Blocks", fallbackLabel: "Thinking auto-scroll", fallbackDesc: "Keep a streaming thinking block pinned to the bottom of its scrollable output; scrolling up inside the block pauses the follow. Applies only while tool output height is limited.", scope: "UI" },
+  // Interface & Behavior — Composer & Input
+  { id: "message-during-active-run", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.messageDuringActiveRun", descKey: "settingsConfig.messageDuringActiveRunDesc", fallbackSection: "Composer & Input", fallbackLabel: "Message during active run", fallbackDesc: "What composer does on submit while agent runs. Steer interrupts; Queue follow-up delivers after finish.", scope: "UI" },
+  { id: "word-completion", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Composer & Input", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
+  { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Composer & Input", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
+  { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Composer & Input", fallbackLabel: "Compact hub bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
+  { id: "show-goal-token-budget", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.showGoalTokenBudget", descKey: "settingsConfig.showGoalTokenBudgetDesc", fallbackSection: "Composer & Input", fallbackLabel: "Show token budget in goal bar", fallbackDesc: "Display the goal's token usage (and budget, when set) in the composer goal bar.", scope: "UI" },
+  { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Composer & Input", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
+  { id: "context-ring-mobile", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.contextRingMobile", descKey: "settingsConfig.contextRingMobileDesc", fallbackSection: "Composer & Input", fallbackLabel: "Context ring (mobile)", fallbackDesc: "Where the context ring sits on phone screen sizes: the top bar, the composer controls, or hidden entirely. Desktop always keeps it in the composer.", scope: "UI" },
+  { id: "jump-to-bottom-button", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.jumpToBottomButton", descKey: "settingsConfig.jumpToBottomButtonDesc", fallbackSection: "Composer & Input", fallbackLabel: "Jump-to-bottom button", fallbackDesc: "Show a floating button above the chat input that scrolls back to the latest message when you are scrolled up.", scope: "UI" },
+  { id: "composer-accent-bg", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.composerAccentBg", descKey: "settingsConfig.composerAccentBgDesc", fallbackSection: "Composer & Input", fallbackLabel: "Chat input background secondary color", fallbackDesc: "Secondary color for the chat input shell: Off keeps the plain page background, Dimmed uses the panel background, Themed tints it with a subtle accent color.", scope: "UI" },
+  // Interface & Behavior — Sound & Speech
+  { id: "completion-sound", tab: "general", sectionKey: "settingsConfig.sectionSound", labelKey: "settingsConfig.completionSound", descKey: "settingsConfig.completionSoundDesc", fallbackSection: "Sound & Speech", fallbackLabel: "Completion sound", fallbackDesc: "Play a tone when the agent completes a run.", scope: "UI" },
+  { id: "tts-autoplay", tab: "general", sectionKey: "settingsConfig.sectionSound", labelKey: "settingsConfig.ttsAutoplay", descKey: "settingsConfig.ttsAutoplayDesc", fallbackSection: "Sound & Speech", fallbackLabel: "Auto-read assistant responses", fallbackDesc: "Automatically read aloud new assistant replies when completed.", scope: "UI" },
+  { id: "tts-voice", tab: "general", sectionKey: "settingsConfig.sectionSound", labelKey: "settingsConfig.ttsVoice", descKey: "settingsConfig.ttsVoiceDesc", fallbackSection: "Sound & Speech", fallbackLabel: "Speech Voice", fallbackDesc: "Select the browser voice for text-to-speech reading.", scope: "UI" },
+  // Interface & Behavior — Session & Agent Behavior
+  { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "Name a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the top-bar wand can always re-generate.", scope: "UI" },
+  { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
+  { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
+  // Interface & Behavior — Sidebar & Panels
+  { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
+  { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
   { id: "chat-border-beam", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.chatBorderBeam", descKey: "settingsConfig.chatBorderBeamDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat Border Flow", fallbackDesc: "Clockwise luminous beam on input border during active conversation.", scope: "UI" },
   { id: "omp-bouncing-letters", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ompBouncingLetters", descKey: "settingsConfig.ompBouncingLettersDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "OMP Loader Jump", fallbackDesc: "Sequential jumping letters animation while waiting for response.", scope: "UI" },
@@ -407,6 +414,27 @@ function SearchResultsList({ results, query, onSelect }: { results: SearchResult
           {result.section && <div style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{result.section}</div>}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** A named subsection inside a settings tab: heading + description + the same
+ *  two-column card grid the sections used before. `first` drops the divider
+ *  above the heading — the tab's own header already ends that visual group. */
+function SettingsSubsection({ title, description, isMobile, first = false, children }: {
+  title: string;
+  description: string;
+  isMobile: boolean;
+  first?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div style={first ? undefined : { marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+      <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>{title}</h4>
+      <p style={{ margin: "0 0 10px", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{description}</p>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -1341,24 +1369,43 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.interfaceBehavior")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.interfaceBehaviorDesc")}</p>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                <SettingsSubsection first isMobile={isMobile} title={t("settingsConfig.sectionTranscript")} description={t("settingsConfig.sectionTranscriptDesc")}>
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
                     <ToggleSwitch checked={toolCallsDefaultCollapsed} onChange={onToolCallsDefaultCollapsedChange} />
                   </NativeSetting>
-                  <NativeSetting searchId="show-goal-token-budget" label={t("settingsConfig.showGoalTokenBudget")} description={t("settingsConfig.showGoalTokenBudgetDesc")} scope="UI">
-                    <ToggleSwitch checked={showGoalTokenBudget} onChange={(v) => onShowGoalTokenBudgetChange?.(v)} />
+                  <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
+                    <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />
                   </NativeSetting>
+                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
+                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="extended-thinking-block" label={t("settingsConfig.extendedThinkingBlock")} description={t("settingsConfig.extendedThinkingBlockDesc")} scope="UI">
+                    <ToggleSwitch checked={extendedThinkingBlock} onChange={(next) => onExtendedThinkingBlockChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="extended-detail-blocks" label={t("settingsConfig.extendedDetailBlocks")} description={t("settingsConfig.extendedDetailBlocksDesc")} scope="UI">
+                    <ToggleSwitch checked={extendedBlocks} onChange={(next) => onExtendedBlocksChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="message-actions-visible" label={t("settingsConfig.messageActions")} description={t("settingsConfig.messageActionsDesc")} scope="UI">
+                    <ToggleSwitch checked={messageActionsVisible} onChange={(next) => onMessageActionsVisibleChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="message-time-format" label={t("settingsConfig.timeFormat")} description={t("settingsConfig.timeFormatDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={messageTimeFormat}
+                      onChange={(event) => onMessageTimeFormatChange?.(event.target.value as "24h" | "ampm")}
+                    >
+                      <option value="24h" style={nativeOptionStyle}>{t("settingsConfig.timeFormat24h")}</option>
+                      <option value="ampm" style={nativeOptionStyle}>{t("settingsConfig.timeFormatAmPm")}</option>
+                    </select>
+                  </NativeSetting>
+                </SettingsSubsection>
+
+                <SettingsSubsection isMobile={isMobile} title={t("settingsConfig.sectionThinking")} description={t("settingsConfig.sectionThinkingDesc")}>
                   <NativeSetting searchId="thinking-blocks" label={t("settingsConfig.thinkingBlocks")} description={t("settingsConfig.thinkingBlocksDesc")} scope="Native OMP">
                     <ToggleSwitch
                       checked={nativeSettings?.hideThinkingBlock ?? false}
                       onChange={(checked) => { patchSettings({ hideThinkingBlock: checked }); onHideThinkingBlockChange?.(checked); }}
                     />
-                  </NativeSetting>
-                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
-                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="open-url-automatically" label={t("settingsConfig.openUrlAutomatically")} description={t("settingsConfig.openUrlAutomaticallyDesc")} scope="UI">
-                    <ToggleSwitch checked={openUrlAutomatically} onChange={(v) => onOpenUrlAutomaticallyChange?.(v)} />
                   </NativeSetting>
                   <NativeSetting searchId="thinking-display-mode" label={t("settingsConfig.thinkingDisplayMode")} description={t("settingsConfig.thinkingDisplayModeDesc")} scope="UI">
                     <select
@@ -1373,15 +1420,100 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="expanded" style={nativeOptionStyle}>{t("settingsConfig.thinkingModeExpanded")}</option>
                     </select>
                   </NativeSetting>
-                  <NativeSetting searchId="extended-thinking-block" label={t("settingsConfig.extendedThinkingBlock")} description={t("settingsConfig.extendedThinkingBlockDesc")} scope="UI">
-                    <ToggleSwitch checked={extendedThinkingBlock} onChange={(next) => onExtendedThinkingBlockChange?.(next)} />
+                  <NativeSetting searchId="thinking-auto-follow" label={t("settingsConfig.thinkingAutoFollow")} description={t("settingsConfig.thinkingAutoFollowDesc")} scope="UI">
+                    <ToggleSwitch checked={thinkingAutoFollowEnabled} onChange={(next) => onThinkingAutoFollowChange?.(next)} />
                   </NativeSetting>
-                  <NativeSetting searchId="extended-detail-blocks" label={t("settingsConfig.extendedDetailBlocks")} description={t("settingsConfig.extendedDetailBlocksDesc")} scope="UI">
-                    <ToggleSwitch checked={extendedBlocks} onChange={(next) => onExtendedBlocksChange?.(next)} />
+                </SettingsSubsection>
+
+                <SettingsSubsection isMobile={isMobile} title={t("settingsConfig.sectionComposer")} description={t("settingsConfig.sectionComposerDesc")}>
+                  <NativeSetting searchId="message-during-active-run" label={t("settingsConfig.messageDuringActiveRun")} description={t("settingsConfig.messageDuringActiveRunDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={submitBehavior}
+                      onChange={(event) => {
+                        const next = event.target.value as SubmitDuringRunBehavior;
+                        setSubmitDuringRunBehavior(next);
+                        setSubmitBehavior(next);
+                      }}
+                    >
+                      <option value="steer" style={nativeOptionStyle}>{t("settingsConfig.steerCurrentRun")}</option>
+                      <option value="queue" style={nativeOptionStyle}>{t("settingsConfig.queueFollowUp")}</option>
+                    </select>
                   </NativeSetting>
-                  <NativeSetting searchId="skill-startup-notices" label={t("settingsConfig.skillStartupNotices")} description={t("settingsConfig.skillStartupNoticesDesc")} scope="Native OMP">
-                    <ToggleSwitch checked={nativeSettings?.skills?.showStartupDiagnostics !== false} disabled={nativeSettingsLoading} onChange={(enabled) => patchSection("skills", { showStartupDiagnostics: enabled })} />
+                  <NativeSetting searchId="word-completion" label={t("settingsConfig.wordCompletion")} description={t("settingsConfig.wordCompletionDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={wordCompletion}
+                      onChange={(event) => {
+                        const next = event.target.value as WordCompletionMode;
+                        setWordCompletionMode(next);
+                        setWordCompletion(next);
+                      }}
+                    >
+                      <option value="auto" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionAuto")}</option>
+                      <option value="on" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOn")}</option>
+                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOff")}</option>
+                    </select>
                   </NativeSetting>
+                  <NativeSetting searchId="hub-bar-visibility" label={t("settingsConfig.hubBarVisibility")} description={t("settingsConfig.hubBarVisibilityDesc")} scope="UI">
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
+                      {([
+                        ["git", "settingsConfig.hubBarGit"],
+                        ["tasks", "settingsConfig.hubBarTasks"],
+                        ["subagents", "settingsConfig.hubBarSubagents"],
+                      ] as const).map(([key, labelKey]) => (
+                        <label
+                          key={key}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", cursor: "pointer" }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={hubBarsVisible[key]}
+                            onChange={(event) => onHubBarsVisibleChange?.({ ...hubBarsVisible, [key]: event.target.checked })}
+                            style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }}
+                          />
+                          {t(labelKey)}
+                        </label>
+                      ))}
+                    </div>
+                  </NativeSetting>
+                  <NativeSetting searchId="hub-bar-layout" label={t("settingsConfig.hubBarLayout")} description={t("settingsConfig.hubBarLayoutDesc")} scope="UI">
+                    <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
+                  </NativeSetting>
+                  <NativeSetting searchId="show-goal-token-budget" label={t("settingsConfig.showGoalTokenBudget")} description={t("settingsConfig.showGoalTokenBudgetDesc")} scope="UI">
+                    <ToggleSwitch checked={showGoalTokenBudget} onChange={(v) => onShowGoalTokenBudgetChange?.(v)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">
+                    <ToggleSwitch checked={sessionInfoButtonVisible} onChange={(next) => onSessionInfoButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="context-ring-mobile" label={t("settingsConfig.contextRingMobile")} description={t("settingsConfig.contextRingMobileDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={contextRingMobile}
+                      onChange={(event) => onContextRingMobileChange?.(event.target.value as ContextRingMobilePlacement)}
+                    >
+                      <option value="composer" style={nativeOptionStyle}>{t("settingsConfig.contextRingComposer")}</option>
+                      <option value="topbar" style={nativeOptionStyle}>{t("settingsConfig.contextRingTopbar")}</option>
+                      <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.contextRingHidden")}</option>
+                    </select>
+                  </NativeSetting>
+                  <NativeSetting searchId="jump-to-bottom-button" label={t("settingsConfig.jumpToBottomButton")} description={t("settingsConfig.jumpToBottomButtonDesc")} scope="UI">
+                    <ToggleSwitch checked={showJumpToBottomButton} onChange={(next) => onShowJumpToBottomButtonChange?.(next)} />
+                  </NativeSetting>
+                  <NativeSetting searchId="composer-accent-bg" label={t("settingsConfig.composerAccentBg")} description={t("settingsConfig.composerAccentBgDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={composerAccentBg}
+                      onChange={(event) => onComposerAccentBgChange?.(event.target.value as ComposerAccentBg)}
+                    >
+                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgOff")}</option>
+                      <option value="dimmed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgDimmed")}</option>
+                      <option value="themed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgThemed")}</option>
+                    </select>
+                  </NativeSetting>
+                </SettingsSubsection>
+
+                <SettingsSubsection isMobile={isMobile} title={t("settingsConfig.sectionSound")} description={t("settingsConfig.sectionSoundDesc")}>
                   <NativeSetting searchId="completion-sound" label={t("settingsConfig.completionSound")} description={t("settingsConfig.completionSoundDesc")} scope="UI">
                     <ToggleSwitch
                       checked={soundEnabled}
@@ -1392,7 +1524,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       }}
                     />
                   </NativeSetting>
-                  <AutoSessionTitlesSetting />
                   <NativeSetting
                     searchId="tts-autoplay"
                     label={t("settingsConfig.ttsAutoplay") || "Auto-read assistant responses"}
@@ -1425,51 +1556,21 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       ))}
                     </select>
                   </NativeSetting>
-                  <NativeSetting searchId="message-during-active-run" label={t("settingsConfig.messageDuringActiveRun")} description={t("settingsConfig.messageDuringActiveRunDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={submitBehavior}
-                      onChange={(event) => {
-                        const next = event.target.value as SubmitDuringRunBehavior;
-                        setSubmitDuringRunBehavior(next);
-                        setSubmitBehavior(next);
-                      }}
-                    >
-                      <option value="steer" style={nativeOptionStyle}>{t("settingsConfig.steerCurrentRun")}</option>
-                      <option value="queue" style={nativeOptionStyle}>{t("settingsConfig.queueFollowUp")}</option>
-                    </select>
+                </SettingsSubsection>
+
+                <SettingsSubsection isMobile={isMobile} title={t("settingsConfig.sectionSessionBehavior")} description={t("settingsConfig.sectionSessionBehaviorDesc")}>
+                  <AutoSessionTitlesSetting />
+                  <NativeSetting searchId="open-url-automatically" label={t("settingsConfig.openUrlAutomatically")} description={t("settingsConfig.openUrlAutomaticallyDesc")} scope="UI">
+                    <ToggleSwitch checked={openUrlAutomatically} onChange={(v) => onOpenUrlAutomaticallyChange?.(v)} />
                   </NativeSetting>
-                  <NativeSetting searchId="word-completion" label={t("settingsConfig.wordCompletion")} description={t("settingsConfig.wordCompletionDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={wordCompletion}
-                      onChange={(event) => {
-                        const next = event.target.value as WordCompletionMode;
-                        setWordCompletionMode(next);
-                        setWordCompletion(next);
-                      }}
-                    >
-                      <option value="auto" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionAuto")}</option>
-                      <option value="on" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOn")}</option>
-                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.wordCompletionOff")}</option>
-                    </select>
+                  <NativeSetting searchId="skill-startup-notices" label={t("settingsConfig.skillStartupNotices")} description={t("settingsConfig.skillStartupNoticesDesc")} scope="Native OMP">
+                    <ToggleSwitch checked={nativeSettings?.skills?.showStartupDiagnostics !== false} disabled={nativeSettingsLoading} onChange={(enabled) => patchSection("skills", { showStartupDiagnostics: enabled })} />
                   </NativeSetting>
-                  <NativeSetting searchId="session-info-button" label={t("settingsConfig.sessionInfoButton")} description={t("settingsConfig.sessionInfoButtonDesc")} scope="UI">
-                    <ToggleSwitch checked={sessionInfoButtonVisible} onChange={(next) => onSessionInfoButtonChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="context-ring-mobile" label={t("settingsConfig.contextRingMobile")} description={t("settingsConfig.contextRingMobileDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={contextRingMobile}
-                      onChange={(event) => onContextRingMobileChange?.(event.target.value as ContextRingMobilePlacement)}
-                    >
-                      <option value="composer" style={nativeOptionStyle}>{t("settingsConfig.contextRingComposer")}</option>
-                      <option value="topbar" style={nativeOptionStyle}>{t("settingsConfig.contextRingTopbar")}</option>
-                      <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.contextRingHidden")}</option>
-                    </select>
-                  </NativeSetting>
-                  <NativeSetting searchId="jump-to-bottom-button" label={t("settingsConfig.jumpToBottomButton")} description={t("settingsConfig.jumpToBottomButtonDesc")} scope="UI">
-                    <ToggleSwitch checked={showJumpToBottomButton} onChange={(next) => onShowJumpToBottomButtonChange?.(next)} />
+                </SettingsSubsection>
+
+                <SettingsSubsection isMobile={isMobile} title={t("settingsConfig.sectionSidebarPanels")} description={t("settingsConfig.sectionSidebarPanelsDesc")}>
+                  <NativeSetting searchId="swap-side-panels" label={t("settingsConfig.swapSidePanels")} description={t("settingsConfig.swapSidePanelsDesc")} scope="UI">
+                    <ToggleSwitch checked={panelsSwapped} onChange={(next) => onPanelsSwappedChange?.(next)} />
                   </NativeSetting>
                   <NativeSetting searchId="session-git-stats" label={t("settingsConfig.sessionGitStats")} description={t("settingsConfig.sessionGitStatsDesc")} scope="UI">
                     <select
@@ -1482,65 +1583,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.gitStatsHidden")}</option>
                     </select>
                   </NativeSetting>
-                  <NativeSetting searchId="hub-bar-visibility" label={t("settingsConfig.hubBarVisibility")} description={t("settingsConfig.hubBarVisibilityDesc")} scope="UI">
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
-                      {([
-                        ["git", "settingsConfig.hubBarGit"],
-                        ["tasks", "settingsConfig.hubBarTasks"],
-                        ["subagents", "settingsConfig.hubBarSubagents"],
-                      ] as const).map(([key, labelKey]) => (
-                        <label
-                          key={key}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text)", cursor: "pointer" }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={hubBarsVisible[key]}
-                            onChange={(event) => onHubBarsVisibleChange?.({ ...hubBarsVisible, [key]: event.target.checked })}
-                            style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }}
-                          />
-                          {t(labelKey)}
-                        </label>
-                      ))}
-                    </div>
-                  </NativeSetting>
-                  <NativeSetting searchId="hub-bar-layout" label={t("settingsConfig.hubBarLayout")} description={t("settingsConfig.hubBarLayoutDesc")} scope="UI">
-                    <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
-                  </NativeSetting>
-                  <NativeSetting searchId="composer-accent-bg" label={t("settingsConfig.composerAccentBg")} description={t("settingsConfig.composerAccentBgDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={composerAccentBg}
-                      onChange={(event) => onComposerAccentBgChange?.(event.target.value as ComposerAccentBg)}
-                    >
-                      <option value="off" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgOff")}</option>
-                      <option value="dimmed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgDimmed")}</option>
-                      <option value="themed" style={nativeOptionStyle}>{t("settingsConfig.composerAccentBgThemed")}</option>
-                    </select>
-                  </NativeSetting>
-                  <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
-                    <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="thinking-auto-follow" label={t("settingsConfig.thinkingAutoFollow")} description={t("settingsConfig.thinkingAutoFollowDesc")} scope="UI">
-                    <ToggleSwitch checked={thinkingAutoFollowEnabled} onChange={(next) => onThinkingAutoFollowChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="message-actions-visible" label={t("settingsConfig.messageActions")} description={t("settingsConfig.messageActionsDesc")} scope="UI">
-                    <ToggleSwitch checked={messageActionsVisible} onChange={(next) => onMessageActionsVisibleChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="message-time-format" label={t("settingsConfig.timeFormat")} description={t("settingsConfig.timeFormatDesc")} scope="UI">
-                    <select
-                      style={nativeSelectStyle}
-                      value={messageTimeFormat}
-                      onChange={(event) => onMessageTimeFormatChange?.(event.target.value as "24h" | "ampm")}
-                    >
-                      <option value="24h" style={nativeOptionStyle}>{t("settingsConfig.timeFormat24h")}</option>
-                      <option value="ampm" style={nativeOptionStyle}>{t("settingsConfig.timeFormatAmPm")}</option>
-                    </select>
-                  </NativeSetting>
-                  <NativeSetting searchId="swap-side-panels" label={t("settingsConfig.swapSidePanels")} description={t("settingsConfig.swapSidePanelsDesc")} scope="UI">
-                    <ToggleSwitch checked={panelsSwapped} onChange={(next) => onPanelsSwappedChange?.(next)} />
-                  </NativeSetting>
-                </div>
+                </SettingsSubsection>
 
                 <div style={{ marginTop: 12, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                   <h4 style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: "0 0 4px", color: "var(--text)" }}>Animations & Motion</h4>
