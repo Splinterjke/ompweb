@@ -19,7 +19,7 @@ import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, Search, Sun, Terminal, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, ScrollText, Search, Sun, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -2320,7 +2320,7 @@ export function AppShell({ appName }: { appName: string }) {
                 aria-pressed={activeTopPanel === "system"}
                 className="shell-toolbar-btn ui-focus-ring"
               >
-                <Terminal size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: systemPrompt ? "var(--accent)" : undefined }} />
+                <ScrollText size={16} strokeWidth={1.8} aria-hidden="true" />
               </button>
               </Tooltip>
             </div>
@@ -2689,7 +2689,7 @@ export function AppShell({ appName }: { appName: string }) {
                   handleSystemPromptToggle();
                 }}
               >
-                <Terminal size={16} strokeWidth={1.8} aria-hidden="true" style={{ color: systemPrompt ? "var(--accent)" : undefined }} />
+                <ScrollText size={16} strokeWidth={1.8} aria-hidden="true" />
                 {t("appShell.system")}
               </button>
             </div>
