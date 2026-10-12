@@ -218,7 +218,9 @@ fn resolve_is_dir(dirent: &std::fs::DirEntry) -> Option<bool> {
 /// produces — `[{name, isDir, size: 0, modified: ""}]`, dirs first, then
 /// byte-ordered names (the route uses localeCompare; ASCII fixture names
 /// order identically, non-ASCII is a documented known divergence).
-pub fn list_entries_json(dir: &Path) -> Result<String, IpcError> {
+/// `all: true` disables the ignore filter (the explorer's "show ignored
+/// files" mode).
+pub fn list_entries_json(dir: &Path, all: bool) -> Result<String, IpcError> {
     let read_dir = std::fs::read_dir(dir).map_err(|e| {
         let code = if e.kind() == ErrorKind::NotFound {
             "file_not_found"
@@ -234,7 +236,7 @@ pub fn list_entries_json(dir: &Path) -> Result<String, IpcError> {
             Err(_) => continue,
         };
         let name = entry.file_name().to_string_lossy().into_owned();
-        if is_ignored(&name) {
+        if !all && is_ignored(&name) {
             continue;
         }
         if let Some(is_dir) = resolve_is_dir(&entry) {
@@ -317,7 +319,7 @@ fn read_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
     read_ungated(path)
 }
 
-fn list_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
+fn list_guarded(roots: &[String], path: &str, all: bool) -> Result<String, IpcError> {
     check_containment(roots, path)?;
     // The route stats first: a non-directory target is `not_a_directory`,
     // a missing one is `file_not_found`.
@@ -332,7 +334,7 @@ fn list_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
     if !metadata.is_dir() {
         return Err(IpcError::new("not_a_directory", "not a directory"));
     }
-    let entries = list_entries_json(Path::new(path))?;
+    let entries = list_entries_json(Path::new(path), all)?;
     Ok(format!(
         "{{\"entries\":{},\"path\":{}}}",
         entries,
@@ -372,8 +374,8 @@ fn meta_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
 /// IPC arms: `files.list` / `files.read` / `files.meta`. `roots` is the
 /// Node-computed allowed root list (Node keeps root authority; the host
 /// re-enforces containment as defense-in-depth).
-pub fn list(roots: &[String], path: &str) -> Result<String, IpcError> {
-    list_guarded(roots, path)
+pub fn list(roots: &[String], path: &str, all: bool) -> Result<String, IpcError> {
+    list_guarded(roots, path, all)
 }
 pub fn read(roots: &[String], path: &str) -> Result<String, IpcError> {
     read_guarded(roots, path)
@@ -382,10 +384,11 @@ pub fn meta(roots: &[String], path: &str) -> Result<String, IpcError> {
     meta_guarded(roots, path)
 }
 
-/// `--files-list <dir>` CLI parity mode: prints the bare entries array
-/// (no roots gate — fixture parity runs against a trusted temp dir).
-pub fn cli_list(dir: &str) -> Result<String, String> {
-    list_entries_json(Path::new(dir)).map_err(|e| e.message)
+/// `--files-list <dir> [all]` CLI parity mode: prints the bare entries array
+/// (no roots gate — fixture parity runs against a trusted temp dir). A truthy
+/// `all` ("1"/"all"/"true") disables the ignore filter.
+pub fn cli_list(dir: &str, all: bool) -> Result<String, String> {
+    list_entries_json(Path::new(dir), all).map_err(|e| e.message)
 }
 
 /// `--files-read <path>` CLI parity mode: read with no roots gate.
@@ -436,11 +439,18 @@ mod tests {
         std::fs::write(dir.join("a.log"), "a").unwrap();
         std::fs::write(dir.join("x.pyc"), "x").unwrap();
         std::fs::create_dir_all(dir.join(".git")).unwrap();
-        let json = list_entries_json(&dir).unwrap();
+        let json = list_entries_json(&dir, false).unwrap();
         // dirs first (alpha, zeta), then files (a.log, b.txt); ignored gone.
         assert_eq!(
             json,
             "[{\"name\":\"alpha-dir\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"zeta-dir\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"a.log\",\"isDir\":false,\"size\":0,\"modified\":\"\"},{\"name\":\"b.txt\",\"isDir\":false,\"size\":0,\"modified\":\"\"}]"
+        );
+        // all=true lifts the ignore filter: dirs first in byte order (.git,
+        // alpha, node_modules, zeta), then every file including the .pyc.
+        let json_all = list_entries_json(&dir, true).unwrap();
+        assert_eq!(
+            json_all,
+            "[{\"name\":\".git\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"alpha-dir\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"node_modules\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"zeta-dir\",\"isDir\":true,\"size\":0,\"modified\":\"\"},{\"name\":\"a.log\",\"isDir\":false,\"size\":0,\"modified\":\"\"},{\"name\":\"b.txt\",\"isDir\":false,\"size\":0,\"modified\":\"\"},{\"name\":\"x.pyc\",\"isDir\":false,\"size\":0,\"modified\":\"\"}]"
         );
         std::fs::remove_dir_all(&dir).ok();
     }

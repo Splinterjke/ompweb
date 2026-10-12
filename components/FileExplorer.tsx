@@ -29,6 +29,7 @@ import {
   normalizeFilePathSlashes,
 } from "@/lib/file-paths";
 import type { GitFileStatus, GitFileStatusKind, GitStatusResponse } from "@/lib/git-types";
+import { useShowAllFiles } from "@/hooks/useShowAllFiles";
 
 interface FileEntry {
   name: string;
@@ -100,9 +101,9 @@ class FetchError extends Error {
   }
 }
 
-async function fetchEntries(dirPath: string): Promise<FileNode[]> {
+async function fetchEntries(dirPath: string, all: boolean): Promise<FileNode[]> {
   const encoded = encodeFilePathForApi(dirPath);
-  const res = await fetch(`/api/files/${encoded}?type=list`);
+  const res = await fetch(`/api/files/${encoded}?type=list${all ? "&all=1" : ""}`);
   if (!res.ok) {
     let message = translate("fileExplorer.loadFailed", { status: res.status });
     let code: string | null = null;
@@ -224,6 +225,7 @@ function TreeNode({
   highlightedPaths,
   gitStatusByPath,
   changedDirectoryPaths,
+  showAllFiles,
 }: {
   node: FileNode;
   depth: number;
@@ -236,6 +238,7 @@ function TreeNode({
   highlightedPaths: Set<string>;
   gitStatusByPath: Map<string, GitFileStatus>;
   changedDirectoryPaths: Set<string>;
+  showAllFiles: boolean;
 }) {
   const { t } = useI18n();
   const open = expandedPaths.has(node.fullPath);
@@ -258,7 +261,7 @@ function TreeNode({
     const requestId = ++childrenRequestRef.current;
     setLoading(true);
     try {
-      const entries = await fetchEntries(node.fullPath);
+      const entries = await fetchEntries(node.fullPath, showAllFiles);
       if (requestId !== childrenRequestRef.current) return;
       setChildren(entries);
       setLoaded(true);
@@ -269,7 +272,7 @@ function TreeNode({
     } finally {
       if (requestId === childrenRequestRef.current) setLoading(false);
     }
-  }, [loaded, node.fullPath]);
+  }, [loaded, node.fullPath, showAllFiles]);
 
   // Invalidate any in-flight children request when the node's path changes or
   // the node unmounts, so a stale response can never setState afterwards.
@@ -586,6 +589,7 @@ function TreeNode({
                 highlightedPaths={highlightedPaths}
                 gitStatusByPath={gitStatusByPath}
                 changedDirectoryPaths={changedDirectoryPaths}
+                showAllFiles={showAllFiles}
               />
             ))}
             {children.length === 0 && loaded && (
@@ -615,6 +619,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   onRefreshDone,
 }, ref) {
   const { t, tn } = useI18n();
+  const { showAllFiles } = useShowAllFiles();
   const [missingWorkspace, setMissingWorkspace] = useState<string | null>(null);
   const [roots, setRoots] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -630,7 +635,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   const [pendingConflict, setPendingConflict] = useState<PendingConflict | null>(null);
   const prevCwdRef = useRef<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  const refreshToken = `${refreshKey ?? 0}:${treeRefreshKey}`;
+  const refreshToken = `${refreshKey ?? 0}:${treeRefreshKey}:${showAllFiles ? "all" : "repo"}`;
   const uploadBusy = uploadPhase !== "idle";
 
   const gitStatusByPath = useMemo(() => new Map(
@@ -789,7 +794,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
       }
     };
     const load = (dir: string, top: boolean): Promise<void> =>
-      fetchEntries(dir)
+      fetchEntries(dir, showAllFiles)
         .then((entries) => {
           if (!cancelled) {
             setRoots(entries);
@@ -821,7 +826,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
         });
     void load(cwd, true);
     return () => { cancelled = true; };
-  }, [cwd, refreshKey, treeRefreshKey]);
+  }, [cwd, refreshKey, treeRefreshKey, showAllFiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1000,6 +1005,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
               highlightedPaths={highlightedPaths}
               gitStatusByPath={gitStatusByPath}
               changedDirectoryPaths={changedDirectoryPaths}
+              showAllFiles={showAllFiles}
             />
           ))
         )}

@@ -24,11 +24,15 @@ export interface DirectoryEntry {
   modified: "";
 }
 
-/** readdir with ignore filters, symlink-dir resolution and dirs-first sort. */
-export function listDirectoryEntries(dirPath: string): DirectoryEntry[] {
+/**
+ * readdir with ignore filters, symlink dir resolution and dirs-first sort.
+ * `all: true` disables the ignore filter — the explorer's "show ignored
+ * files" mode (`?all=1` on the list API).
+ */
+export function listDirectoryEntries(dirPath: string, all = false): DirectoryEntry[] {
   const dirents = fs.readdirSync(dirPath, { withFileTypes: true });
   return dirents
-    .filter((d) => !IGNORED_NAMES.has(d.name) && !IGNORED_SUFFIXES.some((s) => d.name.endsWith(s)))
+    .filter((d) => all || (!IGNORED_NAMES.has(d.name) && !IGNORED_SUFFIXES.some((s) => d.name.endsWith(s))))
     .flatMap((d) => {
       const isDir = resolveDirentIsDirectory(d, path.join(dirPath, d.name));
       return isDir === null

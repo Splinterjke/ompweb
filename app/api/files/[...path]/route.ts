@@ -663,11 +663,14 @@ export async function GET(
       return NextResponse.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
     }
 
-    // Doc 16 route 9: listing runs on the Rust host in Rust mode (the list
-    // auth path is root-only, so every authorized list reaches the host).
+    // `?all=1` disables the ignore filter ("show ignored files" in the file
+    // explorer). Doc 16 route 9: listing runs on the Rust host in Rust mode
+    // (the list auth path is root-only, so every authorized list reaches the
+    // host).
+    const listAll = request.nextUrl.searchParams.get("all") === "1";
     if (rustBackendActive()) {
       try {
-        return NextResponse.json(await hostClient.files.list([...allowedRoots], filePath));
+        return NextResponse.json(await hostClient.files.list([...allowedRoots], filePath, listAll));
       } catch (error) {
         return filesAuthorityErrorResponse("files_list_failed", error);
       }
@@ -675,7 +678,7 @@ export async function GET(
 
     // Avoid per-entry stat calls for normal files and directories. Symlinks and
     // filesystems without directory type information use the stat fallback.
-    const entries = listDirectoryEntries(filePath);
+    const entries = listDirectoryEntries(filePath, listAll);
 
     return NextResponse.json({ entries, path: filePath });
   } catch (error) {

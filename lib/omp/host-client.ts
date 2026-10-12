@@ -67,7 +67,7 @@ export interface HostClientSurface {
   };
   files: {
     /** Directory listing mirror of /api/files?type=list (doc 16 route 9). */
-    list(roots: string[], path: string): Promise<{ entries: Array<{ name: string; isDir: boolean }>; path: string }>;
+    list(roots: string[], path: string, all?: boolean): Promise<{ entries: Array<{ name: string; isDir: boolean }>; path: string }>;
     /** Text-JSON read (<256 KiB) mirror of /api/files?type=read. */
     read(roots: string[], path: string): Promise<{ content: string; language: string; size: number }>;
     /** File metadata mirror of /api/files?type=meta. */
@@ -218,8 +218,8 @@ export const hostClient: HostClientSurface = {
     },
   },
   files: {
-    list: async (roots, path) => {
-      const raw = await hostRequest("files.list", { roots, path });
+    list: async (roots, path, all?) => {
+      const raw = await hostRequest("files.list", { roots, path, ...(all ? { all: true } : {}) });
       if (raw !== null && typeof raw === "object" && Array.isArray((raw as { entries?: unknown }).entries) && typeof (raw as { path?: unknown }).path === "string") {
         return raw as { entries: Array<{ name: string; isDir: boolean }>; path: string };
       }

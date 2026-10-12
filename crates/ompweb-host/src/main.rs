@@ -382,7 +382,11 @@ fn main() {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                            match file_service::list(&roots, &path) {
+                            let all = params
+                                .get(&["all"])
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            match file_service::list(&roots, &path, all) {
                                 Ok(body) => Ok(Some(body)),
                                 Err(err) => Err(err),
                             }
@@ -739,9 +743,14 @@ fn main() {
             }
         }
         "--files-list" | "files-list" => {
-            // usage: ompweb-host --files-list <dir>  (parity/CLI mode: entries array, no roots gate)
+            // usage: ompweb-host --files-list <dir> [all]  (parity/CLI mode: entries
+            // array, no roots gate; a truthy `all` lifts the ignore filter)
             let dir = args.get(2).map(String::as_str).unwrap_or(".");
-            match file_service::cli_list(dir) {
+            let all = matches!(
+                args.get(3).map(String::as_str),
+                Some("1") | Some("all") | Some("true")
+            );
+            match file_service::cli_list(dir, all) {
                 Ok(body) => {
                     let _ = writeln!(std::io::stdout(), "{body}");
                 }
@@ -859,7 +868,7 @@ fn main() {
             }
         }
         other => {
-            eprintln!("unknown flag: {other}\nusage: ompweb-host [--version | --health | --journal-shadow <root> <db> | --scan-sessions <root> | --files-list <dir> | --files-read <path> | --files-meta <path> | --git-status <cwd> | --git-branches <cwd> | --git-checkout <cwd> <branch> | --git-commit <cwd> <message> | --git-push <cwd> | --git-diff <cwd> <path>]");
+            eprintln!("unknown flag: {other}\nusage: ompweb-host [--version | --health | --journal-shadow <root> <db> | --scan-sessions <root> | --files-list <dir> [all] | --files-read <path> | --files-meta <path> | --git-status <cwd> | --git-branches <cwd> | --git-checkout <cwd> <branch> | --git-commit <cwd> <message> | --git-push <cwd> | --git-diff <cwd> <path>]");
             std::process::exit(2);
         }
     }

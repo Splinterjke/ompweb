@@ -30,6 +30,7 @@ import { WorktreesPanel } from "./WorktreesPanel";
 import type { WorktreeContext } from "./SessionSidebar";
 import { AgentsPanel } from "./agents/AgentsPanel";
 import { FileExplorer } from "./FileExplorer";
+import { ShowAllFilesButton } from "./ShowAllFilesButton";
 import { SubagentDetailPanel } from "./agents/SubagentDetailPanel";
 import { useTheme } from "@/hooks/useTheme";
 import { translate, useI18n } from "@/lib/i18n";
@@ -3010,6 +3011,7 @@ export function AppShell({ appName }: { appName: string }) {
                       <div style={{ flex: 1, overflow: "hidden" }}>
                         <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
                       </div>
+                      <ShowAllFilesButton variant="toolbar" side="bottom" />
                       <button
                         type="button"
                         onClick={handleCloseAllFileTabs}
@@ -3019,6 +3021,14 @@ export function AppShell({ appName }: { appName: string }) {
                       >
                         <X size={16} strokeWidth={1.8} aria-hidden="true" />
                       </button>
+                    </div>
+                  )}
+                  {/* With no file tabs open the explorer owns the panel — give
+                      it a slim toolbar so the show-ignored-files toggle has a
+                      home on the Files tab in both states. */}
+                  {fileTabs.length === 0 && (
+                    <div className="right-panel-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)", minHeight: 32, padding: "0 6px" }}>
+                      <ShowAllFilesButton variant="toolbar" side="bottom" />
                     </div>
                   )}
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>

@@ -9,6 +9,7 @@ import { formatApiError } from "@/lib/i18n/api-error";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { BackendStatusButton } from "./BackendDiagnostics";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
+import { ShowAllFilesButton } from "./ShowAllFilesButton";
 import { Tooltip } from "./ui/primitives";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "@/components/ui/toast";
@@ -2358,6 +2359,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                 alignItems: "center",
               }}
             >
+              <ShowAllFilesButton variant="sidebar" />
               <Tooltip content={t("sessionSidebar.uploadFilesTitle")} side="top">
                 <button
                   onClick={() => fileExplorerRef.current?.openUploadPicker()}
