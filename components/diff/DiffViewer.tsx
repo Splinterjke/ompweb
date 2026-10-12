@@ -38,10 +38,10 @@ export interface DiffViewerProps {
   showHeader?: boolean;
   showPath?: boolean;
   showViewed?: boolean;
-  /** Layout toolbar row (Split / Inline / Wrap), shared by every diff pane
-   *  (git-graph pane, right-panel Git tab, FileViewer diffs). The layout
-   *  choice persists in localStorage; split/inline self-hide under the
-   *  split-width gate. */
+  /** Layout controls (Split / Inline / Wrap) rendered in the file header,
+   *  right before the copy button — shared by every diff pane (git-graph
+   *  pane, right-panel Git tab, FileViewer diffs). The choice persists in
+   *  localStorage; split/inline self-hide under the split-width gate. */
   showLayoutToggle?: boolean;
   /** Working-tree status chip shown in the header (e.g. "Modified"); the
    *  owner of the git status passes the localized label + color. */
@@ -628,14 +628,14 @@ export function DiffViewer({
             statusLabel={statusLabel}
             statusColor={statusColor}
             headerExtra={headerExtra}
+            layoutControls={showLayoutToggle ? (
+              <span style={{ display: "inline-flex", gap: 4, flexShrink: 0 }}>
+                <LayoutButton active={split} onClick={() => chooseLayout("split")} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
+                <LayoutButton active={!split} onClick={() => chooseLayout("unified")} label={t("diff.inlineView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
+                <LayoutButton active={wrap} onClick={() => applyWrap(!wrap)} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
+              </span>
+            ) : null}
           />
-        )}
-        {showLayoutToggle && (
-          <div style={{ display: "flex", gap: 4, padding: "4px 10px", borderBottom: "1px solid var(--border)", background: "var(--bg-panel)" }}>
-            <LayoutButton active={split} onClick={() => chooseLayout("split")} label={t("diff.splitView")} icon={<Columns2 size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={!split} onClick={() => chooseLayout("unified")} label={t("diff.inlineView")} icon={<List size={12} strokeWidth={2} />} visible={splitAllowed} />
-            <LayoutButton active={wrap} onClick={() => applyWrap(!wrap)} label={t("diff.wrapLines")} icon={<WrapText size={12} strokeWidth={2} />} visible />
-          </div>
         )}
         <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: "auto", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", lineHeight: LINE_HEIGHT, minWidth: 0 }}>
           <div
@@ -666,7 +666,7 @@ const headerIconButtonStyle: React.CSSProperties = {
   background: "none", color: "var(--text-muted)", cursor: "pointer",
 };
 
-function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed, showPath, showViewed, statusLabel, statusColor, headerExtra, onOpenFile }: {
+function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed, showPath, showViewed, statusLabel, statusColor, headerExtra, layoutControls, onOpenFile }: {
   model: DiffFileModel;
   filePath: string | null;
   cwd: string | null;
@@ -678,6 +678,7 @@ function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed
   statusLabel?: string;
   statusColor?: string;
   headerExtra?: React.ReactNode;
+  layoutControls?: React.ReactNode;
   onOpenFile?: (filePath: string) => void;
 }) {
   const { t } = useI18n();
@@ -716,6 +717,7 @@ function DiffFileHeader({ model, filePath, cwd, copyText, viewed, onToggleViewed
       )}
       <span style={{ flex: 1, minWidth: 0 }} />
       {headerExtra}
+      {layoutControls}
       {filePath && copyText != null && (
         <button type="button" onClick={() => void copy(copyText)} title={t("diff.copyContent")} aria-label={t("diff.copyContent")} className="ui-focus-ring" style={headerIconButtonStyle}>
           <Copy size={12} strokeWidth={2} aria-hidden="true" />

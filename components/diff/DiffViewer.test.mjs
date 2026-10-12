@@ -218,11 +218,17 @@ test("layout and wrap choices persist to localStorage and restore on remount", (
   assert.equal(window.localStorage.getItem("omp-web:diff-wrap"), "0");
   view.unmount();
 
-  const again = render(React.createElement(DiffViewer, props));
+  const again = render(React.createElement(DiffViewer, { ...props, newText: "x" }));
   assert.equal(again.container.querySelectorAll('[data-diff-line="2"]').length, 0, "remount restores the inline layout");
   assert.equal(layoutButton(again.container, "Inline view").getAttribute("aria-pressed"), "true");
   assert.equal(layoutButton(again.container, "Split view").getAttribute("aria-pressed"), "false");
   assert.equal(layoutButton(again.container, "Wrap lines").getAttribute("aria-pressed"), "false");
+  const controls = layoutButton(again.container, "Inline view").parentElement;
+  assert.equal(
+    controls.nextElementSibling,
+    layoutButton(again.container, "Copy file contents"),
+    "the layout controls sit right before the Copy file contents button in the header",
+  );
   assert.ok(
     [...again.container.querySelectorAll("[data-diff-content]")].every((s) => s.style.whiteSpace !== "pre-wrap"),
     "wrap stays off after remount",
