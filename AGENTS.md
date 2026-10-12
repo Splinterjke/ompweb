@@ -496,6 +496,18 @@ hooks/
   (default ON), persisted with the other server settings via
   `/api/web-settings` (`autoGenerateSessionTitles` in
   `~/.omp/agent/omp-web-settings.json`).
+- Wand gating invariants (pinned by `AppShell.test.mjs`): "anything to name"
+  counts ANY committed turn — stats only count when their `sessionId` matches
+  the selected session (leaked stats from the previous one armed the wand of a
+  conversation-less session), and USER messages alone are NOT the gate: the
+  post-compaction window can hold no user turn, which disabled the wand after
+  every compaction with a misleading "Send a message before naming…" tooltip.
+  `selectedSessionBusy` is push-only — never reset it on session-id change:
+  starting a new session does NOT remount the ChatWindow, so its busy push is
+  never repeated and a blind reset left the wand enabled for the whole first
+  run. A run the CLIENT did not start (auto-title, deferred continuation) is
+  invisible to the idle page until the hook's post-run `/state` probe (~2.5 s
+  after each client run ends) re-asserts the running state.
 
 ### ToolCall field normalization
 Sessions store toolCall blocks as `{type:"toolCall", id, name, arguments}` but `ToolCallContent` uses `{toolCallId, toolName, input}`. `normalizeToolCalls()` in `lib/normalize.ts` handles this — called in both `session-reader.ts` (file load) and streaming event handling.

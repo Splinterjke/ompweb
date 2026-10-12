@@ -26,3 +26,19 @@ test("Git trigger button opens the git-graph modal beside the file viewer", asyn
   assert.match(source, /gitWorkspace === false/);
   assert.match(source, /appShell\.githubStatusNotGit/);
 });
+
+test("title wand gates on any committed turn and keeps the busy mirror through session start", async () => {
+  const source = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
+  // A compacted session can legitimately keep a window without user turns —
+  // a user-message-only gate disabled the wand there with a misleading
+  // "Send a message before naming this session" tooltip.
+  assert.match(source, /statsForSession\.userMessages \+ statsForSession\.assistantMessages > 0/);
+  // Stats count only for THEIR session; stats leaking from the previous one
+  // must not arm the wand of a conversation-less session.
+  assert.match(source, /sessionStats\.sessionId === selectedSession\.id/);
+  // The busy mirror is push-only. A blind reset keyed on the session id used
+  // to clobber the push of a run whose ChatWindow never remounted — starting
+  // a new session (id appears mid-run, same ChatWindow, busy never flips)
+  // left the wand enabled for the whole first run.
+  assert.doesNotMatch(source, /setSelectedSessionBusy\(false\)[\s\S]{0,160}\}, \[selectedSession\?\.id\]\)/);
+});

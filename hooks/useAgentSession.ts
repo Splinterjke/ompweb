@@ -2582,6 +2582,31 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setTurnStarting(false);
         setAgentPhase(null);
         clearLiveToolResults();
+        // A server-side-initiated continuation run (the wrapper's auto-title
+        // after the FIRST settled run; deferred continuations) starts right
+        // after this run ends, and the per-session stream closes with the
+        // client's run — the page would sit idle with the title wand clickable
+        // while the session actually runs. One delayed state read lets the
+        // server re-assert it; mirror the hydration running branch.
+        setTimeout(() => {
+          if (!endedSid || sessionIdRef.current !== endedSid || agentRunningRef.current || externalRunningRef.current) return;
+          void fetch(`/api/sessions/${encodeURIComponent(endedSid)}/state`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((s: { running?: boolean; external?: boolean; state?: { isStreaming?: boolean; isPromptRunning?: boolean } } | null) => {
+              if (!s?.running || sessionIdRef.current !== endedSid || agentRunningRef.current || externalRunningRef.current) return;
+              if (s.external) {
+                enterExternalModeRef.current?.(endedSid);
+                return;
+              }
+              if (!s.state?.isStreaming && !s.state?.isPromptRunning) return;
+              agentRunningRef.current = true;
+              setAgentRunning(true);
+              setAgentPhase(s.state.isStreaming ? { kind: "waiting_model" } : { kind: "running_command" });
+              dispatch({ type: "start" });
+              void connectEvents(endedSid);
+            })
+            .catch(() => { /* the next reconcile or SSE frame still converges */ });
+        }, 2500);
         // 运行在自动重试进行中结束（重试耗尽或中止）——正常完成路径会先收
         // 到 auto_retry_end 清空 retryInfo；这里仍非空说明回合失败，明确提示
         // 用户，避免"输出一半就停了但没有报错"的困惑。
@@ -3031,7 +3056,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         handleExtensionUiRequest(event as unknown as IncomingExtensionUiRequest);
         break;
     }
-  }, [addNotice, applyGoal, applySkillDiagnosticsSnapshot, beginAuthoritativeModelSync, clearLiveToolResults, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
+  }, [addNotice, applyGoal, applySkillDiagnosticsSnapshot, beginAuthoritativeModelSync, clearLiveToolResults, connectEvents, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
   handleAgentEventRef.current = handleAgentEvent;
 
   const handleSend = useCallback(async (message: string, images?: AttachedImage[]): Promise<boolean> => {

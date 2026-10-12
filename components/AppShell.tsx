@@ -1589,9 +1589,12 @@ export function AppShell({ appName }: { appName: string }) {
   useEffect(() => {
     clearTimeout(autoNameTimerRef.current);
     setAutoNameStatus({ kind: "idle" });
-    // A busy flag from the previous session must not gate the new one's wand;
-    // the remounted ChatWindow re-pushes the real state on mount.
-    setSelectedSessionBusy(false);
+    // No busy reset here: real session switches remount the ChatWindow (the
+    // bump-key handlers), whose unmount cleanup pushes false and whose fresh
+    // mount pushes the real state. A blind reset here used to CLOBBER the
+    // push of a run that never remounted the chat — starting a brand-new
+    // session (same ChatWindow, id appears mid-run) left the wand enabled
+    // for the whole first run because the busy source never flipped again.
   }, [selectedSession?.id]);
 
   const handleExplorerRefresh = useCallback(() => {
@@ -2391,11 +2394,20 @@ export function AppShell({ appName }: { appName: string }) {
             const effectiveProject = selectedSession?.projectRoot ?? selectedSession?.cwd ?? activeCwd ?? "";
             const sessionTitle = selectedSession?.name || selectedSession?.firstMessage || t("sessionSidebar.new");
             const sessionCard = parseTitleCard(selectedSession?.name);
-            const hasMessages = Boolean(
+            // "Anything to name?" — ANY committed turn counts. A user-message-only
+            // gate misjudged compacted sessions: the kept window can legitimately
+            // start with an assistant answer, and the wand then disabled as if the
+            // session were fresh ("Send a message before naming…"). Stats also only
+            // count for THEIR session: the previous session's stats leaking over
+            // during session start/switch must not arm this session's wand.
+            const statsForSession = sessionStats && selectedSession && sessionStats.sessionId === selectedSession.id ? sessionStats : null;
+            const hasConversation = Boolean(
               selectedSession
-              && (sessionStats?.userMessages ?? selectedSession.messageCount) > 0,
+              && (statsForSession
+                ? statsForSession.userMessages + statsForSession.assistantMessages > 0
+                : (selectedSession.messageCount ?? 0) > 0),
             );
-            const wandDisabled = !selectedSession || selectedSessionBusy || !hasMessages || autoNameStatus.kind === "naming";
+            const wandDisabled = !selectedSession || selectedSessionBusy || !hasConversation || autoNameStatus.kind === "naming";
             const wandIsSuccess = autoNameStatus.kind === "success";
             const wandIsError = autoNameStatus.kind === "error";
             const wandLabel = autoNameStatus.kind === "naming"
@@ -2409,7 +2421,7 @@ export function AppShell({ appName }: { appName: string }) {
               ? t("appShell.titleGenUnavailable")
               : selectedSessionBusy
                 ? t("appShell.titleGenSessionRunning")
-                : !hasMessages
+                : !hasConversation
                   ? t("appShell.titleGenNeedsMessage")
                   : wandIsError
                     ? autoNameStatus.message

@@ -1283,9 +1283,10 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         name: undefined,
         created: ts,
         modified: ts,
-        messageCount: 1,
-        // The first prompt is the row's title until the file lands; without
-        // it the title would fall back to the raw session GUID fragment.
+        // No conversation yet — the file does not exist, so the title wand must
+        // see "nothing to name"; the real entry carries the count once it lands.
+        messageCount: 0,
+        // The first prompt is the row's title until the file lands; without it,
         firstMessage: meta?.prompt ?? "",
         projectRoot: phRoot,
         ...(phKey ? { projectKey: phKey } : {}),
