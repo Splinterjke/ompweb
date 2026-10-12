@@ -72,6 +72,16 @@ RUN CA_ARCH="$(case "$(uname -m)" in aarch64|arm64) echo linux-arm64 ;; *) echo 
  && chmod +x "/root/.chrome-agent/${CFT_DIR}/chrome" "/root/.chrome-agent/${CFT_DIR}/chrome-wrapper" \
  && ln -sf "/root/.chrome-agent/${CFT_DIR}/chrome" /usr/local/bin/google-chrome
 
+# patchright — stealth Playwright driver for sites that fingerprint stock
+# automation drivers (Google-class walls). Driver-only: it drives the same
+# Chrome-for-Testing binary above (executablePath: /usr/local/bin/google-chrome),
+# so no browser download happens (PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD). The version
+# is pinned by browser-tools/package-lock.json; helpers live in /root/browser-tools.
+COPY browser-tools /root/browser-tools
+RUN cd /root/browser-tools \
+ && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --no-audit --no-fund \
+ && node -e "import('patchright').then(m=>process.exit(typeof m.chromium.launch==='function'?0:1))"
+
 COPY entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 

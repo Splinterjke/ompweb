@@ -58,8 +58,10 @@ Rules that matter (full set in `skill://chrome-agent`):
 - Never repeat an action on `unknown` (the first one may have landed).
 - `serving: challenge|error` is a bot block or HTTP error — report it, don't retry blind.
   Datacenter-IP Google bot checks (`/sorry/index`) are IP-based; `--stealth` does not clear them
-  and `--connect` to a real Chrome is unavailable here. For search, use a non-Google engine
-  (e.g. DuckDuckGo HTML) or fall back to the `read` tool.
+  and `--connect` to a real Chrome is unavailable here. For search prefer a non-Google engine
+  (e.g. DuckDuckGo HTML) or the `read` tool; when Google itself must be read, use **patchright**
+  (see the patchright section below) — its passes are intermittent (IP reputation), so a block
+  means back off and cooldown, not retry-loop.
 - **Blank page (`body.innerText` length 0, Vue app not mounted, ~half the JS modules fetched, no
   console errors):** if you are NOT already passing `--disable-dev-shm-usage`, that is the cause —
   add it and re-navigate. If you are, suspect stray Chrome processes
@@ -87,12 +89,34 @@ Reuse ONE named browser for the whole test session — never `pkill` it between 
   a session, never between tests within one.
 - When the session is done: `--browser dev close --purge`.
 
+## patchright — the stealth driver layer (when chrome-agent is not enough)
+
+`browser-tools/` is baked into the image at `/root/browser-tools` (see Dockerfile base stage):
+the patchright driver (stealth Playwright drop-in) + `google-read.mjs`. Use it when a site
+fingerprint-detects stock automation drivers and chrome-agent `--stealth` has already failed
+(Google-class walls; DataDome/Kasada-class). It drives the SAME Chrome-for-Testing binary —
+no extra browser, no daemon, no dashboard:
+
+```bash
+node /root/browser-tools/google-read.mjs "<query>"   # prints google results as: title | url
+```
+
+Custom scripts: put the `.mjs` in `/root/browser-tools` (or run with cwd there so
+`node_modules` resolves) and launch via
+`chromium.launch({ executablePath: '/usr/local/bin/google-chrome', headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] })`.
+If you ever reinstall: `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i patchright` (version is pinned
+by the repo lockfile). Known caveats: patchright's own patch disables the Console API (console
+checks stay on chrome-agent), and Google passes are IP-based and intermittent — treat `/sorry`
+as a cooldown signal.
+
 ## Fallback to the built-in browser device (last resort only)
 
 chrome-agent reuses an existing Chrome (OMP's, or a standalone fallback it downloaded if OMP's is
 absent), so it is self-sufficient for normal web work — you do NOT need the built-in `browser` tool.
 Reach for the built-in `browser` tool only when chrome-agent genuinely cannot:
-- raw puppeteer/JS you need beyond `eval` (e.g. request interception, custom waits)
+- raw driver APIs beyond `eval` (request interception, custom waits) — prefer
+  **patchright** in `/root/browser-tools` first (stealth Playwright API, same Chrome binary);
+  the built-in device only if you specifically need OMP's managed browser
 - driving the user's real logged-in Chrome via relay (not present on this box today)
 - `chrome-agent` errors on launch *after* you've confirmed a working Chrome is linked (see
   Container conventions) and the `.so` libs are installed.
