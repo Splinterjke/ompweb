@@ -57,8 +57,8 @@ function tracker(): TrackerState {
 const LIST_NAME = /^omp-web-interrupted-sessions(?:-(\d+))?\.json$/;
 
 /** True when the list at `path`, written by `pid`, belongs to a running omp-web. */
-// ponytail: pid liveness only; same-boot pid reuse (or an unreaped zombie
-// writer) leaves that list unresumed, and hosts sharing an agent dir are not detected.
+// ponytail: pid liveness only; same-boot pid reuse leaves that list
+// unresumed, and hosts sharing an agent dir are not detected.
 function ownedByLiveInstance(path: string, pid: number): boolean {
   if (pid === process.pid) return false;
   let mtimeMs: number;
@@ -72,10 +72,30 @@ function ownedByLiveInstance(path: string, pid: number): boolean {
   if (mtimeMs < Date.now() - uptime() * 1000) return false;
   try {
     process.kill(pid, 0);
-    return true;
   } catch (error) {
     // EPERM: the process exists but belongs to another user.
     return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+  // Signalling a ZOMBIE succeeds too, so an init that never reaps would let
+  // a crashed omp-web hold its interrupted list "live" forever (observed in
+  // a container whose pid 1 does not reap orphans).
+  return !isZombiePid(pid);
+}
+
+/** True only when /proc positively reports the Z (zombie) state; a missing
+ * /proc (Windows, macOS) or unreadable entry stays "not a zombie" so the
+ * signal check above remains the whole truth there. */
+export function isZombiePid(
+  pid: number,
+  readStat: (path: string) => string = (p) => readFileSync(p, "utf8"),
+): boolean {
+  try {
+    // `/proc/<pid>/stat` is `pid (comm) state …`; comm may contain spaces
+    // and parens, so the state is the first char after the LAST `)`.
+    const stat = readStat(`/proc/${pid}/stat`);
+    return stat[stat.lastIndexOf(")") + 2] === "Z";
+  } catch {
+    return false;
   }
 }
 

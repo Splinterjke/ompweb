@@ -672,10 +672,11 @@ stored `omp-web:submit-during-run` choice overrides it.
 
 ### Auto-resume after a restart (`lib/session-resume.ts`, `lib/web-settings.ts`)
 - ON by default (`autoResumeSessions` in `~/.omp/agent/omp-web-settings.json`, toggle in
-  Settings → System & Updates, served by `/api/web-settings`). Replaces the older
-  SIGTERM-snapshot restore. While on, `notifyRunningChange()` keeps
-  `~/.omp/agent/omp-web-interrupted-sessions.json` in the agent dir listing sessions
-  that are mid-run.
+  Settings → System & Updates, served by `/api/web-settings`). An explicitly saved
+  disabled value stays disabled. While on,
+  `recordRunningSessions()` keeps `omp-web-interrupted-sessions-<pid>.json` files in
+  the agent dir current (per-instance lists, so two instances sharing an agent dir
+  never resume each other's sessions).
 - A session leaves the list when its run ends normally (process still alive), or
   `EXIT_GRACE_MS` (2 s) after its process dies — a service stop signals every process
   at once, so a child can die just before the shutdown handler runs;
@@ -685,11 +686,18 @@ stored `omp-web:submit-during-run` choice overrides it.
 - On boot, `instrumentation.ts` calls `resumeInterruptedSessions()` (fire-and-forget,
   must never block boot): each interrupted session is re-spawned and prompted with the
   side-effect-aware recovery prompt ("The omp-web server restarted while your previous
-  turn was active… Do not repeat completed side effects…").
+  turn was active… Do not repeat completed side effects…"). omp ≥ 18.10.3's native
+  `--restore` (continues the interrupted turn and its subagents itself) is
+  deliberately NOT used: **every released omp rejects `--restore` under
+  `--mode rpc-ui` (interactive-terminal only)** — verified against 18.10.4 in
+  E2E — so an rpc-ui child cannot continue a crashed turn.
 - Only session ids + the `--advisor` flag are stored; paths are re-resolved on resume,
   and invalid ids are dropped. The tracker claims the previous run's list on first use
   in the process (`readLeftover`), so this run's first write can never clobber it before
-  resume consumes it.
+  resume consumes it. `ownedByLiveInstance` treats a **zombie** writer pid as dead
+  (`isZombiePid`, `/proc/<pid>/stat` state after the last `)`): signalling a zombie
+  succeeds, so under a non-reaping init a crashed server's corpse pid would otherwise
+  pin its interrupted list "live" forever (observed in the container; E2E-proven).
 - Known limit: resume does not detect a terminal `omp --resume <id>` started on the
   same session while omp-web was down; both would write the file.
 

@@ -636,6 +636,7 @@ const TOKENIZER_OPTIONS = [
   "claude-v47",
   "claude-v5",
   "claude-v5-sonnet",
+  "o200k",
 ] as const;
 
 // compat.reasoningDisableMode — how omp serializes "reasoning off" on the wire

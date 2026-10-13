@@ -5,7 +5,8 @@ import { isRecord } from "./type-guards";
 
 /** omp-web's own server-side settings (omp's config.yml stays omp's). */
 export interface WebServerSettings {
-  /** Resume sessions that were mid-run when omp-web stopped. */
+  /** Resume sessions that were mid-run when omp-web stopped, asking each
+   * to continue without repeating completed side effects. ON by default. */
   autoResumeSessions: boolean;
   /**
    * Generate a session title automatically when a session's FIRST run
@@ -22,9 +23,9 @@ export interface WebServerSettings {
   agentEnv: Record<string, string>;
 }
 
-// auto-resume defaults ON (it preserves the previous always-on behavior — the
-// local restoreActiveRpcSessions had no off switch); auto-title generation
-// defaults OFF, so naming stays a deliberate opt-in.
+// auto-resume defaults ON (it preserves the previous always-on behavior —
+// the local restoreActiveRpcSessions had no off switch); auto-title
+// generation defaults OFF, so naming stays a deliberate opt-in.
 const DEFAULTS: WebServerSettings = { autoResumeSessions: true, autoGenerateSessionTitles: false, agentEnv: {} };
 
 /** String-valued entries only — the allow-list lives in lib/omp/agent-env.ts. */
