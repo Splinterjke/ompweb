@@ -423,17 +423,25 @@ test("passive tool context from a session file renders on the batch's last tool 
   const segment = view.container.querySelector(".tool-call-details .tool-call-context");
   assert.equal(segment?.textContent, "↳ Context: Treat\tthis result\nas authoritative.");
   assert.equal(view.container.querySelector(".activity-row-secondary[title]"), null, "no truncated row while expanded");
-  // A harness wrapper (omp's rule reminders) becomes a label instead of raw tag text.
+  // A harness wrapper shows as a label, titled like a developer message, never as raw tag text.
   const wrapped = new Map(toolResults);
   wrapped.set("call-2", { ...toolResults.get("call-2"), passiveContext: '<system-reminder reason="rule_violation" rule="ts-set-map">\nUse a Record.\n</system-reminder>' });
   const labeled = renderToStaticMarkup(React.createElement(MessageView, { message: single, toolResults: wrapped }));
-  assert.match(labeled, /↳ <\/span>Context \(rule_violation · ts-set-map\): Use a Record\.<\/div>/);
-  assert.doesNotMatch(labeled, /system-reminder/);
-  // The length cap can cut the closing tag; the opening tag still never leaks.
+  assert.match(labeled, /↳ <\/span>Context \(system-reminder · reason=rule_violation · rule=ts-set-map\): Use a Record\.<\/div>/);
+  assert.doesNotMatch(labeled, /&lt;/);
+  // The length cap can cut the closing tag; the opening tag still never leaks, and empty values drop out.
   wrapped.set("call-2", { ...toolResults.get("call-2"), passiveContext: '<system-reminder reason="" rule="ts-set-map">\nUse a Rec' });
   const cut = renderToStaticMarkup(React.createElement(MessageView, { message: single, toolResults: wrapped }));
-  assert.match(cut, /↳ <\/span>Context \(ts-set-map\): Use a Rec<\/div>/);
-  assert.doesNotMatch(cut, /system-reminder/);
+  assert.match(cut, /↳ <\/span>Context \(system-reminder · rule=ts-set-map\): Use a Rec<\/div>/);
+  assert.doesNotMatch(cut, /&lt;|reason=/);
+  // Expanded, the wrapper becomes a nested card: its title as the header, the body below.
+  wrapped.set("call-2", { ...toolResults.get("call-2"), passiveContext: '<system-reminder source="graphify">\nMANDATORY: run `graphify query`.\n</system-reminder>' });
+  const card = render(React.createElement(MessageView, { message: single, toolResults: wrapped }));
+  // Local adaptation: the details wrapper stays in the DOM while collapsed, so click the row trigger directly.
+  fireEvent.click(card.container.querySelector("button.activity-row-trigger"));
+  const nested = card.container.querySelector(".tool-call-details .tool-call-context-card");
+  assert.equal(nested?.querySelector(".tool-call-context-title")?.textContent, "↳ system-reminder · source=graphify");
+  assert.equal(nested?.querySelector(".tool-call-context-body")?.textContent, "MANDATORY: run `graphify query`.");
   // The marked message is no row of its own; the unmarked one still is.
   assert.equal(messages[4].customType, "passive-tool-context");
   assert.equal(html(messages[4]), "");

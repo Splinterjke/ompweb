@@ -3907,6 +3907,24 @@ html.dark .dropdown-surface :is(select, option) {
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
+.tool-call-context-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--bg);
+}
+.tool-call-context-title {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 650;
+}
+.tool-call-context-body {
+  padding: 5px 8px;
+  color: var(--text-muted);
+}
 .tool-call-output {
   max-height: 260px;
   overflow: auto;
