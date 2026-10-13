@@ -136,7 +136,9 @@ test("the panel, its scroller and the Other textarea can shrink inside the colum
   const html = staticMarkup();
   assert.match(html, /role="dialog"[^>]*style="[^"]*box-sizing:border-box;min-width:0/);
   assert.match(html, /class="extension-dialog-content" style="[^"]*min-width:0/);
-  assert.match(html, /aria-label="Other \(type your answer\)"[\s\S]{0,400}box-sizing:border-box;min-width:0/);
+  // The Other textarea now flexes inside its bordered option row; min-width:0
+  // on both keeps the row shrinking with the column instead of overflowing.
+  assert.match(html, /aria-label="Other \(type your answer\)"[\s\S]{0,400}flex:1;min-width:0/);
 });
 
 // ---- #235: composer-attached focus --------------------------------------------
@@ -452,6 +454,18 @@ test("answering releases the Other text box at once, so the keyboard does not wa
   fireEvent.click(screen.getByRole("button", { name: "Submit" }));
   assert.equal(responses.length, 1);
   assert.ok(document.activeElement !== other, "the Other text box must not keep focus");
+});
+
+test("tapping back into kept Other text chooses it even when focus never left", () => {
+  renderAttached();
+  const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+  fireEvent.change(other, { target: { value: "Teal" } });
+  fireEvent.click(screen.getByRole("radio", { name: "Red" }));
+  assert.equal(screen.getByRole("radio", { name: /Other/ }).checked, false);
+  // A tap that finds focus already in the box fires no focus event.
+  fireEvent.click(other);
+  assert.equal(screen.getByRole("radio", { name: /Other/ }).checked, true);
+  assert.equal(screen.getByRole("radio", { name: "Red" }).checked, false);
 });
 
 // ---- touch targets (globals.css) ----------------------------------------------

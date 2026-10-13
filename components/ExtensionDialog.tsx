@@ -19,9 +19,10 @@ export type ExtensionDialogResponse =
   | { confirmed: boolean }
   | { cancelled: true }
   | { answers: RpcAskDialogAnswer[] };
-
-type AskDraft = { selected: string[]; other: string };
-const EMPTY_ASK_DRAFT: AskDraft = { selected: [], other: "" };
+// The Other text lives as long as the question: choosing a regular option only
+// unchooses it, so the text is still in its row when Other is chosen again.
+type AskDraft = { selected: string[]; other: string; otherChosen: boolean };
+const EMPTY_ASK_DRAFT: AskDraft = { selected: [], other: "", otherChosen: false };
 // Fields that raise the on-screen keyboard: every input but a radio/checkbox.
 const TEXT_ENTRY = "input:not([type=radio]):not([type=checkbox]), textarea";
 
@@ -220,7 +221,7 @@ function initialAskDrafts(request: ExtensionDialogRequest): AskDraft[] {
   if (request.method !== "ask") return [];
   return request.questions.map((question) => {
     const recommended = question.multi || question.recommended === undefined ? undefined : question.options[question.recommended];
-    return { selected: recommended ? [recommended.label] : [], other: "" };
+    return { selected: recommended ? [recommended.label] : [], other: "", otherChosen: false };
   });
 }
 
@@ -274,10 +275,15 @@ export function ExtensionDialog({
   };
   const cancel = () => respond({ cancelled: true });
   const askDraftAt = (index: number) => askDrafts[index] ?? EMPTY_ASK_DRAFT;
-  // Multi-select may stay empty; single-select needs a choice or an answer.
+  const updateAskDraft = (index: number, update: (draft: AskDraft) => AskDraft) =>
+    setAskDrafts((drafts) => drafts.map((draft, i) => i === index ? update(draft) : draft));
+  // A chosen Other counts only with text. Multi-select may stay empty;
+  // single-select needs a choice or an answer.
   const canSubmit = request.method === "ask"
-    ? request.questions.every((question, index) =>
-      question.multi || askDraftAt(index).selected.length > 0 || askDraftAt(index).other.trim() !== "")
+    ? request.questions.every((question, index) => {
+      const { selected, other, otherChosen } = askDraftAt(index);
+      return question.multi || selected.length > 0 || (otherChosen && other.trim() !== "");
+    })
     : request.method !== "select" || selectedOption !== null;
   const title = request.method === "ask" ? t("chatWindow.askTitle") : request.title;
 
@@ -328,7 +334,7 @@ export function ExtensionDialog({
       respond({
         answers: request.questions.map((question, index) => {
           const draft = askDraftAt(index);
-          const customInput = draft.other.trim();
+          const customInput = draft.otherChosen ? draft.other.trim() : "";
           return {
             id: question.id,
             selectedOptions: question.options.map((option) => option.label).filter((label) => draft.selected.includes(label)),
@@ -491,6 +497,10 @@ export function ExtensionDialog({
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
               {request.questions.map((question, index) => {
                 const draft = askDraftAt(index);
+                const chooseKeptOther = () => {
+                  if (draft.otherChosen || !draft.other.trim()) return;
+                  updateAskDraft(index, (current) => ({ ...current, selected: question.multi ? current.selected : [], otherChosen: true }));
+                };
                 return (
                   <fieldset key={question.id} style={{ margin: 0, padding: 0, border: "none", minWidth: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
                     <legend style={{ padding: 0, marginBottom: 8, color: "var(--text)", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600, lineHeight: 1.5 }}>
@@ -529,9 +539,9 @@ export function ExtensionDialog({
                               // not focus it once the press keeps focus in Other. Focus it
                               // so the keyboard closes and further typing cannot pick Other.
                               event.currentTarget.focus();
-                              setAskDrafts((drafts) => drafts.map((current, i) => i !== index ? current : question.multi
+                              updateAskDraft(index, (current) => question.multi
                                 ? { ...current, selected: current.selected.includes(option.label) ? current.selected.filter((label) => label !== option.label) : [...current.selected, option.label] }
-                                : { selected: [option.label], other: "" }));
+                                : { ...current, selected: [option.label], otherChosen: false });
                             }}
                             style={{ margin: "2px 0 0", accentColor: "var(--accent-strong)" }}
                           />
@@ -551,34 +561,73 @@ export function ExtensionDialog({
                       );
                     })}
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                      <textarea
-                        aria-label={t("chatWindow.askOther")}
-                        placeholder={t("chatWindow.askOther")}
-                        value={draft.other}
-                        rows={2}
-                        onChange={(e) => {
-                          const other = e.target.value;
-                          setAskDrafts((drafts) => drafts.map((current, i) => i === index ? { selected: question.multi ? current.selected : [], other } : current));
-                        }}
-                        onKeyDown={(e) => {
-                          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitValue();
-                        }}
+                      {/* The Other option: its text box is the option, so what was
+                          typed stays in place while another option is chosen. */}
+                      <div
                         style={{
-                          width: "100%",
-                          boxSizing: "border-box",
+                          flex: 1,
                           minWidth: 0,
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 8,
                           padding: "8px 10px",
                           borderRadius: 7,
-                          border: "1px solid var(--border)",
-                          background: "var(--bg-panel)",
-                          color: "var(--text)",
-                          outline: "none",
-                          resize: "vertical",
-                          fontSize: "var(--chat-font-size)",
-                          lineHeight: 1.55,
-                          fontFamily: "inherit",
+                          border: `1px solid ${draft.otherChosen ? "var(--accent)" : "var(--border)"}`,
+                          background: draft.otherChosen ? "color-mix(in srgb, var(--accent) 10%, var(--bg-panel))" : "var(--bg-panel)",
                         }}
-                      />
+                      >
+                        <input
+                          type={question.multi ? "checkbox" : "radio"}
+                          name={`ask-${request.id}-${index}`}
+                          aria-label={t("chatWindow.askOther")}
+                          checked={draft.otherChosen}
+                          onChange={(e) => {
+                            const chosen = e.target.checked;
+                            updateAskDraft(index, (current) => ({ ...current, selected: chosen && !question.multi ? [] : current.selected, otherChosen: chosen }));
+                            if (chosen) document.getElementById(`ask-${request.id}-${index}-other`)?.focus();
+                          }}
+                          style={{ margin: "4px 0 0", accentColor: "var(--accent-strong)", cursor: "pointer" }}
+                        />
+                        <textarea
+                          id={`ask-${request.id}-${index}-other`}
+                          aria-label={t("chatWindow.askOther")}
+                          placeholder={t("chatWindow.askOther")}
+                          value={draft.other}
+                          // Going back into kept text means answering with it again.
+                          // A tap counts too: unticking Other by touch keeps focus in
+                          // this box, so tapping back into it fires no focus event.
+                          onFocus={chooseKeptOther}
+                          onClick={chooseKeptOther}
+                          rows={1}
+                          onChange={(e) => {
+                            const other = e.target.value;
+                            // Typing chooses Other (replacing a single-select choice);
+                            // clearing it unchooses, so a blank answer never blocks Submit.
+                            updateAskDraft(index, (current) => other.trim()
+                              ? { selected: question.multi ? current.selected : [], other, otherChosen: true }
+                              : { ...current, other, otherChosen: false });
+                          }}
+                          onKeyDown={(e) => {
+                            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitValue();
+                          }}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: 0,
+                            border: "none",
+                            background: "none",
+                            color: draft.otherChosen ? "var(--text)" : "var(--text-muted)",
+                            outline: "none",
+                            resize: "none",
+                            fontSize: "var(--chat-font-size)",
+                            lineHeight: 1.55,
+                            fontFamily: "inherit",
+                            fieldSizing: "content",
+                            minHeight: "1.55em",
+                            maxHeight: 200,
+                          }}
+                        />
+                      </div>
                       {keyboardOpen && (
                         <button
                           type="button"

@@ -48,14 +48,15 @@ test("single-select renders radios with the recommended option marked and presel
   renderAsk([color, extras]);
   const colorGroup = screen.getByRole("group", { name: /Pick a color/ });
   const radios = colorGroup.querySelectorAll('input[type="radio"]');
-  assert.equal(radios.length, 3);
+  // The Other row is an option too: its radio joins the question's group.
+  assert.equal(radios.length, 4);
   assert.equal(colorGroup.querySelectorAll('input[type="checkbox"]').length, 0);
   assert.equal(screen.getByRole("radio", { name: /Green/ }).checked, true);
   assert.match(screen.getByRole("radio", { name: /Green/ }).closest("label").textContent, /Recommended/);
   assert.equal(screen.getByRole("radio", { name: /Red/ }).checked, false);
 
   const extrasGroup = screen.getByRole("group", { name: /Extras\?/ });
-  assert.equal(extrasGroup.querySelectorAll('input[type="checkbox"]').length, 3);
+  assert.equal(extrasGroup.querySelectorAll('input[type="checkbox"]').length, 4);
   assert.equal(extrasGroup.querySelectorAll('input[type="radio"]').length, 0);
   // Multi-select marks its recommendation but does not preselect it.
   assert.match(screen.getByRole("checkbox", { name: /Egg/ }).closest("label").textContent, /Recommended/);
@@ -93,18 +94,27 @@ test("submit sends answers in question order: single choice, multi choices in op
   }]);
 });
 
-test("single-select Other replaces the radio choice, and picking a radio clears Other", async () => {
+test("single-select Other replaces the radio choice and keeps its text; a radio unchooses it", async () => {
   const responses = renderAsk([color]);
   const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+  const otherRadio = screen.getByRole("radio", { name: /Other/ });
   fireEvent.change(other, { target: { value: " Teal " } });
   assert.equal(screen.getByRole("radio", { name: /Green/ }).checked, false);
+  assert.equal(otherRadio.checked, true, "typing chooses Other");
   fireEvent.click(screen.getByRole("button", { name: "Submit" }));
   assert.deepEqual(responses.pop(), { answers: [{ id: "color", selectedOptions: [], customInput: "Teal" }] });
 
   fireEvent.click(screen.getByRole("radio", { name: "Red" }));
-  assert.equal(other.value, "");
+  assert.equal(other.value, " Teal ", "the text stays in its row");
+  assert.equal(otherRadio.checked, false, "choosing a radio unchooses Other");
   fireEvent.click(screen.getByRole("button", { name: "Submit" }));
   assert.deepEqual(responses.pop(), { answers: [{ id: "color", selectedOptions: ["Red"] }] });
+
+  // Going back into the kept text means answering with it again.
+  fireEvent.click(screen.getByRole("radio", { name: /Other/ }));
+  assert.equal(otherRadio.checked, true);
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  assert.deepEqual(responses.pop(), { answers: [{ id: "color", selectedOptions: [], customInput: "Teal" }] });
 });
 
 test("Cancel answers cancelled", async () => {

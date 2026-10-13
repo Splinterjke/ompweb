@@ -364,6 +364,17 @@ hooks/
 - Full-page Settings hides the chat, so its session counts as *not viewed* (`viewing = call.sessionId === selectedSession?.id && !settingsTab` in `AppShell`) — opens from it go through the confirm queue like any cross-session open.
 - URL opens from a session the tab is **not** viewing always go through the `pendingOpens` confirm queue (`ConfirmDialog` in `AppShell`). The "Open agent links without asking" setting only auto-opens links from the viewed session (`!crossSession && openUrlAutomatically`).
 - The multi-question `ask` dialog is opted into on spawn **and** respawn with `set_ask_dialog` (bounded like `get_state`, so a child that never answers cannot stall startup); older omp rejects the command and the per-question select/editor fallback keeps working. Pending `ask` requests only accept their `answers` payload or a cancel — `isAskAnswers()` shape-checks it in `extension_ui_response`, so a replayed reconnect response cannot drop them with a stale/malformed payload.
+- The ask panel's "Other" is an **option row** (port of upstream ac4d5ecb): its
+  radio/checkbox (`otherChosen`) marks the answer, and the text lives as long as
+  the question — choosing a regular option only *unchooses* Other (the typed text
+  stays in the row; `customInput` is sent only while Other is chosen and non-blank).
+  Typing chooses Other (replacing a single-select choice); clearing unchooses; a
+  tap or focus back into kept text re-chooses it (`chooseKeptOther` — a touch tap
+  that finds focus already in the box fires no focus event, so `onClick` covers it).
+  While an ask is open the composer **hides** (`display: none`, kept mounted so the
+  draft/attachments/recording survive) and blurs, or its phone keyboard would
+  survive into the panel and make the first tap miss (see the keyboard hysteresis
+  in `ExtensionDialog`'s mobile tests).
 
 ### Session moves (omp >= 18.5 ownership) and title generation
 - Only the first omp process to write a session file owns it; a non-owner moves
