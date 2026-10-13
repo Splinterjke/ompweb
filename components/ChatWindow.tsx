@@ -1291,6 +1291,16 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     sendAgentCommand(sid, { type: "predict_word_feedback", text, cursor, suggestion, accepted }).catch(() => {});
   }, [session?.id, sessionIdRef]);
 
+  const askOpen = extensionDialog?.method === "ask";
+  const hiddenComposerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // A hidden composer that keeps focus keeps the phone keyboard up: the
+    // first tap in the ask panel would then close it, resize the panel and
+    // miss its target. Let the keyboard go when the composer hides.
+    const active = document.activeElement;
+    if (askOpen && active instanceof HTMLElement && hiddenComposerRef.current?.contains(active)) active.blur();
+  }, [askOpen]);
+
   const chatInputElement = (
       <ChatInput
       ref={chatInputRef}
@@ -1701,7 +1711,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
             <ExtensionWidgets widgets={belowEditorWidgets} />
           </div>
         </div>
-        {chatInputElement}
+        {/* An open ask is answered (or cancelled) in its panel; hiding the
+            composer leaves no doubt where to type. Kept mounted so the
+            draft, attachments and a recording survive. */}
+        <div ref={hiddenComposerRef} style={{ display: askOpen ? "none" : "contents" }}>{chatInputElement}</div>
       </div>
         {isMobile ? null : (
           <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, zIndex: 30, display: "flex" }}>
