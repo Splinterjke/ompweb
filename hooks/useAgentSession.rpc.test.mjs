@@ -1255,3 +1255,53 @@ test("the notify host tool stays out of the Notifications tab, which lists only 
   // Only `publishNotification` records; the notify host tool shows an OS notification and nothing else.
   assert.deepEqual(notificationHistory.get(), []);
 });
+
+test("a reconcile tick during the cold-send window keeps the optimistic bubble and the running state", async () => {
+  resetWorld();
+  const sid = "cold-send-race";
+  primeSession(sid, [userMsg("u1", "loaded question"), assistantMsg("a1", "loaded answer")]);
+  const w = await mountSession(sid);
+  assert.equal(w.latest.loading, false);
+  assert.equal(w.latest.agentRunning, false);
+
+  // Send on an existing session whose wrapper is idle and whose stream is
+  // closed: the send awaits the stream attach, and while it waits the
+  // server legitimately reports NOT running — the prompt has not been
+  // dispatched yet. The recovery-net reconcile must not read that as a
+  // lost run: before the fix it erased the optimistic user bubble and the
+  // running state until the spawn landed (the "prompt disappears" symptom).
+  let sendPromise;
+  await act(async () => {
+    sendPromise = w.latest.handleSend("second question");
+    await sleep(30); // optimistic bubble minted; EventSource not opened yet
+  });
+  const es = lastEs();
+  assert.ok(es, "an EventSource must have been created");
+
+  await act(async () => {
+    window.dispatchEvent(new Event("online")); // immediate reconcile trigger
+    await sleep(30);
+  });
+  const tail = w.latest.messages[w.latest.messages.length - 1];
+  assert.equal(tail?.role, "user", "the optimistic user bubble survives the reconcile tick");
+  assert.equal(tail?.content, "second question");
+  assert.equal(w.latest.agentRunning, true, "the run stays active through the cold-start window");
+
+  // The normal flow still converges unchanged afterwards.
+  await act(async () => {
+    es.open();
+    await sendPromise;
+  });
+  assert.equal(w.latest.agentRunning, true);
+  await act(async () => {
+    es.emit({ type: "agent_start" });
+    es.emit({ type: "message_end", message: { role: "user", content: "second question" } });
+  });
+  const userRows = w.latest.messages.filter((m) => m.role === "user");
+  assert.equal(userRows.length, 2, "the delivered prompt consumes the optimistic bubble, never duplicates it");
+  await act(async () => {
+    es.emit({ type: "agent_end", isTerminal: true });
+  });
+  assert.equal(w.latest.agentRunning, false);
+  w.unmount();
+});

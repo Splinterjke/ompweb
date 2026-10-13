@@ -947,6 +947,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // invalidated on terminal.
   const subagentRosterGenerationRef = useRef(0);
   const optimisticUserMessageKeyRef = useRef<string | null>(null);
+  // True between "user pressed Enter" (optimistic bubble minted) and the
+  // prompt POST settling. The server cannot know about a run this tab has
+  // not dispatched yet — while this is set, a not-running get_state is the
+  // expected cold-start state, NOT proof that the run was lost (finishing
+  // on it erased the bubble and the running state until the spawn landed).
+  const promptDispatchPendingRef = useRef(false);
   // A provider can acknowledge `prompt` and then reject it asynchronously.
   // Keep that failure until the authoritative session reload completes; some
   // omp versions persist the failed assistant turn, while older ones do not.
@@ -1674,6 +1680,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       const sid = sessionIdRef.current;
       if (!sid || eventSourceRef.current || !sessionIds.includes(sid)) return;
       lastFileChangeAtRef.current = Date.now();
+      // A web-owned run in flight owns the transcript: a file write right
+      // now comes from this run's own wrapper (its stream is attached, or
+      // is attaching on the cold path), and reloading from disk would erase
+      // the not-yet-persisted optimistic user bubble / live tail. External
+      // runs (no RPC channel here) are the watcher's actual audience.
+      if (agentRunningRef.current && !externalRunningRef.current) return;
       // A file write without an RPC stream means an external omp (a terminal
       // run, or a session that outlived a server restart) is driving the
       // transcript. If the reclaim poller cleared the running state during a
@@ -2295,6 +2307,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // through the same path as prompt_done.
   const reconcileAgentState = useCallback(async (sid: string) => {
     if (!agentRunningRef.current) return;
+    // A prompt this tab minted but has not dispatched yet is legitimately
+    // absent from the server (cold wrapper spawn); a not-running state
+    // right now must not finish the just-started run.
+    if (promptDispatchPendingRef.current) return;
     // Externally-running sessions have no RPC session in this server's
     // registry; the session-file poller (externalRunningRef) is the authority
     // for their lifecycle, so skip the registry reconcile for them.
@@ -3107,6 +3123,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const { userMsg, piImages } = buildOutgoingPrompt(message, images);
     setMessages((prev) => [...prev, userMsg]);
     optimisticUserMessageKeyRef.current = userMessageKey(userMsg);
+    promptDispatchPendingRef.current = true;
     promptRunIdRef.current = promptRunId;
     agentRunningRef.current = true;
     clearLiveToolResults();
@@ -3277,6 +3294,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setAgentPhase(null);
       dispatch({ type: "end" });
       return false;
+    } finally {
+      // From here on the server knows about the run (or the send failed and
+      // the catch settled the UI); reconcile may treat idle as authoritative.
+      promptDispatchPendingRef.current = false;
     }
   }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, opts.chatInputRef, refreshSubagentRoster, registerHostTools, registerHostUriSchemes, clearLiveToolResults]);
 
@@ -3298,6 +3319,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const { userMsg, piImages: interruptPiImages } = buildOutgoingPrompt(message, images);
     setMessages((prev) => [...prev, userMsg]);
     optimisticUserMessageKeyRef.current = userMessageKey(userMsg);
+    promptDispatchPendingRef.current = true;
     interruptReplyPendingRef.current = true;
     pendingScrollToUserRef.current = true;
     completionScrollAllowedRef.current = true;
@@ -3325,6 +3347,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       optimisticUserMessageKeyRef.current = null;
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
       return false;
+    } finally {
+      promptDispatchPendingRef.current = false;
     }
   }, [addNotice, ensureEventsConnected, refreshSubagentRoster]);
 
