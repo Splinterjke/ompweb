@@ -530,7 +530,14 @@ export function ExtensionDialog({
         </div>
         </div>
 
-        <div className="extension-dialog-footer" style={{ display: "flex", flexShrink: 0, justifyContent: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}>
+        <div
+          className="extension-dialog-footer"
+          // A footer tap must not take focus from the Other text box: that
+          // closes the phone keyboard and drops the keyboard height cap before
+          // the click lands, so the click misses the moved button.
+          onMouseDown={(event) => event.preventDefault()}
+          style={{ display: "flex", flexShrink: 0, justifyContent: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid var(--border)", background: "var(--bg-panel)" }}
+        >
           <button
             onClick={cancel}
             style={{

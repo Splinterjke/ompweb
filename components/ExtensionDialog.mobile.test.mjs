@@ -260,6 +260,15 @@ test("without a visible-area API the panel keeps its CSS cap", () => {
   assert.deepEqual(responses, [{ answers: [{ id: "color", selectedOptions: [], customInput: "Teal" }] }]);
 });
 
+test("a footer press leaves focus in the Other text box", () => {
+  renderAttached();
+  // A focus change on press closes the phone keyboard and drops the panel's
+  // keyboard cap before the click, so the click misses the moved button.
+  for (const name of ["Cancel", "Submit"]) {
+    assert.equal(fireEvent.mouseDown(screen.getByRole("button", { name })), false, `${name} must not take focus`);
+  }
+});
+
 // ---- touch targets (globals.css) ----------------------------------------------
 
 function ruleBody(selector) {
