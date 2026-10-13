@@ -1066,6 +1066,15 @@ stored `omp-web:submit-during-run` choice overrides it.
 - A manual scroll-up sets `completionScrollAllowedRef = false` and disables
   following until the next prompt; `scrollUserMsgToTop` handles the
   pending-scroll after sending.
+- The ResizeObserver on the chat scroller (`ChatWindow`, the viewport-seeding
+  effect that keeps the virtual window informed) also re-pins: when the
+  scroller changes height (phone keyboard, composer or ask panel growing) a
+  reader whose PREVIOUS view reached the bottom stays there — judged by the
+  previous height, so content that grew below the reader (an expanded tool
+  call) does not count as being at the bottom. The effect is gated on
+  `isEmptyNew`: the empty new-session screen owns a different scroller, and
+  the conversation scroller mounts after the first send without a remount or
+  a load, so the flag must be a dependency for the observer to attach.
 - Expansion/collapse growth follows too: opening a row or a Process-details
   group changes no message/stream state and fires no scroll event — it
   reaches React only through the group-height measurement

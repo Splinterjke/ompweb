@@ -855,23 +855,38 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       syncAtBottom(el);
     });
   }, [scrollContainerRef, syncAtBottom]);
+  // The empty new-session screen has its own scroller, so the conversation's
+  // scroller mounts after the first send without a remount or a load — the
+  // effects below must re-attach when that flag flips, not just on load.
+  const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !sessionBusy;
   // `onScroll` is not guaranteed to fire when the first session render sets
   // scrollTop programmatically. Seed the viewport dimensions immediately and
   // keep them in sync with the chat column so the virtual window can detect
   // the real bottom instead of retaining a giant bottom spacer.
   useEffect(() => {
     const el = scrollContainerRef.current;
-    if (!el) return;
+    if (!el || isEmptyNew) return;
     const syncViewport = () => {
       setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
       setViewportHeight((prev) => (prev === el.clientHeight ? prev : el.clientHeight));
       syncAtBottom(el);
     };
     syncViewport();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncViewport);
+    // A scroller that shrinks (the phone keyboard opening, the composer or an
+    // ask panel growing) keeps its top edge, so the newest messages slide
+    // under the composer. Keep a reader whose old view reached the bottom there.
+    let height = el.clientHeight;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      // Judged by the PREVIOUS height, so content that grew below the reader
+      // (an expanded tool call) does not count as being at the bottom.
+      const wasAtBottom = el.scrollTop + height >= el.scrollHeight - 96;
+      height = el.clientHeight;
+      if (wasAtBottom) el.scrollTop = el.scrollHeight;
+      syncViewport();
+    });
     observer?.observe(el);
     return () => observer?.disconnect();
-  }, [loading, session?.id, scrollContainerRef, syncAtBottom]);
+  }, [loading, isEmptyNew, session?.id, scrollContainerRef, syncAtBottom]);
   // The jump-to-bottom button must track programmatic scrolls and content
   // growth, not just user scroll events: re-derive from the live DOM on
   // every scroll batch and layout revision.
@@ -1206,7 +1221,6 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     return agentPhase.tools.filter((tool) => !renderedIds.has(tool.id));
   }, [agentPhase, committedToolCallIds, streamState.streamingMessage]);
 
-  const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !sessionBusy;
   const messageCwd = session?.cwd ?? newSessionCwd ?? undefined;
   const activeBtwRecord = btw.records.find((record) => record.id === btw.activeId);
   const btwPanel: BtwPanelProps | null = activeBtwRecord ? {
