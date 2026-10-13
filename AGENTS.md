@@ -651,6 +651,16 @@ stored `omp-web:submit-during-run` choice overrides it.
 - The sidebar listens to `/api/agent/running/events`, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.
 - `useAgentSession` still treats per-session SSE as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs or half-open connections.
 - Prompt runs use a monotonic run id; late SSE or slow reconciliation responses from an old run must be ignored so they cannot resurrect stale streaming bubbles.
+- A prompt this tab has minted but not yet dispatched (cold wrapper spawn)
+  is legitimately absent from the server: `promptDispatchPendingRef` spans
+  the optimistic bubble to the prompt-POST settle, and the reconcile net
+  SKIPS while it is set — finishing on a not-running state in that window
+  erased the bubble and the running state (the "prompt disappears until the
+  session really starts" symptom). Likewise the session-file watcher reload
+  skips while a WEB-owned run is in flight (`agentRunningRef.current &&
+  !externalRunningRef.current`): the write comes from the own wrapper and
+  reloading pre-prompt on-disk state would wipe the bubble / live tail;
+  external runs keep the watcher as their only transcript feed.
 
 ### External session detection (`lib/session-watcher.ts`, `/api/sessions/[id]/state`)
 - When ompweb restarts mid-run, the old `omp --mode rpc-ui` child survives (it is a child of the Rust host daemon, not the server). The new server detects such "externally held" sessions by scanning `/proc` for `omp` processes with `--resume <file>` on the command line, or — for host-spawned children whose cmdline has no file — with a session file held open (fd scan). Web-owned children (direct children of this node process or of the host daemon) are excluded by PPid, NOT by the RPC registry: after a restart a session can hold a freshly restored idle RPC while a stale previous-server child still owns the file.
@@ -696,6 +706,15 @@ stored `omp-web:submit-during-run` choice overrides it.
 
 ### Process-details group stability (`components/ChatWindow.tsx`)
 - "Process details" groups key their React `key` on the anchor entry id (`process-group-<entryId>`) — never on the message index or the final-assistant index — because the group grows as new tool calls commit mid-turn and index-based keys remount it, silently resetting the user's expanded state. Expansion state lives in `CommittedTranscript.processExpanded` keyed by anchor id, so it survives remounts and virtual-window recycling. An in-flight turn renders as the visible live tail, not a collapsed group.
+- The rows inside are hoisted the same way: the user's open/collapse choice
+  for a tool-call row lives in the ChatWindow-provided
+  `ToolExpansionProvider` (`components/tool-expansion.tsx`) keyed by the
+  stable `toolCallId` — never in `ToolCallBlock` state — because rows are
+  remounted by virtual-window recycling, transcript reloads and the
+  live-tail → process-group reshuffle, each of which silently collapsed
+  rows the user opened by hand. The provider spans the committed transcript
+  AND the streaming bubble, so a row opened mid-stream stays open when it
+  commits; outside a provider the row keeps its local state.
 
 ### Composer-attached hub bars (`components/ComposerPanels.tsx`)
 - The live todo plan (`TodoList`), the subagent roster and the git changes
@@ -748,6 +767,16 @@ stored `omp-web:submit-during-run` choice overrides it.
 - All task bars gate on the TASK count, not the phase count
   (`ComposerPanels.showTodoBar`, `TodoList`, `PlanPanel.hasTasks`) — the client
   backstop for snapshots from an already-running older wrapper.
+- omp's store normalizes every todo mutation to EXACTLY ONE active task:
+  with nothing in progress it auto-marks the FIRST pending task in flat
+  order (verified in the omp binary). A model `init` naming an empty
+  `phase` with tasks in `list:[…]` drops the empty phase and activates the
+  first `list` task — so the bar can show a dot on a task of the phase the
+  agent is NOT working on, and phases can appear in surprising order
+  (empty-at-init phases are appended when a later `append` fills them).
+  ompweb renders omp's snapshot faithfully; this is upstream store + model
+  init-shape behavior, NOT an ompweb ordering bug — do not "fix" it by
+  re-sorting phases or faking activity in the bar.
 
 ### Mobile context ring placement (`Settings → Interface & Behavior`)
 - The context info ring (port of upstream 193047f1 chain, mobile top-bar
@@ -1029,6 +1058,15 @@ stored `omp-web:submit-during-run` choice overrides it.
 - A manual scroll-up sets `completionScrollAllowedRef = false` and disables
   following until the next prompt; `scrollUserMsgToTop` handles the
   pending-scroll after sending.
+- Expansion/collapse growth follows too: opening a row or a Process-details
+  group changes no message/stream state and fires no scroll event — it
+  reaches React only through the group-height measurement
+  (`layoutRevision`). A ChatWindow layout effect re-pins the viewport to
+  the new bottom while it was pinned within the hook's 24px tolerance (a
+  stale-true pin means the growth was BELOW the fold; growth above shifts
+  scrollTop via scroll anchoring, whose scroll event clears the pin), so
+  many expand clicks near the tail never lose the end of the conversation
+  and readers scrolled up are never yanked.
 - Programmatic smooth scrolling must respect `prefers-reduced-motion`
   (`usePrefersReducedMotion` in `hooks/usePrefersReducedMotion.ts` — also the
   only way to stop SVG SMIL animations, which CSS cannot).
