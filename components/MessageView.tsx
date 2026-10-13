@@ -4,6 +4,7 @@ import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, us
 import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot } from "lucide-react";
 import { useSpeechContext } from "@/hooks/useSpeechSynthesis";
 import { MarkdownBody } from "./MarkdownBody";
+import { useToolExpansionStore } from "./tool-expansion";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
@@ -1098,8 +1099,18 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   // skill 内容行强制收起（即使全局默认展开）；其余按 defaultCollapsed。
   // A nullable override lets a late-arriving tool result change a generic
   // read/grep/bash row to collapsed without taking control away from a user
-  // who already explicitly opened or closed it.
-  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  // who already explicitly opened or closed it. The choice lives in the
+  // ChatWindow-provided hoisted store (keyed by toolCallId) so it survives
+  // row remounts (virtual-window recycling, transcript reload, the
+  // live-tail → process-group reshuffle); without a provider the row falls
+  // back to local state, exactly the pre-hoist behavior.
+  const expansionStore = useToolExpansionStore();
+  const [localToggled, setLocalToggled] = useState<boolean | null>(null);
+  const userToggled = expansionStore ? expansionStore.get(block.toolCallId) : localToggled;
+  const setUserToggled = (open: boolean) => {
+    if (expansionStore) expansionStore.set(block.toolCallId, open);
+    else setLocalToggled(open);
+  };
   const expanded = userToggled !== null
     ? userToggled
     : skillContentTool ? false : (Boolean(isStreaming) || isRunning) && !defaultCollapsed;

@@ -3,7 +3,7 @@ import { Dialog, DialogClose, DialogContent, DialogTitle, Tooltip } from "./ui/p
 import { sendAgentCommand } from "@/lib/agent-client";
 import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
@@ -11,6 +11,7 @@ import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
 import { MessageView } from "./MessageView";
+import { ToolExpansionProvider } from "./tool-expansion";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
@@ -597,6 +598,10 @@ const CommittedTranscript = memo(function CommittedTranscript({
 // jump-to-bottom button; a small tolerance absorbs the content padding below
 // the end marker so the button does not flicker in at the very end.
 const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
+// Tighter zone in which a layout-driven content growth re-pins the view to
+// the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
+// a reader parked further above the bottom keeps their place.
+const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
 export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
@@ -820,8 +825,16 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   // JUMP_TO_BOTTOM_THRESHOLD_PX of the end. Programmatic scrolls update it
   // explicitly because they do not always fire the scroll event.
   const [atBottom, setAtBottom] = useState(true);
+  // "Pinned at the true bottom" per the hook's own follow tolerance, updated
+  // on every syncAtBottom call (scroll-event rAF and viewport re-seeds).
+  // Content growing BELOW the fold moves neither scrollTop nor the scroll
+  // event, so the ref stays at its pre-growth value — exactly what tells the
+  // layout-follow effect (below) that a re-pin is wanted.
+  const bottomFollowRef = useRef(true);
   const syncAtBottom = useCallback((el: HTMLDivElement) => {
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= JUMP_TO_BOTTOM_THRESHOLD_PX;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = gap <= JUMP_TO_BOTTOM_THRESHOLD_PX;
+    bottomFollowRef.current = gap <= BOTTOM_FOLLOW_TOLERANCE_PX;
     setAtBottom((prev) => (prev === nearBottom ? prev : nearBottom));
   }, []);
   // Measured heights shift which group sits at any scroll offset; the window
@@ -899,6 +912,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
         el.scrollTop = target;
         setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
       }
+      // Programmatic scrollTop writes may not fire a scroll event, so the
+      // at-bottom state and the layout-follow pin must be synced here too.
+      syncAtBottom(el);
       // Require both a real bottom offset and a stable scrollHeight across
       // applications. Group measurements can grow the virtualized content in
       // several ResizeObserver batches; keeping the anchor pending until the
@@ -950,7 +966,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     // 程序化滚动同步 state（见 bottom 分支注释）。
     setScrollTop((prev) => (prev === el.scrollTop ? prev : el.scrollTop));
     setViewportHeight((prev) => (prev === el.clientHeight ? prev : el.clientHeight));
-  }, [layout, scrollContainerRef, messagesEndRef]);
+  }, [layout, scrollContainerRef, messagesEndRef, syncAtBottom]);
   // Latest applyPendingAnchor in a ref so the session-open anchor effect below
   // can depend only on session?.id. With applyPendingAnchor itself in the deps
   // the effect re-ran on every layout change (i.e. every committed message),
@@ -1008,6 +1024,24 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   useEffect(() => () => {
     if (anchorRetryTimerRef.current !== null) clearTimeout(anchorRetryTimerRef.current);
   }, []);
+  // Follow growth that moves no tracked state: expanding a tool row or a
+  // Process-details group changes no message/stream dependency and fires no
+  // scroll event — it only reaches React through the group-height
+  // measurement (layoutRevision), so the hook's follow effect never re-runs
+  // and many expand/collapse clicks silently lose the tail. Content growing
+  // BELOW the fold keeps scrollTop and emits no scroll event, so the pinned
+  // ref holds its pre-growth value: re-pin to the new bottom while pinned.
+  // Content growing ABOVE the fold shifts scrollTop via scroll anchoring;
+  // that scroll event re-syncs the ref, so a reader away from the bottom
+  // (or one who scrolled up) keeps their place and this stays a no-op.
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || loading || !bottomFollowRef.current) return;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0 || max - el.scrollTop <= 4) return;
+    el.scrollTop = max;
+    syncAtBottom(el);
+  }, [layoutRevision, loading, scrollContainerRef, syncAtBottom]);
   // 取消锚定监听在 window 级：用户任何滚动/点击/触摸/键盘滚动都取消待定
   // 锚定，防止测量校正与用户意图打架。minimap 拖拽的 pointerdown 在容器
   // 之外（rail 上），必须 window 级才能覆盖；节点点击的 pointerdown 会先
@@ -1464,6 +1498,12 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 </button>
               </div>
             )}
+            {/* Hoisted tool-row expansion choices (keyed by toolCallId):
+                spans the committed transcript AND the streaming bubble, so
+                a row opened by hand survives remounts (virtual-window
+                recycling, transcript reloads, the live-tail → process-group
+                reshuffle) and stays open when its row commits. */}
+            <ToolExpansionProvider>
             <CommittedTranscript
               // A session switch replaces the entire message tree. Key the
               // transcript itself (not only its virtual rows) so React cannot
@@ -1514,12 +1554,12 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 liveTokensPerSecond={tokensPerSecond}
               />
             )}
+            </ToolExpansionProvider>
 
             {toolCallsDefaultCollapsed && pendingToolHeaders.map((tool) => (
               <div
                 key={tool.id}
                 role="status"
-                aria-label={t("chatWindow.runningNamed", { names: tool.name })}
                 style={{
                   display: "flex", alignItems: "center", gap: 7,
                   marginBottom: 8, padding: "6px 10px",
