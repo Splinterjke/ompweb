@@ -6,11 +6,18 @@ import { act, cleanup, render } from "@testing-library/react/pure.js";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tryNative: false, tsconfigPaths: true });
-const { NotificationListView } = await jiti.import("./NotificationList.tsx");
-const { toastHistory } = await jiti.import("./ui/toast.tsx");
+// Same specifiers as NotificationList's own imports: on Windows a relative path
+// can load a second copy of the module, whose list the component never sees.
+const { NotificationListView } = await jiti.import("@/components/NotificationList");
+const { notificationHistory } = await jiti.import("@/lib/notification-history");
+const { OPEN_SESSION_EVENT } = await jiti.import("@/lib/notification-client");
 
-before(() => { window.Element.prototype.setPointerCapture = () => {}; });
-afterEach(() => { cleanup(); toastHistory.clear(); });
+before(() => {
+  window.Element.prototype.setPointerCapture = () => {};
+  // The list syncs read marks and removals to the server; these tests only watch the list.
+  globalThis.fetch = async () => new Response(JSON.stringify({ ok: true }), { status: 200 });
+});
+afterEach(() => { cleanup(); notificationHistory.clear(); });
 
 function pointer(target, type, x, y, { pointerType = "touch", detail = 1 } = {}) {
   const event = new window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, detail });
@@ -24,11 +31,22 @@ function drag(target, points, options) {
   pointer(target, "pointerup", ...points.at(-1), options);
 }
 function mount() {
-  act(() => { toastHistory.record("info", "Agent finished", "A long description", { id: "n1", clamp: true }); });
+  act(() => { notificationHistory.add({ type: "error", sessionId: "n1-session", sessionName: "Agent finished", detail: "A long description" }); });
   const view = render(React.createElement(NotificationListView));
   return { row: () => view.container.querySelector("li"), description: () => view.container.querySelector("[aria-expanded]") };
 }
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 250)));
+
+test("only unread rows carry the unread marker", () => {
+  act(() => {
+    notificationHistory.add({ type: "completed", sessionId: "old", sessionName: "Old" });
+    notificationHistory.markAllRead();
+    notificationHistory.add({ type: "completed", sessionId: "new", sessionName: "New" });
+  });
+  const view = render(React.createElement(NotificationListView));
+  const markedRows = Array.from(view.container.querySelectorAll("li")).filter((li) => li.querySelector('[role="img"]'));
+  assert.deepEqual(markedRows.map((li) => li.querySelector(".display-serif").textContent), ["New"]);
+});
 
 test("a sideways touch swipe from anywhere on the row slides it out, then removes it, in either direction", async () => {
   for (const points of [[[100, 50], [130, 54], [160, 58]], [[200, 50], [170, 46], [140, 44]]]) {
@@ -36,7 +54,7 @@ test("a sideways touch swipe from anywhere on the row slides it out, then remove
     drag(description(), points);
     assert.equal(row().style.opacity, "0", "the row slides out before it goes");
     await settle();
-    assert.equal(toastHistory.get().length, 0);
+    assert.equal(notificationHistory.get().length, 0);
     cleanup();
   }
 });
@@ -53,7 +71,7 @@ test("short, mostly vertical, curved-into-vertical, mouse, and button-started dr
   drag(description(), [[100, 50], [150, 51], [200, 52]], { pointerType: "mouse" });
   drag(row().querySelector("button"), [[100, 50], [150, 51], [200, 52]]);
   await settle();
-  assert.equal(toastHistory.get().length, 1);
+  assert.equal(notificationHistory.get().length, 1);
   assert.equal(row().style.transform, "");
 });
 
@@ -61,7 +79,7 @@ test("a swipe that turns back and then out again still dismisses", async () => {
   const { description } = mount();
   drag(description(), [[100, 50], [180, 52], [140, 52], [190, 54]]);
   await settle();
-  assert.equal(toastHistory.get().length, 0);
+  assert.equal(notificationHistory.get().length, 0);
 });
 
 test("the click ending a drag is swallowed; taps and keyboard clicks still reach the row", () => {
@@ -83,47 +101,55 @@ test("the click ending a drag is swallowed; taps and keyboard clicks still reach
   assert.equal(description().getAttribute("aria-expanded"), "false");
 });
 
-test("an entry with an action runs it on click or Enter, but not from its controls", () => {
+test("clicking or pressing Enter on a row marks it read and opens its session, but not from its controls", () => {
   const opened = [];
-  act(() => { toastHistory.record("info", "Agent finished", "A long description", { id: "n2", clamp: true, onClick: () => opened.push(1) }); });
-  const view = render(React.createElement(NotificationListView));
-  const row = view.container.querySelector("li");
-  const enter = (target) => act(() => { target.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
-  act(() => view.container.querySelector(".display-serif").click());
-  assert.equal(opened.length, 1);
-  assert.equal(row.tabIndex, 0);
-  assert.equal(row.style.cursor, "pointer");
-  enter(row);
-  assert.equal(opened.length, 2);
-  // Expandable text expands instead; a released text selection and Enter on the dismiss button do nothing.
-  // The Tooltip trigger re-mounts the span when its state changes: click and read through a fresh query.
-  act(() => view.container.querySelector("[aria-expanded]").click());
-  assert.equal(view.container.querySelector("[aria-expanded]").getAttribute("aria-expanded"), "true");
-  window.getSelection().selectAllChildren(view.container.querySelector(".display-serif"));
-  act(() => view.container.querySelector(".display-serif").click());
-  window.getSelection().removeAllRanges();
-  enter(row.querySelector("button"));
-  assert.equal(opened.length, 2);
-  // The dismiss button removes the entry without running its action.
-  act(() => row.querySelector("button").click());
-  assert.equal(opened.length, 2);
-  assert.equal(toastHistory.get().length, 0);
+  const onOpen = (event) => opened.push(event.detail);
+  window.addEventListener(OPEN_SESSION_EVENT, onOpen);
+  try {
+    const { row } = mount();
+    const enter = (target) => act(() => { target.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+    act(() => row().querySelector(".display-serif").click());
+    assert.deepEqual(opened, ["n1-session"]);
+    assert.equal(notificationHistory.get()[0].read, true);
+    assert.equal(row().tabIndex, 0);
+    assert.equal(row().style.cursor, "pointer");
+    enter(row());
+    assert.equal(opened.length, 2);
+    // Expandable text expands instead; a released text selection and Enter on the dismiss button do nothing.
+    // The Tooltip trigger re-mounts the span when its state changes: click and read through a fresh query.
+    act(() => row().querySelector("[aria-expanded]").click());
+    assert.equal(row().querySelector("[aria-expanded]").getAttribute("aria-expanded"), "true");
+    window.getSelection().selectAllChildren(row().querySelector(".display-serif"));
+    act(() => row().querySelector(".display-serif").click());
+    window.getSelection().removeAllRanges();
+    enter(row().querySelector("button"));
+    assert.equal(opened.length, 2);
+    // The dismiss button removes the entry without opening it.
+    act(() => row().querySelector("button").click());
+    assert.equal(opened.length, 2);
+    assert.equal(notificationHistory.get().length, 0);
+  } finally {
+    window.removeEventListener(OPEN_SESSION_EVENT, onOpen);
+  }
 });
 
-test("an entry without an action is not focusable or clickable", () => {
-  act(() => { toastHistory.record("info", "Saved", "Body", { id: "n3" }); });
+test("a row shows the event in the viewer's language, and its session name as the title", () => {
+  act(() => { notificationHistory.add({ type: "input", sessionId: "s9", sessionName: "Deploy", detail: "Ship it?" }); });
+  const row = render(React.createElement(NotificationListView)).container.querySelector("li");
+  assert.equal(row.querySelector(".display-serif").textContent, "Deploy");
+  assert.match(row.textContent, /Ship it\?/);
+});
+
+test("an entry whose session no longer exists still renders and opens by id", () => {
+  act(() => { notificationHistory.add({ type: "error", sessionId: "gone-session", sessionName: null }); });
+  const row = render(React.createElement(NotificationListView)).container.querySelector("li");
+  assert.ok(row.querySelector(".display-serif").textContent.length > 0, "an untitled session still gets a title");
+  assert.equal(row.tabIndex, 0);
+});
+
+test("an entry without a session is not focusable or clickable", () => {
+  act(() => { notificationHistory.add({ type: "completed", sessionId: "", sessionName: "omp web" }); });
   const row = render(React.createElement(NotificationListView)).container.querySelector("li");
   assert.equal(row.hasAttribute("tabindex"), false);
   assert.equal(row.style.cursor, "");
-});
-
-test("only unread rows carry the unread marker", () => {
-  act(() => {
-    toastHistory.record("info", "Old", undefined, { id: "old" });
-    toastHistory.markAllRead();
-    toastHistory.record("info", "New", undefined, { id: "new" });
-  });
-  const view = render(React.createElement(NotificationListView));
-  const markedRows = Array.from(view.container.querySelectorAll("li")).filter((li) => li.querySelector('[role="img"]'));
-  assert.deepEqual(markedRows.map((li) => li.querySelector(".display-serif").textContent), ["New"]);
 });

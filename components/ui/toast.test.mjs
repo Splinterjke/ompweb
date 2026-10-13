@@ -9,7 +9,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { ClampedDescription, clampDescriptionStyle, resolveToastTimeout, setToastHistoryRecording, toast, toastHistory, TOAST_HISTORY_LIMIT } = await jiti.import("./toast.tsx");
+const { ClampedDescription, clampDescriptionStyle, resolveToastTimeout } = await jiti.import("./toast.tsx");
 
 const TOOL_LIST = "xd://: mounted mcp__ida_reverse_engineering_ida_address_context, mcp__ida_decompile";
 
@@ -40,34 +40,6 @@ test("clamp style helper drops the clamp when expanded", () => {
   assert.equal(expanded.cursor, "default");
 });
 
-// The history layer (upstream 40dcb39b/3e63bf20/f988972a). Toasts are created
-// with `durationMs: 0` so the local wall-clock backstop timer fires instantly
-// and never lingers past the test process.
-test("history keeps the newest notification toasts first, capped at the limit; other toasts stay out", () => {
-  toastHistory.clear();
-  toast.success("Saved", undefined, { durationMs: 0 });
-  toast.error("Copy failed", undefined, { durationMs: 0 });
-  assert.equal(toastHistory.get().length, 0);
-  for (let i = 0; i < TOAST_HISTORY_LIMIT + 5; i++) toast.info(`n${i}`, undefined, { durationMs: 0, history: true });
-  const entries = toastHistory.get();
-  assert.equal(entries.length, TOAST_HISTORY_LIMIT);
-  assert.equal(entries[0].title, `n${TOAST_HISTORY_LIMIT + 4}`);
-  assert.equal(entries.at(-1).title, "n5");
-});
-
-test("a reused toast id replaces its history entry; remove and clear drop entries", () => {
-  toastHistory.clear();
-  toast.info("update v1", undefined, { id: "update", durationMs: 0, history: true });
-  const other = toast.error("failed", undefined, { durationMs: 0, history: true });
-  toast.info("update v2", undefined, { id: "update", durationMs: 0, history: true });
-  assert.deepEqual(toastHistory.get().map((e) => [e.id, e.title, e.kind]), [["update", "update v2", "info"], [other, "failed", "error"]]);
-
-  toastHistory.remove("update");
-  assert.deepEqual(toastHistory.get().map((e) => e.id), [other]);
-  toastHistory.clear();
-  assert.equal(toastHistory.get().length, 0);
-});
-
 test("the local wall-clock default wins unless a duration is given; update banners and 0 are sticky", () => {
   assert.equal(resolveToastTimeout("info"), 6500);
   assert.equal(resolveToastTimeout("success"), 6500);
@@ -75,69 +47,4 @@ test("the local wall-clock default wins unless a duration is given; update banne
   assert.equal(resolveToastTimeout("error", { durationMs: 12000 }), 12000);
   assert.equal(resolveToastTimeout("info", { durationMs: 0 }), 0);
   assert.equal(resolveToastTimeout("info", { variant: "update" }), 0);
-});
-
-test("recorded OS notifications get distinct entries and notify subscribers", () => {
-  toastHistory.clear();
-  let notified = 0;
-  const unsubscribe = toastHistory.subscribe(() => { notified++; });
-  toastHistory.record("info", "Session A", "Task finished");
-  toastHistory.record("info", "Session A", "Task finished", { clamp: true });
-  const entries = toastHistory.get();
-  assert.equal(entries.length, 2);
-  assert.notEqual(entries[0].id, entries[1].id);
-  assert.equal(entries[0].clamp, true);
-  toastHistory.remove(entries[0].id);
-  assert.equal(notified, 3);
-  unsubscribe();
-  toastHistory.clear();
-  assert.equal(notified, 3);
-});
-
-test("new entries are unread until marked; a re-announced id is unread again", () => {
-  toastHistory.clear();
-  toast.info("Update available", undefined, { id: "update", durationMs: 0, history: true });
-  toastHistory.record("info", "Task finished");
-  assert.deepEqual(toastHistory.get().map((e) => e.read), [false, false]);
-
-  toastHistory.markAllRead();
-  assert.deepEqual(toastHistory.get().map((e) => e.read), [true, true]);
-
-  // A session's next notification of the same type reuses its id; it is new.
-  toast.info("Update available", undefined, { id: "update", durationMs: 0, history: true });
-  toastHistory.record("info", "Another task finished");
-  assert.deepEqual(toastHistory.get().map((e) => [e.title, e.read]), [
-    ["Another task finished", false],
-    ["Update available", false],
-    ["Task finished", true],
-  ]);
-
-  // Leaving the Notifications view calls markAllRead; with nothing unread it
-  // must not wake every subscriber (AppShell, the workbench).
-  toastHistory.markAllRead();
-  let notified = 0;
-  const unsubscribe = toastHistory.subscribe(() => { notified++; });
-  toastHistory.markAllRead();
-  assert.equal(notified, 0);
-  unsubscribe();
-  toastHistory.clear();
-});
-
-test("while tab recording is off nothing lands in the history and readers see an empty list; entries survive and return", () => {
-  toastHistory.clear();
-  toast.info("recorded first", undefined, { durationMs: 0, history: true });
-  setToastHistoryRecording(false);
-  assert.deepEqual(toastHistory.get(), []);
-  toast.info("not recorded", undefined, { durationMs: 0 });
-  toastHistory.record("info", "not recorded either");
-  assert.deepEqual(toastHistory.get(), []);
-  // The flag flip changes the history/unread snapshots without an entry mutation.
-  let notified = 0;
-  const unsubscribe = toastHistory.subscribe(() => { notified++; });
-  setToastHistoryRecording(true);
-  assert.equal(notified, 1);
-  unsubscribe();
-  assert.deepEqual(toastHistory.get().map((e) => e.title), ["recorded first"]);
-  toastHistory.clear();
-  setToastHistoryRecording(true);
 });

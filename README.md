@@ -231,8 +231,9 @@ session you are viewing. Clicking a notification opens its session.
 - **Push** reaches the browser even when no omp-web tab is open. It needs a
   secure context (HTTPS through your reverse proxy, or `localhost`), and the
   omp-web server needs outbound HTTPS access to the browser vendors' push
-  services. omp-web generates its push (VAPID) keys on first use and stores them
-  with the device list in `~/.omp/agent/omp-web/notifications.json` (mode 0600).
+  services. omp-web generates its push (VAPID) keys on first use and stores them,
+  with the device list and the notification history, in its data directory
+  (owner-only), so they survive restarts.
 - On **iPhone and iPad** (iOS 16.4 or later), push works only in the app added
   to the Home Screen.
 - In a secure context without push support, system notifications appear while

@@ -21,12 +21,20 @@ export interface NotificationEvent {
   aliases?: string[];
 }
 
+/** One entry of the persisted notification history; `id` is the replace-tag `<sessionId>:<type>`. */
+export interface NotificationHistoryEntry {
+  id: string;
+  event: NotificationEvent;
+  at: number;
+  read: boolean;
+}
+
 export interface NotificationPrefs {
   enabled: boolean;
   types: Record<NotificationType, boolean>;
   /** While the user is active in another omp-web tab: in-app toast or system notification. */
   whenActive: "toast" | "system";
-  /** Record delivered notifications and toasts in the right panel's Notifications tab. */
+  /** Show notification history in the workbench's Notifications tab. While off the list reads as empty; the server keeps recording and entries reappear when it is turned back on. */
   logToTab: boolean;
   /** UI locale, so pushes are written in the device's language. */
   locale: string;

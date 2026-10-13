@@ -225,6 +225,7 @@ app/api/
   notifications/devices/route.ts  GET VAPID key + subscribed | PUT { deviceId, prefs, subscription? }
   notifications/presence/route.ts POST { clientId, deviceId, visible, sessionId, seq }
   notifications/test/route.ts     POST { deviceId } send a test push (502 on push-service refusal)
+  notifications/history/route.ts  GET entries | PATCH { ids } mark read | DELETE ?id= remove one, ?all=1 clear
   agent/host-tools/events/route.ts  GET SSE stream of cross-session host tool calls (open_url, notify, open_file) for sessions no tab is watching
   chat-event-actions/route.ts     GET/POST named actions fired on chat events
   chat-event-actions/[id]/route.ts  GET/PATCH/DELETE a single action
@@ -272,8 +273,10 @@ lib/
   project-ordering.ts  pure project sort/group/activity helpers (client + tests)
   project-command-env.ts  child-process environments: strips PORT/NODE_ENV/NEXT_*, omp-web secrets and the request-peer proof secret
   project-registry.ts  on-disk managed-project registry (~/.omp/agent/projects.json)
-  notification-events.ts  shared: event/prefs types, frame→event detector, renderNotification()
-  notification-hub.ts  server: presence, device store + VAPID keys, routing, Web Push
+  notification-events.ts  shared: event/prefs/history-entry types, frame→event detector, renderNotification()
+  notification-hub.ts  server: presence, routing, Web Push, recording published notifications
+  notification-store.ts  server: SQLite store for VAPID keys, devices and the notification history
+  notification-history.ts  browser: mirror of the server's notification history (Notifications tab)
   notification-client.ts  browser: device id, prefs store, service worker + push subscription
   rpc-manager.ts       session registry + startRpcSession over RpcProcess
   scheduler-store.ts   script-scheduler persistence (~/.omp/agent/schedulers.json) + ensureSeedSchedulers()
@@ -307,7 +310,7 @@ components/
   CommandPalette.tsx  ⌘K/Ctrl+K palette (cmdk): session switch, new session, theme
   ImageLightbox.tsx   click-to-preview lightbox for chat images (ClickableImage)
   BranchNavigator.tsx in-session branch switcher
-  NotificationList.tsx workbench Notifications tab: in-memory history of session notifications (`toastHistory`)
+  NotificationList.tsx  workbench Notifications tab: the persisted notification history (`lib/notification-history.ts`)
   ChatMinimap.tsx     scroll minimap alongside the message list
   EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
   EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
@@ -1350,39 +1353,53 @@ stored `omp-web:submit-during-run` choice overrides it.
   while Settings is open, so that tab gets no toasts then; it also stops
   counting as active, so other devices are not silenced.
 - Prefs and push subscriptions are per device, in `localStorage` and mirrored to
-  `~/.omp/agent/omp-web/notifications.json` (mode 0600; also holds the VAPID
-  private key). The server reads that file on every use, never caching it: an
-  installed server and `npm run dev` can share the agent dir. Push text is
+  the SQLite notification store in omp-web's data dir
+  (`lib/notification-store.ts`, server-only; mode 0600 because it also holds
+  the VAPID private key; WAL with a busy timeout). It also keeps the
+  notification history. An installed server and `npm run dev` sharing the agent
+  dir share it safely; the first open imports and deletes the old
+  `notifications.json`. Push text is
   rendered server-side in the device's locale. Browsers with saved settings (enabled or not) sync on load; never-configured browsers do not.
 - A crash notifies "Run failed" while a run is live or while background work
   started by it has not settled yet (`unsettled`, cleared by `session_settled`).
 - The Settings test button pushes through the server for subscribed devices
   (502 with the push service's answer on failure) and shows a local
   notification otherwise, or a toast where none are allowed.
-- The in-app notification center (port of upstream PR #230 P2): only toasts passed
-  `history: true` land in the history, plus `toastHistory.record()` entries:
-  OS-delivered notifications recorded by `useNotifications`, and Web Pushes shown
-  while a tab is open (`public/sw.js` posts `omp-notification-shown` to every open
-  tab; a push with no tab open is not listed). The `notify` host tool is NOT
-  recorded — the tab lists only the pushable session types (completed, input,
-  error, model switch), so "Saved"-type toasts, update banners and `notify` calls
-  stay out. The last 100 entries are kept, newest first. `NotificationList.tsx`
-  renders it as a Notifications tab of the right workbench (per-entry dismiss,
-  Mark all as read, Clear all). Unread entries badge the workbench toggle, which
-  then opens that tab. An entry with an `onClick` runs it on click or Enter, like
-  the toast card. Entries become read when the user leaves the tab, uses Mark all
-  as read, or runs the toast's `onClick` (`toastHistory.markRead`); a reused id
-  (`<sessionId>:<type>`) is unread again — it is a new notification. Unread rows
-  show a leading accent dot and a bold title; read titles are dimmed
-  (`--text-muted`).
-- Recording into that history is the per-device `logToTab` notification pref
+- The in-app notification center (port of upstream PR #230 P2, storage in
+  PR #254): the workbench's Notifications tab lists the server's notification
+  history (`lib/notification-history.ts`, a mirror of
+  `/api/notifications/history`). `publishNotification` records every
+  notification type some device has turned on (completed, input, error, model
+  switch), whether or not any tab or push receives it, already read when a
+  visible tab shows that session; the newest 100, so entries survive reloads
+  and restarts and every device sees the same list — including pushes that
+  arrived while no tab was open. Toasts are never stored and the `notify` host
+  tool is NOT recorded: "Saved"-type toasts, update banners and `notify` calls
+  stay out. The mirror loads on mount and when the tab becomes visible (read
+  marks and removals from other devices), adds events this tab receives over
+  SSE without a refetch, and reloads when the service worker reports a push it
+  showed. Entries store the `NotificationEvent` and render in the viewer's
+  language; `NotificationList.tsx` (`NotificationListView`) adds a toolbar
+  (Mark all as read, Clear all) and per-entry dismiss. Unread entries badge the
+  workbench toggle, which then opens that tab. Clicking a row, or Enter, marks
+  it read and opens its session (`OPEN_SESSION_EVENT`). Entries become read
+  when the user leaves the tab (only the entries it showed), uses Mark all as
+  read, or opens the notification from its toast or row; a reused id
+  (`<sessionId>:<type>`) is unread again — it is a new notification. Mark-read,
+  remove and clear update the list at once, then the server; a failed request
+  reloads it. Unread rows show a leading accent dot and a bold title; read
+  titles are dimmed (`--text-muted`).
+- Listing on a device is the per-device `logToTab` notification pref
   (Settings → Notifications, default on; mirrored to the server with the other
-  prefs but only ever read in the browser). While off, `toastHistory.record()`
-  is a no-op and the tab, the unread count and the opener badge read as empty;
-  entries recorded before the toggle are only hidden and reappear when it is
-  turned back on. `useNotifications` syncs the flag via
-  `setToastHistoryRecording()` and keeps it current across this browser's tabs.
-  It gates ALL recording: a toast must additionally be passed `history: true` to be listed.
+  prefs but only ever read in the browser). The server records for every
+  device, so this pref cannot gate recording; it is a VIEW switch
+  (`setNotificationHistoryRecording()` in `lib/notification-history.ts`):
+  while off, the tab, the unread count and the opener badge read as empty,
+  recording continues server-side, loads and SSE deliveries keep filling the
+  hidden mirror, and the entries reappear when it is turned back on (bulk
+  read/clear operations while off act on the empty visible snapshot, i.e. are
+  no-ops). `useNotifications` syncs the flag and keeps it current across this
+  browser's tabs. Opening a notification from its toast still reads it.
 - `/sw.js` and `/badge-96.png` are exempt from the password gate (`proxy.ts`):
   browsers re-fetch the worker for updates without the session cookie.
 - Notification clicks survive an expired sign-in: `proxy.ts` sends `/?session=…`
@@ -1473,13 +1490,12 @@ motion: --dur-fast (150ms) --dur-med (220ms) --dur-slow (320ms) --ease-out-warm
 `components/ui/` holds the shared primitives (built on `@base-ui/react`):
 `primitives.tsx` (Dialog/Tooltip/Collapsible), `field.tsx` (form fields +
 ConfirmDialog), `toast.tsx` (`toast.success/error/info`, mounted in AppShell;
-only toasts passed `history: true` land in `toastHistory` (the last 100 session
-notifications kept in memory for the workbench's Notifications tab);
-OS-delivered notifications and Web Pushes shown in an open tab are added with
-`toastHistory.record()`). The `onClick` option makes the whole card the
+toasts are not stored — the Notifications tab lists the persisted server
+history, see Notifications above). The `onClick` option makes the whole card the
 action: a click outside its buttons, links and expandable text, ignoring drags
 and text selection, or Enter on the focused card — there is no separate action
-button; opening the toast marks its entry read (`toastHistory.markRead`).
+button; opening a session notification from its toast marks its history entry
+read (`notificationHistory.markRead`).
 Toasts and Notifications entries dismiss on a sideways touch/pen swipe
 (base-ui's toast swipe; `NotificationRow` for the list) and carry
 `data-swipe-dismiss`, which the mobile sidebar gesture skips.

@@ -1,19 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
-import webpush, { type PushSubscription } from "web-push";
+import webpush from "web-push";
 import en from "./i18n/locales/en.json";
 import ja from "./i18n/locales/ja.json";
 import zhCN from "./i18n/locales/zh-CN.json";
-import { getAgentDir } from "./omp/paths";
 import {
-  isValidNotificationId,
-  parseNotificationPrefs,
   renderNotification,
   type NotificationEvent,
-  type NotificationPrefs,
   type RenderedNotification,
 } from "./notification-events";
-import { isRecord } from "./type-guards";
+import { dropDeviceSubscription, getDevice, getVapidKeys, listDevices, recordHistory, type NotificationDevice } from "./notification-store";
 
 /**
  * Server side of notifications: presence of open tabs, per-device preferences
@@ -23,7 +17,6 @@ import { isRecord } from "./type-guards";
 
 /** A tab counts as present this long after its last presence report. */
 export const PRESENCE_TTL_MS = 60_000;
-const MAX_DEVICES = 50;
 const PUSH_TTL_SECONDS = 3600;
 const PUSH_TIMEOUT_MS = 10_000;
 // Apple's push service rejects VAPID subjects it cannot resolve (e.g. localhost mail).
@@ -40,13 +33,6 @@ export interface NotificationPresence {
   lastSeen: number;
 }
 
-export interface NotificationDevice {
-  deviceId: string;
-  prefs: NotificationPrefs;
-  subscription?: PushSubscription;
-  updatedAt: number;
-}
-
 export type NotificationMessage = { kind: "toast" | "os"; event: NotificationEvent };
 
 type Send = (message: NotificationMessage) => void;
@@ -54,11 +40,6 @@ type Send = (message: NotificationMessage) => void;
 export type Delivery =
   | { kind: "toast" | "os"; clientId: string }
   | { kind: "push"; deviceId: string };
-
-interface StoreFile {
-  vapid?: { publicKey: string; privateKey: string };
-  devices: NotificationDevice[];
-}
 
 interface HubState {
   presence: Map<string, NotificationPresence>;
@@ -74,114 +55,8 @@ function hub(): HubState {
   return (globalThis.__ompNotificationHub ??= { presence: new Map(), streams: new Map() });
 }
 
-// p256dh is an uncompressed P-256 point (65 bytes), auth a 16-byte secret; both base64url.
-const P256DH_PATTERN = /^[A-Za-z0-9_-]{86,88}={0,2}$/;
-const AUTH_PATTERN = /^[A-Za-z0-9_-]{21,24}={0,2}$/;
-
-/** Validate an untrusted PushSubscription JSON; only HTTPS push endpoints are accepted. */
-export function parsePushSubscription(value: unknown): PushSubscription | null {
-  if (!isRecord(value) || !isRecord(value.keys)) return null;
-  const { endpoint } = value;
-  const { p256dh, auth } = value.keys;
-  if (typeof endpoint !== "string" || endpoint.length > 2048) return null;
-  if (typeof p256dh !== "string" || !P256DH_PATTERN.test(p256dh) || typeof auth !== "string" || !AUTH_PATTERN.test(auth)) return null;
-  try {
-    if (new URL(endpoint).protocol !== "https:") return null;
-  } catch {
-    return null;
-  }
-  return { endpoint, keys: { p256dh, auth } };
-}
-
-// ---------------------------------------------------------------- store
-
-function storePath(): string {
-  return resolve(getAgentDir(), "omp-web", "notifications.json");
-}
-
-/**
- * Read from disk on every use, never cached: an installed server and a dev
- * server can share the agent directory, and each must see the other's devices
- * and keys. ponytail: read-modify-write without a lock; two instances saving in
- * the same millisecond can lose one update (the tab re-syncs on its next load).
- */
-function loadStore(): StoreFile {
-  let store: StoreFile = { devices: [] };
-  try {
-    if (existsSync(storePath())) {
-      const parsed: unknown = JSON.parse(readFileSync(storePath(), "utf8"));
-      if (isRecord(parsed)) {
-        const { vapid } = parsed;
-        store = {
-          vapid: isRecord(vapid) && typeof vapid.publicKey === "string" && typeof vapid.privateKey === "string" ? { publicKey: vapid.publicKey, privateKey: vapid.privateKey } : undefined,
-          devices: (Array.isArray(parsed.devices) ? parsed.devices : []).flatMap((device: unknown) => {
-            if (!isRecord(device) || !isValidNotificationId(device.deviceId)) return [];
-            const subscription = parsePushSubscription(device.subscription) ?? undefined;
-            return [{ deviceId: device.deviceId, prefs: parseNotificationPrefs(device.prefs), subscription, updatedAt: Number(device.updatedAt) || 0 }];
-          }),
-        };
-      }
-    }
-  } catch {
-    // A corrupt file only loses device prefs; tabs re-register on load.
-  }
-  return store;
-}
-
-/** Atomic write (temp file + rename), owner-only: the file holds the VAPID private key. */
-function saveStore(store: StoreFile): void {
-  const path = storePath();
-  mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.tmp-${process.pid}-${Date.now()}`;
-  try {
-    writeFileSync(temp, `${JSON.stringify(store, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    renameSync(temp, path);
-  } finally {
-    try {
-      if (existsSync(temp)) rmSync(temp);
-    } catch {
-      // ignore cleanup failures
-    }
-  }
-}
-
-function vapidKeys(): { publicKey: string; privateKey: string } {
-  const store = loadStore();
-  if (!store.vapid) {
-    store.vapid = webpush.generateVAPIDKeys();
-    saveStore(store);
-  }
-  return store.vapid;
-}
-
 export function getVapidPublicKey(): string {
-  return vapidKeys().publicKey;
-}
-
-export function getNotificationDevice(deviceId: string): NotificationDevice | undefined {
-  return loadStore().devices.find((device) => device.deviceId === deviceId);
-}
-
-/** Store a device's prefs, and its push subscription when given (otherwise the stored one is kept). */
-export function saveNotificationDevice(deviceId: string, prefs: NotificationPrefs, subscription?: PushSubscription): NotificationDevice {
-  const store = loadStore();
-  const existing = store.devices.find((device) => device.deviceId === deviceId);
-  const device: NotificationDevice = { deviceId, prefs, subscription: subscription ?? existing?.subscription, updatedAt: Date.now() };
-  // A push endpoint belongs to one browser; drop it from any other device id.
-  const others = store.devices.filter((entry) => entry.deviceId !== deviceId && !(device.subscription && entry.subscription?.endpoint === device.subscription.endpoint));
-  // Over the cap, forget devices that would never be notified before ones that would.
-  const useful = (entry: NotificationDevice) => (entry.prefs.enabled || entry.subscription ? 1 : 0);
-  store.devices = [device, ...others].sort((a, b) => useful(b) - useful(a) || b.updatedAt - a.updatedAt).slice(0, MAX_DEVICES);
-  saveStore(store);
-  return device;
-}
-
-function dropSubscription(deviceId: string, endpoint: string): void {
-  const store = loadStore();
-  const device = store.devices.find((entry) => entry.deviceId === deviceId);
-  if (!device?.subscription || device.subscription.endpoint !== endpoint) return;
-  device.subscription = undefined;
-  saveStore(store);
+  return getVapidKeys(webpush.generateVAPIDKeys).publicKey;
 }
 
 // ---------------------------------------------------------------- presence and streams
@@ -215,6 +90,12 @@ export function attachNotificationClient(clientId: string, send: Send): () => vo
 
 // ---------------------------------------------------------------- routing
 
+/** A visible tab is showing the event's conversation (under any of its ids). */
+function isOnScreen(event: NotificationEvent, presence: NotificationPresence[]): boolean {
+  const viewedAs = new Set([event.sessionId, ...(event.aliases ?? [])]);
+  return presence.some((tab) => tab.visible && tab.sessionId !== null && viewedAs.has(tab.sessionId));
+}
+
 /**
  * Decide where one event goes. `reachable` holds the tabs with an open stream.
  * 1. A visible tab is showing the session: nothing, for every device.
@@ -225,8 +106,7 @@ export function attachNotificationClient(clientId: string, send: Send): () => vo
  */
 export function routeNotification(event: NotificationEvent, presence: NotificationPresence[], reachable: ReadonlySet<string>, devices: NotificationDevice[]): Delivery[] {
   if (event.type === "test") return [];
-  const viewedAs = new Set([event.sessionId, ...(event.aliases ?? [])]);
-  if (presence.some((tab) => tab.visible && tab.sessionId !== null && viewedAs.has(tab.sessionId))) return [];
+  if (isOnScreen(event, presence)) return [];
   const active = presence.filter((tab) => tab.visible && reachable.has(tab.clientId));
   const deliveries: Delivery[] = [];
   for (const device of devices) {
@@ -257,7 +137,7 @@ async function sendPush(device: NotificationDevice, event: NotificationEvent): P
   const subscription = device.subscription;
   if (!subscription) return { ok: false, error: "no push subscription" };
   try {
-    const { publicKey, privateKey } = vapidKeys();
+    const { publicKey, privateKey } = getVapidKeys(webpush.generateVAPIDKeys);
     // `type` lets the service worker tell open tabs which kind of entry to list.
     await webpush.sendNotification(subscription, JSON.stringify({ ...renderFor(event, device.prefs.locale), type: event.type }), {
       TTL: PUSH_TTL_SECONDS,
@@ -270,7 +150,7 @@ async function sendPush(device: NotificationDevice, event: NotificationEvent): P
     const status = error instanceof webpush.WebPushError ? error.statusCode : undefined;
     try {
       // 404/410: the browser unsubscribed or the subscription expired.
-      if (status === 404 || status === 410) dropSubscription(device.deviceId, subscription.endpoint);
+      if (status === 404 || status === 410) dropDeviceSubscription(device.deviceId, subscription.endpoint);
     } catch {
       // A store write failure only delays the cleanup to the next push.
     }
@@ -280,11 +160,27 @@ async function sendPush(device: NotificationDevice, event: NotificationEvent): P
   }
 }
 
+/** Never throws: callers publish from the RPC frame path, and a store failure must not cost them the frame. */
 export function publishNotification(event: NotificationEvent): void {
   const state = hub();
-  const devices = loadStore().devices;
+  let devices: NotificationDevice[] = [];
+  try {
+    devices = listDevices();
+  } catch (error) {
+    console.warn("[notifications] store unavailable:", error);
+  }
+  const presence = livePresence(Date.now());
+  // The Notifications tab lists what a device asked for, received or not; one the user watched happen is already read.
+  const { type } = event;
+  if (type !== "test" && devices.some((device) => device.prefs.enabled && device.prefs.types[type])) {
+    try {
+      recordHistory(event, { read: isOnScreen(event, presence) });
+    } catch (error) {
+      console.warn("[notifications] history write failed:", error);
+    }
+  }
   const reachable = new Set(state.streams.keys());
-  for (const delivery of routeNotification(event, livePresence(Date.now()), reachable, devices)) {
+  for (const delivery of routeNotification(event, presence, reachable, devices)) {
     if (delivery.kind === "push") {
       const device = devices.find((entry) => entry.deviceId === delivery.deviceId);
       if (device) void sendPush(device, event);
@@ -302,7 +198,7 @@ export function publishNotification(event: NotificationEvent): void {
 
 /** Settings "Send test notification" for a device with push: reports whether the push service accepted it. */
 export async function sendTestPush(deviceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const device = getNotificationDevice(deviceId);
+  const device = getDevice(deviceId);
   if (!device) return { ok: false, error: "unknown device" };
   return sendPush(device, { type: "test", sessionId: "", sessionName: "omp web" });
 }

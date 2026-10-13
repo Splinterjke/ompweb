@@ -13,7 +13,8 @@ import { SessionSidebar } from "./SessionSidebar";
 import { BackendHealthBanner } from "./BackendDiagnostics";
 import { Tooltip, TooltipProvider } from "./ui/primitives";
 import { ToastProvider } from "./ui/toast";
-import { toast, toastHistory, useUnreadToastCount } from "./ui/toast";
+import { toast } from "./ui/toast";
+import { notificationHistory, useUnreadNotificationCount } from "@/lib/notification-history";
 import { ChatWindow } from "./ChatWindow";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
@@ -1141,14 +1142,14 @@ export function AppShell({ appName }: { appName: string }) {
   });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
   // Notification center (port of upstream f645b6f6/f988972a, pivoted onto the
-  // right workbench): unread toasts badge the workbench toggle, which then
+  // right workbench): unread notifications badge the workbench toggle, which then
   // opens the Notifications view; entries become read once the user leaves it.
-  const unreadNotifications = useUnreadToastCount();
+  const unreadNotifications = useUnreadNotificationCount();
   const [workbenchActiveView, setWorkbenchActiveView] = useState<WorkbenchView | null>(null);
   const viewingNotifications = rightPanelOpen && workbenchActiveView === "notifications" && !settingsTab;
   const wasViewingNotificationsRef = useRef(false);
   useEffect(() => {
-    if (wasViewingNotificationsRef.current && !viewingNotifications) toastHistory.markAllRead();
+    if (wasViewingNotificationsRef.current && !viewingNotifications) notificationHistory.markAllRead();
     wasViewingNotificationsRef.current = viewingNotifications;
   }, [viewingNotifications]);
   const opensNotifications = unreadNotifications > 0 && !viewingNotifications;

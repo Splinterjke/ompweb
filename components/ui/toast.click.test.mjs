@@ -8,9 +8,10 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tryNative: false, tsconfigPaths: true });
 // Same specifiers as useNotifications' own imports: on Windows a relative path
 // can load a second toast module, whose manager the rendered provider never sees.
-const { ClampedDescription, ToastProvider, toast, toastHistory } = await jiti.import("@/components/ui/toast");
+const { ClampedDescription, ToastProvider, toast } = await jiti.import("@/components/ui/toast");
 const { useNotifications } = await jiti.import("@/hooks/useNotifications");
 const { NOTIFICATION_MESSAGE_EVENT } = await jiti.import("@/lib/notification-client");
+const { notificationHistory } = await jiti.import("@/lib/notification-history");
 
 // base-ui renders Toast.Title as an <h2>; the dismiss control is the only
 // button the card itself owns (identified by its aria-label).
@@ -32,31 +33,27 @@ function pointer(target, type, x, y, { detail = 1 } = {}) {
 function show(description, options = {}) {
   const opened = [];
   render(React.createElement(ToastProvider, null));
-  act(() => { toast.info("Agent finished", description, { onClick: () => opened.push(1), history: true, ...options }); });
+  act(() => { toast.info("Agent finished", description, { onClick: () => opened.push(1), ...options }); });
   return { opened, card: () => document.querySelector(".toast-card") };
 }
 
-test("clicking anywhere on a toast card runs its action, closes it and marks it read", () => {
+test("clicking anywhere on a toast card runs its action and closes it", () => {
   const { opened, card } = show("Body");
   assert.equal(card().style.cursor, "pointer");
-  assert.equal(toastHistory.get()[0].read, false);
   const title = titleOf(card());
   pointer(title, "pointerdown", 100, 50);
   pointer(title, "click", 102, 51);
   assert.equal(opened.length, 1);
-  assert.equal(toastHistory.get()[0].read, true);
   assert.equal(card()?.hasAttribute("data-ending-style") ?? true, true);
 });
 
-test("Enter on the focused card runs its action and marks it read; Enter inside it does not", () => {
+test("Enter on the focused card runs its action; Enter inside it does not", () => {
   const { opened, card } = show(React.createElement("button", { type: "button" }, "inner"));
   const press = (target) => act(() => { target.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
   press(innerButton(card()));
   assert.equal(opened.length, 0);
-  assert.equal(toastHistory.get()[0].read, false);
   press(card());
   assert.equal(opened.length, 1);
-  assert.equal(toastHistory.get()[0].read, true);
 });
 
 test("buttons, links, expandable text, drags and text selection do not trigger the card action", () => {
@@ -82,7 +79,7 @@ test("buttons, links, expandable text, drags and text selection do not trigger t
   window.getSelection().selectAllChildren(title);
   act(() => title.click());
   assert.equal(opened.length, 0);
-  assert.equal(toastHistory.get()[0].read, false);
+  assert.equal(card()?.hasAttribute("data-ending-style") ?? false, false);
 });
 
 test("a toast without an action keeps the default cursor", () => {
@@ -109,8 +106,8 @@ test("a session notification toast opens its session from a card click; one with
   pointer(withSession, "pointerdown", 100, 50);
   pointer(withSession, "click", 101, 51);
   assert.deepEqual(sessions, ["s1"]);
-  // Session notifications are a pushable type, so they are listed; opening one read it.
-  assert.deepEqual(toastHistory.get().filter((e) => e.title === "Fix bug").map((e) => [e.id, e.read]), [["s1:completed", true]]);
+  // Session notifications are listed; opening one from its toast reads it.
+  assert.deepEqual(notificationHistory.get().filter((e) => e.id === "s1:completed").map((e) => e.read), [true]);
   const withoutSession = deliver("", "No session");
   assert.equal(withoutSession.style.cursor, "");
   pointer(withoutSession, "pointerdown", 100, 50);
@@ -118,48 +115,52 @@ test("a session notification toast opens its session from a card click; one with
   assert.deepEqual(sessions, ["s1"]);
 });
 
-test("a notification the OS showed is listed in history and opens its session from there", async () => {
-  const sessions = [];
-  const { toastHistory } = await jiti.import("@/components/ui/toast");
+test("a notification the OS showed is listed in history", async () => {
   const created = [];
   // Bare `Notification` in the code under test resolves to the global, not window.
   globalThis.Notification = window.Notification = class { static permission = "granted"; constructor(title) { created.push(title); } };
   try {
-    renderHook(() => useNotifications({ sessionId: null, locale: "en", onOpenSession: (id) => sessions.push(id) }));
+    renderHook(() => useNotifications({ sessionId: null, locale: "en", onOpenSession: () => {} }));
     await act(async () => {
       window.dispatchEvent(new window.CustomEvent(NOTIFICATION_MESSAGE_EVENT, { detail: { kind: "os", event: { type: "error", sessionId: "s9", sessionName: "Shown by OS", detail: "boom" } } }));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     assert.deepEqual(created, ["Shown by OS"]);
-    const entry = toastHistory.get().find((e) => e.title === "Shown by OS");
-    assert.ok(entry, "listed in the Notifications tab");
-    assert.equal(entry.kind, "error");
-    entry.onClick();
-    assert.deepEqual(sessions, ["s9"]);
+    assert.deepEqual(notificationHistory.get().filter((e) => e.id === "s9:error").map((e) => [e.event.sessionName, e.read]), [["Shown by OS", false]]);
   } finally {
     delete window.Notification;
     delete globalThis.Notification;
-    toastHistory.clear();
+    act(() => notificationHistory.clear());
   }
 });
 
-test("a push the service worker showed is listed in history and opens its session; other messages are ignored", async () => {
-  const sessions = [];
-  const { toastHistory } = await jiti.import("@/components/ui/toast");
+test("a push the service worker showed reloads the list from the server; other messages are ignored", async () => {
   const worker = new window.EventTarget();
   Object.defineProperty(window.navigator, "serviceWorker", { configurable: true, value: worker });
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    requests.push([init.method ?? "GET", String(url)]);
+    const entries = [{ id: "s7:error", event: { type: "error", sessionId: "s7", sessionName: "Pushed" }, at: 1, read: false }];
+    return { ok: true, json: async () => ({ entries }) };
+  };
   try {
-    renderHook(() => useNotifications({ sessionId: null, locale: "en", onOpenSession: (id) => sessions.push(id) }));
-    const post = (data) => act(() => { worker.dispatchEvent(new window.MessageEvent("message", { data })); });
-    post({ type: "omp-notification-shown", notification: { type: "error", title: "Pushed", body: "Run failed", tag: "s7:error", sessionId: "s7" } });
-    post({ type: "omp-notification-shown", notification: { title: 42 } });
-    post("junk");
-    const entries = toastHistory.get();
-    assert.deepEqual(entries.map((e) => [e.id, e.kind, e.title]), [["s7:error", "error", "Pushed"]]);
-    entries[0].onClick();
-    assert.deepEqual(sessions, ["s7"]);
+    renderHook(() => useNotifications({ sessionId: null, locale: "en", onOpenSession: () => {} }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    requests.length = 0;
+    const post = (data) => act(async () => {
+      worker.dispatchEvent(new window.MessageEvent("message", { data }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await post("junk");
+    await post({ type: "something-else" });
+    assert.deepEqual(requests, []);
+    await post({ type: "omp-notification-shown", notification: { type: "error", title: "Pushed", body: "Run failed", tag: "s7:error", sessionId: "s7" } });
+    assert.deepEqual(requests, [["GET", "/api/notifications/history"]]);
+    assert.deepEqual(notificationHistory.get().map((e) => e.id), ["s7:error"]);
   } finally {
+    globalThis.fetch = previousFetch;
     delete window.navigator.serviceWorker;
-    toastHistory.clear();
+    act(() => notificationHistory.clear());
   }
 });

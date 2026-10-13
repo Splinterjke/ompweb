@@ -3,17 +3,20 @@
 import { BellOff, CheckCheck, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { ClampedDescription, createSwipeTracker, descriptionBaseStyle, dismissButtonStyle, DRAG_SLOP_PX, KindIcon, toastHistory, useDragClickGuard, useToastHistory, type SwipeTracker, type ToastHistoryEntry } from "./ui/toast";
+import { OPEN_SESSION_EVENT } from "@/lib/notification-client";
+import { renderNotification, type NotificationHistoryEntry } from "@/lib/notification-events";
+import { notificationHistory, useNotificationHistory } from "@/lib/notification-history";
+import { ClampedDescription, createSwipeTracker, descriptionBaseStyle, dismissButtonStyle, DRAG_SLOP_PX, KindIcon, useDragClickGuard, type SwipeTracker } from "./ui/toast";
 
 /** Sideways travel that dismisses on release, the same distance as base-ui's toast swipe. */
 const SWIPE_DISMISS_PX = 40;
 /** Outlasts the 150ms exit transition; a timer, because a hidden panel cancels transitionend. */
 const EXIT_MS = 200;
 
-/** Notifications workbench view: recent toasts and OS notifications, newest first. */
+/** Notifications workbench view: the persisted notification history, newest first. */
 export function NotificationListView() {
   const { t } = useI18n();
-  const entries = useToastHistory();
+  const entries = useNotificationHistory();
   const unread = entries.reduce((count, entry) => (entry.read ? count : count + 1), 0);
   const rootRef = useRef<HTMLDivElement>(null);
   return (
@@ -26,7 +29,7 @@ export function NotificationListView() {
         {/* aria-disabled (not disabled) keeps the button focusable after use. */}
         <button
           type="button"
-          onClick={toastHistory.markAllRead}
+          onClick={notificationHistory.markAllRead}
           aria-disabled={unread === 0}
           title={t("appShell.notificationsMarkRead")}
           aria-label={t("appShell.notificationsMarkRead")}
@@ -37,7 +40,7 @@ export function NotificationListView() {
         </button>
         <button
           type="button"
-          onClick={toastHistory.clear}
+          onClick={notificationHistory.clear}
           title={t("appShell.notificationsClear")}
           aria-label={t("appShell.notificationsClear")}
           className="shell-toolbar-btn ui-focus-ring"
@@ -70,8 +73,15 @@ export function NotificationListView() {
  * a mouse drag keeps selecting text. The swipe can start anywhere on the row
  * except its buttons and links.
  */
-function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onDismissed: () => void }) {
+function NotificationRow({ entry, onDismissed }: { entry: NotificationHistoryEntry; onDismissed: () => void }) {
   const { t, locale } = useI18n();
+  const { title, body } = renderNotification(entry.event, t);
+  const { sessionId } = entry.event;
+  // Following a notification is reading it.
+  const open = sessionId ? () => {
+    notificationHistory.markRead(entry.id);
+    window.dispatchEvent(new CustomEvent(OPEN_SESSION_EVENT, { detail: sessionId }));
+  } : undefined;
   const clickGuard = useDragClickGuard();
   const drag = useRef<{ id: number; x: number; y: number; claimed: boolean; tracker: SwipeTracker } | null>(null);
   const [offset, setOffset] = useState(0);
@@ -79,19 +89,19 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
   const [dragging, setDragging] = useState(false);
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => toastHistory.remove(entry.id), EXIT_MS);
+    const timer = setTimeout(() => notificationHistory.remove(entry.id), EXIT_MS);
     return () => clearTimeout(timer);
   }, [leaving, entry.id]);
   return (
     <li
       data-swipe-dismiss
-      // With an action the row is the only way to run it (there is no Open link), so keyboard users can focus it.
-      tabIndex={entry.onClick ? 0 : undefined}
-      className={entry.onClick ? "ui-focus-ring" : undefined}
-      onKeyDown={entry.onClick ? (event) => {
+      // With a session the row is the only way to open it (there is no Open link), so keyboard users can focus it.
+      tabIndex={open ? 0 : undefined}
+      className={open ? "ui-focus-ring" : undefined}
+      onKeyDown={open ? (event) => {
         if (event.key !== "Enter" || event.target !== event.currentTarget) return;
         event.preventDefault();
-        entry.onClick?.();
+        open();
       } : undefined}
       onPointerDown={(event) => {
         clickGuard.onPointerDown(event);
@@ -140,10 +150,10 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
       }}
       onClickCapture={clickGuard.onClickCapture}
       // Like the toast card: a click anywhere but the controls and expandable text opens it.
-      onClick={entry.onClick ? (event) => {
+      onClick={open ? (event) => {
         if (event.target instanceof Element && event.target.closest("button, a, input, textarea, select, [aria-expanded]")) return;
         if (window.getSelection()?.isCollapsed === false) return;
-        entry.onClick?.();
+        open();
       } : undefined}
       style={{
         display: "flex",
@@ -152,7 +162,7 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
         padding: 8,
         borderRadius: "var(--radius-control)",
         background: entry.read ? undefined : "var(--bg-subtle)",
-        cursor: entry.onClick ? "pointer" : undefined,
+        cursor: open ? "pointer" : undefined,
         touchAction: "pan-y",
         transform: leaving ? `translateX(${leaving * 110}%)` : offset ? `translateX(${offset}px)` : undefined,
         opacity: leaving ? 0 : 1 - Math.min(Math.abs(offset) / 400, 0.5),
@@ -163,26 +173,24 @@ function NotificationRow({ entry, onDismissed }: { entry: ToastHistoryEntry; onD
       <span style={{ width: 8, flexShrink: 0, display: "flex", justifyContent: "center", paddingTop: 6 }}>
         {!entry.read && <span role="img" aria-label={t("appShell.notificationUnread")} style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />}
       </span>
-      <KindIcon kind={entry.kind} />
+      <KindIcon kind={entry.event.type === "error" ? "error" : "info"} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-          <span className="display-serif" style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, overflowWrap: "anywhere", color: entry.read ? "var(--text-muted)" : "var(--text)", fontWeight: entry.read ? 400 : 600 }}>{entry.title}</span>
+          <span className="display-serif" style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.4, overflowWrap: "anywhere", color: entry.read ? "var(--text-muted)" : "var(--text)", fontWeight: entry.read ? 400 : 600 }}>{title}</span>
           <time dateTime={new Date(entry.at).toISOString()} style={{ fontSize: 11, color: "var(--text-dim)", flexShrink: 0 }}>
             {new Date(entry.at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
           </time>
         </div>
-        {entry.description != null && (
-          <div style={{ ...descriptionBaseStyle, overflowWrap: "anywhere" }}>
-            {entry.clamp ? <ClampedDescription>{entry.description}</ClampedDescription> : entry.description}
-          </div>
-        )}
+        <div style={{ ...descriptionBaseStyle, overflowWrap: "anywhere" }}>
+          <ClampedDescription>{body}</ClampedDescription>
+        </div>
       </div>
       <button
         type="button"
         onClick={() => {
           // Dismissing unmounts this button (and the list, if it was the
           // last entry); keep keyboard focus in the always-mounted view root.
-          toastHistory.remove(entry.id);
+          notificationHistory.remove(entry.id);
           onDismissed();
         }}
         aria-label={t("appShell.notificationDismiss")}

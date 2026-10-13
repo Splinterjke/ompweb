@@ -1,7 +1,8 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { setToastHistoryRecording, toast, toastHistory } from "@/components/ui/toast";
+import { toast } from "@/components/ui/toast";
 import { translate } from "@/lib/i18n";
 import { DEFAULT_NOTIFICATION_PREFS, renderNotification, type NotificationEvent, type RenderedNotification } from "@/lib/notification-events";
+import { notificationHistory, setNotificationHistoryRecording } from "@/lib/notification-history";
 import { isRecord } from "@/lib/type-guards";
 import {
   ensurePushSubscription,
@@ -45,10 +46,10 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
     openRef.current = onOpenSession;
   }, [onOpenSession]);
 
-  // The Notifications tab records only while the device's setting says so;
-  // a change from any tab of this browser arrives through the prefs subscription.
+  // The Notifications tab shows only while the device's setting says so; recording continues on the
+  // server. A change from any tab of this browser arrives through the prefs subscription.
   useEffect(() => {
-    const apply = () => setToastHistoryRecording(getNotificationPrefs().logToTab !== false);
+    const apply = () => setNotificationHistoryRecording(getNotificationPrefs().logToTab !== false);
     apply();
     return subscribeNotificationPrefs(apply);
   }, []);
@@ -108,21 +109,35 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
     })().catch(() => {});
   }, []);
 
+  // The persisted Notifications list: loaded now and whenever the tab comes back, which brings read marks and removals from other devices.
+  useEffect(() => {
+    void notificationHistory.load();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void notificationHistory.load();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   // Delivery to this tab and notification clicks.
   useEffect(() => {
-    // The whole card opens the session (click, tap, or Enter on the focused card); no separate Open link.
-    const openFor = (rendered: RenderedNotification) => {
-      const target = rendered.sessionId;
-      return target ? () => openRef.current(target) : undefined;
-    };
     const showToast = (rendered: RenderedNotification, type: NotificationEvent["type"]) => {
       const show = type === "error" ? toast.error : toast.info;
-      show(rendered.title, rendered.body, { id: rendered.tag, history: true, onClick: openFor(rendered) });
+      const target = rendered.sessionId;
+      // The whole card opens the session (click, tap, or Enter on the focused card); following it is reading it.
+      show(rendered.title, rendered.body, {
+        id: rendered.tag,
+        onClick: target ? () => {
+          notificationHistory.markRead(rendered.tag);
+          openRef.current(target);
+        } : undefined,
+      });
     };
     const onMessage = (raw: Event) => {
       if (!(raw instanceof CustomEvent)) return;
-      // Sent by SessionSidebar from our own SSE stream.
+      // Sent by SessionSidebar from our own SSE stream. The server has already recorded it.
       const { kind, event }: { kind: "toast" | "os"; event: NotificationEvent } = raw.detail;
+      notificationHistory.add(event);
       const rendered = renderNotification(event, translate);
       if (kind === "toast") {
         showToast(rendered, event.type);
@@ -131,8 +146,6 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
       // Permission withdrawn or never granted: the toast is the only way left to tell the user.
       void showSystemNotification(rendered).then((shown) => {
         if (!shown) showToast(rendered, event.type);
-        // Shown by the OS: log it so the Notifications tab still lists it.
-        else toastHistory.record(event.type === "error" ? "error" : "info", rendered.title, rendered.body, { id: rendered.tag, onClick: openFor(rendered) });
       });
     };
     const onOpen = (raw: Event) => {
@@ -145,11 +158,8 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
         openRef.current(data.sessionId);
         return;
       }
-      // A push the service worker showed while this tab was open (subscribed browsers get pushes, not "os" frames).
-      const shown = data.notification;
-      if (data.type !== "omp-notification-shown" || !isRecord(shown) || typeof shown.title !== "string" || typeof shown.body !== "string" || typeof shown.tag !== "string" || typeof shown.sessionId !== "string") return;
-      const target = shown.sessionId;
-      toastHistory.record(shown.type === "error" ? "error" : "info", shown.title, shown.body, { id: shown.tag || undefined, onClick: target ? () => openRef.current(target) : undefined });
+      // A push the service worker showed while this tab was open: the server recorded it; fetch the list.
+      if (data.type === "omp-notification-shown") void notificationHistory.load();
     };
     window.addEventListener(NOTIFICATION_MESSAGE_EVENT, onMessage);
     window.addEventListener(OPEN_SESSION_EVENT, onOpen);

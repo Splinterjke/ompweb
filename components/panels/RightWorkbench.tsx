@@ -9,7 +9,7 @@ import { createTemporarySession } from "@/lib/workbench-client";
 import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { NotificationListView } from "../NotificationList";
-import { useUnreadToastCount } from "../ui/toast";
+import { useUnreadNotificationCount } from "@/lib/notification-history";
 
 export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
 // The workbench intentionally has one axis only.  A second axis (or a
@@ -234,7 +234,7 @@ export function RightWorkbench({
   onOpenFile?: (filePath: string, fileName: string) => void;
 }) {
   const { t } = useI18n();
-  const unreadNotifications = useUnreadToastCount();
+  const unreadNotifications = useUnreadNotificationCount();
   const [layout, setLayout] = useState<Layout>(emptyLayout);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

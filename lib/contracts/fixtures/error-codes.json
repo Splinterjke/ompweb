@@ -56,6 +56,7 @@
     "invalid_file_names",
     "invalid_git_url",
     "invalid_hash",
+    "invalid_history_request",
     "invalid_json",
     "invalid_key",
     "invalid_locale",
