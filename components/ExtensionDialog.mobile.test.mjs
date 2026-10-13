@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 process.env.NODE_ENV = "test";
 const React = (await import("react")).default;
 const { renderToStaticMarkup } = await import("react-dom/server");
-const { cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
+const { act, cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
 const { createJiti } = await import("jiti");
 
 const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
@@ -201,20 +201,141 @@ test("an open keyboard caps the panel to the visible area and reveals the send b
   }
 });
 
-test("the keyboard-only footer cap applies to every attached method", () => {
+/** Resizes the stubbed viewport like a browser does; `layout` also shrinks
+ * `innerHeight`, as `interactive-widget: resizes-content` (Android Chrome)
+ * and a desktop window or docked dev tools do. */
+function stubResizableViewport() {
+  const saved = ["innerHeight", "innerWidth"].map((key) => [key, Object.getOwnPropertyDescriptor(window, key)]);
+  const restoreViewport = stubVisualViewport(window.innerHeight);
+  const set = (key, value) => Object.defineProperty(window, key, { configurable: true, value });
+  return {
+    full: window.innerHeight,
+    resize(height, { layout = true, width } = {}) {
+      if (width !== undefined) set("innerWidth", width);
+      window.visualViewport.height = height;
+      if (layout) set("innerHeight", height);
+      act(() => { window.dispatchEvent(new window.Event("resize")); });
+    },
+    restore() {
+      for (const [key, descriptor] of saved) {
+        if (descriptor) Object.defineProperty(window, key, descriptor);
+        else delete window[key];
+      }
+      restoreViewport();
+    },
+  };
+}
+
+async function focusOther() {
+  renderAttached();
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+  act(() => other.focus());
+  return other;
+}
+
+for (const [mode, layout] of [["resizes-content", true], ["overlay", false]]) {
+  test(`collapsing the keyboard while typing in Other lets the text box go (${mode})`, async () => {
+    const restoreMedia = stubMedia({ coarse: true });
+    const viewport = stubResizableViewport();
+    try {
+      const other = await focusOther();
+      viewport.resize(Math.round(viewport.full * 0.5), { layout });
+      assert.ok(document.activeElement === other, "opening the keyboard keeps the text box");
+      // Back button / swipe: focus would stay put, and the next tap (Submit)
+      // would raise the keyboard again for a moment.
+      viewport.resize(viewport.full, { layout });
+      assert.ok(document.activeElement !== other, "a collapsed keyboard must not keep the text box focused");
+    } finally {
+      viewport.restore();
+      restoreMedia();
+    }
+  });
+}
+
+test("rotating with the keyboard up is no collapse, and the later collapse still lets the text box go", async () => {
+  const restoreMedia = stubMedia({ coarse: true });
+  const viewport = stubResizableViewport();
+  try {
+    const other = await focusOther();
+    viewport.resize(Math.round(viewport.full * 0.5));
+    // Landscape, keyboard still up: a new width, a shorter visible area.
+    viewport.resize(Math.round(viewport.full * 0.3), { width: window.innerWidth + 300 });
+    assert.ok(document.activeElement === other, "rotation must not take the text box away");
+    // Back button in landscape: the visible area grows by the keyboard.
+    viewport.resize(Math.round(viewport.full * 0.6));
+    assert.ok(document.activeElement !== other, "the collapse after a rotation must still let the text box go");
+  } finally {
+    viewport.restore();
+    restoreMedia();
+  }
+});
+
+test("on a desktop, shrinking and regrowing the window keeps the text box", async () => {
+  // Docked dev tools opening and closing, or a window resized vertically.
+  const viewport = stubResizableViewport();
+  try {
+    const other = await focusOther();
+    fireEvent.pointerDown(other, { pointerType: "mouse" });
+    viewport.resize(Math.round(viewport.full * 0.5));
+    viewport.resize(viewport.full);
+    assert.ok(document.activeElement === other, "no soft keyboard was involved");
+  } finally {
+    viewport.restore();
+  }
+});
+
+test("on a touchscreen laptop, a tap's keyboard is tracked though the mouse is the primary pointer", async () => {
+  const viewport = stubResizableViewport();
+  try {
+    renderAttached();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+    fireEvent.pointerDown(other, { pointerType: "touch" });
+    act(() => other.focus());
+    viewport.resize(Math.round(viewport.full * 0.5));
+    assert.equal(screen.getByRole("dialog").style.maxHeight, `${Math.round(viewport.full * 0.5) - 12}px`, "the footer stays above the keyboard");
+    viewport.resize(viewport.full);
+    assert.ok(document.activeElement !== other, "a collapsed keyboard must not keep the text box focused");
+  } finally {
+    viewport.restore();
+  }
+});
+
+test("the keyboard cap applies to every attached method with a text field", () => {
   const viewportHeight = Math.round(window.innerHeight * 0.5);
   const restore = stubVisualViewport(viewportHeight);
   const restoreMedia = stubMedia({ coarse: true });
   try {
-    const { responses } = renderAttached({ type: "extension_ui_request", id: "select-1", method: "select", title: "Which?", options: ["First", "Second"] });
-    const button = screen.getByRole("button", { name: "First" });
-    fireEvent.click(button);
-    fireEvent.focus(button);
+    renderAttached({ type: "extension_ui_request", id: "input-1", method: "input", title: "Name?" });
+    fireEvent.focus(screen.getByRole("textbox", { name: "Name?" }));
     assert.equal(screen.getByRole("dialog").style.maxHeight, `${viewportHeight - 12}px`);
-    assert.deepEqual(responses, [], "select still submits from the footer, not from focus");
   } finally {
     restoreMedia();
     restore();
+  }
+});
+
+test("on touch, focusing an option or button keeps the panel's height", () => {
+  const restoreMedia = stubMedia({ coarse: true });
+  try {
+    const { view } = renderAttached();
+    const panel = screen.getByRole("dialog");
+    // No keyboard comes up for them, and a resize under the finger made the
+    // tap that focused them miss.
+    for (const control of [screen.getByRole("radio", { name: "Red" }), screen.getByRole("button", { name: "Submit" })]) {
+      fireEvent.focus(control);
+      assert.equal(panel.style.maxHeight, "min(420px, 60dvh)");
+    }
+    view.rerender(React.createElement(ExtensionDialog, {
+      request: { type: "extension_ui_request", id: "select-1", method: "select", title: "Which?", options: ["First", "Second"] },
+      onRespond: () => {},
+      attached: true,
+    }));
+    fireEvent.focus(screen.getByRole("button", { name: "First" }));
+    assert.equal(screen.getByRole("dialog").style.maxHeight, "min(420px, 60dvh)");
+  } finally {
+    restoreMedia();
   }
 });
 
@@ -260,13 +381,77 @@ test("without a visible-area API the panel keeps its CSS cap", () => {
   assert.deepEqual(responses, [{ answers: [{ id: "color", selectedOptions: [], customInput: "Teal" }] }]);
 });
 
-test("a footer press leaves focus in the Other text box", () => {
-  renderAttached();
-  // A focus change on press closes the phone keyboard and drops the panel's
-  // keyboard cap before the click, so the click misses the moved button.
-  for (const name of ["Cancel", "Submit"]) {
-    assert.equal(fireEvent.mouseDown(screen.getByRole("button", { name })), false, `${name} must not take focus`);
+/** A press as the browser sends it: pointerdown, then the compat mousedown.
+ * Returns whether mousedown's default (moving focus) still runs. */
+function press(target, pointerType) {
+  fireEvent.pointerDown(target, { pointerType });
+  return fireEvent.mouseDown(target);
+}
+
+test("on touch, while Other is being typed, a press elsewhere in the panel keeps focus there", async () => {
+  // A phone: the panel leaves focus alone until tapped (#235).
+  const restore = stubMedia({ coarse: true });
+  const composer = document.body.appendChild(document.createElement("textarea"));
+  try {
+    renderAttached();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+    const red = screen.getByRole("radio", { name: "Red" });
+    const targets = [red, red.closest("label"), screen.getByRole("button", { name: "Cancel" }), screen.getByRole("button", { name: "Submit" })];
+    // No text box of the panel focused: no keyboard of ours to protect.
+    for (const target of targets) assert.equal(press(target, "touch"), true);
+    act(() => composer.focus());
+    for (const target of targets) assert.equal(press(target, "touch"), true, "a field outside the panel is not ours to keep");
+    act(() => red.focus());
+    assert.equal(press(screen.getByRole("button", { name: "Submit" }), "touch"), true, "a focused radio raises no keyboard");
+
+    act(() => other.focus());
+    // A focus change on press closes the phone keyboard and resizes the panel
+    // before the click, so the click misses the option or button it aimed at.
+    for (const pointerType of ["touch", "pen"]) {
+      for (const target of targets) assert.equal(press(target, pointerType), false, `${target.textContent} must not take focus (${pointerType})`);
+    }
+    assert.equal(press(other, "touch"), true, "the text box itself still takes the press");
+  } finally {
+    composer.remove();
+    restore();
   }
+});
+
+test("a mouse press in the panel moves focus as usual, even on a touch-first device", () => {
+  // The pointer media query describes the primary pointer only; a hybrid
+  // device's mouse must keep text selection and radio arrow keys.
+  const restore = stubMedia({ coarse: true });
+  try {
+    renderAttached();
+    act(() => screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea").focus());
+    assert.equal(press(screen.getByText("Red"), "mouse"), true);
+  } finally {
+    restore();
+  }
+});
+
+test("choosing an option takes focus from Other, so later typing cannot pick Other", () => {
+  renderAttached();
+  const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+  const red = screen.getByRole("radio", { name: "Red" });
+  act(() => other.focus());
+  // A touch press on the radio itself keeps focus in Other; the change must move it.
+  assert.equal(press(red, "touch"), false);
+  fireEvent.click(red);
+  // Compare identities: a failing element diff walks the whole jsdom graph.
+  assert.ok(document.activeElement === red, "the chosen radio has focus");
+});
+
+test("answering releases the Other text box at once, so the keyboard does not wait for the server", () => {
+  const { responses } = renderAttached();
+  const other = screen.getByRole("group", { name: /Pick a color/ }).querySelector("textarea");
+  act(() => other.focus());
+  fireEvent.change(other, { target: { value: "Teal" } });
+  // The panel stays mounted until omp acknowledges the answer (plus a hand-off delay).
+  fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+  assert.equal(responses.length, 1);
+  assert.ok(document.activeElement !== other, "the Other text box must not keep focus");
 });
 
 // ---- touch targets (globals.css) ----------------------------------------------
