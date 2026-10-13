@@ -21,7 +21,7 @@ do not assume that Pi-specific implementation changes can be merged unchanged.
 2. **Local-first by default.** The server binds to `127.0.0.1`; remote access
    is an explicit user choice and must be protected by a trusted network
    boundary and HTTPS.
-3. **Node-first installation.** A normal user installs Node.js 22.19+ and OMP,
+3. **Node-first installation.** A normal user installs Node.js 24+ and OMP,
    then runs `npx ompweb@latest` or installs `ompweb` globally. ompweb does not
    require users to install Bun for its own runtime.
 4. **Native compatibility over imitation.** Prefer OMP's CLI and documented
