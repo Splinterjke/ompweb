@@ -26,7 +26,7 @@ import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
 import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
-import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, type SlashQueryMatch } from "@/lib/web-slash-commands";
+import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, buildSlashInsertText, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import {
   MAX_ATTACHED_IMAGE_BYTES,
@@ -1264,6 +1264,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // real text must still open the palette (see extractSlashQuery).
   const [slashMatch, setSlashMatch] = useState<SlashQueryMatch | null>(null);
   const slashQuery = slashMatch === null ? null : slashMatch.query.toLowerCase();
+  const isMidPromptSkillLookup = slashMatch?.mode === "mid-prompt";
   const [dormantSkillNames, setDormantSkillNames] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -1310,7 +1311,28 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   );
 
   const filteredSlashCommands = (() => {
-    if (slashQuery === null) return [];
+    if (slashQuery === null || slashMatch === null) return [];
+    // Mid-prompt slash: only `/skill:` mentions execute there, so the palette
+    // narrows to skills and the accepted pick inserts the normalized
+    // `/skill:name` mention (port of upstream 4d50e354).
+    if (isMidPromptSkillLookup) {
+      return externalSlashCommands
+        .filter((command) => {
+          if (command.source !== "skill" && !command.name.startsWith("skill:")) return false;
+          const cleanName = command.name.replace(/^skill:/i, "").toLowerCase();
+          const fullName = command.name.toLowerCase();
+          const description = command.description?.toLowerCase() ?? "";
+          return cleanName.includes(slashQuery) || fullName.includes(slashQuery) || description.includes(slashQuery);
+        })
+        .sort((a, b) => {
+          const rankDelta = slashMatchRank({ ...a, name: a.name.replace(/^skill:/i, "") }, slashQuery)
+            - slashMatchRank({ ...b, name: b.name.replace(/^skill:/i, "") }, slashQuery);
+          if (rankDelta !== 0) return rankDelta;
+          const dormancyDelta = Number(isDormantSkillCommand(a, dormantSkillNames)) - Number(isDormantSkillCommand(b, dormantSkillNames));
+          if (dormancyDelta !== 0) return dormancyDelta;
+          return modelCollator.compare(a.name, b.name);
+        });
+    }
     const commands = [...(isStreaming ? [] : builtinSlashCommands), ...externalSlashCommands];
     return [...commands]
       .filter((command) => {
@@ -1539,13 +1561,16 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
   const applySlashCommand = useCallback((command: SlashCommandPaletteItem) => {
     // Replace only the slash token at the caret; text typed before it stays.
+    // Mid-prompt picks normalize to `/skill:name` — only skill mentions
+    // execute mid-prompt (port of upstream 4d50e354).
     const ta = textareaRef.current;
     const cursor = ta?.selectionStart ?? value.length;
     const start = slashMatch?.start ?? 0;
     const before = value.slice(0, start);
     const after = value.slice(cursor);
-    const nextValue = before + `/${command.name} ` + after;
-    const caret = before.length + command.name.length + 2;
+    const insertText = buildSlashInsertText(command.name, slashMatch?.mode ?? "leading");
+    const nextValue = before + insertText + after;
+    const caret = before.length + insertText.length;
     setValue(nextValue);
     setSlashMenuOpen(false);
     setSlashActiveIndex(0);

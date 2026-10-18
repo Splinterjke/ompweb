@@ -247,10 +247,16 @@ test("slash palette follows the caret so commands trigger after typed text", asy
   assert.doesNotMatch(source, /value\.startsWith\("\/"\) && !\\\/\\s\\\/\.test/);
   assert.match(source, /updateSlashQuery\(e\.target\.value, e\.target\.selectionStart\)/);
 
-  // Selecting a command replaces only the slash token and keeps the prefix.
+  // Selecting a command replaces only the slash token and keeps the prefix,
+  // with the insert text mode-aware (mid-prompt normalizes to /skill:).
   const apply = source.slice(source.indexOf("const applySlashCommand"), source.indexOf("const sendQueued"));
   assert.match(apply, /value\.slice\(0, start\)/);
-  assert.match(apply, /before \+ `\/\$\{command\.name\} ` \+ after/);
+  assert.match(apply, /buildSlashInsertText\(command\.name, slashMatch\?\.mode \?\? "leading"\)/);
+  assert.match(apply, /before \+ insertText \+ after/);
+
+  // Mid-prompt lookups narrow the palette to skills only.
+  assert.match(source, /isMidPromptSkillLookup/);
+  assert.match(source, /command\.source !== "skill" && !command\.name\.startsWith\("skill:"\)/);
 });
 
 test("renders single queued prompt in compact bar", () => {

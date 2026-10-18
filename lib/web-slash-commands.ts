@@ -167,11 +167,16 @@ export function expandWebSlashCommand(text: string): WebSlashCommandExpansion {
   }
   return { kind: "expand", prompt: def.buildPrompt(args) };
 }
+
 export interface SlashQueryMatch {
   /** Index of the "/" character in the text */
   start: number;
   /** Text typed after the "/" (may be empty) */
   query: string;
+  /** "leading": only whitespace precedes the slash (full command palette).
+   *  "mid-prompt": real draft text precedes it — only `/skill:` mentions
+   *  execute there, so the palette narrows to skills (port of upstream 4d50e354). */
+  mode: "leading" | "mid-prompt";
 }
 
 /**
@@ -189,8 +194,28 @@ export function extractSlashQuery(textBeforeCursor: string): SlashQueryMatch | n
   const match = /\/([^\s/]*)$/.exec(textBeforeCursor);
   if (!match) return null;
   const slashIndex = match.index;
-  if (slashIndex === 0) return { start: 0, query: match[1] };
+  if (slashIndex === 0) return { start: 0, query: match[1], mode: "leading" };
   const prev = textBeforeCursor[slashIndex - 1];
   if (/[A-Za-z0-9/]/.test(prev)) return null;
-  return { start: slashIndex, query: match[1] };
+  // Whitespace-only draft before the slash is still a leading lookup (the
+  // palette offers every command and the insert keeps the raw name).
+  const mode = textBeforeCursor.slice(0, slashIndex).trim().length > 0 ? "mid-prompt" : "leading";
+  return { start: slashIndex, query: match[1], mode };
+}
+
+/**
+ * Text an accepted palette entry replaces the slash token with. A mid-prompt
+ * pick normalizes to `/skill:<name> ` — omp only executes skill MENTIONS in
+ * mid-prompt position; a bare `/command` there stays literal prompt text
+ * (port of upstream 4d50e354).
+ */
+export function buildSlashInsertText(
+  commandName: string,
+  mode: "leading" | "mid-prompt",
+): string {
+  if (mode === "mid-prompt") {
+    const cleanName = commandName.replace(/^skill:/i, "");
+    return `/skill:${cleanName} `;
+  }
+  return `/${commandName} `;
 }
