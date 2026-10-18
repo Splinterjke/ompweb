@@ -724,7 +724,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   `NEXT_RUNTIME === "nodejs"` guard (the file-header comment enforces this).
 
 ### Process-details group stability (`components/ChatWindow.tsx`)
-- "Process details" groups key their React `key` on the anchor entry id (`process-group-<entryId>`) — never on the message index or the final-assistant index — because the group grows as new tool calls commit mid-turn and index-based keys remount it, silently resetting the user's expanded state. Expansion state lives in `CommittedTranscript.processExpanded` keyed by anchor id, so it survives remounts and virtual-window recycling. An in-flight turn renders as the visible live tail, not a collapsed group.
+- "Process details" groups key their React `key` on the anchor entry id (`process-group-<entryId>`) — never on the message index or the final-assistant index — because the group grows as new tool calls commit mid-turn and index-based keys remount it, silently resetting the user's expanded state. Expansion state lives in `CommittedTranscript.processExpanded` keyed by anchor id, so it survives remounts and virtual-window recycling. With the Interface & Behavior switch "Hide tool activity while working" on (localStorage `omp-web:hide-tool-activity`, **on by default**, port of upstream 84e4bd1b) a running turn folds its activity into Process details rows exactly like a finished turn; turning it off restores the flat live tail for the in-flight turn.
 - The rows inside are hoisted the same way: the user's open/collapse choice
   for a tool-call row lives in the ChatWindow-provided
   `ToolExpansionProvider` (`components/tool-expansion.tsx`) keyed by the

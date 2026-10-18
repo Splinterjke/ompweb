@@ -1278,6 +1278,8 @@
   "settingsConfig.messageActionsDesc": "Show the copy, fork and edit buttons under messages. Turn off for a cleaner transcript.",
   "settingsConfig.processDetailsAutoExpand": "Auto-expand process details",
   "settingsConfig.processDetailsAutoExpandDesc": "Expand the process details of all turns when the session is opened, instead of keeping them collapsed. Manually collapsing a group keeps it collapsed.",
+  "settingsConfig.hideToolActivity": "Hide tool activity while working",
+  "settingsConfig.hideToolActivityDesc": "Fold a running turn's tool calls into one Process details row, the same way a finished turn folds them. Expand the row to see each call and its result.",
   "settingsConfig.timeFormat": "Message time format",
   "settingsConfig.timeFormatDesc": "How timestamps next to chat messages are displayed.",
   "settingsConfig.timeFormat24h": "24 hours",

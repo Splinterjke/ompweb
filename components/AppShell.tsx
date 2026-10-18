@@ -74,6 +74,7 @@ const FileViewer = dynamic(() => import("./FileViewer").then((m) => m.FileViewer
 // --sidebar-width CSS variable (globals.css) and persisted between sessions.
 const SIDEBAR_WIDTH_STORAGE_KEY = "omp-web:sidebar-width";
 const TOOL_CALLS_COLLAPSED_STORAGE_KEY = "omp-web:tool-calls-collapsed";
+const HIDE_TOOL_ACTIVITY_STORAGE_KEY = "omp-web:hide-tool-activity";
 const GOAL_TOKEN_BUDGET_STORAGE_KEY = "omp-web:goal-token-budget";
 const OPEN_URL_AUTOMATICALLY_STORAGE_KEY = "omp-web:open-url-automatically";
 const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
@@ -245,6 +246,9 @@ export function AppShell({ appName }: { appName: string }) {
   const [gitGraphPanelExpanded, setGitGraphPanelExpanded] = useState(false);
   const [terminalMaximized, setTerminalMaximized] = useState(false);
   const [toolCallsDefaultCollapsed, setToolCallsDefaultCollapsed] = useState(true);
+  // "Hide tool activity while working" — fold a running turn's tool activity
+  // into Process details rows, like finished turns do (on by default).
+  const [hideToolActivity, setHideToolActivity] = useState(true);
   const [showGoalTokenBudget, setShowGoalTokenBudget] = useState(false);
   const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
   const [thinkingDisplayMode, setThinkingDisplayMode] = useState<ThinkingDisplayMode>("auto");
@@ -453,6 +457,7 @@ export function AppShell({ appName }: { appName: string }) {
     (window as { ompWebDesktop?: { startupStage?: (stage: string) => void } }).ompWebDesktop?.startupStage?.("shell_mounted");
     try {
       setToolCallsDefaultCollapsed(window.localStorage.getItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY) !== "false");
+      setHideToolActivity(window.localStorage.getItem(HIDE_TOOL_ACTIVITY_STORAGE_KEY) !== "false");
       setShowGoalTokenBudget(window.localStorage.getItem(GOAL_TOKEN_BUDGET_STORAGE_KEY) === "true");
     } catch {
       // Keep the compact default when storage is unavailable.
@@ -492,6 +497,14 @@ export function AppShell({ appName }: { appName: string }) {
     setToolCallsDefaultCollapsed(collapsed);
     try {
       window.localStorage.setItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY, String(collapsed));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleHideToolActivityChange = useCallback((hide: boolean) => {
+    setHideToolActivity(hide);
+    try {
+      window.localStorage.setItem(HIDE_TOOL_ACTIVITY_STORAGE_KEY, String(hide));
     } catch {
       // The preference still applies for this page load.
     }
@@ -2843,6 +2856,7 @@ export function AppShell({ appName }: { appName: string }) {
               onOpenGitTab={handleOpenGitTab}
               onSubagentsChange={setSubagents}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+              hideToolActivity={hideToolActivity}
               showGoalTokenBudget={showGoalTokenBudget}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollowEnabled}
@@ -3071,6 +3085,8 @@ export function AppShell({ appName }: { appName: string }) {
         activeTab={settingsTab}
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
         onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange}
+        hideToolActivity={hideToolActivity}
+        onHideToolActivityChange={handleHideToolActivityChange}
         showGoalTokenBudget={showGoalTokenBudget}
         onShowGoalTokenBudgetChange={handleShowGoalTokenBudgetChange}
         thinkingDisplayMode={thinkingDisplayMode}

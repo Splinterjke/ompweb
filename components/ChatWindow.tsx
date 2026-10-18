@@ -49,6 +49,9 @@ interface Props {
   /** Workspace picker rendered above the new-session composer (owns the destination cwd). */
   newSessionWorkspace?: ReactNode;
   toolCallsDefaultCollapsed?: boolean;
+  /** Interface & Behavior "Hide tool activity while working": fold a running
+   *  turn's tool activity into Process details rows, like finished turns do. */
+  hideToolActivity?: boolean;
   /** Interface & Behavior pref forwarded to the goal bar's token readout. */
   showGoalTokenBudget?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
@@ -252,6 +255,8 @@ interface CommittedTranscriptProps {
   onOpenSubagent?: (agentId: string, fallback?: { label?: string; status?: string }) => void;
   sessionId: string | undefined;
   toolCallsDefaultCollapsed: boolean;
+  /** Fold a running turn's tool activity; off restores the flat live tail. */
+  hideToolActivity: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
   /** omp `hideThinkingBlock`: omit thinking from the transcript. */
@@ -278,7 +283,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
   handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
-  toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, hideToolActivity = true, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // The user's expand/collapse choice per process-details group, keyed by the
@@ -508,7 +513,10 @@ const CommittedTranscript = memo(function CommittedTranscript({
   const renderGroup = (group: ChatGroup, groupIndex: number): ReactNode => {
     const { userIdx, finalAssistantIdx, processIndices, tailIndices, endIdx } = group;
     const isLiveTail = (sessionBusy || isStreaming) && endIdx === messages.length && userIdx === lastAnchorIdx;
-    if (finalAssistantIdx === -1 || isLiveTail) {
+    // "Hide tool activity while working" (on by default) folds the running
+    // turn into Process details rows the same way finished turns fold,
+    // instead of rendering the flat live tail (port of upstream 84e4bd1b).
+    if ((finalAssistantIdx === -1 || isLiveTail) && !(hideToolActivity && isLiveTail)) {
       // Live tail: the committed final assistant message is rendered inline
       // (the streaming bubble only holds the not-yet-committed message, so
       // including finalAssistantIdx can never double-render it). Without this,
@@ -602,7 +610,7 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -1552,6 +1560,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               onOpenSubagent={openAsyncJobTranscript}
               sessionId={session?.id ?? sessionIdRef.current ?? undefined}
               toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+              hideToolActivity={hideToolActivity}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollow}
               hideThinkingBlock={hideThinkingBlock}
