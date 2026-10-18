@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { toast } from "@/components/ui/toast";
 import { translate } from "@/lib/i18n";
+import { openEventStream } from "@/lib/event-stream";
 import { DEFAULT_NOTIFICATION_PREFS, renderNotification, type NotificationEvent, type RenderedNotification } from "@/lib/notification-events";
 import { notificationHistory, setNotificationHistoryRecording } from "@/lib/notification-history";
 import { isRecord } from "@/lib/type-guards";
@@ -9,7 +10,6 @@ import {
   getNotificationDeviceId,
   getNotificationPrefs,
   hasStoredNotificationPrefs,
-  NOTIFICATION_MESSAGE_EVENT,
   notificationClientId,
   OPEN_SESSION_EVENT,
   showSystemNotification,
@@ -133,10 +133,8 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
         } : undefined,
       });
     };
-    const onMessage = (raw: Event) => {
-      if (!(raw instanceof CustomEvent)) return;
-      // Sent by SessionSidebar from our own SSE stream. The server has already recorded it.
-      const { kind, event }: { kind: "toast" | "os"; event: NotificationEvent } = raw.detail;
+    const deliver = (kind: "toast" | "os", event: NotificationEvent) => {
+      // The server has already recorded it.
       notificationHistory.add(event);
       const rendered = renderNotification(event, translate);
       if (kind === "toast") {
@@ -161,11 +159,25 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
       // A push the service worker showed while this tab was open: the server recorded it; fetch the list.
       if (data.type === "omp-notification-shown") void notificationHistory.load();
     };
-    window.addEventListener(NOTIFICATION_MESSAGE_EVENT, onMessage);
+    // This tab's own channel: the server delivers here while it is open, on
+    // any view (the chat, full-page Settings, ...), and counts the tab as
+    // reachable — no longer tied to the sidebar's lifetime.
+    const stream = openEventStream({ kind: "notifications", clientId: notificationClientId });
+    stream.onmessage = ({ data }) => {
+      try {
+        const frame: unknown = JSON.parse(data);
+        if (!isRecord(frame) || frame.type !== "notification" || (frame.kind !== "toast" && frame.kind !== "os") || !isRecord(frame.event)) return;
+        // Built by our own server's notification hub from a NotificationEvent.
+        const event = frame.event as unknown as NotificationEvent;
+        deliver(frame.kind, event);
+      } catch {
+        // ignore malformed frames
+      }
+    };
     window.addEventListener(OPEN_SESSION_EVENT, onOpen);
     navigator.serviceWorker?.addEventListener("message", onWorkerMessage);
     return () => {
-      window.removeEventListener(NOTIFICATION_MESSAGE_EVENT, onMessage);
+      stream.close();
       window.removeEventListener(OPEN_SESSION_EVENT, onOpen);
       navigator.serviceWorker?.removeEventListener("message", onWorkerMessage);
     };

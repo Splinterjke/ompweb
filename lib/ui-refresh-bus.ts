@@ -1,6 +1,6 @@
 /**
  * UI refresh bus — fans a rebuild-driven "reload" signal out to every
- * connected browser over the shared /api/agent/running/events SSE stream.
+ * connected browser over the event-stream `running` channel.
  *
  * Each SSE stream registers a send function with the bus. When the ompweb
  * binary is rebuilt and the process restarts, the launcher (or a curl after

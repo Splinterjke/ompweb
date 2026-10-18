@@ -23,7 +23,7 @@ export interface ApiFailureEnvelope {
 
 export type ApiEnvelope<T = unknown> = ApiSuccessEnvelope<T> | ApiFailureEnvelope;
 
-/** Transport-level SSE frames sent by /api/agent/[id]/events. */
+/** Transport-level SSE frames sent on the event-stream `session` channel. */
 export interface ConnectedFrame {
   type: "connected";
   sessionId: string;

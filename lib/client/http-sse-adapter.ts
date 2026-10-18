@@ -14,6 +14,7 @@ import type {
   SystemClient,
 } from "./types";
 import { toClientError } from "./types";
+import { openEventStream, EVENT_STREAM_CLOSED, EVENT_STREAM_OPEN, type EventStream, type EventStreamChannel } from "../event-stream";
 import type {
   GitClient,
   GitHubStatusPayload,
@@ -51,23 +52,27 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 class SseSubscription implements EventSubscription {
-  private es: EventSource | null;
+  private es: EventStream | null;
   #state: SubscriptionState = "connecting";
   #userClosed = false;
   constructor(
-    url: string,
+    channel: EventStreamChannel,
     private handlers: { onOpen?: () => void; onFatalClose?: () => void },
-    wire: (es: EventSource) => void,
+    wire: (es: EventStream) => void,
   ) {
-    this.es = new EventSource(url);
+    // Multiplexed over the browser's single /api/events socket (shared worker);
+    // openEventStream keeps EventSource semantics: CONNECTING on onerror means
+    // the worker reconnects on its own, CLOSED is fatal.
+    this.es = openEventStream(channel);
     this.es.onopen = () => {
       this.#state = "open";
       this.handlers.onOpen?.();
     };
     wire(this.es);
     this.es.onerror = () => {
-      // EventSource retries by itself; surface state but keep the handle.
-      const fatal = this.#userClosed || this.es?.readyState === EventSource.CLOSED;
+      // The stream retries by itself while CONNECTING; surface state but keep
+      // the handle.
+      const fatal = this.#userClosed || this.es?.readyState === EVENT_STREAM_CLOSED;
       this.#state = fatal ? "closed" : "connecting";
       if (fatal && !this.#userClosed) this.handlers.onFatalClose?.();
     };
@@ -76,7 +81,7 @@ class SseSubscription implements EventSubscription {
     return this.#state;
   }
   get isOpen(): boolean {
-    return this.es?.readyState === EventSource.OPEN;
+    return this.es?.readyState === EVENT_STREAM_OPEN;
   }
   get lastCursor(): null {
     return null;
@@ -90,12 +95,8 @@ class SseSubscription implements EventSubscription {
     this.#state = "closed";
   }
   resync(): void {
-    // 4.x SSE has no replay: resync == reconnect.
-    const url = this.es?.url;
-    if (url) {
-      this.close();
-      // Recreated by the owning hook when it observes state === "closed".
-    }
+    // The event stream has no replay: resync == reconnect. The owning hook
+    // recreates the subscription when it observes state === "closed".
   }
 }
 
@@ -109,7 +110,7 @@ class HttpAgentClient implements AgentClient {
   }
   subscribeSessionEvents(sessionId: string, handlers: AgentSessionEvents): EventSubscription {
     return new SseSubscription(
-      `/api/agent/${encodeURIComponent(sessionId)}/events`,
+      { kind: "session", sessionId },
       { onOpen: () => handlers.onOpen?.(), onFatalClose: () => handlers.onDown?.({ fatal: true }) },
       (es) => {
         es.onmessage = (ev) => {
@@ -130,7 +131,7 @@ class HttpAgentClient implements AgentClient {
   }
   subscribeRunningSessions(handlers: { onIds?: (ids: string[]) => void; onError?: (error: never) => void }): EventSubscription {
     return new SseSubscription(
-      "/api/agent/running/events",
+      { kind: "running" },
       {},
       (es) => {
         es.onmessage = (ev) => {

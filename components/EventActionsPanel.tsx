@@ -8,6 +8,7 @@ import { ConfirmDialog } from "./ui/field";
 import { toast } from "./ui/toast";
 import { CHAT_EVENT_TYPES, type ChatEventAction } from "@/lib/chat-event-action-types";
 import { createOmpwebClient } from "@/lib/client";
+import { openEventStream } from "@/lib/event-stream";
 import { EventActionModal } from "./EventActionModal";
 import { SectionChevron } from "./SectionChevron";
 import { SeparatorHandle } from "./SeparatorHandle";
@@ -112,12 +113,12 @@ export function EventActionsPanel({
   }, [open, load]);
 
   // Live lastRun: the executors broadcast a `chat_action_run` nudge over the
-  // running-events stream after every execution (real or Test). The store is
-  // the source of truth — the nudge only triggers a re-read, so a missed
-  // frame costs nothing (next open / CRUD refreshes anyway).
+  // shared event stream's running channel after every execution (real or
+  // Test). The store is the source of truth — the nudge only triggers a
+  // re-read, so a missed frame costs nothing (next open / CRUD refreshes anyway).
   useEffect(() => {
     if (!open) return;
-    const source = new EventSource("/api/agent/running/events");
+    const source = openEventStream({ kind: "running" });
     let timer: ReturnType<typeof setTimeout> | undefined;
     source.onmessage = (e) => {
       try {

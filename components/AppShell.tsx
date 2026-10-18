@@ -53,6 +53,7 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SubagentInfo } from "@/hooks/useAgentSession";
 import { runHostTool } from "@/hooks/useAgentSession";
 import { sendAgentCommand } from "@/lib/agent-client";
+import { openEventStream } from "@/lib/event-stream";
 import type { SettingsTab } from "./SettingsTabs";
 import { SETTINGS_CATEGORIES, getNormalizedActive } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
@@ -1759,7 +1760,7 @@ export function AppShell({ appName }: { appName: string }) {
   useEffect(() => {
     // Mounted with the shell (not the sidebar) so it keeps listening on the
     // full-page Settings view too.
-    const source = new EventSource("/api/agent/host-tools/events");
+    const source = openEventStream({ kind: "host-tools" });
     source.onmessage = (e) => {
       try {
         const call = JSON.parse(e.data) as CrossSessionHostToolCall & { type?: string };
@@ -1936,8 +1937,8 @@ export function AppShell({ appName }: { appName: string }) {
   // The sidebar's SSE (SessionSidebar) reports a server restart under us via
   // onServerRestarted (boot-epoch mismatch). Memoized so its identity is stable
   // across renders: the sidebar lists it as an effect dependency, so a fresh
-  // identity every render would tear down and reconnect /api/agent/running/events
-  // on every AppShell re-render (the "close notice -> GET running/events ->
+  // identity every render would tear down and reconnect the running event
+  // channel on every AppShell re-render (the "close notice -> resubscribe ->
   // GET app-update -> notice re-pops" loop). lastNoticeBootRef latches the boot
   // we already surfaced for, so a same-boot reconnect does not re-pop a
   // dismissed notice; only a genuinely new boot (new epoch) re-arms it.

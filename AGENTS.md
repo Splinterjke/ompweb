@@ -183,15 +183,16 @@ Browser                Next.js Server                    omp child process
   │                        │                                    │
   ├─ GET /api/sessions ────▶ reads ~/.omp/agent/sessions/       │
   ├─ GET /api/sessions/[id] reads .jsonl file directly          │
-  ├─ GET /api/agent/running/events ───▶ running id SSE          │
+  ├─ SharedWorker ── GET /api/events ──▶ ONE multiplexed SSE per browser │
+  │   (all tabs)     POST /api/events ─▶ subscribe running/session/file  │
   │                        │                                    │
   ├─ send message ─────────▶ POST /api/agent/[id]               │
   │                        │   startRpcSession() ── spawn ─────▶│ omp --mode rpc-ui
   │                        │   sendCommand({type:"prompt"}) ───▶│ (NDJSON stdio)
   │                        │                                    │
-  ├─ SSE connect ──────────▶ GET /api/agent/[id]/events         │
-  │                        │   onFrame() ◀── event frames ──────│
-  │◀── data: {...} ─────────│                                    │
+  ├─ session subscription ─▶ event-stream-hub onEvent() ◀── event frames ─│
+  │                        │   (via the shared /api/events socket)       │
+  │◀── event: s<n> data: {...} ──│                                    │
 ```
 
 **Session browsing** (read-only): pure-Node parsing of omp session `.jsonl`
@@ -222,13 +223,11 @@ app/api/
   sessions/[id]/export/route.ts   GET exported HTML for a session
   agent/new/route.ts              POST { cwd, message, toolNames?, provider?, modelId? }
   agent/[id]/route.ts             GET state | POST any RPC command
-  agent/[id]/events/route.ts      GET SSE stream
-  agent/running/events/route.ts   GET SSE stream of currently-running session ids + `chat_event_action` frames (+ this tab's notifications when `clientId` is given)
+  events/route.ts                 GET multiplexed SSE | POST subscribe/unsubscribe channels (running/notifications/host-tools/session/file)
   notifications/devices/route.ts  GET VAPID key + subscribed | PUT { deviceId, prefs, subscription? }
   notifications/presence/route.ts POST { clientId, deviceId, visible, sessionId, seq }
   notifications/test/route.ts     POST { deviceId } send a test push (502 on push-service refusal)
   notifications/history/route.ts  GET entries | PATCH { ids } mark read | DELETE ?id= remove one, ?all=1 clear
-  agent/host-tools/events/route.ts  GET SSE stream of cross-session host tool calls (open_url, notify, open_file) for sessions no tab is watching
   chat-event-actions/route.ts     GET/POST named actions fired on chat events
   chat-event-actions/[id]/route.ts  GET/PATCH/DELETE a single action
   auth/**                         provider list, login/logout, API keys (via RPC)
@@ -261,12 +260,16 @@ lib/
   btw.ts               /btw side-question records + pure frame/snapshot merge (order-safe)
   chat-event-action-types.ts  ChatEventType + ActionSpec union (notification/http/bash/scheduled)
   chat-event-action-store.ts  persistence (~/.omp/agent/chat-event-actions.json), validation, per-event cache
-  chat-event-action-bus.ts  globalThis relay for `chat_event_action` frames (running-stream SSE)
+  chat-event-action-bus.ts  globalThis relay for `chat_event_action` frames (running event-stream channel)
   chat-event-actions-executors.ts  run each action type (never throws, records lastRun)
   chat-event-actions-dispatcher.ts  event → enabled actions, per-run dedupe
   diff-model.ts        Copilot-style diff model: unified-diff parsing, hunk/gap items,
                        progressive hidden-lines reveal, split rows + word spans
+  event-stream.ts      tab-side EventSource-shaped streams over the shared worker
+  event-stream-hub.ts  server connections + running/notifications/host-tools/session/file channels for /api/events
+  event-stream-protocol.ts  wire contract shared by hub, route, and worker
   file-access.ts       allowed file roots for /api/files and worktrees
+  file-authorization.ts  single allow-list gate for /api/files and the file channel
   media-cache.ts       tool-result images → /api/media URLs; media copies + thumbnails
   file-paths.ts        client/server path encoding helpers
   markdown.ts          shared markdown helpers
@@ -360,8 +363,8 @@ hooks/
   `resetIdleTimer()`, the single activity choke point for `send()` and every
   child frame: adding a new call path must route activity through it.
 
-### Cross-session host tools and the ask dialog (`lib/rpc-manager.ts`, `/api/agent/host-tools/events`)
-- Agent-callable host tools (`open_url`, `notify`, `open_file`) are registered per session via `set_host_tools`. While a tab is viewing the session, `host_tool_call` frames go to that session's own SSE stream and the tab answers with `host_tool_result`. When **no** tab views the session (the user switched sessions mid-run), the call is broadcast to *every* open omp-web tab through `subscribeHostToolCalls()` + the `agent/host-tools/events` SSE; each tab executes the tool and sends a `host_tool_result`, and the server settles the call on the first one received (`pendingHostTools.delete`, so later duplicates are no-ops).
+### Cross-session host tools and the ask dialog (`lib/rpc-manager.ts`, `host-tools` channel)
+- Agent-callable host tools (`open_url`, `notify`, `open_file`) are registered per session via `set_host_tools`. While a tab is viewing the session, `host_tool_call` frames go to that session's own event stream and the tab answers with `host_tool_result`. When **no** tab views the session (the user switched sessions mid-run), the call is broadcast to *every* open omp-web tab through `subscribeHostToolCalls()` + the `host-tools` event-stream channel; each tab executes the tool and sends a `host_tool_result`, and the server settles the call on the first one received (`pendingHostTools.delete`, so later duplicates are no-ops).
 - Calls routed to other tabs are flagged `webCrossSession` in `pendingHostTools`. When the last other tab leaves (`subscribeHostToolCalls` unsubscribe with an empty set), only the cross calls are settled via `rejectCrossSessionHostTools()` (`which: "cross"`) — the session's own outstanding calls are untouched; when the session's last listener detaches, only the own calls are rejected.
 - Full-page Settings hides the chat, so its session counts as *not viewed* (`viewing = call.sessionId === selectedSession?.id && !settingsTab` in `AppShell`) — opens from it go through the confirm queue like any cross-session open.
 - URL opens from a session the tab is **not** viewing always go through the `pendingOpens` confirm queue (`ConfirmDialog` in `AppShell`). The "Open agent links without asking" setting only auto-opens links from the viewed session (`!crossSession && openUrlAutomatically`).
@@ -660,9 +663,39 @@ stored `omp-web:submit-during-run` choice overrides it.
   ompweb error and not a failure of the todo list. Don't "fix" the pill away;
   the composer `TodoList` bar (ComposerPanels) is a different surface.
 
-### Running state SSE + reconciliation
-- The sidebar listens to `/api/agent/running/events`, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.
-- `useAgentSession` still treats per-session SSE as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs or half-open connections.
+### Live event stream: one socket per browser (`/api/events`)
+- Browsers cap HTTP/1.1 at **6 connections per host across all tabs**, and an
+  SSE response pins one for its lifetime. Per-stream SSE (sidebar + host
+  tools + chat + file watch per tab) froze everything after ~2 tabs, so
+  **never add a new `EventSource`** for live data: add a channel instead.
+- `public/event-stream-worker.js` (plain script, SharedWorker; dedicated
+  Worker where SharedWorker is missing) holds the only `/api/events`
+  EventSource and multiplexes every tab's subscriptions: frames arrive as
+  `event: <subId>`, control frames as `event: mux` (`hello`/`open`/`end`).
+  Subscriptions are attached with `POST /api/events`. Its URL carries a
+  content hash (`next.config.ts`) so a changed worker never serves stale tabs.
+- Tabs use `openEventStream(channel)` (`lib/event-stream.ts`), which keeps
+  EventSource semantics: `onerror` + CONNECTING = reconnecting on its own,
+  CLOSED = fatal (e.g. 409 for a wrapper-less session; the chat hook then
+  retries with backoff). Dead tabs are detected with a lifetime Web Lock —
+  MessagePort has no close event.
+- Channels (`lib/event-stream-hub.ts`): `running` (sidebar badges +
+  session-list hints + boot epoch + chat-event-action broadcasts + the
+  externally-running heartbeat), `notifications` (one tab's toasts and in-page
+  system notifications, keyed by its `clientId`), `host-tools` (cross-session
+  `open_url`/`notify`/`open_file` calls), `session` (observer-only, never
+  spawns omp; keeps the latest-wins `message_update` coalescing under
+  backpressure), `file` (viewer watch, same allow-list as `/api/files`). A
+  failing frame ends only its own subscription, never the shared socket.
+- Split channels by consumer, lifetime, key and access check, not by which
+  stream happens to be open: a subscription costs one `POST`, not a socket, so
+  never piggyback a frame type on another consumer's channel. `notifications`
+  and `host-tools` are subscribed from `AppShell`, so they outlive the sidebar
+  (which unmounts while Settings is open).
+
+### Running state + reconciliation
+- The sidebar subscribes to the `running` channel, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.
+- `useAgentSession` still treats its `session` channel as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs and half-open connections.
 - Prompt runs use a monotonic run id; late SSE or slow reconciliation responses from an old run must be ignored so they cannot resurrect stale streaming bubbles.
 - A prompt this tab has minted but not yet dispatched (cold wrapper spawn)
   is legitimately absent from the server: `promptDispatchPendingRef` spans
@@ -681,7 +714,7 @@ stored `omp-web:submit-during-run` choice overrides it.
 - Client (`useAgentSession` `enterExternalMode`): external sessions render as running (Stop button, "running in an external omp terminal" notice), never attach a per-session RPC stream or registry reconcile, and a 10 s poller reclaims to idle once the file is quiet and the committed tail is final. Stop/send/steer/compact are rejected with the same notice — the web server has no RPC channel to the external process, so it must be stopped at its source (the terminal). The session-file watcher re-enters external mode on the next write (which also reloads via `loadContext(sid, null, true)` so an open pre-compaction view survives external writes).
 - The session-file watcher uses per-directory non-recursive inotify watches (one per project dir, lazily added with a one-shot resync). Node's recursive `fs.watch` lstats every directory entry on folder events, which raises an uncaught EIO on WSL2/9p (dentry race on transient `.jsonl.lock` files) and killed the server. `instrumentation.ts` additionally suppresses exactly those errors.
 - **inotify is silent on 9p/drvfs mounts** (WSL2 with the agent dir on a Windows drive, e.g. `/root/.omp` → `C:\`): no events at all, so external sessions never updated in real time there. The watcher therefore also runs a **polling fallback** (`pollForChanges()`, exported for tests): a 2 s stat-based sweep over known session files feeding the same `pendingPaths` → `flush` → listeners pipeline (size baselines shared with inotify via `lastSizeByPath`, `pendingPaths` dedupes both sources), plus a 15 s directory rescan that discovers new `.jsonl` files. On native filesystems the sweep is a cheap no-op once inotify has delivered the event.
-- **Sessions waiting for their first response** (sidebar naming before the file exists): the running-stream SSE carries `meta: { cwd, firstPrompt }` frames for live RPC sessions (`getRunningRpcSessionMeta`; `firstPrompt` is captured once by the wrapper at the first real `prompt` send and NEVER by `/rename`-style title runs or resumed sessions). `SessionSidebar` keeps these as `pendingSessions` and renders placeholder rows under the SPAWNED cwd with the prompt text as the title — a bare file-less id gets no row (never a GUID slice, never attached to the currently-viewed workspace), so a switching user sees the running session where it was created until omp writes the real file.
+- **Sessions waiting for their first response** (sidebar naming before the file exists): the `running` channel carries `meta: { cwd, firstPrompt }` frames for live RPC sessions (`getRunningRpcSessionMeta`; `firstPrompt` is captured once by the wrapper at the first real `prompt` send and NEVER by `/rename`-style title runs or resumed sessions). `SessionSidebar` keeps these as `pendingSessions` and renders placeholder rows under the SPAWNED cwd with the prompt text as the title — a bare file-less id gets no row (never a GUID slice, never attached to the currently-viewed workspace), so a switching user sees the running session where it was created until omp writes the real file.
 
 ### Auto-resume after a restart (`lib/session-resume.ts`, `lib/web-settings.ts`)
 - ON by default (`autoResumeSessions` in `~/.omp/agent/omp-web-settings.json`, toggle in
@@ -1315,7 +1348,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   `"scheduler busy"` when the target manual run is already running (not an error).
 - Notification delivery is dual-path: per-session SSE (`chatEventPayload().emitToSession`,
   counts attached listeners) plus a globalThis bus (`chat-event-action-bus.ts`) relayed
-  over the running-stream SSE (`agent/running/events`). `ok` is true only if at least one
+  over the `running` event-stream channel. `ok` is true only if at least one
   was delivered; the browser renders it via `AppShell` → `showBrowserNotification` and
   clicking selects the originating session.
 
@@ -1419,11 +1452,10 @@ stored `omp-web:submit-during-run` choice overrides it.
   devices) or in-page `showNotification` (tabs with an open stream).
 - The server decides before pushing: iOS revokes push permission for pushes
   that display nothing, so `public/sw.js` always shows what it receives.
-- Notifications ride the sidebar's `/api/agent/running/events?clientId=` stream,
-  not a new SSE connection: browsers allow six HTTP/1.1 connections per host.
-  `SessionSidebar` re-dispatches them as a window event. The sidebar unmounts
-  while Settings is open, so that tab gets no toasts then; it also stops
-  counting as active, so other devices are not silenced.
+- Notifications have their own `notifications` channel (`clientId` = the
+  tab's notification client id), opened by `useNotifications` in `AppShell`,
+  so a tab stays reachable on every view, Settings included. A tab on
+  Settings is visible, so it also counts as active.
 - Prefs and push subscriptions are per device, in `localStorage` and mirrored to
   the SQLite notification store in omp-web's data dir
   (`lib/notification-store.ts`, server-only; mode 0600 because it also holds

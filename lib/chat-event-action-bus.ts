@@ -1,6 +1,6 @@
 // ============================================================================
 // Chat event action bus — fans a `chat_event_action` frame out to every
-// connected /api/agent/running/events SSE stream. Same globalThis pattern as
+// connected event-stream `running` channel subscriber. Same globalThis pattern as
 // lib/ui-refresh-bus.ts so it survives Next.js dev hot-reload.
 //
 // Used by the notification executor: the frame is delivered to the session's

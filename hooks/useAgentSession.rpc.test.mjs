@@ -51,40 +51,60 @@ const { useAgentSession, runHostTool } = await jiti.import("./useAgentSession.ts
 const { notificationHistory } = await jiti.import("@/lib/notification-history");
 
 // ---------------------------------------------------------------------------
-// Fake EventSource + fetch router
+// Fake shared-worker event streams + fetch router
 // ---------------------------------------------------------------------------
-class FakeEventSource {
+/** One stream the hook opened through lib/event-stream.ts, as the worker sees it. */
+class FakeStream {
   static CONNECTING = 0;
   static OPEN = 1;
   static CLOSED = 2;
-  constructor(url) {
-    this.url = String(url);
-    this.readyState = FakeEventSource.CONNECTING;
-    this.onopen = null;
-    this.onmessage = null;
-    this.onerror = null;
+  constructor(port, id, channel) {
+    this.port = port;
+    this.id = id;
+    this.channel = channel;
+    this.readyState = FakeStream.CONNECTING;
     this.closedByCaller = false;
     world.esInstances.push(this);
   }
+  deliver(message) {
+    this.port.onmessage?.({ data: { id: this.id, ...message } });
+  }
   open() {
     if (this.closedByCaller) return;
-    this.readyState = FakeEventSource.OPEN;
-    this.onopen?.({});
-    this.onmessage?.({ data: JSON.stringify({ type: "connected" }) });
+    this.readyState = FakeStream.OPEN;
+    this.deliver({ type: "open" });
+    this.deliver({ type: "message", data: JSON.stringify({ type: "connected" }) });
   }
   emit(event) {
     if (this.closedByCaller) return;
-    this.onmessage?.({ data: JSON.stringify(event) });
+    this.deliver({ type: "message", data: JSON.stringify(event) });
   }
   failFatal() {
-    // Browser-facing fatal error (404/500): readyState CLOSED + onerror.
+    // Fatal subscription error (unmanaged wrapper): CLOSED + onerror.
     if (this.closedByCaller) return;
-    this.readyState = FakeEventSource.CLOSED;
-    this.onerror?.({});
+    this.readyState = FakeStream.CLOSED;
+    this.deliver({ type: "error", readyState: FakeStream.CLOSED });
   }
-  close() {
-    this.closedByCaller = true;
-    this.readyState = FakeEventSource.CLOSED;
+}
+
+/** Speaks the tab<->worker protocol of public/event-stream-worker.js. */
+class FakeSharedWorker {
+  constructor() {
+    const streams = new Map();
+    this.port = {
+      onmessage: null,
+      start() {},
+      postMessage: (message) => {
+        if (message.op === "open") {
+          streams.set(message.id, new FakeStream(this.port, message.id, message.channel));
+        } else if (message.op === "close") {
+          const stream = streams.get(message.id);
+          if (!stream) return;
+          stream.closedByCaller = true;
+          stream.readyState = FakeStream.CLOSED;
+        }
+      },
+    };
   }
 }
 
@@ -183,7 +203,7 @@ async function fetchStub(url, init = {}) {
 // boundaries need doubles. Hidden tabs use the coalescer's 50ms timer.
 let visibilityState = "hidden";
 const overrides = [
-  [globalThis, "EventSource", { value: FakeEventSource }],
+  [globalThis, "SharedWorker", { value: FakeSharedWorker }],
   [globalThis, "fetch", { value: fetchStub }],
   [document, "hidden", { get: () => visibilityState === "hidden" }],
   [document, "visibilityState", { get: () => visibilityState }],
@@ -304,8 +324,8 @@ async function startRun(sid, message, strictMode = false, options = {}) {
     await sleep(30); // let the pre-connect get_state POST settle
   });
   const es = lastEs();
-  assert.ok(es, "an EventSource must have been created");
-  assert.match(es.url, /\/api\/agent\/.+\/events$/);
+  assert.ok(es, "an event stream must have been opened");
+  assert.deepEqual(es.channel, { kind: "session", sessionId: sid });
   await act(async () => {
     es.open(); // connect settles → prompt POST fires
     await sendPromise;
@@ -369,7 +389,7 @@ test("a 404 session file with a live wrapper mid-run hydrates the run from the R
   assert.equal(w.latest.loading, false, "hydration completes without a file");
   assert.equal(w.latest.agentRunning, true, "the live run must be restored, not shown idle");
   assert.ok(
-    world.esInstances.some((e) => e.url.includes("/api/agent/corrupt-midrun/events")),
+    world.esInstances.some((e) => e.channel.kind === "session" && e.channel.sessionId === "corrupt-midrun"),
     "the observer stream must attach to the restored run",
   );
 });
@@ -1156,7 +1176,7 @@ test("a fresh chat hydrates and follows skill diagnostics after slash discovery 
 
   await act(async () => { await w.latest.loadSlashCommands(); });
   const es = lastEs();
-  assert.match(es?.url ?? "", /\/api\/agent\/fresh-skills\/events$/, "the created runtime must be observed before its first prompt");
+  assert.deepEqual(es?.channel, { kind: "session", sessionId: "fresh-skills" }, "the created runtime must be observed before its first prompt");
   await act(async () => {
     es.open();
     await sleep(30);

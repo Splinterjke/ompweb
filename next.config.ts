@@ -1,12 +1,24 @@
 import type { NextConfig } from "next";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { createHash } from "crypto";
 
 let version = "0.0.0";
 try {
   version = (JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8")) as { version?: string }).version ?? "0.0.0";
 } catch {
   // Packaged apps may not carry package.json next to the config.
+}
+
+// `public/` is served verbatim, so the shared event-stream worker gets no
+// content hash from the bundler. Browsers key module workers by URL for the
+// whole session, so a stale worker would pin every tab to the old protocol;
+let eventStreamWorkerVersion = "dev";
+try {
+  const workerDigest = createHash("sha256").update(readFileSync(join(__dirname, "public/event-stream-worker.js"))).digest("hex");
+  eventStreamWorkerVersion = workerDigest.slice(0, 12);
+} catch {
+  // A build without the worker still runs: pages fall back to direct streams.
 }
 
 // Function form: `phase` is authoritative even when the host environment
@@ -170,6 +182,7 @@ const nextConfig = (phase: string): NextConfig => {
     env: {
       NEXT_PUBLIC_APP_VERSION: version,
       NEXT_PUBLIC_OMP_WEB_VERSION: version,
+      NEXT_PUBLIC_EVENT_STREAM_WORKER_VERSION: eventStreamWorkerVersion,
     },
   };
 };

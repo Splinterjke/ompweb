@@ -8,7 +8,7 @@
 // Detection covers exactly what the 5.0 client boundary work will migrate:
 //   1. fetch("/api...") / fetch(`/api...`)          — direct HTTP
 //   2. fetch(someApiUrl(...))                        — indirect via *ApiUrl helpers
-//   3. new EventSource(...)                          — SSE subscriptions
+//   3. new EventSource(...) / openEventStream(...)   — SSE subscriptions
 //
 // Scoped to UI code roots (app excluding app/api, components, hooks, lib);
 // .test.mjs files and scripts/ are out of scope.
@@ -145,8 +145,9 @@ export function scanSource(content) {
     }
   }
 
-  // EventSource subscriptions
-  const esRegex = /\bnew\s+EventSource\s*\(\s*/g;
+  // SSE subscriptions: a direct EventSource, or an openEventStream channel
+  // multiplexed over the shared /api/events socket (lib/event-stream.ts).
+  const esRegex = /\b(?:new\s+EventSource|(?<!function\s)openEventStream)\s*\(\s*/g;
   while ((match = esRegex.exec(content))) {
     push("sse", match.index, firstArgSource(content, match.index + match[0].length));
   }

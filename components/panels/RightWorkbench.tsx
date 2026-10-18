@@ -6,6 +6,7 @@ import { Bell, Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Gl
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { createTemporarySession } from "@/lib/workbench-client";
+import { openEventStream } from "@/lib/event-stream";
 import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { NotificationListView } from "../NotificationList";
@@ -89,7 +90,7 @@ function TemporarySideChat({ cwd }: { cwd: string | null }) {
   }, [cwd, input, running, start]);
   useEffect(() => {
     if (!sessionId) return;
-    const source = new EventSource("/api/agent/" + encodeURIComponent(sessionId) + "/events");
+    const source = openEventStream({ kind: "session", sessionId });
     source.onmessage = (event) => {
       try {
         const frame = JSON.parse(event.data) as { type?: string; message?: { role?: string; content?: unknown } };
