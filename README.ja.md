@@ -143,9 +143,9 @@ omp-web は**平文パスワードをサーバーに渡しません**。すべ�
 | `OMP_WEB_DISABLE_AUTOUPDATE` | `1` で更新チェックとアプリ内更新を無効化（変更後は再起動） | `0` |
 | `OMP_WEB_NAME` | ブラウザのタブとインストールしたアプリに表示する名前。`url`・`host`・`domain`（大文字小文字を区別しない）を指定すると、ブラウザが接続したホスト名（ポートなし）を使用します（localhost と IP アドレスは `omp web` のまま）。それ以外の値はそのまま使用します（変更後は再起動） | `omp web` |
 | `OMP_WEB_OMP_BIN` | `omp` バイナリの絶対パス | `PATH` から解決 |
-| `OMP_WEB_STT_ENDPOINT` | OpenAI 互換の音声認識エンドポイント URL | _なし（無効）_ |
+| `OMP_WEB_STT_ENDPOINT` | OpenAI 互換の音声認識エンドポイント URL。未設定の場合は `OMP_WEB_STT_MODEL` を omp 自身の認証情報で使って文字起こしします | _なし_ |
 | `OMP_WEB_STT_KEY` | STT エンドポイント用の API キー | _なし_ |
-| `OMP_WEB_STT_MODEL` | STT エンドポイント用のモデル名 | _なし_ |
+| `OMP_WEB_STT_MODEL` | STT エンドポイント用のモデル名。エンドポイント未設定時は、omp のログインで実行する omp の音声認識モデル（例: `openai-codex/codex-transcribe`。ChatGPT サブスクリプション、このモデルを含む omp バージョンが必要） | _なし（エンドポイント未設定時は無効）_ |
 | `PI_CODING_AGENT_DIR` | OMP エージェントディレクトリ | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | サーバーサイドリクエスト用のプロキシ | *(システムデフォルト)* |
 

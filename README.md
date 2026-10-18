@@ -260,9 +260,9 @@ frames (omp 18.3.1 or later).
 | `OMP_WEB_NAME` | Name shown in browser tabs and installed-app names. `url`, `host` or `domain` (any case) uses the hostname the browser connected to, without port; localhost and IP addresses keep `omp web`. Any other value is used as-is. Restart after changing | `omp web` |
 | `OMP_WEB_OMP_BIN` | Absolute path to `omp` binary | Resolved from `PATH` |
 | `OMP_WEB_DEV_ORIGIN` | Additional allowed hostname for the development server (no scheme or port); ignored in production | _None_ |
-| `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL | _None (disabled)_ |
+| `OMP_WEB_STT_ENDPOINT` | OpenAI-compatible transcription endpoint URL. Leave unset to transcribe with `OMP_WEB_STT_MODEL` through omp's own credentials | _None_ |
 | `OMP_WEB_STT_KEY` | Optional API key for the STT endpoint | _None_ |
-| `OMP_WEB_STT_MODEL` | Optional model name for the STT endpoint | _None_ |
+| `OMP_WEB_STT_MODEL` | Model name for the STT endpoint. Without an endpoint: an omp speech-to-text model run with omp's logins, such as `openai-codex/codex-transcribe` (ChatGPT subscription; needs an omp version with that model) | _None (disabled without an endpoint)_ |
 | `PI_CODING_AGENT_DIR` | OMP agent home directory | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | Proxies for server-side requests | *(System default)* |
 

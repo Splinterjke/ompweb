@@ -143,9 +143,9 @@ omp-web **不再把明文密码交给服务器**：每个 `omp` 会话都继承�
 | `OMP_WEB_DISABLE_AUTOUPDATE` | 设为 `1` 时禁用更新检查和应用内更新；修改后需重启 | `0` |
 | `OMP_WEB_NAME` | 浏览器标签页和已安装应用中显示的名称。设为 `url`、`host` 或 `domain`（不区分大小写）时使用浏览器所连接的主机名（不含端口），localhost 和 IP 地址仍显示 `omp web`；其他值按原样使用。修改后需重启 | `omp web` |
 | `OMP_WEB_OMP_BIN` | 指定 `omp` 二进制可执行文件的绝对路径 | 自动从 `PATH` 环境变量中查找 |
-| `OMP_WEB_STT_ENDPOINT` | OpenAI 兼容的语音转文字接口 URL | _无（默认禁用）_ |
+| `OMP_WEB_STT_ENDPOINT` | OpenAI 兼容的语音转文字接口 URL。不设置时使用 `OMP_WEB_STT_MODEL` 通过 omp 自身的凭据转录 | _无_ |
 | `OMP_WEB_STT_KEY` | STT 接口对应的 API Key | _无_ |
-| `OMP_WEB_STT_MODEL` | STT 接口的模型名称 | _无_ |
+| `OMP_WEB_STT_MODEL` | STT 接口的模型名称。未设置接口时：使用 omp 登录凭据运行的 omp 语音转文字模型，例如 `openai-codex/codex-transcribe`（ChatGPT 订阅；需要包含该模型的 omp 版本） | _无（未设置接口时禁用）_ |
 | `PI_CODING_AGENT_DIR` | OMP 数据与配置存放根目录 | `~/.omp/agent` |
 | `HTTP_PROXY` / `HTTPS_PROXY` | 后端请求所使用的代理配置 | *(系统默认)* |
 
