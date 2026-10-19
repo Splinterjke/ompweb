@@ -671,7 +671,7 @@ stored `omp-web:submit-during-run` choice overrides it.
 - `public/event-stream-worker.js` (plain script, SharedWorker; dedicated
   Worker where SharedWorker is missing) holds the only `/api/events`
   EventSource and multiplexes every tab's subscriptions: frames arrive as
-  `event: <subId>`, control frames as `event: mux` (`hello`/`open`/`end`).
+  `event: <subId>`, control frames as `event: mux` (`hello`/`open`/`end`/`ping`).
   Subscriptions are attached with `POST /api/events`. Its URL carries a
   content hash (`next.config.ts`) so a changed worker never serves stale tabs.
 - Tabs use `openEventStream(channel)` (`lib/event-stream.ts`), which keeps
@@ -692,6 +692,19 @@ stored `omp-web:submit-during-run` choice overrides it.
   never piggyback a frame type on another consumer's channel. `notifications`
   and `host-tools` are subscribed from `AppShell`, so they outlive the sidebar
   (which unmounts while Settings is open).
+- **Liveness (the "tab was away, chat stopped updating" bug):** a sleeping
+  machine / dropped network leaves the SSE half-open — no error, no close,
+  EventSource never reconnects, and prompts POST fine while every frame dies
+  in the dead socket. Detection is explicit, on both sides: the server
+  heartbeat is a real `mux` `ping` event every 30 s (an SSE comment is
+  invisible to JS), the worker stamps every arriving frame and force-opens a
+  fresh EventSource after 3 missed beats (`STALE_AFTER_MS`), and every tab
+  posts `{op:"nudge"}` on `visibilitychange` → visible so the check runs the
+  moment the user returns, before the first stale prompt. A fresh hello
+  re-subscribes every channel (the same path as EventSource's own reconnect).
+  Server-side backstop: a connection whose queue stays backpressured across
+  >2 heartbeats is treated as dead and closed (releases file watchers and
+  session listeners); a live client just reconnects.
 
 ### Running state + reconciliation
 - The sidebar subscribes to the `running` channel, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.

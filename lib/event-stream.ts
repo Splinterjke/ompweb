@@ -51,6 +51,12 @@ class Transport {
       // Back from the bfcache: pagehide already released our subscriptions.
       if (event.persisted) for (const stream of this.streams.values()) stream.resume();
     });
+    // Back from sleep / a network drop leaves the shared socket half-open and
+    // EventSource none the wiser: nudge the worker to re-validate it the
+    // moment any tab becomes visible, before the first stale prompt.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") this.port.postMessage({ op: "nudge" });
+    });
   }
 
   open(channel: EventStreamChannel): MultiplexedEventStream {

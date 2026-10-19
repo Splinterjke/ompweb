@@ -34,7 +34,10 @@ export type EventStreamChannel =
 export type MuxControlFrame =
   | { type: "hello"; connectionId: string }
   | { type: "open"; sub: string }
-  | { type: "end"; sub: string };
+  | { type: "end"; sub: string }
+  /** Heartbeat. A real event (not an SSE comment) so the worker can stamp
+   *  frame arrival and notice a silent half-open socket. */
+  | { type: "ping" };
 
 export type EventStreamRequest =
   | { connectionId: string; subscribe: { id: string; channel: EventStreamChannel } }

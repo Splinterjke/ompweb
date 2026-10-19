@@ -20,8 +20,13 @@ import {
 // socket, carrying any number of channel subscriptions for every tab behind
 // the browser's shared worker.
 
-// Heartbeat keeps the socket alive through proxies (Next.js idles ~120-150s).
-const HEARTBEAT_MS = 30_000;
+// Heartbeat keeps the socket alive through proxies (Next.js idles ~120-150s)
+// and gives the browser worker a frame to stamp liveness on. A consumer that
+// stays backpressured across several beats is gone (half-open socket after a
+// sleep / network drop): the queue never drains, so close the connection and
+// release every subscription — a live EventSource simply reconnects.
+export const HEARTBEAT_MS = 30_000;
+const MAX_STARVED_BEATS = 2;
 const encoder = new TextEncoder();
 
 export type SubscribeResult =
@@ -75,12 +80,13 @@ export class EventStreamConnection {
   readonly id = randomUUID();
   readonly stream: ReadableStream<Uint8Array>;
   private heartbeat: NodeJS.Timeout | undefined;
+  private starvedBeats = 0;
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   private closed = false;
   private readonly subscriptions = new Map<string, Subscription>();
   private readonly signal: AbortSignal | undefined;
 
-  constructor(signal?: AbortSignal) {
+  constructor(signal?: AbortSignal, heartbeatMs = HEARTBEAT_MS) {
     this.signal = signal;
     this.stream = new ReadableStream<Uint8Array>({
       start: (controller) => {
@@ -88,8 +94,16 @@ export class EventStreamConnection {
         connections().set(this.id, this);
         this.control({ type: "hello", connectionId: this.id });
         this.heartbeat = setInterval(() => {
-          if (this.flushAll()) this.write(":\n\n");
-        }, HEARTBEAT_MS);
+          const desired = this.controller?.desiredSize ?? null;
+          if (desired !== null && desired < 0 && ++this.starvedBeats > MAX_STARVED_BEATS) {
+            this.close();
+            return;
+          }
+          if (desired === null || desired >= 0) this.starvedBeats = 0;
+          // Ping as a real mux frame (not a `:` comment): the worker stamps
+          // its arrival and force-reconnects a socket that goes silent.
+          if (this.flushAll()) this.control({ type: "ping" });
+        }, heartbeatMs);
       },
       // A slow consumer resumed reading: deliver coalesced updates now rather
       // than waiting for the next event or heartbeat.

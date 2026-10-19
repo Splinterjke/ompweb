@@ -10,6 +10,7 @@
 //
 // Tab -> worker:  { op: "open", id, channel } | { op: "close", id }
 //                 { op: "lock", name }  (tab holds this Web Lock while alive)
+//                 { op: "nudge" }       (tab visible: re-validate the socket now)
 //                 { op: "bye" }         (pagehide: drop this tab's streams)
 // Worker -> tab:  { id, type: "open" }
 //                 { id, type: "message", data }   (raw JSON string)
@@ -22,6 +23,14 @@ const UNKNOWN_CONNECTION_CODE = "unknown_connection";
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 2;
+// Server heartbeat cadence (lib/event-stream-hub.ts HEARTBEAT_MS). A healthy
+// idle socket still delivers a mux ping every beat, so silence beyond a few
+// beats means a half-open socket (sleep / network drop): EventSource never
+// notices on its own — no error, no reconnect, frames just stop. The watchdog
+// closes such a socket and opens a fresh one (hello re-subscribes everything).
+const HEARTBEAT_MS = 30000;
+const STALE_AFTER_MS = HEARTBEAT_MS * 3;
+const WATCHDOG_MS = 10000;
 // Mirrors EventSource's own reconnect delay after a server-ended stream.
 const RESUBSCRIBE_DELAY_MS = 3000;
 const RECONNECT_MIN_MS = 1000;
@@ -34,9 +43,20 @@ let connectionId = null;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let reconnectTimer;
 let reconnectDelayMs = RECONNECT_MIN_MS;
+let lastFrameAt = Date.now();
+let watchdogTimer;
 let nextSubscriptionId = 1;
 /** Server subscription id -> subscription. */
 const subscriptions = new Map();
+
+function touch() {
+  lastFrameAt = Date.now();
+}
+
+/** Age of the last frame received on the current socket. */
+function socketAgeMs() {
+  return Date.now() - lastFrameAt;
+}
 
 function post(client, message) {
   try {
@@ -63,6 +83,11 @@ function closeSource() {
   source?.close();
   source = null;
   connectionId = null;
+  if (subscriptions.size === 0 && reconnectTimer === undefined) {
+    // Idle worker: no socket to watch. ensureSource re-arms the watchdog.
+    clearInterval(watchdogTimer);
+    watchdogTimer = undefined;
+  }
 }
 
 function scheduleReconnect() {
@@ -80,9 +105,12 @@ function scheduleReconnect() {
 function ensureSource() {
   if (source || reconnectTimer !== undefined || subscriptions.size === 0) return;
   const current = new EventSource(EVENT_STREAM_PATH);
+  touch();
+  startWatchdog();
   source = current;
   current.addEventListener(MUX_CONTROL_EVENT, (event) => {
     if (source !== current) return;
+    touch();
     let frame;
     try {
       frame = JSON.parse(event.data);
@@ -91,7 +119,7 @@ function ensureSource() {
     }
     handleControl(frame);
   });
-  for (const subscription of subscriptions.values()) current.addEventListener(subscription.id, subscription.listener);
+  for (const subscription of subscriptions.values()) current.addEventListener(subscription.id, subscription.wrapped);
   current.onerror = () => {
     if (source !== current) return;
     if (current.readyState === CLOSED) {
@@ -108,6 +136,7 @@ function ensureSource() {
 }
 
 function handleControl(frame) {
+  if (frame.type === "ping") return;
   if (frame.type === "hello") {
     connectionId = frame.connectionId;
     reconnectDelayMs = RECONNECT_MIN_MS;
@@ -165,13 +194,39 @@ function release(subscription) {
   clearTimeout(subscription.retryTimer);
   subscriptions.delete(subscription.id);
   subscription.client.streams.delete(subscription.streamId);
-  source?.removeEventListener(subscription.id, subscription.listener);
+  source?.removeEventListener(subscription.id, subscription.wrapped);
   if (subscriptions.size === 0) {
     // Nothing left to deliver: free the browser's socket until a tab asks again.
     clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     closeSource();
   }
+}
+
+/** Timestamp data frames too, so a chatty stream needs no pings. */
+function wrapTouch(listener) {
+  return (event) => {
+    touch();
+    listener(event);
+  };
+}
+
+function startWatchdog() {
+  if (watchdogTimer !== undefined) return;
+  watchdogTimer = setInterval(() => {
+    if (source && socketAgeMs() > STALE_AFTER_MS) forceFreshSocket();
+  }, WATCHDOG_MS);
+}
+
+/** Our own dead-socket verdict: reconnect now, not after the backoff ladder. */
+function forceFreshSocket() {
+  touch(); // do not re-fire while the new socket is still connecting
+  closeSource();
+  markAllConnecting();
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+  reconnectDelayMs = RECONNECT_MIN_MS;
+  ensureSource();
 }
 
 function open(client, streamId, channel) {
@@ -184,11 +239,13 @@ function open(client, streamId, channel) {
     state: CONNECTING,
     retryTimer: undefined,
     listener: (event) => post(client, { id: streamId, type: "message", data: event.data }),
+    wrapped: null,
   };
   subscriptions.set(subscription.id, subscription);
   client.streams.set(streamId, subscription);
   // Listen before subscribing: frames may arrive before the POST resolves.
-  source?.addEventListener(subscription.id, subscription.listener);
+  subscription.wrapped = wrapTouch(subscription.listener);
+  source?.addEventListener(subscription.id, subscription.wrapped);
   ensureSource();
   subscribe(subscription);
 }
@@ -218,6 +275,13 @@ function attach(port) {
         break;
       case "close":
         close(client, message.id);
+        break;
+      case "nudge":
+        // A tab just became visible after the machine slept / the network
+        // dropped: do not wait for the watchdog tick — check the socket now.
+        if (subscriptions.size === 0) break;
+        if (!source && reconnectTimer === undefined) ensureSource();
+        else if (source && socketAgeMs() > HEARTBEAT_MS * 1.5) forceFreshSocket();
         break;
       case "bye":
         dropClient(client);
