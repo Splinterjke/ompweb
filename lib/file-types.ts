@@ -1,4 +1,11 @@
+// Default text-preview page size for `GET /api/files/<path>?type=read`.
+// Reads are paged (offset/limit), so this is no longer a hard file-size cap —
+// it is the chunk size a single read returns and the threshold past which the
+// viewer drops syntax highlighting. See lib/file-read-page.ts.
 export const TEXT_PREVIEW_MAX_BYTES = 256 * 1024;
+// Hard clamp for an explicit `?limit=` page size, so one read can never ask
+// the server (or the host IPC frame) for an unbounded chunk.
+export const TEXT_PREVIEW_MAX_PAGE_BYTES = 1024 * 1024;
 export const IMAGE_PREVIEW_MAX_BYTES = 10 * 1024 * 1024;
 export const DOCX_PREVIEW_MAX_BYTES = 10 * 1024 * 1024;
 

@@ -21,6 +21,7 @@ import {
   isVideoPath,
   isDocumentPreviewPath,
   isImagePath,
+  TEXT_PREVIEW_MAX_BYTES,
 } from "@/lib/file-types";
 import { encodeFilePathForApi, getFileDirectory, getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { openEventStream } from "@/lib/event-stream";
@@ -47,6 +48,11 @@ interface FileData {
   content: string;
   language: string;
   size: number;
+  /** Paged read bookkeeping (see lib/file-read-page.ts): the loaded span is
+   * `[offset, nextOffset)` of the file; `truncated` means bytes remain. */
+  offset?: number;
+  nextOffset?: number;
+  truncated?: boolean;
 }
 
 type DisplayMode = "source" | "preview" | "diff";
@@ -192,6 +198,51 @@ function SourceCodeRenderer({ rows, stylesheet, useInlineStyles, wrapLines }: So
       </span>
     );
   });
+}
+
+/**
+ * Line-per-row plain-text renderer sharing the syntax-highlighter row DOM
+ * (`.file-source-line` + `.file-source-line-content`), so line numbers and
+ * line-range mentions keep working when tokenization is skipped: for
+ * multi-page loads (content past one preview page) and while a grammar is
+ * still loading. Tokenizing megabytes of text freezes the tab, which is
+ * exactly what the old 256 KiB preview cap protected against.
+ */
+function PlainSourceRenderer({ content, wrapLines }: { content: string; wrapLines: boolean }) {
+  const lines = content.split("\n");
+  return (
+    <div
+      className={wrapLines ? "file-source-view is-wrapped" : "file-source-view"}
+      style={{
+        ...FILE_CODE_STYLE,
+        width: wrapLines ? "100%" : "max-content",
+        minWidth: "100%",
+        minHeight: "100%",
+      }}
+    >
+      {lines.map((line, lineIndex) => (
+        <span
+          className="file-source-line"
+          data-line-number={lineIndex + 1}
+          key={`plain-line-${lineIndex}`}
+          style={{ display: "flex", minWidth: "100%" }}
+        >
+          <span className="react-syntax-highlighter-line-number" style={FILE_LINE_NUMBER_STYLE}>{lineIndex + 1}</span>
+          <span
+            className="file-source-line-content"
+            style={{
+              flex: "1 1 auto",
+              minWidth: 0,
+              overflowWrap: wrapLines ? "anywhere" : "normal",
+              whiteSpace: wrapLines ? "pre-wrap" : "pre",
+            }}
+          >
+            {line === "" ? "\u200b" : line}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function getFileApiUrl(
@@ -739,6 +790,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
   const [displayMode, setDisplayMode] = useState<DisplayMode>("source");
   const [wrapLines, setWrapLines] = useState(false);
   const [watching, setWatching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const gitDiffRequestRef = useRef(0);
   const contentRequestRef = useRef(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -772,6 +824,45 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
     setError(null);
     void fetchContent(filePath).finally(() => setLoading(false));
   }, [fetchContent, filePath]);
+
+  /**
+   * Append the next byte page to the loaded content. Appends are fenced to
+   * the current content generation (`contentRequestRef`): if the file watcher
+   * reset the view to the first page mid-flight, the late page is dropped
+   * rather than appended onto different content.
+   */
+  const loadMoreBytes = useCallback(() => {
+    if (!data?.truncated || loadingMore) return;
+    const generation = contentRequestRef.current;
+    const offset = data.nextOffset ?? 0;
+    setLoadingMore(true);
+    fetch(getFileApiUrl(filePath, "read", sourceSessionId, { offset }))
+      .then((r) => r.json())
+      .then((d: FileData & { error?: string }) => {
+        if (generation !== contentRequestRef.current) return;
+        if (d.error) {
+          setError(d.error);
+          return;
+        }
+        setData((prev) => {
+          if (!prev) return prev;
+          const next = d.nextOffset ?? prev.size;
+          // A page must advance; a response that stalls at the same offset
+          // ends paging instead of looping the request forever.
+          if (next <= (prev.nextOffset ?? 0)) return { ...prev, truncated: false };
+          return {
+            ...prev,
+            content: prev.content + d.content,
+            nextOffset: next,
+            truncated: d.truncated === true,
+          };
+        });
+      })
+      .catch((e) => {
+        if (generation === contentRequestRef.current) setError(String(e));
+      })
+      .finally(() => setLoadingMore(false));
+  }, [data, loadingMore, filePath, sourceSessionId]);
 
   const fetchGitDiff = useCallback(async (targetPath: string) => {
     const requestId = ++gitDiffRequestRef.current;
@@ -1170,7 +1261,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
               {markdownPreview}
             </ReactMarkdown>
           </div>
-        ) : highlightReady ? (
+        ) : highlightReady && data.content.length <= TEXT_PREVIEW_MAX_BYTES ? (
           <SyntaxHighlighter
             className={wrapLines ? "file-source-view is-wrapped" : "file-source-view"}
             language={data.language === "text" ? "plaintext" : data.language}
@@ -1204,23 +1295,37 @@ function TextFileViewer({ filePath, cwd, sourceSessionId, onOpenFile, onMentionL
             {data.content}
           </SyntaxHighlighter>
         ) : (
-          <pre
+          <PlainSourceRenderer content={data.content} wrapLines={wrapLines} />
+        )}
+        {data.truncated && displayMode !== "diff" && (
+          <div
             style={{
-              margin: 0,
-              padding: "11px 13px",
-              fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))",
-              lineHeight: 1.62,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              color: "var(--text)",
-              fontFamily: "var(--font-mono)",
-              minWidth: "100%",
-              minHeight: "100%",
-              boxSizing: "border-box",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              padding: "8px 12px",
+              borderTop: "1px solid var(--border)",
+              background: "var(--bg-panel)",
+              color: "var(--text-muted)",
+              fontSize: "calc(12px * var(--ui-font-scale-sm, 1))",
             }}
           >
-            {data.content}
-          </pre>
+            <span>
+              {t("fileViewer.showingOfTotal", {
+                shown: formatSize(data.nextOffset ?? data.content.length),
+                total: formatSize(data.size),
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={loadMoreBytes}
+              disabled={loadingMore}
+              style={{ minHeight: 30, padding: "4px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", color: "var(--text)", cursor: "pointer", fontSize: 12, fontWeight: 600, opacity: loadingMore ? 0.6 : 1 }}
+            >
+              {loadingMore ? t("fileViewer.loading") : t("fileViewer.loadMore")}
+            </button>
+          </div>
         )}
       </div>
     </div>

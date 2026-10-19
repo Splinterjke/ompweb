@@ -1038,6 +1038,33 @@ stored `omp-web:submit-during-run` choice overrides it.
 - `/api/files` is intentionally not a general filesystem browser. Allowed roots come from session cwds, their resolved project roots, `~/omp-cwd-*`, and roots explicitly added with `allowFileRoot()`.
 - `/api/cwd/validate`, `/api/default-cwd`, and `/api/worktrees` call `allowFileRoot()` when they make a new location browsable.
 
+### Paged text preview reads (`lib/file-read-page.ts`, `?type=read&offset=`, FileViewer Load more)
+- Text previews are NOT capped at 256 KiB anymore: `?type=read` serves
+  byte-offset pages (`offset`/`limit` params, default page
+  `TEXT_PREVIEW_MAX_BYTES` = 256 KiB, `limit` clamped to 1 MiB) and the
+  response carries `{ size (TOTAL), offset, truncated, nextOffset }`.
+  `file_too_large_preview` is only emitted for an out-of-range `offset`
+  (413); normal reads past 256 KiB simply page.
+- One shared reader on each side, byte-identical semantics
+  (`lib/file-read-page.ts` `readTextPage` ↔ `file_service.rs` paging, pinned
+  by `lib/files-parity.test.mjs`): pages start at server-returned
+  `nextOffset`s only, and the server snaps both page ends to UTF-8
+  character boundaries (a page never splits a multi-byte character;
+  invalid bytes pass through as-is at the tail).
+- `components/FileViewer.tsx` (`TextFileViewer`) keeps the loaded pages in
+  `data.content` and shows a "Loaded X of Y" bar with **Load more** while
+  `truncated`; appends are fenced to the `contentRequestRef` generation so
+  a watcher/reset drop is impossible, and a page whose `nextOffset` does
+  not advance ends paging instead of looping. Past one page rendering
+  switches to `PlainSourceRenderer` (no syntax tokenization — highlighting
+  megabytes freezes the tab, which is what the old cap protected against).
+- The Rust control/IPC socket decoders (`lib/omp/rust-rpc-process.ts`) MUST
+  use a stateful `StringDecoder` per stream: paged reads move hundreds of
+  KB of raw UTF-8 per JSON line and TCP chunks split mid-character — a
+  per-chunk `chunk.toString()` silently writes U+FFFD into parsed results
+  (regression test: `lib/omp/rust-rpc-transport.test.mjs`). Same rule as
+  the `b += c` HTTP-client trap in test harnesses.
+
 ### Session list caching — new sessions must appear immediately
 - `listAllSessions()` (sidebar, command palette) is cached twice: a 30s TTL
   list cache in `lib/session-reader.ts` plus an mtime-keyed directory walk in

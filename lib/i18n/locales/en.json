@@ -685,6 +685,8 @@
   "fileViewer.live": "live",
   "fileViewer.liveSyncActive": "Live sync active",
   "fileViewer.loading": "Loading...",
+  "fileViewer.loadMore": "Load more",
+  "fileViewer.showingOfTotal": "Loaded {shown} of {total}",
   "fileViewer.mentionSelectedLines": "Mention selected lines",
   "fileViewer.metadata": "{language} · {lines} lines · {size}",
   "fileViewer.modeDiff": "Diff",

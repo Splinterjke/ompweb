@@ -68,8 +68,9 @@ export interface HostClientSurface {
   files: {
     /** Directory listing mirror of /api/files?type=list (doc 16 route 9). */
     list(roots: string[], path: string, all?: boolean): Promise<{ entries: Array<{ name: string; isDir: boolean }>; path: string }>;
-    /** Text-JSON read (<256 KiB) mirror of /api/files?type=read. */
-    read(roots: string[], path: string): Promise<{ content: string; language: string; size: number }>;
+    /** Paged text-JSON read mirror of /api/files?type=read (UTF-8-safe byte
+     * pages; `nextOffset`/`truncated` chain the pages). */
+    read(roots: string[], path: string, offset?: number, limit?: number): Promise<{ content: string; language: string; size: number; offset: number; nextOffset: number; truncated: boolean }>;
     /** File metadata mirror of /api/files?type=meta. */
     meta(roots: string[], path: string): Promise<{ size: number; language: string; mime: string; previewKind: string | null }>;
   };
@@ -225,12 +226,27 @@ export const hostClient: HostClientSurface = {
       }
       throw new Error(`files.list: unexpected response ${JSON.stringify(raw)}`);
     },
-    read: async (roots, path) => {
-      const raw = await hostRequest("files.read", { roots, path });
-      if (raw !== null && typeof raw === "object" && typeof (raw as { content?: unknown }).content === "string" && typeof (raw as { language?: unknown }).language === "string" && typeof (raw as { size?: unknown }).size === "number") {
-        return raw as { content: string; language: string; size: number };
+    read: async (roots, path, offset?, limit?) => {
+      const raw = await hostRequest("files.read", { roots, path, ...(offset !== undefined ? { offset } : {}), ...(limit !== undefined ? { limit } : {}) });
+      if (
+        !raw || typeof raw !== "object"
+        || !("content" in raw) || typeof raw.content !== "string"
+        || !("language" in raw) || typeof raw.language !== "string"
+        || !("size" in raw) || typeof raw.size !== "number"
+      ) {
+        throw new Error(`files.read: unexpected response ${JSON.stringify(raw)}`);
       }
-      throw new Error(`files.read: unexpected response ${JSON.stringify(raw)}`);
+      // Paging fields are optional at the boundary: a host built before paged
+      // reads serves whole files (≤256 KiB) only, so the safe fallback is a
+      // complete page — one page covering the whole file, never truncated.
+      return {
+        content: raw.content,
+        language: raw.language,
+        size: raw.size,
+        offset: "offset" in raw && typeof raw.offset === "number" ? raw.offset : 0,
+        nextOffset: "nextOffset" in raw && typeof raw.nextOffset === "number" ? raw.nextOffset : raw.size,
+        truncated: "truncated" in raw && typeof raw.truncated === "boolean" ? raw.truncated : false,
+      };
     },
     meta: async (roots, path) => {
       const raw = await hostRequest("files.meta", { roots, path });

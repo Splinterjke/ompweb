@@ -392,15 +392,29 @@ fn main() {
                             }
                         }
                         "files.read" => {
-                            // Text-JSON read (<256 KiB). Binary/streaming reads
-                            // stay on the Node legacy surface for this slice.
+                            // Paged text-JSON read: `offset`/`limit` byte
+                            // pages (UTF-8-safe). Binary/streaming reads stay
+                            // on the Node legacy surface for this slice.
                             let roots = string_array(params.get(&["roots"]));
                             let path = params
                                 .get(&["path"])
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                            match file_service::read(&roots, &path) {
+                            let offset = params
+                                .get(&["offset"])
+                                .and_then(|v| v.as_num())
+                                .filter(|n| n.is_finite() && *n >= 0.0)
+                                .map(|n| n as u64)
+                                .unwrap_or(0);
+                            let limit = params
+                                .get(&["limit"])
+                                .and_then(|v| v.as_num())
+                                .filter(|n| n.is_finite() && *n >= 1.0)
+                                .map(|n| n as u64)
+                                .unwrap_or(file_service::TEXT_PREVIEW_MAX_BYTES)
+                                .clamp(1, file_service::TEXT_PREVIEW_MAX_PAGE_BYTES);
+                            match file_service::read(&roots, &path, offset, limit) {
                                 Ok(body) => Ok(Some(body)),
                                 Err(err) => Err(err),
                             }
@@ -761,9 +775,15 @@ fn main() {
             }
         }
         "--files-read" | "files-read" => {
-            // usage: ompweb-host --files-read <path>  (parity/CLI mode)
+            // usage: ompweb-host --files-read <path> [offset] [limit]  (parity/CLI mode)
             let path = args.get(2).map(String::as_str).unwrap_or("");
-            match file_service::cli_read(path) {
+            let offset = args.get(3).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+            let limit = args
+                .get(4)
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(file_service::TEXT_PREVIEW_MAX_BYTES)
+                .clamp(1, file_service::TEXT_PREVIEW_MAX_PAGE_BYTES);
+            match file_service::cli_read(path, offset, limit) {
                 Ok(body) => {
                     let _ = writeln!(std::io::stdout(), "{body}");
                 }
@@ -868,7 +888,7 @@ fn main() {
             }
         }
         other => {
-            eprintln!("unknown flag: {other}\nusage: ompweb-host [--version | --health | --journal-shadow <root> <db> | --scan-sessions <root> | --files-list <dir> [all] | --files-read <path> | --files-meta <path> | --git-status <cwd> | --git-branches <cwd> | --git-checkout <cwd> <branch> | --git-commit <cwd> <message> | --git-push <cwd> | --git-diff <cwd> <path>]");
+            eprintln!("unknown flag: {other}\nusage: ompweb-host [--version | --health | --journal-shadow <root> <db> | --scan-sessions <root> | --files-list <dir> [all] | --files-read <path> [offset] [limit] | --files-meta <path> | --git-status <cwd> | --git-branches <cwd> | --git-checkout <cwd> <branch> | --git-commit <cwd> <message> | --git-push <cwd> | --git-diff <cwd> <path>]");
             std::process::exit(2);
         }
     }

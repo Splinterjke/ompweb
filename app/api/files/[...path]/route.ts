@@ -10,6 +10,7 @@ import {
   DOCX_PREVIEW_MAX_BYTES,
   IMAGE_PREVIEW_MAX_BYTES,
   TEXT_PREVIEW_MAX_BYTES,
+  TEXT_PREVIEW_MAX_PAGE_BYTES,
   documentPreviewKind,
   getAudioMime,
   getDocumentMime,
@@ -26,6 +27,7 @@ import {
   validateUploadFileNames,
 } from "@/lib/file-upload";
 import { parseFormDataWithinLimit, parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
+import { parseReadWindow, readTextFilePage } from "@/lib/file-read-page";
 
 const FILE_REQUEST_TYPES = ["list", "read", "download", "meta", "preview"] as const;
 type FileRequestType = typeof FILE_REQUEST_TYPES[number];
@@ -459,23 +461,30 @@ export async function GET(
       if (documentMime) {
         return streamFile(filePath, stat, documentMime, request.headers.get("range"));
       }
-      if (stat.size > TEXT_PREVIEW_MAX_BYTES) {
-        return NextResponse.json({ error: "File too large for preview (>256KB)", code: "file_too_large_preview" }, { status: 413 });
-      }
+      // Paged text read: no hard file-size cap. A page is `limit` bytes
+      // starting at `offset` (default TEXT_PREVIEW_MAX_BYTES, clamped to
+      // TEXT_PREVIEW_MAX_PAGE_BYTES), snapped to UTF-8 boundaries;
+      // `nextOffset`/`truncated` let the viewer chain pages.
       // Doc 16 route 9: text-JSON reads run on the Rust host when the path is
       // root-authorized. The omp-image / session-reference read exemptions are
       // narrow Node-only escapes and keep the Node reader. Binary streaming
       // (image/audio/video/document) also stays Node for this slice.
+      const readWindow = parseReadWindow(
+        request.nextUrl.searchParams.get("offset"),
+        request.nextUrl.searchParams.get("limit"),
+        TEXT_PREVIEW_MAX_BYTES,
+        TEXT_PREVIEW_MAX_PAGE_BYTES,
+      );
       if (rustBackendActive() && allowedByRoot) {
         try {
-          return NextResponse.json(await hostClient.files.read([...allowedRoots], filePath));
+          return NextResponse.json(await hostClient.files.read([...allowedRoots], filePath, readWindow.offset, readWindow.limit));
         } catch (error) {
           return filesAuthorityErrorResponse("files_read_failed", error);
         }
       }
-      const content = fs.readFileSync(filePath, "utf-8");
+      const page = readTextFilePage(filePath, stat.size, readWindow.offset, readWindow.limit);
       const language = getLanguage(filePath);
-      return NextResponse.json({ content, language, size: stat.size });
+      return NextResponse.json({ ...page, language, size: stat.size });
     }
 
     if (type === "download") {

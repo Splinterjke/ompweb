@@ -685,6 +685,8 @@
   "fileViewer.live": "实时",
   "fileViewer.liveSyncActive": "实时同步已启用",
   "fileViewer.loading": "加载中...",
+  "fileViewer.loadMore": "加载更多",
+  "fileViewer.showingOfTotal": "已加载 {shown}，共 {total}",
   "fileViewer.mentionSelectedLines": "提及选中的行",
   "fileViewer.metadata": "{language} · {lines} 行 · {size}",
   "fileViewer.modeDiff": "差异",

@@ -15,6 +15,7 @@
  */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createConnection, type Socket } from "node:net";
+import { StringDecoder } from "node:string_decoder";
 import { join } from "node:path";
 import { getAgentDir } from "./paths";
 import { getAgentEnvOverrides } from "./agent-env";
@@ -112,6 +113,7 @@ export class RustHostManager {
   private control: Socket | null = null;
   private controlPromise: Promise<void> | null = null;
   private controlBuffer = "";
+  private controlDecoder: StringDecoder | null = null;
   private pending = new Map<string, PendingCommand>();
   private nextId = 1;
   private subscribers = new Set<RpcFrameHandler>();
@@ -291,9 +293,12 @@ export class RustHostManager {
       // declare unref(), although pipe handles expose it on supported
       // runtimes, so retain a guarded optional call.
       (child.stdout as typeof child.stdout & { unref?: () => void }).unref?.();
+      // A split-safe decoder: a multi-byte UTF-8 character may straddle two
+      // stdout chunks, and `chunk.toString()` would replace it with U+FFFD.
+      const bootDecoder = new StringDecoder("utf8");
       child.stdout.on("data", (chunk) => {
         if (this.port > 0 || this.host !== child) return;
-        this.bootBuffer += chunk.toString();
+        this.bootBuffer += bootDecoder.write(chunk);
         if (this.bootBuffer.length > 16 * 1024) {
           clearTimeout(timer);
           this.hostDying = true;
@@ -349,6 +354,7 @@ export class RustHostManager {
     return new Promise((resolve, reject) => {
       const socket = createConnection({ host: "127.0.0.1", port: this.port });
       let buffer = "";
+      const decoder = new StringDecoder("utf8");
       let settled = false;
       const finish = (error?: Error, value?: unknown) => {
         if (settled) return;
@@ -362,7 +368,7 @@ export class RustHostManager {
       socket.once("close", () => finish(new RpcCommandError(method, "host control disconnected", "runtime_unavailable")));
       socket.once("connect", () => socket.write(JSON.stringify({ id: "hello", method: "hello", params: { token: this.token } }) + "\n"));
       socket.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString();
+        buffer += decoder.write(chunk);
         let newline: number;
         while ((newline = buffer.indexOf("\n")) >= 0) {
           const line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1);
@@ -382,6 +388,7 @@ export class RustHostManager {
     const socket = createConnection({ host: "127.0.0.1", port: this.port });
     this.control = socket;
     this.controlBuffer = "";
+    this.controlDecoder = new StringDecoder("utf8");
     socket.unref();
     socket.on("data", (chunk: Buffer) => {
       if (this.control === socket) this.handleControlData(chunk);
@@ -390,6 +397,7 @@ export class RustHostManager {
       if (this.control !== socket) return;
       this.control = null;
       this.controlBuffer = "";
+      this.controlDecoder = null;
       for (const entry of this.pending.values()) {
         entry.reject(new RpcCommandError(entry.type, "host control disconnected", "runtime_unavailable"));
       }
@@ -443,7 +451,10 @@ export class RustHostManager {
   }
 
   private handleControlData(chunk: Buffer): void {
-    this.controlBuffer += chunk.toString();
+    // Split-safe decode (isolatedRequest's pattern): host payloads are large
+    // JSON with multi-byte text, and sequences straddle socket chunks.
+    if (!this.controlDecoder) this.controlDecoder = new StringDecoder("utf8");
+    this.controlBuffer += this.controlDecoder.write(chunk);
     let idx: number;
     while ((idx = this.controlBuffer.indexOf("\n")) >= 0) {
       const line = this.controlBuffer.slice(0, idx).trim();
@@ -485,6 +496,7 @@ export class RustHostManager {
       await this.ensure();
       const socket = createConnection({ host: "127.0.0.1", port: this.port });
       let buffer = "";
+      const lineDecoder = new StringDecoder("utf8");
       const decoder = new RpcFrameDecoder();
       await new Promise<void>((resolve, reject) => {
         socket.once("connect", () => resolve());
@@ -493,7 +505,7 @@ export class RustHostManager {
       socket.write(JSON.stringify({ id: "attach-hello", method: "hello", params: { token: this.token } }) + "\n");
       socket.write(JSON.stringify({ id: "attach", method: "agent.attach", params: { sessionId } }) + "\n");
       socket.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString();
+        buffer += lineDecoder.write(chunk);
         let idx: number;
         while ((idx = buffer.indexOf("\n")) >= 0) {
           const line = buffer.slice(0, idx).trim();
@@ -536,6 +548,7 @@ export class RustHostManager {
       await this.ensure();
       const socket = createConnection({ host: "127.0.0.1", port: this.port });
       let buffer = "";
+      const lineDecoder = new StringDecoder("utf8");
       await new Promise<void>((resolve, reject) => {
         socket.once("connect", () => resolve());
         socket.once("error", reject);
@@ -543,7 +556,7 @@ export class RustHostManager {
       socket.write(JSON.stringify({ id: "pty-hello", method: "hello", params: { token: this.token } }) + "\n");
       socket.write(JSON.stringify({ id: "pty-attach", method: "pty.attach", params: { id } }) + "\n");
       socket.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString();
+        buffer += lineDecoder.write(chunk);
         let idx: number;
         while ((idx = buffer.indexOf("\n")) >= 0) {
           const line = buffer.slice(0, idx).trim();

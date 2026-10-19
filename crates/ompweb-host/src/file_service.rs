@@ -1,8 +1,10 @@
 //! file_service: Rust authority for the files-domain read surface
 //! (doc 16 route 9, first slice). Mirrors the Node contract in
 //! app/api/files/[...path]/route.ts for `list` / `read` (text JSON) / `meta`:
-//! the same ignore lists, dirs-first ordering, 256 KiB text-preview cap,
-//! language/mime/previewKind mappings, and root-set containment.
+//! the same ignore lists, dirs-first ordering, 256 KiB default text-preview
+//! page (reads are paged through `offset`/`limit`, mirroring
+//! lib/file-read-page.ts), language/mime/previewKind mappings, and root-set
+//! containment.
 //!
 //! Explicitly-exempted Node surfaces (not pending migration — hard platform
 //! constraints, see backend-ownership.yaml files.migrate): binary streaming
@@ -11,12 +13,13 @@
 //! library has no zero-dependency Rust equivalent; multipart upload — parsed
 //! in the Next layer; SSE watch — a long-lived Node stream.
 
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::ipc_server::{json_str, IpcError};
 
 pub const TEXT_PREVIEW_MAX_BYTES: u64 = 256 * 1024;
+pub const TEXT_PREVIEW_MAX_PAGE_BYTES: u64 = 1024 * 1024;
 
 const IGNORED_NAMES: &[&str] = &[
     "node_modules",
@@ -268,7 +271,14 @@ pub fn list_entries_json(dir: &Path, all: bool) -> Result<String, IpcError> {
     Ok(body)
 }
 
-fn read_ungated(path: &str) -> Result<String, IpcError> {
+/// Read one UTF-8-boundary-snapped byte page, mirroring
+/// `readTextFilePage` in lib/file-read-page.ts: pages start on a character
+/// boundary (leading continuation bytes are skipped) and never END mid
+/// character (a partial trailing sequence is trimmed and re-delivered with
+/// the next page). Boundary trimming never leaves a page that fails to
+/// advance: if trimming would yield an empty page while bytes were read, the
+/// whole chunk is taken (the lossy decode replaces the partial character).
+fn read_ungated(path: &str, offset: u64, limit: u64) -> Result<String, IpcError> {
     let metadata = std::fs::metadata(path).map_err(|e| -> IpcError {
         let code = if e.kind() == ErrorKind::NotFound {
             "file_not_found"
@@ -280,19 +290,102 @@ fn read_ungated(path: &str) -> Result<String, IpcError> {
     if !metadata.is_file() {
         return Err(IpcError::new("not_a_file", "not a regular file"));
     }
-    if metadata.len() > TEXT_PREVIEW_MAX_BYTES {
-        return Err(IpcError::new(
-            "file_too_large_preview",
-            "file too large for preview (>256KB)",
-        ));
+    let size = metadata.len();
+    let start = offset.min(size);
+    let take = (limit.min(size - start)) as usize;
+    let mut file = std::fs::File::open(path).map_err(|e| IpcError::new("read_failed", e.to_string()))?;
+    if start > 0 {
+        file.seek(SeekFrom::Start(start))
+            .map_err(|e| IpcError::new("read_failed", e.to_string()))?;
     }
-    let raw = std::fs::read(path).map_err(|e| IpcError::new("read_failed", e.to_string()))?;
-    let content = String::from_utf8_lossy(&raw).into_owned();
+    let mut raw = vec![0u8; take];
+    let mut read = 0usize;
+    while read < take {
+        match file.read(&mut raw[read..]) {
+            Ok(0) => break,
+            Ok(n) => read += n,
+            Err(e) if e.kind() == ErrorKind::Interrupted => {}
+            Err(e) => return Err(IpcError::new("read_failed", e.to_string())),
+        }
+    }
+    raw.truncate(read);
+
+    let is_continuation = |b: u8| -> bool { (b & 0xC0) == 0x80 };
+    let sequence_len = |b: u8| -> usize {
+        if b < 0x80 {
+            1
+        } else if b & 0xE0 == 0xC0 {
+            2
+        } else if b & 0xF0 == 0xE0 {
+            3
+        } else if b & 0xF8 == 0xF0 {
+            4
+        } else {
+            1
+        }
+    };
+
+    // Never split the trailing character: if its sequence is incomplete and
+    // the file continues, read in the few (≤3) bytes that complete it.
+    let mut gap = 0usize;
+    {
+        let n = raw.len();
+        let mut lead = n;
+        while lead > 0 && lead > n.saturating_sub(3) && is_continuation(raw[lead - 1]) {
+            lead -= 1;
+        }
+        if lead > 0 && lead > n.saturating_sub(4) {
+            let have = n - (lead - 1);
+            let seq = sequence_len(raw[lead - 1]);
+            if have < seq {
+                gap = seq - have;
+            }
+        }
+    }
+    if gap > 0 && start + (raw.len() as u64) < size {
+        let mut extra = vec![0u8; gap];
+        let mut got = 0usize;
+        while got < gap {
+            match file.read(&mut extra[got..]) {
+                Ok(0) => break,
+                Ok(k) => got += k,
+                Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                Err(_) => break,
+            }
+        }
+        raw.extend_from_slice(&extra[..got]);
+    }
+
+    let mut begin = 0usize;
+    while begin < raw.len() && is_continuation(raw[begin]) {
+        begin += 1;
+    }
+    let mut end = raw.len();
+    let mut lead = raw.len();
+    while lead > begin && is_continuation(raw[lead - 1]) {
+        lead -= 1;
+    }
+    if lead > begin && raw.len() - (lead - 1) < sequence_len(raw[lead - 1]) {
+        end = lead - 1;
+    }
+    if end < begin {
+        end = begin;
+    }
+    if end == begin && raw.len() > begin {
+        end = raw.len();
+    }
+
+    let content = String::from_utf8_lossy(&raw[begin..end]).into_owned();
+    let aligned = start + begin as u64;
+    let next = aligned + (end - begin) as u64;
     Ok(format!(
-        "{{\"content\":{},\"language\":{},\"size\":{}}}",
+        "{{\"content\":{},\"language\":{},\"size\":{},\"offset\":{},\"nextOffset\":{},\"truncated\":{}}}",
         json_str(&content),
         json_str(&get_language(path)),
-        metadata.len()
+        size,
+        aligned,
+        next,
+        next < size
     ))
 }
 
@@ -314,9 +407,9 @@ fn check_containment(roots: &[String], path: &str) -> Result<(), IpcError> {
     }
 }
 
-fn read_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
+fn read_guarded(roots: &[String], path: &str, offset: u64, limit: u64) -> Result<String, IpcError> {
     check_containment(roots, path)?;
-    read_ungated(path)
+    read_ungated(path, offset, limit)
 }
 
 fn list_guarded(roots: &[String], path: &str, all: bool) -> Result<String, IpcError> {
@@ -377,8 +470,8 @@ fn meta_guarded(roots: &[String], path: &str) -> Result<String, IpcError> {
 pub fn list(roots: &[String], path: &str, all: bool) -> Result<String, IpcError> {
     list_guarded(roots, path, all)
 }
-pub fn read(roots: &[String], path: &str) -> Result<String, IpcError> {
-    read_guarded(roots, path)
+pub fn read(roots: &[String], path: &str, offset: u64, limit: u64) -> Result<String, IpcError> {
+    read_guarded(roots, path, offset, limit)
 }
 pub fn meta(roots: &[String], path: &str) -> Result<String, IpcError> {
     meta_guarded(roots, path)
@@ -391,9 +484,10 @@ pub fn cli_list(dir: &str, all: bool) -> Result<String, String> {
     list_entries_json(Path::new(dir), all).map_err(|e| e.message)
 }
 
-/// `--files-read <path>` CLI parity mode: read with no roots gate.
-pub fn cli_read(path: &str) -> Result<String, String> {
-    read_ungated(path).map_err(|e| e.message)
+/// `--files-read <path> [offset] [limit]` CLI parity mode: paged read with no
+/// roots gate.
+pub fn cli_read(path: &str, offset: u64, limit: u64) -> Result<String, String> {
+    read_ungated(path, offset, limit).map_err(|e| e.message)
 }
 
 /// `--files-meta <path>` CLI parity mode.
@@ -456,26 +550,43 @@ mod tests {
     }
 
     #[test]
-    fn read_returns_content_language_size_and_caps_at_256k() {
+    fn read_pages_large_files_with_utf8_safe_offsets() {
         let dir = temp_fixture_dir();
+        let roots = vec![dir.to_string_lossy().into_owned()];
         let small = dir.join("main.ts");
         std::fs::write(&small, "export const x = 1;").unwrap();
-        let out = read(
-            &[dir.to_string_lossy().into_owned()],
-            small.to_str().unwrap(),
-        )
-        .unwrap();
+        let out = read(&roots, small.to_str().unwrap(), 0, TEXT_PREVIEW_MAX_BYTES).unwrap();
         assert_eq!(
             out,
             format!(
-                "{{\"content\":{},\"language\":\"typescript\",\"size\":19}}",
+                "{{\"content\":{},\"language\":\"typescript\",\"size\":19,\"offset\":0,\"nextOffset\":19,\"truncated\":false}}",
                 json_str("export const x = 1;")
             )
         );
+        // >256 KiB no longer errors: the default read is a truncated page and
+        // the next page completes the file.
         let big = dir.join("big.log");
         std::fs::write(&big, vec![b'x'; (TEXT_PREVIEW_MAX_BYTES + 1) as usize]).unwrap();
-        let err = read(&[dir.to_string_lossy().into_owned()], big.to_str().unwrap()).unwrap_err();
-        assert_eq!(err.code, "file_too_large_preview");
+        let page = read(&roots, big.to_str().unwrap(), 0, TEXT_PREVIEW_MAX_BYTES).unwrap();
+        assert!(page.contains(&format!("\"nextOffset\":{}", TEXT_PREVIEW_MAX_BYTES)), "{page}");
+        assert!(page.contains("\"truncated\":true"), "{page}");
+        let rest = read(&roots, big.to_str().unwrap(), TEXT_PREVIEW_MAX_BYTES, TEXT_PREVIEW_MAX_BYTES).unwrap();
+        assert!(rest.contains("\"truncated\":false"), "{rest}");
+        assert!(rest.contains(&format!("\"nextOffset\":{}", TEXT_PREVIEW_MAX_BYTES + 1)), "{rest}");
+        // A page never splits a multi-byte character: a 1-byte limit reads in
+        // the completing bytes, so é and € each land whole in one page.
+        let utf = dir.join("utf.txt");
+        std::fs::write(&utf, "é€").unwrap(); // 2 + 3 = 5 bytes
+        let p1 = read(&roots, utf.to_str().unwrap(), 0, 1).unwrap();
+        assert!(p1.contains(&format!("\"nextOffset\":{}", 2)), "{p1}");
+        assert!(p1.contains("\"truncated\":true"), "{p1}");
+        let p2 = read(&roots, utf.to_str().unwrap(), 2, 1).unwrap();
+        assert!(p2.contains(&format!("\"nextOffset\":{}", 5)), "{p2}");
+        assert!(p2.contains("\"truncated\":false"), "{p2}");
+        // Offset past EOF: empty, non-truncated, idempotent.
+        let tail = read(&roots, utf.to_str().unwrap(), 999, 1024).unwrap();
+        assert!(tail.contains("\"nextOffset\":5"), "{tail}");
+        assert!(tail.contains("\"truncated\":false"), "{tail}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -483,7 +594,7 @@ mod tests {
     fn read_rejects_out_of_root_paths() {
         let root = "/tmp/ompweb-files-root-test";
         std::fs::create_dir_all(root).ok();
-        let err = read(&[root.to_string()], "/etc/passwd").unwrap_err();
+        let err = read(&[root.to_string()], "/etc/passwd", 0, TEXT_PREVIEW_MAX_BYTES).unwrap_err();
         assert_eq!(err.code, "access_denied");
         std::fs::remove_dir_all(root).ok();
     }
@@ -495,6 +606,8 @@ mod tests {
         let err = read(
             &[dir.to_string_lossy().into_owned()],
             missing.to_str().unwrap(),
+            0,
+            TEXT_PREVIEW_MAX_BYTES,
         )
         .unwrap_err();
         assert_eq!(err.code, "file_not_found");
@@ -516,6 +629,8 @@ mod tests {
         let err = read(
             &[root.to_string_lossy().into_owned()],
             escaped.to_str().unwrap(),
+            0,
+            TEXT_PREVIEW_MAX_BYTES,
         )
         .unwrap_err();
         assert_eq!(err.code, "access_denied");
