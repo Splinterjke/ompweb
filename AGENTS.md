@@ -800,6 +800,27 @@ stored `omp-web:submit-during-run` choice overrides it.
   AND the streaming bubble, so a row opened mid-stream stays open when it
   commits; outside a provider the row keeps its local state.
 
+### Transcript re-render stability (`components/ChatWindow.tsx`)
+- A finished turn's fold rows render through **message-override objects**
+  (text segments and activity pieces carry block subsets). They MUST come from
+  the per-turn `TurnPlan` cache (`buildTurnPlan`, keyed by the anchor entry id,
+  invalidated on the turn's `endIdx` + element-identity of its message slice) —
+  building overrides inline produces new objects on every render, which fails
+  every row's memo comparator: the whole visible transcript re-rendered on
+  every streaming batch / tool commit (E2E-measured: 52-74 renders per old row
+  for one run; with the cache: ~3, only on the semantically real
+  `sessionBusy`/fork-target flips). Invisible on fresh single-turn sessions —
+  the symptom is an aged-session one.
+- `messages` carry NO `id` field (`entryIds` is the only stable per-row
+  anchor): the `GroupHeightCache` rebuild seeding keys measured heights by
+  `entryIds[groups[g].userIdx]` — keying them on `message.id` was a silent
+  no-op that reverted every group to its estimate on each append (the height
+  reflow/scroll jump when a tool committed). Anything anchoring across renders
+  uses `entryIds`, never `message.id`.
+- `modelNames` keeps its object identity while the mapping is unchanged
+  (`loadModels` compares before `setModelNames`) — a fresh `Record` fails every
+  MessageView comparator for the whole committed transcript.
+
 ### Composer-attached hub bars (`components/ComposerPanels.tsx`)
 - The live todo plan (`TodoList`), the subagent roster and the git changes
   bar (`GitChangesBar`) live **pinned above the chat input**, not inside the

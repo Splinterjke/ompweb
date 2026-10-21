@@ -3869,7 +3869,18 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       const res = await fetch(modelsUrl, { cache: "no-store", ...(signal ? { signal } : {}) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json() as ModelsResponse;
-      setModelNames(d.models);
+      // Keep the object identity while the mapping is unchanged: every new
+      // modelNames object fails every MessageView memo comparator and
+      // re-renders the whole committed transcript (loadModels re-runs during
+      // runs via refreshLiveModelState / modelsRefreshKey).
+      setModelNames((prev) => {
+        const next = d.models ?? {};
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(next);
+        if (prevKeys.length !== nextKeys.length) return next;
+        for (const key of nextKeys) if (prev[key] !== next[key]) return next;
+        return prev;
+      });
       setModelError(d.modelError ?? null);
       setModelThinkingLevels(d.thinkingLevels ?? {});
       setModelThinkingLevelMaps(d.thinkingLevelMaps ?? {});

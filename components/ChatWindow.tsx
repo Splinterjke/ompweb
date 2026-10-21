@@ -8,7 +8,7 @@ import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
-import { planTurnSegments, isGroupAnchor, type ActivityPiece } from "@/lib/chat-segments";
+import { planTurnSegments, isGroupAnchor, type ActivityPiece, type TranscriptSegment } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
 import { MessageView } from "./MessageView";
 import { ToolExpansionProvider } from "./tool-expansion";
@@ -183,16 +183,55 @@ function withAssistantBlocks(
 }
 
 type RenderMessage = (idx: number, options?: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] }) => ReactNode;
+/** One anchored turn's folded-render plan: the segment split plus the
+ * message-override objects it implies. Built once per turn-content change and
+ * cached by the transcript — building overrides inline produces NEW objects on
+ * every render, which failed every row's memo comparator and re-rendered the
+ * whole visible transcript on every token batch / tool commit (the "everything
+ * refreshes when a tool ends" symptom; invisible on fresh single-turn sessions,
+ * brutal on aged ones). */
+export interface TurnPlan {
+  /** The turn's messages at build time; identity-checked to invalidate. */
+  slice: AgentMessage[];
+  endIdx: number;
+  hideThinking: boolean;
+  segments: TranscriptSegment[];
+  /** Per text segment (indexed by segmentIdx): the split-message override. */
+  textOverrides: (AssistantMessage | undefined)[];
+  /** Per activity segment: one override per piece (undefined = whole message). */
+  activityOverrides: Map<number, (AssistantMessage | undefined)[]>;
+}
+
+export function buildTurnPlan(messages: AgentMessage[], userIdx: number, endIdx: number, hideThinking: boolean): TurnPlan {
+  const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking });
+  const textOverrides: (AssistantMessage | undefined)[] = [];
+  const activityOverrides = new Map<number, (AssistantMessage | undefined)[]>();
+  segments.forEach((segment, segmentIdx) => {
+    if (segment.kind === "text") {
+      const msg = messages[segment.index] as AssistantMessage;
+      const override = withAssistantBlocks(msg, segment.blocks, { omitUsage: !segment.last });
+      if (!segment.last) override.errorMessage = undefined;
+      textOverrides[segmentIdx] = override;
+      return;
+    }
+    activityOverrides.set(segmentIdx, segment.pieces.map((piece) =>
+      piece.blocks
+        ? { ...withAssistantBlocks(messages[piece.index] as AssistantMessage, piece.blocks, { omitUsage: true }), errorMessage: undefined }
+        : undefined,
+    ));
+  });
+  return { slice: messages.slice(userIdx, endIdx), endIdx, hideThinking, segments, textOverrides, activityOverrides };
+}
 
 /** Render a folded activity run exactly as it streamed: one entry per piece, never merged across messages. */
-export function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage): ReactNode[] {
+export function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage, overrides?: (AssistantMessage | undefined)[]): ReactNode[] {
   return pieces.map((piece, pieceIdx) => {
     if (!piece.blocks) return renderMessage(piece.index, { attachRef: false, keyPrefix: "activity" });
     const msg = messages[piece.index] as AssistantMessage;
     return renderMessage(piece.index, {
       attachRef: false,
       keyPrefix: `activity-${pieceIdx}`,
-      messageOverride: { ...withAssistantBlocks(msg, piece.blocks, { omitUsage: true }), errorMessage: undefined },
+      messageOverride: overrides?.[pieceIdx] ?? { ...withAssistantBlocks(msg, piece.blocks, { omitUsage: true }), errorMessage: undefined },
       showTimestamp: false,
       sourceBlockIndices: piece.blocks.map((block) => msg.content.indexOf(block)),
     });
@@ -510,6 +549,12 @@ const CommittedTranscript = memo(function CommittedTranscript({
   }, []);
 
   // --- 组渲染计划（T2.1：只为窗口内组构造 JSX）---
+  // Folded-render plans for anchored turns, keyed by anchor entry id. A plan
+  // survives while its turn's messages keep their identity, so finished turns
+  // reuse the very same override objects across streaming batches — their rows'
+  // memo comparators pass and the visible transcript stops re-rendering as a
+  // whole when a tool commits. Stale entries are pruned after the window loop.
+  const turnPlansRef = useRef(new Map<string, TurnPlan>());
   const renderGroup = (group: ChatGroup, groupIndex: number): ReactNode => {
     const { userIdx, finalAssistantIdx, processIndices, tailIndices, endIdx } = group;
     const isLiveTail = (sessionBusy || isStreaming) && endIdx === messages.length && userIdx === lastAnchorIdx;
@@ -535,16 +580,21 @@ const CommittedTranscript = memo(function CommittedTranscript({
     const nodes: ReactNode[] = [renderMessage(userIdx)];
     const processGroupKey = entryIds[userIdx] ?? String(userIdx);
     // TUI-style folding: agent text is always visible; each run of activity
-    // (thinking, tool calls, job results, reminders) between two pieces of
-    // text folds into one collapsed row. A message split across segments
-    // keeps its navigation ref on the first rendered segment.
-    const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking: hideThinkingBlock });
+    // text folds into one collapsed row.
+    // Reuse the turn's plan (segments + override objects) while its messages
+    // are identity-stable — the ONLY way the rows' memo comparators pass and
+    // finished turns stop re-rendering on every streaming batch / tool commit.
+    let plan = turnPlansRef.current.get(processGroupKey);
+    const turnLen = endIdx - userIdx;
+    if (!plan || plan.endIdx !== endIdx || plan.hideThinking !== hideThinkingBlock
+      || plan.slice.length !== turnLen || plan.slice.some((m, i) => m !== messages[userIdx + i])) {
+      plan = buildTurnPlan(messages, userIdx, endIdx, hideThinkingBlock);
+      turnPlansRef.current.set(processGroupKey, plan);
+    }
     const attached = new Set<number>();
-    segments.forEach((segment, segmentIdx) => {
+    plan.segments.forEach((segment, segmentIdx) => {
       if (segment.kind === "text") {
-        const msg = messages[segment.index] as AssistantMessage;
-        const override = withAssistantBlocks(msg, segment.blocks, { omitUsage: !segment.last });
-        if (!segment.last) override.errorMessage = undefined;
+        const override = plan.textOverrides[segmentIdx];
         nodes.push(renderMessage(segment.index, {
           attachRef: !attached.has(segment.index),
           keyPrefix: `text-${segmentIdx}`,
@@ -571,7 +621,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
             expanded={processExpanded[foldKey] ?? processDetailsAutoExpand}
             onToggle={(next) => handleProcessToggle(foldKey, next)}
           >
-            {renderActivityPieces(messages, segment.pieces, renderMessage)}
+            {renderActivityPieces(messages, segment.pieces, renderMessage, plan.activityOverrides.get(segmentIdx))}
           </ProcessDetailsGroup>
         </div>,
       );
@@ -592,6 +642,16 @@ const CommittedTranscript = memo(function CommittedTranscript({
         {renderGroup(groups[g], g)}
       </div>,
     );
+  }
+  // Prune plans whose anchor is gone (session switch, reload, compaction view
+  // toggle): the key is the anchor's entry id, so a rebuilt transcript with
+  // different anchors never reuses a stale plan.
+  if (turnPlansRef.current.size > groups.length) {
+    const liveKeys = new Set<string>();
+    for (const group of groups) liveKeys.add(entryIds[group.userIdx] ?? String(group.userIdx));
+    for (const key of turnPlansRef.current.keys()) {
+      if (!liveKeys.has(key)) turnPlansRef.current.delete(key);
+    }
   }
 
   return (
@@ -798,35 +858,38 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     groupsRef.current = { key: groupsKey, groups: built };
     return built;
   }, [messages, groupsKey]);
-  // 重建时把旧缓存中已实测的高度按锚点 id（user/compaction 消息）播种到
-  // 新缓存：会话内流式增长/工具结果提交不再把全部高度打回估算，节点与
-  // 滚动位置不跳变。会话切换因锚点 id 不同天然不播种。
-  const layoutRef = useRef<{ key: string; layout: GroupHeightCache; groups: ChatGroup[]; messages: AgentMessage[] } | null>(null);
+  // On rebuild, seed the previous cache's MEASURED heights into the new one,
+  // keyed by the anchor's ENTRY id: streaming growth / tool-result commits
+  // then no longer revert every group to its estimate (the full-transcript
+  // height reflow the reader sees as "everything jumps" when a tool ends).
+  // Messages carry no id field — entryIds is the only stable per-row anchor.
+  // A session switch changes every anchor id, so nothing foreign is seeded.
+  const layoutRef = useRef<{ key: string; layout: GroupHeightCache; groups: ChatGroup[]; entryIds: string[] } | null>(null);
   const layout = useMemo(() => {
     if (layoutRef.current?.key === groupsKey) return layoutRef.current.layout;
     const built = new GroupHeightCache(groups, messages, estimateGroupHeight);
     const prev = layoutRef.current;
     if (prev) {
-      // 旧缓存实测高度 → 锚点 id 索引（只保留 isMeasured 的真实值）。
+      // Previous measured heights → anchor entry-id index.
       const measuredByAnchor = new Map<string, number>();
       for (let g = 0; g < prev.groups.length; g++) {
         if (!prev.layout.isMeasured(g)) continue;
-        const anchor = String((prev.messages[prev.groups[g].userIdx] as { id?: unknown } | undefined)?.id ?? "");
+        const anchor = prev.entryIds[prev.groups[g].userIdx] ?? "";
         if (anchor !== "") measuredByAnchor.set(anchor, prev.layout.height(g));
       }
       if (measuredByAnchor.size > 0) {
         const seed = new Map<number, number>();
         for (let g = 0; g < groups.length; g++) {
-          const anchor = String((messages[groups[g].userIdx] as { id?: unknown } | undefined)?.id ?? "");
+          const anchor = entryIds[groups[g].userIdx] ?? "";
           const h = anchor !== "" ? measuredByAnchor.get(anchor) : undefined;
           if (h !== undefined) seed.set(g, h);
         }
         built.seedMeasured(seed);
       }
     }
-    layoutRef.current = { key: groupsKey, layout: built, groups, messages };
+    layoutRef.current = { key: groupsKey, layout: built, groups, entryIds };
     return built;
-  }, [groups, messages, groupsKey]);
+  }, [groups, messages, entryIds, groupsKey]);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   // Drives the jump-to-bottom button: true while the viewport is within
