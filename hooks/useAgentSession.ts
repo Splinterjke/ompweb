@@ -1786,6 +1786,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       },
       onConnected: (frame) => {
         settle("connected");
+        // The hub emits a fresh `connected` every time the worker re-subscribes
+        // this channel — including a transparent re-attach to a wrapper that
+        // respawned after an idle destroy (the hub ends a session subscription
+        // when its wrapper dies, and the worker retries it). Host tools, URI
+        // schemes and the subagent roster are per-wrapper and never persist in
+        // omp, so re-register them for every connection, not just the
+        // fatal-reconnect path below.
+        reconnectActionsRef.current?.(sid);
         eventCoalescer.push(frame as unknown as AgentEvent);
       },
       onEvent: (frame) => {

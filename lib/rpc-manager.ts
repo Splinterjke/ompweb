@@ -55,7 +55,11 @@ interface CompactionResultLike {
   tokensAfter?: number;
 }
 
-const IDLE_DESTROY_MS = 10 * 60 * 1000;
+// Test/E2E override: the idle backstop window (see OMP_WEB_DISCONNECT_DESTROY_MS
+// below for the same knob on the disconnect reaper).
+const IDLE_DESTROY_MS = process.env.OMP_WEB_IDLE_DESTROY_MS
+  ? Math.max(1000, Number(process.env.OMP_WEB_IDLE_DESTROY_MS) || 0)
+  : 10 * 60 * 1000;
 /**
  * How long a session may sit with **no web UI attached** before its omp child is
  * torn down. IDLE_DESTROY_MS (10min) is the backstop for a session that keeps

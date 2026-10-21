@@ -370,7 +370,16 @@ function openSessionChannel(sessionId: string, handle: SubscriptionHandle): Subs
   // announcing readiness so catch-up has no event gap. The local wrapper has
   // no stream cursor (live catch-up rides the /state reconciliation), so the
   // connected frame keeps the retired per-session route's exact shape.
-  handle.setDetach(session.onEvent((event) => handle.send(event)));
+  handle.setDetach(session.onEvent((event) => {
+    handle.send(event);
+    // A destroyed wrapper can never emit again: end the subscription so the
+    // worker reconnects it (hello/resubscribe re-attaches to a respawned
+    // wrapper, or a 409 closes it so the next send cold-starts one). Without
+    // this the client keeps an OPEN subscription on the zombie wrapper, the
+    // send path trusts `isOpen`, skips the cold get_state, and every frame of
+    // the new wrapper emits to zero listeners — the frozen chat after idle.
+    if (event.type === "session_destroyed") handle.end();
+  }));
   handle.send({ type: "connected", sessionId });
   return SUBSCRIBED;
 }

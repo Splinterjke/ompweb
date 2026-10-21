@@ -706,6 +706,23 @@ stored `omp-web:submit-during-run` choice overrides it.
   >2 heartbeats is treated as dead and closed (releases file watchers and
   session listeners); a live client just reconnects.
 
+  A wrapper **destroyed while a browser still watches it** is the other half of
+  the same bug. The 10-minute `IDLE_DESTROY_MS` backstop tears the child down
+  regardless of attached UIs, but the hub's session subscription lives on the
+  dead wrapper instance: unless `openSessionChannel` ENDS that subscription the
+  moment the wrapper emits `session_destroyed`, the browser's `isOpen` stays
+  true, so `handleSend` takes the hot path (skips the cold `get_state` that
+  would respawn), the prompt POST spawns a *fresh* wrapper, and every frame of
+  the new run emits to **zero** listeners — the "idle, then a new prompt never
+  updates" freeze (observed: `emit … listeners=0` for a whole turn). Ending the
+  sub makes the worker reconnect it like any ended channel (`end` control frame
+  → resubscribe), which re-attaches to the respawned wrapper (or 409-closes so
+  the next send cold-starts one); `useAgentSession` then re-registers the
+  per-wrapper host tools / URI schemes / roster on every `connected` frame, not
+  just the fatal-reconnect path. Regression: `event-stream-hub.test.mjs`
+  "destroying the wrapper ends its session subscription". `OMP_WEB_IDLE_DESTROY_MS`
+  shortens the backstop window for E2E.
+
 ### Running state + reconciliation
 - The sidebar subscribes to the `running` channel, backed by `subscribeRunningSessions()` in `lib/rpc-manager.ts`, so running badges update without polling.
 - `useAgentSession` still treats its `session` channel as primary for chat events, but while a run is active it periodically calls `GET /api/agent/[id]` and also reconciles on `visibilitychange`/`online`. This fixes missed `agent_end` events from background tabs and half-open connections.
