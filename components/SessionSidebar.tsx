@@ -17,6 +17,7 @@ import { copyText } from "@/lib/clipboard";
 import { transcriptToMarkdown } from "@/lib/transcript";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useRunBadges } from "@/hooks/useRunBadges";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
 import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
 import { openEventStream } from "@/lib/event-stream";
@@ -724,7 +725,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   const eventActionsHeaderRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
+  const { runningSessionIds, applyAuthoritative: applyRunningIds, markExternallyRunning } = useRunBadges();
   /** id -> workspace/first-prompt metadata for running sessions whose file
    *  may not exist yet; keeps placeholder rows anchored to the SPAWNING
    *  workspace (not the one being viewed) and titled by the prompt. */
@@ -856,7 +857,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       // Treat the fetched running set as an initial fallback only. Once SSE is
       // live it owns this state, so a slow fetch can't revive a stale snapshot.
       if (!sseAuthoritativeRef.current) {
-        setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+        applyRunningIds(data.runningSessionIds ?? []);
         setRunningMeta(new Map((data.runningSessionMeta ?? []).map((m) => [m.id, m])));
       }
       // Drop unread markers for sessions that no longer exist (e.g. deleted).
@@ -878,7 +879,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [t]);
+  }, [t, applyRunningIds]);
 
   const initialLoadDone = useRef(false);
   useEffect(() => {
@@ -937,28 +938,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   }, [loadSessions]);
 
   // Externally-running sessions (terminal `omp` / harness writing the file)
-  // get a running badge that expires once their file stops changing.
-  const externalExpiryRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const markExternallyRunning = useCallback((ids: string[]) => {
-    setRunningSessionIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.add(id);
-      return next;
-    });
-    for (const id of ids) {
-      const existing = externalExpiryRef.current.get(id);
-      if (existing) clearTimeout(existing);
-      externalExpiryRef.current.set(id, setTimeout(() => {
-        externalExpiryRef.current.delete(id);
-        setRunningSessionIds((prev) => {
-          if (!prev.has(id)) return prev;
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }, 15_000));
-    }
-  }, []);
+  // share the badge set with the RPC running feed — see hooks/useRunBadges.
 
   useEffect(() => {
     // Live running status and session-list invalidations arrive on the shared
@@ -1004,7 +984,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
           if (data.updated) onUiUpdated?.();
         } else if (data.type === "running") {
           sseAuthoritativeRef.current = true;
-          setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+          applyRunningIds(data.runningSessionIds ?? []);
           setRunningMeta(new Map((data.meta ?? []).map((m) => [m.id, m])));
           if (data.exitedSessions) setExitedSessions(new Map(data.exitedSessions.map((s) => [s.id, s])));
           if (data.refreshSessionList) scheduleRefresh();
@@ -1034,7 +1014,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       clearTimeout(pendingRefreshRef.current);
       source.close();
     };
-  }, [loadSessions, scheduleRefresh, markExternallyRunning, onServerRestarted, onUiUpdated, onChatEventAction]);
+  }, [loadSessions, scheduleRefresh, markExternallyRunning, applyRunningIds, onServerRestarted, onUiUpdated, onChatEventAction]);
 
   useEffect(() => {
     const previous = previousRunningSessionIdsRef.current;

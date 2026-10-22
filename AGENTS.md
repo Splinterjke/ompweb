@@ -737,6 +737,19 @@ stored `omp-web:submit-during-run` choice overrides it.
   !externalRunningRef.current`): the write comes from the own wrapper and
   reloading pre-prompt on-disk state would wipe the bubble / live tail;
   external runs keep the watcher as their only transcript feed.
+- The sidebar badge set merges two feeds in one state (`hooks/useRunBadges.ts`,
+  pinned by `hooks/useRunBadges.test.mjs`): AUTHORITATIVE full snapshots (the
+  `running` channel frames and the pre-SSE `/api/sessions` fallback — each
+  replaces the whole set) and EXTERNAL marks (file-activity frames + the 5 s
+  heartbeat, each id with a 15 s TTL). Invariant the old bug broke: a WEB child
+  writing the session file while its wrapper's running flags are momentarily
+  false (the auto-compaction / maintenance-continuation window) gets marked
+  externally running — and the expiry timer MUST NOT delete an id the latest
+  authoritative snapshot claims (the continuation turn resumed; the session IS
+  running). `applyAuthoritative` therefore clears the timers of the ids it
+  claims and the expiry callback defers to the snapshot ref — otherwise a
+  long-running session loses its badge mid-run until the next transition
+  (the "running session, no spinner in the list" symptom).
 
 ### External session detection (`lib/session-watcher.ts`, `/api/sessions/[id]/state`)
 - When ompweb restarts mid-run, the old `omp --mode rpc-ui` child survives (it is a child of the Rust host daemon, not the server). The new server detects such "externally held" sessions by scanning `/proc` for `omp` processes with `--resume <file>` on the command line, or — for host-spawned children whose cmdline has no file — with a session file held open (fd scan). Web-owned children (direct children of this node process or of the host daemon) are excluded by PPid, NOT by the RPC registry: after a restart a session can hold a freshly restored idle RPC while a stale previous-server child still owns the file.
