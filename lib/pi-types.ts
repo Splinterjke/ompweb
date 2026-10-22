@@ -101,6 +101,9 @@ export interface RpcSessionState {
   tokensPerSecond?: number | null;
   /** Structured skill resolution diagnostics; absent on older OMP builds. */
   skillDiagnostics?: SkillDiagnosticsSnapshot;
+  /** omp >= 18.10: no wake source remains / background work may still run. */
+  isSettled?: boolean;
+  hasPendingAsyncWork?: boolean;
 }
 
 /**
@@ -113,6 +116,10 @@ export interface WebSessionState {
   sessionName?: string;
   isStreaming: boolean;
   isPromptRunning: boolean;
+  /** The wedged-run watchdog declared the active run silent with progress
+   *  frozen (see lib/rpc-manager.ts STALL_CHECK_MS); informational — the run
+   *  flags stay exactly as the child reports them. */
+  stalledSuspected: boolean;
   isBashRunning: boolean;
   isCompacting: boolean;
   autoCompactionEnabled: boolean;

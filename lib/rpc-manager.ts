@@ -83,6 +83,26 @@ const MCP_LIST_TIMEOUT_MS = 15_000;
 /** State reads drive UI reconciliation and must never leave a stale spinner
  * waiting on a child that has stopped responding. */
 const GET_STATE_TIMEOUT_MS = 5_000;
+/**
+ * Wedged-run watchdog. An omp worker can deadlock inside its post-turn
+ * maintenance routing (observed on 18.12.6: the log's last lines are
+ * "agent_end maintenance routing" + "Auto-compaction threshold decision" with
+ * a stale `async-result` yield entry) and never emit the terminal agent_end.
+ * A wedged worker keeps ANSWERING get_state and keeps claiming
+ * `isStreaming: true` forever, so liveness is not the oracle — only PROGRESS
+ * is. While a run is active, child-originated frames reset the silence
+ * window; once it exceeds STALL_SILENCE_MS the watchdog probes get_state
+ * twice (baseline, then confirmation): if the child reports the run finished
+ * but the wrapper still claims it, the swallowed terminal is completed
+ * locally; if the child still claims streaming while `messageCount` is frozen
+ * across both probes, one notice arms the user with `/reload` guidance.
+ * Never auto-restarts — a legitimately long silent tool (a build, a slow
+ * subagent) costs at most a dismissible warning.
+ * `OMP_WEB_STALL_SILENCE_MS=0` disables the watchdog; both values exist as
+ * test seams (the shipped defaults are 30s checks / 10min silence).
+ */
+const STALL_CHECK_MS = 30_000;
+const STALL_SILENCE_MS = 10 * 60_000;
 const SET_MODEL_TIMEOUT_MS = 30_000;
 /** Prompt execution continues over frames; this cap applies only to accepting
  * the prompt command, not to model generation. */
@@ -383,6 +403,18 @@ export class AgentSessionWrapper {
   private streaming = false;
   private compacting = false;
   private fastModeEnabled = false;
+  /** Wedged-run watchdog state: last child-originated frame, the messageCount
+   *  captured at the first confirmation probe, and the per-run check timer.
+   *  A get_state reply from our own poll proves nothing — only child frames
+   *  and a moving messageCount count as progress. */
+  private _lastChildFrameAt = 0;
+  private _stallBaselineCount: number | null = null;
+  private _stallTimer: ReturnType<typeof setInterval> | null = null;
+  private _stallTickBusy = false;
+  private _stalledSuspected = false;
+  private _stallNotified = false;
+  private readonly stallCheckMs: number;
+  private readonly stallSilenceMs: number;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Lazily-armed deadline for tearing down a session nobody is watching. */
   private reapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -470,6 +502,12 @@ export class AgentSessionWrapper {
     this.advisorSpawned = advisorSpawned;
     this._sessionId = expectedSessionId;
     this.disconnectDestroyMs = disconnectDestroyMs;
+    // Per-instance (not module-level) so tests can shrink the windows without
+    // racing other suites that import this module in the same process.
+    this.stallCheckMs = Math.max(20, Number(process.env.OMP_WEB_STALL_CHECK_MS) || STALL_CHECK_MS);
+    this.stallSilenceMs = process.env.OMP_WEB_STALL_SILENCE_MS === undefined
+      ? STALL_SILENCE_MS
+      : Math.max(0, Number(process.env.OMP_WEB_STALL_SILENCE_MS) || 0);
     this.startupModelOverride = startupModelOverride;
   }
 
@@ -817,6 +855,7 @@ export class AgentSessionWrapper {
 
   private handleFrame(frame: RpcFrame): void {
     this.resetIdleTimer();
+    this.noteChildProgress(frame.type);
     const event = frame as AgentEvent;
     if (event.type === "goal_updated") {
       this._goalStatus = readGoalStatus(event);
@@ -885,6 +924,7 @@ export class AgentSessionWrapper {
         }
         // Chat event action: user_prompt_sent (one per submitted prompt).
         dispatchChatEvent("user_prompt_sent", this.chatEventPayload());
+        this.armStallWatchdog();
         break;
       case "agent_end":
         if (event.isTerminal !== false) {
@@ -897,6 +937,7 @@ export class AgentSessionWrapper {
           clearChatActionRunState(this._sessionId);
           // A finished run's todo baseline is stale for the next prompt.
           this._todoPhases = null;
+          this.clearStallWatchdog();
           // An interrupted turn also ends with a terminal agent_end (probe:
           // stopReason null — indistinguishable from a real completion), but
           // it is not a completion: conversation_interrupted already fired
@@ -945,6 +986,7 @@ export class AgentSessionWrapper {
         break;
       case "session_settled":
         this.unsettled = false;
+        this.clearStallWatchdog();
         // The session went quiet: nothing can wake it anymore (omp >= 18.5).
         // Releases a completion held back by an unsettled prompt_result.
         if (this._completionDeferred) {
@@ -1467,6 +1509,146 @@ export class AgentSessionWrapper {
     this.sessionTitleSignalTimer = setTimeout(check, 250);
   }
 
+  // ---------------------------------------------------------------------
+  // Wedged-run watchdog (see STALL_CHECK_MS doc)
+  // ---------------------------------------------------------------------
+
+  /** Progress oracle: a child-originated frame means the run moved. `response`
+   *  frames are replies to OUR commands (rpc-process matches them before
+   *  listeners, but the Rust transport may not) and must never count — a
+   *  reconciliation poll answering proves nothing about the run. */
+  private noteChildProgress(type: string): void {
+    if (type === "response") return;
+    this._lastChildFrameAt = Date.now();
+    this._stallBaselineCount = null;
+    if (this._stalledSuspected) {
+      this._stalledSuspected = false;
+      this._stallNotified = false;
+      this.emit({ type: "notice", level: "info", message: "The omp worker resumed: new activity cleared the stall warning." });
+    }
+  }
+
+  private armStallWatchdog(): void {
+    if (this.stallSilenceMs <= 0) return;
+    this._lastChildFrameAt = Date.now();
+    this._stallBaselineCount = null;
+    this._stalledSuspected = false;
+    this._stallNotified = false;
+    if (this._stallTimer) clearInterval(this._stallTimer);
+    this._stallTimer = setInterval(() => { void this.stallTick(); }, this.stallCheckMs);
+    this._stallTimer.unref?.();
+  }
+
+  private clearStallWatchdog(): void {
+    if (this._stallTimer) {
+      clearInterval(this._stallTimer);
+      this._stallTimer = null;
+    }
+    this._stallBaselineCount = null;
+    this._stallTickBusy = false;
+    this._stalledSuspected = false;
+    this._stallNotified = false;
+  }
+
+  private async stallTick(): Promise<void> {
+    if (!this._alive || this.restarting || this._stallTickBusy) return;
+    if (!this.isRunning()) {
+      this.clearStallWatchdog();
+      return;
+    }
+    // One notice per stall episode; progress re-arms it (see noteChildProgress).
+    if (this._stallNotified) return;
+    // Human-wait and compaction windows are legitimately silent for minutes:
+    // an open ask dialog, an outstanding host tool/URI request, compaction.
+    if (
+      this.compacting
+      || this.pendingUiRequests.size > 0
+      || this.pendingHostTools.size > 0
+      || this.pendingHostUris.size > 0
+    ) return;
+    if (Date.now() - this._lastChildFrameAt < this.stallSilenceMs) {
+      this._stallBaselineCount = null;
+      return;
+    }
+    this._stallTickBusy = true;
+    try {
+      const state = await this.getStateWithTimeout();
+      if (!this._alive || !this.isRunning()) return;
+      const pendingAsync = state.hasPendingAsyncWork === true;
+      if (
+        state.isStreaming === false
+        && state.isCompacting !== true
+        && !this.continuationPending
+        && !this.bashRunning
+      ) {
+        // The child says nothing is running but the wrapper still claims the
+        // run: the terminal agent_end was swallowed. Reconcile via the same
+        // path /state uses, then hand the clients the missing terminal frame.
+        const wasRunning = this.isRunning();
+        this.streaming = false;
+        this.buildWebState(state);
+        if (wasRunning && !this.isRunning()) this.completeSwallowedTerminalRun();
+        return;
+      }
+      if (state.isCompacting === true || state.isStreaming !== true) return;
+      const count = typeof state.messageCount === "number" ? state.messageCount : null;
+      if (count === null) {
+        this._stallBaselineCount = null;
+        return;
+      }
+      if (this._stallBaselineCount === null) {
+        // Probe #1: capture the baseline; confirm on the next tick.
+        this._stallBaselineCount = count;
+        return;
+      }
+      if (count !== this._stallBaselineCount) {
+        // Messages committed during the silence: real progress, new window.
+        this._stallBaselineCount = null;
+        this._lastChildFrameAt = Date.now();
+        return;
+      }
+      // Silence across two probes, messageCount frozen, child claims streaming.
+      this._stalledSuspected = true;
+      this._stallNotified = true;
+      const minutes = Math.max(1, Math.round((Date.now() - this._lastChildFrameAt) / 60_000));
+      this.emit({
+        type: "notice",
+        level: "warning",
+        stall: "suspected",
+        message: `No activity from the omp worker for ${minutes} minutes while a run is active${pendingAsync ? " (background work reported pending)" : ""} — the worker may be stuck. /reload restarts the session worker without touching the transcript; queued prompts return to the composer. If the run is only busy with a long silent tool, it is safe to ignore.`,
+      });
+    } catch {
+      // Unreachable probe is the send() recycle path's hard-wedge case; retry.
+      this._stallBaselineCount = null;
+    } finally {
+      this._stallTickBusy = false;
+    }
+  }
+
+  /** Emits the missing terminal events for a run whose terminal agent_end
+   *  never arrived. Mirrors handleProcessExit's settle (no crash record, the
+   *  child stays alive) and the agent_start flush of a held completion. */
+  private completeSwallowedTerminalRun(): void {
+    this.streaming = false;
+    this.promptRunning = false;
+    this.awaitingAgentStart = false;
+    this.awaitingAgentStartDeadline = 0;
+    this.continuationPending = false;
+    this.unsettled = false;
+    this.clearStallWatchdog();
+    invalidateSessionListCache();
+    clearChatActionRunState(this._sessionId);
+    this._todoPhases = null;
+    this.emit({ type: "agent_end", isTerminal: true, messages: [] });
+    if (this._completionPending || this._completionDeferred) {
+      this._completionPending = false;
+      this._completionDeferred = false;
+      dispatchChatEvent("conversation_completed", this.chatEventPayload({ type: "session_settled", settled: true }));
+      this.maybeAutoTitleOnStart();
+    }
+    notifyRunningChange();
+  }
+
   private resetIdleTimer(): void {
     // The single activity choke point: start(), every child frame, and every
     // send() land here, so this is where "someone is using this session" is
@@ -1634,6 +1816,7 @@ export class AgentSessionWrapper {
       sessionName: this._sessionName,
       isStreaming: state.isStreaming,
       isPromptRunning: this.promptRunning,
+      stalledSuspected: this._stalledSuspected,
       isBashRunning: this.bashRunning,
       isCompacting: state.isCompacting,
       autoCompactionEnabled: state.autoCompactionEnabled,
@@ -1744,6 +1927,7 @@ export class AgentSessionWrapper {
       this._continuationRun = false;
       this._completionPending = false;
       this._completionDeferred = false;
+      this.clearStallWatchdog();
 
       let proc: RpcProcessLike;
       try {
@@ -2243,6 +2427,7 @@ export class AgentSessionWrapper {
       clearTimeout(this.reapTimer);
       this.reapTimer = null;
     }
+    this.clearStallWatchdog();
     if (this.sessionFileSignalTimer) {
       clearTimeout(this.sessionFileSignalTimer);
       this.sessionFileSignalTimer = null;

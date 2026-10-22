@@ -3983,7 +3983,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
         case "reload": {
           if (!sid) return complete({ handled: true, error: translate("agentSession.noSessionToReload") });
+          // Queued prompts live only inside the live worker: reload restarts it
+          // and the queue is gone with it. Hand the texts back to the composer
+          // (the wedged-run watchdog points users at /reload to recover).
+          const queued = queuedMessagesRef.current;
+          const queuedTexts = [...queued.steering, ...queued.followUp].filter((text) => typeof text === "string" && text.trim().length > 0);
           await sendAgentCommand(sid, { type: "reload" });
+          if (queuedTexts.length > 0) recoverDraft(sid, { text: queuedTexts.join("\n\n"), images: [] });
           await Promise.all([
             loadSession(sid, false, true),
             loadSlashCommands(),

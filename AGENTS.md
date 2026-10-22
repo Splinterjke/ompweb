@@ -363,6 +363,24 @@ hooks/
   so a reload reattaching seconds later does not 409. Both are fed by
   `resetIdleTimer()`, the single activity choke point for `send()` and every
   child frame: adding a new call path must route activity through it.
+- **Wedged-run watchdog** (`STALL_CHECK_MS` / `STALL_SILENCE_MS`,
+  `OMP_WEB_STALL_CHECK_MS` / `OMP_WEB_STALL_SILENCE_MS=0` disables): an omp
+  worker can deadlock inside its post-turn maintenance routing (observed on
+  18.12.6 with a stale `async-result` yield entry) and never emit the terminal
+  `agent_end` — while still answering `get_state` with `isStreaming: true`
+  forever, so **liveness is not the oracle, only progress is**. Armed at
+  `agent_start`, the wrapper treats every child-originated frame as progress
+  (own `response` replies NEVER count — a reconcile poll proves nothing);
+  after 10 min of silence it probes `get_state` twice: child reporting the
+  run finished ⇒ the swallowed terminal is completed locally (synthetic
+  terminal `agent_end`, held-completion flush, running-badge clear); child
+  still claiming streaming with `messageCount` frozen across both probes ⇒
+  ONE warning notice pointing at `/reload` (never an auto-restart — a long
+  silent tool costs only a dismissible warning; ask/host-tool/compaction
+  waits suppress the probe entirely). `WebSessionState.stalledSuspected`
+  carries the flag; late child activity clears it and re-arms. `/reload`
+  restores the worker-held queue (`queuedMessagesRef`) into the composer,
+  because the queue lives only inside the child a reload replaces.
 
 ### Cross-session host tools and the ask dialog (`lib/rpc-manager.ts`, `host-tools` channel)
 - Agent-callable host tools (`open_url`, `notify`, `open_file`) are registered per session via `set_host_tools`. While a tab is viewing the session, `host_tool_call` frames go to that session's own event stream and the tab answers with `host_tool_result`. When **no** tab views the session (the user switched sessions mid-run), the call is broadcast to *every* open omp-web tab through `subscribeHostToolCalls()` + the `host-tools` event-stream channel; each tab executes the tool and sends a `host_tool_result`, and the server settles the call on the first one received (`pendingHostTools.delete`, so later duplicates are no-ops).
