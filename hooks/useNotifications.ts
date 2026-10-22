@@ -119,7 +119,8 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  // Delivery to this tab and notification clicks.
+  // Delivery to this tab and notification clicks. Every open goes through
+  // OPEN_SESSION_EVENT, so listeners such as the bell popover see each one.
   useEffect(() => {
     const showToast = (rendered: RenderedNotification, type: NotificationEvent["type"]) => {
       const show = type === "error" ? toast.error : toast.info;
@@ -129,7 +130,7 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
         id: rendered.tag,
         onClick: target ? () => {
           notificationHistory.markRead(rendered.tag);
-          openRef.current(target);
+          window.dispatchEvent(new CustomEvent(OPEN_SESSION_EVENT, { detail: target }));
         } : undefined,
       });
     };
@@ -153,7 +154,7 @@ export function useNotifications({ sessionId, locale, onOpenSession }: { session
       const data: unknown = message.data;
       if (!isRecord(data)) return;
       if (data.type === "omp-open-session" && typeof data.sessionId === "string") {
-        openRef.current(data.sessionId);
+        window.dispatchEvent(new CustomEvent(OPEN_SESSION_EVENT, { detail: data.sessionId }));
         return;
       }
       // A push the service worker showed while this tab was open: the server recorded it; fetch the list.

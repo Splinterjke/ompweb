@@ -16,6 +16,7 @@ import { ToastProvider } from "./ui/toast";
 import { toast } from "./ui/toast";
 import { notificationHistory, useUnreadNotificationCount } from "@/lib/notification-history";
 import { ChatWindow } from "./ChatWindow";
+import { NotificationBell } from "./NotificationBell";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
@@ -1156,17 +1157,26 @@ export function AppShell({ appName }: { appName: string }) {
   });
   const [workbenchRequestedView, setWorkbenchRequestedView] = useState<{ view: WorkbenchView; nonce: number } | null>(null);
   // Notification center (port of upstream f645b6f6/f988972a, pivoted onto the
-  // right workbench): unread notifications badge the workbench toggle, which then
-  // opens the Notifications view; entries become read once the user leaves it.
+  // right workbench; upstream 351237d7): on desktop the top-bar bell's popover
+  // carries the history with the unread badge; mobile keeps the workbench's
+  // Notifications tab and badges the workbench toggle. Entries become read once
+  // the user closes the popover or leaves the tab.
   const unreadNotifications = useUnreadNotificationCount();
   const [workbenchActiveView, setWorkbenchActiveView] = useState<WorkbenchView | null>(null);
-  const viewingNotifications = rightPanelOpen && workbenchActiveView === "notifications" && !settingsTab;
-  const wasViewingNotificationsRef = useRef(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // Settings replaces the top bar; the popover must not linger open there.
   useEffect(() => {
+    if (settingsTab || isMobile) setNotificationsOpen(false);
+  }, [settingsTab, isMobile]);
+  const viewingNotifications = (notificationsOpen || (rightPanelOpen && workbenchActiveView === "notifications")) && !settingsTab;
+  const wasViewingNotificationsRef = useRef(false);
+  // Layout effect: marks read before a notification arriving after the close can join the list.
+  useLayoutEffect(() => {
     if (wasViewingNotificationsRef.current && !viewingNotifications) notificationHistory.markAllRead();
     wasViewingNotificationsRef.current = viewingNotifications;
   }, [viewingNotifications]);
-  const opensNotifications = unreadNotifications > 0 && !viewingNotifications;
+  // On desktop the bell is the unread shortcut; only mobile turns the workbench toggle into one.
+  const opensNotifications = isMobile && unreadNotifications > 0 && !viewingNotifications;
   const panelOpenerLabel = opensNotifications
     ? t("appShell.showNotifications", { count: unreadNotifications })
     : rightPanelOpen ? t("appShell.hideFilePanel") : t("appShell.showFilePanel");
@@ -2382,6 +2392,9 @@ export function AppShell({ appName }: { appName: string }) {
             </button>
           </Tooltip>
         )}
+        {/* Desktop bell (upstream 351237d7): the history popover, left of the
+            workbench toggle; it takes the toggle's old right-edge anchor. */}
+        {!isMobile && <NotificationBell open={notificationsOpen} onOpenChange={setNotificationsOpen} />}
         {/* File-panel opener (port of upstream cace6832): the opener lives in
             the header and dismissal lives inside the panel; focus returns to
             this button. Gated off in swapped mode, whose inline opener at the
@@ -2390,7 +2403,7 @@ export function AppShell({ appName }: { appName: string }) {
           <button
             type="button"
             className="shell-toolbar-btn shell-panel-opener ui-focus-ring"
-            style={{ marginLeft: isMobile ? 0 : "auto", marginRight: "5px" }}
+            style={{ marginLeft: 0, marginRight: "5px" }}
             onClick={() => {
               // Unread notifications turn the workbench toggle into their shortcut.
               if (opensNotifications) {
@@ -2407,7 +2420,7 @@ export function AppShell({ appName }: { appName: string }) {
             aria-pressed={rightPanelOpen}
           >
             {rightPanelOpen ? <X size={16} strokeWidth={1.8} aria-hidden="true" /> : <PanelRight size={16} strokeWidth={1.8} aria-hidden="true" />}
-            {unreadNotifications > 0 && (
+            {isMobile && unreadNotifications > 0 && (
               <span aria-hidden="true" className="panel-opener-badge">
                 {unreadNotifications > 99 ? "99+" : unreadNotifications}
               </span>

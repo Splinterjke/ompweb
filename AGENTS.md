@@ -315,7 +315,8 @@ components/
   CommandPalette.tsx  ⌘K/Ctrl+K palette (cmdk): session switch, new session, theme
   ImageLightbox.tsx   click-to-preview lightbox for chat images (ClickableImage)
   BranchNavigator.tsx in-session branch switcher
-  NotificationList.tsx  workbench Notifications tab: the persisted notification history (`lib/notification-history.ts`)
+  NotificationList.tsx  notification history list + Mark all read/Clear toolbar (workbench tab, desktop bell popover)
+  NotificationBell.tsx  desktop top-bar bell: unread badge + floating history popover (upstream 351237d7)
   ChatMinimap.tsx     scroll minimap alongside the message list
   EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
   EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
@@ -1561,7 +1562,10 @@ stored `omp-web:submit-during-run` choice overrides it.
   (502 with the push service's answer on failure) and shows a local
   notification otherwise, or a toast where none are allowed.
 - The in-app notification center (port of upstream PR #230 P2, storage in
-  PR #254): the workbench's Notifications tab lists the server's notification
+  PR #254, top-bar bell from upstream 351237d7): on desktop the notification
+  history opens from a **bell in the top bar** (unread badge + a floating
+  popover, `NotificationBell`); on phones the workbench's Notifications tab
+  carries it and the workbench toggle shows the badge.
   history (`lib/notification-history.ts`, a mirror of
   `/api/notifications/history`). `publishNotification` records every
   notification type some device has turned on (completed, input, error, model
@@ -1575,10 +1579,12 @@ stored `omp-web:submit-during-run` choice overrides it.
   SSE without a refetch, and reloads when the service worker reports a push it
   showed. Entries store the `NotificationEvent` and render in the viewer's
   language; `NotificationList.tsx` (`NotificationListView`) adds a toolbar
-  (Mark all as read, Clear all) and per-entry dismiss. Unread entries badge the
-  workbench toggle, which then opens that tab. Clicking a row, or Enter, marks
-  it read and opens its session (`OPEN_SESSION_EVENT`). Entries become read
-  when the user leaves the tab (only the entries it showed), uses Mark all as
+  (Mark all as read, Clear all) and per-entry dismiss. On desktop the bell
+  carries the unread badge and its popover closes when a notification opens a
+  session (every open — rows, toasts, worker clicks — goes through
+  `OPEN_SESSION_EVENT`); on mobile unread entries badge the workbench toggle,
+  which then opens that tab. Entries become read when the user closes the
+  popover or leaves the tab (only the entries it showed), uses Mark all as
   read, or opens the notification from its toast or row; a reused id
   (`<sessionId>:<type>`) is unread again — it is a new notification. Mark-read,
   remove and clear update the list at once, then the server; a failed request
@@ -1589,7 +1595,8 @@ stored `omp-web:submit-during-run` choice overrides it.
   prefs but only ever read in the browser). The server records for every
   device, so this pref cannot gate recording; it is a VIEW switch
   (`setNotificationHistoryRecording()` in `lib/notification-history.ts`):
-  while off, the tab, the unread count and the opener badge read as empty,
+  while off, the tab, the bell popover, the unread counts and the bell/opener
+  badges read as empty,
   recording continues server-side, loads and SSE deliveries keep filling the
   hidden mirror, and the entries reappear when it is turned back on (bulk
   read/clear operations while off act on the empty visible snapshot, i.e. are

@@ -3396,7 +3396,8 @@ html.dark .dropdown-surface :is(select, option) {
   cursor: default;
   opacity: 0.5;
 }
-.shell-toolbar-btn[aria-pressed="true"] {
+.shell-toolbar-btn[aria-pressed="true"],
+.shell-toolbar-btn[data-popup-open] {
   background: var(--bg-selected);
   color: var(--text);
 }
@@ -3404,9 +3405,15 @@ html.dark .dropdown-surface :is(select, option) {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
-/* Unread-notification count on the workbench toggle (upstream f645b6f6/f988972a). */
-.shell-panel-opener {
+/* Unread-notification count on the workbench toggle (mobile) and the top-bar
+   bell (desktop, upstream 351237d7); the bell also takes the right-edge anchor
+   the toggle used to hold, so it sits left of the toggle. */
+.shell-panel-opener,
+.shell-notification-bell {
   position: relative;
+}
+.shell-notification-bell {
+  margin-left: auto;
 }
 .panel-opener-badge {
   position: absolute;
