@@ -11,7 +11,7 @@ import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { NotificationListView } from "../NotificationList";
 import { useUnreadNotificationCount } from "@/lib/notification-history";
-
+import { matchMobileViewport, useIsMobile } from "@/hooks/useIsMobile";
 export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
 // The workbench intentionally has one axis only.  A second axis (or a
 // draggable dock) made the right rail feel like a nested window manager and
@@ -53,6 +53,21 @@ function normalizeLayout(value: unknown): Layout {
     orientation: "vertical",
     split: typeof candidate.split === "number" && Number.isFinite(candidate.split) ? Math.min(78, Math.max(22, candidate.split)) : 50,
     panes: panes.length > 0 ? panes : emptyLayout().panes,
+  };
+}
+
+
+/** Desktop reads the history from the top-bar bell (upstream 351237d7): the
+ *  persisted Notifications tabs must not survive a desktop layout load. */
+function withoutNotifications(layout: Layout): Layout {
+  if (!layout.panes.some((pane) => pane.tabs.includes("notifications"))) return layout;
+  return {
+    ...layout,
+    panes: layout.panes.map((pane) => {
+      if (!pane.tabs.includes("notifications")) return pane;
+      const tabs = pane.tabs.filter((tab) => tab !== "notifications");
+      return { ...pane, tabs, active: pane.active === "notifications" ? tabs[0] ?? null : pane.active };
+    }),
   };
 }
 
@@ -236,6 +251,8 @@ export function RightWorkbench({
 }) {
   const { t } = useI18n();
   const unreadNotifications = useUnreadNotificationCount();
+  // Desktop opens the history from the top-bar bell; this surface is the phone's (upstream 351237d7).
+  const isMobile = useIsMobile();
   const [layout, setLayout] = useState<Layout>(emptyLayout);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -246,7 +263,10 @@ export function RightWorkbench({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(key);
-      if (saved) setLayout(normalizeLayout(JSON.parse(saved)));
+      if (saved) {
+        const parsed = normalizeLayout(JSON.parse(saved));
+        setLayout(matchMobileViewport() ? parsed : withoutNotifications(parsed));
+      }
     } catch { /* private browsing / malformed old state */ }
     setReady(true);
   }, [key]);
@@ -256,7 +276,15 @@ export function RightWorkbench({
     try { window.localStorage.setItem(key, JSON.stringify(layout)); } catch { /* ignore storage quota */ }
   }, [key, layout, ready]);
 
+  // Widening the window hands the history back to the bell; the bell-side
+  // mark-read-on-close keeps the entries accounted for.
+  useEffect(() => {
+    if (isMobile) return;
+    setLayout(withoutNotifications);
+  }, [isMobile]);
+
   const openView = useCallback((view: WorkbenchView) => {
+    if (view === "notifications" && !matchMobileViewport()) return;
     setLayout((current) => {
       const existingIndex = current.panes.findIndex((pane) => pane.tabs.includes(view));
       if (existingIndex >= 0) return { ...current, panes: current.panes.map((pane, index) => index === existingIndex ? { ...pane, active: view } : pane) };
@@ -311,7 +339,8 @@ export function RightWorkbench({
     return <BrowserView />;
   }, [agents, cwd, files, onOpenFile, worktrees]);
 
-  const actions = useMemo(() => ["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[], []);
+  // The Notifications entry belongs to the top-bar bell on desktop (upstream 351237d7).
+  const actions = useMemo(() => (["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[]).filter((view) => isMobile || view !== "notifications"), [isMobile]);
   const emptyActions = actions;
 
   const updateMenuPosition = useCallback(() => {
