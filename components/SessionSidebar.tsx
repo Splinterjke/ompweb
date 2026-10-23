@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
+import { memo, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type Ref, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { AgentMessage, ExitedRpcSession, ManagedProject, RunningSessionMeta, SessionInfo } from "@/lib/types";
 import type { GitStatsPlacement } from "./AppShell";
@@ -19,11 +19,12 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useRunBadges } from "@/hooks/useRunBadges";
 import { clearLastOpenSession, clearLastOpenSessionGlobal, getLastOpenSession, getLastOpenSessionGlobal, setLastOpenSession, setLastOpenSessionGlobal, workspaceKeyOf } from "@/lib/workspace-memory";
-import { groupSessionsByProject, projectActivityCounts, sortManagedProjects } from "@/lib/project-ordering";
+import { groupSessionsByProject, nextPinOrder, orderProjects, projectActivityCounts, type ProjectSortMode } from "@/lib/project-ordering";
+import { comparableProjectPath } from "@/lib/comparable-path";
+import { compileSearchQuery, FIRST_MESSAGE_WEIGHT, scoreSearchFields, searchField, TITLE_WEIGHT } from "@/lib/session-search";
+import { AlertTriangle, Archive, ArrowDownUp, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, Loader2, MoreHorizontal, PanelsTopLeft, Pin, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { openEventStream } from "@/lib/event-stream";
 import { ARCHIVE_OLDER_THAN_BUCKET_MS, type ArchiveOlderThanBucket } from "@/lib/archive-older-than";
-import { comparableProjectPath } from "@/lib/comparable-path";
-import { AlertTriangle, Archive, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, MoreHorizontal, PanelsTopLeft, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
 import { EventActionsPanel } from "./EventActionsPanel";
@@ -188,6 +189,8 @@ const INITIAL_RESTORE_MAX_ATTEMPTS = 4;
 const UNREAD_SESSIONS_STORAGE_KEY = "omp-web:unread-session-ids";
 /** Persisted pixel height of the resizable File Explorer section. */
 const EXPLORER_HEIGHT_KEY = "omp-web:explorer-section-height";
+/** Stable empty list: sort modes that ignore sessions keep their memo inputs fixed. */
+const NO_SESSIONS: SessionInfo[] = [];
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -244,6 +247,28 @@ function saveExpandedProjects(paths: Set<string>): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(EXPANDED_PROJECTS_STORAGE_KEY, JSON.stringify([...paths]));
+  } catch {
+    // ignore storage quota / privacy-mode errors
+  }
+}
+
+const PROJECT_SORT_STORAGE_KEY = "omp-web:project-sort";
+
+function loadProjectSortMode(): ProjectSortMode {
+  if (typeof window === "undefined") return "none";
+  try {
+    const raw = window.localStorage.getItem(PROJECT_SORT_STORAGE_KEY);
+    return raw === "alphabetical" || raw === "updated" ? raw : "none";
+  } catch {
+    return "none";
+  }
+}
+
+function saveProjectSortMode(mode: ProjectSortMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (mode === "none") window.localStorage.removeItem(PROJECT_SORT_STORAGE_KEY);
+    else window.localStorage.setItem(PROJECT_SORT_STORAGE_KEY, mode);
   } catch {
     // ignore storage quota / privacy-mode errors
   }
@@ -312,19 +337,24 @@ const SIDEBAR_BUTTON_TRANSITION = "background var(--dur-fast) var(--ease-out-war
 
 /** Quiet square icon button used across the sidebar chrome (header, section
  *  headers, footer). Stays visually subdued; the accent appears on hover and
- *  when active (e.g. an applied filter). */
+ *  when active (e.g. an applied filter). `menuExpanded` makes it a menu
+ *  trigger (aria-haspopup/aria-expanded instead of aria-pressed). */
 function SidebarIconButton({
+  ref,
   label,
   title,
   onClick,
   active = false,
+  menuExpanded,
   disabled = false,
   children,
 }: {
+  ref?: Ref<HTMLButtonElement>;
   label: string;
   title?: string;
   onClick: () => void;
   active?: boolean;
+  menuExpanded?: boolean;
   disabled?: boolean;
   children: ReactNode;
 }) {
@@ -332,11 +362,14 @@ function SidebarIconButton({
   return (
     <Tooltip content={title ?? label}>
       <button
+      ref={ref}
       type="button"
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      aria-pressed={active}
+      {...(menuExpanded === undefined
+        ? { "aria-pressed": active }
+        : { "aria-haspopup": "menu" as const, "aria-expanded": menuExpanded })}
       style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         width: 26, height: 26, padding: 0, flexShrink: 0, lineHeight: 0,
@@ -454,8 +487,10 @@ function SidebarPortalMenu({
   useEffect(() => {
     if (!open) return;
     const timer = setTimeout(() => {
-      const firstBtn = menuRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])");
-      firstBtn?.focus();
+      // A radio menu opens on its checked item.
+      const menu = menuRef.current;
+      (menu?.querySelector<HTMLButtonElement>('button[aria-checked="true"]:not([disabled])')
+        ?? menu?.querySelector<HTMLButtonElement>("button:not([disabled])"))?.focus();
     }, 0);
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node;
@@ -527,7 +562,7 @@ interface SessionTreeNode {
   children: SessionTreeNode[];
 }
 
-function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
+function buildSessionTree(sessions: SessionInfo[], scores?: Map<string, number>): SessionTreeNode[] {
   const byId = new Map<string, SessionTreeNode>();
   for (const s of sessions) {
     byId.set(s.id, { session: s, children: [] });
@@ -562,9 +597,9 @@ function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
     }
   }
 
-  // Sort each level by modified desc
+  // Sort each level by search score (when searching), then modified desc
   const sort = (nodes: SessionTreeNode[]) => {
-    nodes.sort((a, b) => b.session.modified.localeCompare(a.session.modified));
+    nodes.sort((a, b) => ((scores?.get(b.session.id) ?? 0) - (scores?.get(a.session.id) ?? 0)) || b.session.modified.localeCompare(a.session.modified));
     nodes.forEach((n) => sort(n.children));
   };
   sort(roots);
@@ -824,6 +859,14 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   // tracks the pointer instead of lagging behind a 220ms ease.
   const anyDragging = explorerResize.dragging || schedResize.dragging || eventActionsResize.dragging || usageResize.dragging;
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Workspace sort (per browser). Pins apply only while a sort is active.
+  // The sidebar is server-rendered: start at "none" and read storage after mount.
+  const [projectSortMode, setProjectSortMode] = useState<ProjectSortMode>("none");
+  useEffect(() => setProjectSortMode(loadProjectSortMode()), []);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortButtonRef = useRef<HTMLButtonElement>(null);
+  const closeSortMenu = useCallback(() => setSortMenuOpen(false), []);
+  const pinsActive = projectSortMode !== "none";
 
   // Once the SSE stream has delivered a frame it is the source of truth for
   // running state; late /api/sessions responses must not overwrite it.
@@ -1347,21 +1390,39 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   const selectedProject = useMemo(() => projectRootFor(selectedCwd), [projectRootFor, selectedCwd]);
   // While a fresh optimistic/placeholder is pending (JSONL not yet on disk),
   // freeze ordering so the new project row does not flicker optimistic ->
-  // confirmed position. New projects are allowed to append at the end.
+  // confirmed position. New projects are allowed to append at the end. A
+  // user ordering action (sort mode, pin, manual order) ends the freeze, and
+  // frozen rows still show the fresh project data.
   const hasPendingNewSession = Boolean(optimisticSession || [...runningSessionIds].some((id) => !allSessions.some((ss) => ss.id === id)));
-  const sortedProjectsBase = useMemo(() => sortManagedProjects(visibleProjects), [visibleProjects]);
-  const sortedProjectsRef = useRef<ManagedProject[] | null>(null);
+  // Only "Last updated" reads sessions; other modes must not re-sort on every session refresh.
+  const orderingSessions = projectSortMode === "updated" ? visibleSessions : NO_SESSIONS;
+  const sortedProjectsBase = useMemo(
+    () => orderProjects(visibleProjects, projectSortMode, orderingSessions, (project) => project.alias ?? projectLabel(project.path)),
+    [visibleProjects, projectSortMode, orderingSessions],
+  );
+  const orderingKey = useMemo(
+    () => [projectSortMode, ...projects.map((p) => `${p.path}\t${p.sortOrder ?? ""}\t${p.pinOrder ?? ""}`)].join("\n"),
+    [projectSortMode, projects],
+  );
+  const sortedProjectsRef = useRef<{ key: string; list: ManagedProject[] } | null>(null);
   const sortedProjects = useMemo(() => {
-    if (hasPendingNewSession && sortedProjectsRef.current) {
-      const prev = sortedProjectsRef.current;
-      const prevKeys = new Set(prev.map((p) => comparableProjectPath(p.path)));
-      const next = [...prev];
+    const prev = sortedProjectsRef.current;
+    if (hasPendingNewSession && prev && prev.key === orderingKey) {
+      const fresh = new Map(sortedProjectsBase.map((p) => [comparableProjectPath(p.path), p]));
+      const next = prev.list.map((p) => fresh.get(comparableProjectPath(p.path)) ?? p);
+      const prevKeys = new Set(prev.list.map((p) => comparableProjectPath(p.path)));
       for (const p of sortedProjectsBase) if (!prevKeys.has(comparableProjectPath(p.path))) next.push(p);
       return next;
     }
-    sortedProjectsRef.current = sortedProjectsBase;
     return sortedProjectsBase;
-  }, [sortedProjectsBase, hasPendingNewSession]);
+  }, [sortedProjectsBase, hasPendingNewSession, orderingKey]);
+  // Snapshot only committed orders; render work React discards must not leak into the freeze.
+  useEffect(() => {
+    const prev = sortedProjectsRef.current;
+    if (!hasPendingNewSession || !prev || prev.key !== orderingKey) {
+      sortedProjectsRef.current = { key: orderingKey, list: sortedProjectsBase };
+    }
+  }, [hasPendingNewSession, orderingKey, sortedProjectsBase]);
   useEffect(() => {
     onWorkspaceOptionsChange?.(sortedProjects, selectedProject, selectedCwd);
   }, [onWorkspaceOptionsChange, sortedProjects, selectedProject, selectedCwd]);
@@ -1381,27 +1442,102 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   // visibleProjectEntries filter runs at lower priority. Combines with the 200ms ETag loadSessions
   // debounce already in place — keystrokes never block the main thread on large session lists.
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  const filtersActive = searchOpen || runningOnly || deferredSearchQuery.trim().length > 0;
+  const trimmedSearchQuery = deferredSearchQuery.trim();
+  const filtersActive = searchOpen || runningOnly || trimmedSearchQuery.length > 0;
+  // Transcript matches stream from the server; title matches are scored locally
+  // so results appear on the first keystroke and never wait on a full scan.
+  // Stop (or a new query) aborts the stream; hits found so far stay.
+  const [transcriptSearch, setTranscriptSearch] = useState<{ query: string; scores: Record<string, number>; status: "running" | "done" | "stopped" } | null>(null);
+  const transcriptSearchAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!trimmedSearchQuery) return;
+    const query = trimmedSearchQuery;
+    const controller = new AbortController();
+    transcriptSearchAbortRef.current = controller;
+    // A newer query (or closing the search) aborts too, but is not a user Stop.
+    let superseded = false;
+    const timer = setTimeout(async () => {
+      setTranscriptSearch({ query, scores: {}, status: "running" });
+      let status: "done" | "stopped" = "stopped";
+      // Each merge re-ranks every session; merge streamed batches at most every 200ms.
+      let pending: Record<string, number> = {};
+      let lastFlush = 0;
+      const flush = () => {
+        if (Object.keys(pending).length === 0) return;
+        const batch = pending;
+        pending = {};
+        lastFlush = Date.now();
+        setTranscriptSearch((prev) => (prev?.query === query ? { ...prev, scores: { ...prev.scores, ...batch } } : prev));
+      };
+      try {
+        const res = await fetch(`/api/sessions/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffered = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffered += decoder.decode(value, { stream: true });
+          const lines = buffered.split("\n");
+          buffered = lines.pop() ?? "";
+          for (const line of lines) {
+            const parsed: unknown = line ? JSON.parse(line) : null;
+            if (!parsed || typeof parsed !== "object" || !("scores" in parsed) || !parsed.scores || typeof parsed.scores !== "object") continue;
+            for (const [id, score] of Object.entries(parsed.scores)) if (typeof score === "number") pending[id] = score;
+          }
+          if (Date.now() - lastFlush >= 200) flush();
+        }
+        status = "done";
+      } catch {
+        // Stopped, superseded or failed: the title matches and hits so far stay.
+      }
+      if (superseded) return;
+      flush();
+      setTranscriptSearch((prev) => (prev?.query === query ? { ...prev, status } : prev));
+    }, 250);
+    return () => {
+      superseded = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [trimmedSearchQuery]);
+  const currentTranscriptSearch = transcriptSearch?.query === trimmedSearchQuery ? transcriptSearch : null;
   const visibleProjectEntries = useMemo(() => {
-    const q = deferredSearchQuery.trim().toLowerCase();
-    const entries: { project: ManagedProject; sessions: SessionInfo[] }[] = [];
+    const query = compileSearchQuery(trimmedSearchQuery);
+    const serverScores = currentTranscriptSearch?.scores;
+    const entries: { project: ManagedProject; sessions: SessionInfo[]; scores?: Map<string, number>; rank: number }[] = [];
     for (const project of sortedProjects) {
       let list = sessionsByProject.get(project.path) ?? [];
       if (runningOnly) list = list.filter((s) => runningSessionIds.has(s.id));
-      if (q) {
-        list = list.filter((s) => (s.name ?? "").toLowerCase().includes(q) || s.firstMessage.toLowerCase().includes(q));
+      if (!query) {
+        if (list.length === 0 && runningOnly) continue;
+        entries.push({ project, sessions: list, rank: 0 });
+        continue;
       }
+      const scores = new Map<string, number>();
+      for (const s of list) {
+        // Server scores cover the same title fields plus the transcript; a
+        // session newer than the server's answer falls back to its title.
+        const score = serverScores?.[s.id]
+          ?? scoreSearchFields([searchField(s.name ?? "", TITLE_WEIGHT), searchField(s.firstMessage, FIRST_MESSAGE_WEIGHT)], query);
+        if (score !== null) scores.set(s.id, score);
+      }
+      list = list.filter((s) => scores.has(s.id));
       // Label/alias-only matches surface as empty workspaces; without this
       // clause a custom workspace name would be unfindable by search.
-      if (list.length === 0 && (runningOnly || (q && !projectLabel(project.path).toLowerCase().includes(q) && !(project.alias ?? "").toLowerCase().includes(q)))) continue;
-      entries.push({ project, sessions: list });
+      const labelScore = scoreSearchFields([searchField(projectLabel(project.path), TITLE_WEIGHT), searchField(project.alias ?? "", TITLE_WEIGHT)], query);
+      if (list.length === 0 && (runningOnly || labelScore === null)) continue;
+      entries.push({ project, sessions: list, scores, rank: Math.max(labelScore ?? 0, ...scores.values()) });
     }
+    // Best match first; ties keep the workspace order (stable sort).
+    if (query) entries.sort((a, b) => b.rank - a.rank);
     return entries;
-  }, [sortedProjects, sessionsByProject, runningOnly, deferredSearchQuery, runningSessionIds]);
+  }, [sortedProjects, sessionsByProject, runningOnly, trimmedSearchQuery, currentTranscriptSearch, runningSessionIds]);
 
   const treesByProject = useMemo(() => {
-    const m = new Map<string, ReturnType<typeof buildSessionTree>>();
-    for (const { project, sessions } of visibleProjectEntries) m.set(project.path, buildSessionTree(sessions));
+    const m = new Map<string, SessionTreeNode[]>();
+    for (const { project, sessions, scores } of visibleProjectEntries) m.set(project.path, buildSessionTree(sessions, scores));
     return m;
   }, [visibleProjectEntries]);
   // Paths of the visible workspaces for the git-stats chip in the workspace
@@ -1568,7 +1704,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     }
   }, [addProjectBusy, loadProjects, expandProject, setAddProjectOpen]);
 
-  const handleUpdateProjectPresentation = useCallback(async (projectPath: string, updates: { alias?: string | null; sortOrder?: number | null }) => {
+  const handleUpdateProjectPresentation = useCallback(async (projectPath: string, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }) => {
     try {
       const response = await fetch("/api/projects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: projectPath, ...updates }) });
       if (!response.ok) throw new Error(t("projects.updateFailed"));
@@ -1576,8 +1712,21 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
   }, [loadProjects, t]);
 
+  /** Projects Move up/down and drag can reorder: all of them in manual mode,
+   *  only the pinned ones while a sort is active (the rest follow the sort). */
+  const reorderableProjects = useMemo(
+    () => (pinsActive ? sortedProjects.filter((project) => project.pinOrder !== undefined) : sortedProjects),
+    [pinsActive, sortedProjects],
+  );
+
+  // One ordering write (reorder or pin) at a time: each computes its payload
+  // from the list on screen, which is stale until the previous write reloads it.
+  const orderWriteBusyRef = useRef(false);
+
   /** Persist one whole-list order as a single atomic batched PATCH. */
   const persistProjectOrder = useCallback(async (next: ManagedProject[]) => {
+    if (orderWriteBusyRef.current) return;
+    orderWriteBusyRef.current = true;
     try {
       // One batched request: the server applies every entry in a single
       // atomic registry save, so per-project writes can't interleave and lose
@@ -1585,20 +1734,22 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       const response = await fetch("/api/projects", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates: next.map((project, index) => ({ cwd: project.path, sortOrder: index })) }),
+        body: JSON.stringify({ updates: next.map((project, index) => ({ cwd: project.path, ...(pinsActive ? { pinOrder: index } : { sortOrder: index }) })) }),
       });
       if (!response.ok) throw new Error(t("projects.reorderFailed"));
       await loadProjects();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      orderWriteBusyRef.current = false;
     }
-  }, [loadProjects, t]);
+  }, [loadProjects, pinsActive, t]);
 
   const handleProjectDrop = useCallback(async (targetPath: string) => {
     const sourcePath = draggedProjectPath;
     setDraggedProjectPath(null);
     if (!sourcePath || sourcePath === targetPath) return;
-    const next = [...sortedProjects];
+    const next = [...reorderableProjects];
     const from = next.findIndex((project) => project.path === sourcePath);
     const to = next.findIndex((project) => project.path === targetPath);
     if (from < 0 || to < 0) return;
@@ -1606,11 +1757,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     if (!moved) return;
     next.splice(to, 0, moved);
     await persistProjectOrder(next);
-  }, [draggedProjectPath, sortedProjects, persistProjectOrder]);
+  }, [draggedProjectPath, reorderableProjects, persistProjectOrder]);
 
   /** Keyboard-accessible reorder: move one project up/down the list. */
   const handleMoveProject = useCallback(async (projectPath: string, delta: -1 | 1) => {
-    const next = [...sortedProjects];
+    const next = [...reorderableProjects];
     const index = next.findIndex((project) => project.path === projectPath);
     const target = index + delta;
     if (index < 0 || target < 0 || target >= next.length) return;
@@ -1618,7 +1769,30 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     if (!moved) return;
     next.splice(target, 0, moved);
     await persistProjectOrder(next);
-  }, [sortedProjects, persistProjectOrder]);
+  }, [reorderableProjects, persistProjectOrder]);
+
+  /** Pin to the end of the pinned group, or unpin. */
+  const handleTogglePin = useCallback(async (project: ManagedProject) => {
+    if (orderWriteBusyRef.current) return;
+    orderWriteBusyRef.current = true;
+    const pinOrder = project.pinOrder !== undefined ? null : nextPinOrder(sortedProjects);
+    try {
+      await handleUpdateProjectPresentation(project.path, { pinOrder });
+    } catch {
+      // handleUpdateProjectPresentation already toasted the failure.
+    } finally {
+      orderWriteBusyRef.current = false;
+    }
+  }, [sortedProjects, handleUpdateProjectPresentation]);
+
+  // The local portal menus have no container-level close handler (rows close
+  // their own items), so the item click closes the menu and returns focus.
+  const chooseProjectSortMode = useCallback((mode: ProjectSortMode) => {
+    setProjectSortMode(mode);
+    saveProjectSortMode(mode);
+    setSortMenuOpen(false);
+    sortButtonRef.current?.focus();
+  }, []);
 
   const handleRemoveProject = useCallback(async (projectPath: string) => {
     if (removeProjectPath) return;
@@ -2083,7 +2257,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         </Tooltip>
       </div>
 
-      {/* Workspaces section header: label + search / filter / add */}
+      {/* Workspaces section header: label + search / sort / filter / add */}
       <div className="sidebar-section-header" style={{ flexShrink: 0, padding: "4px 6px 2px 8px", display: "flex", alignItems: "center", gap: 2, transition: "background var(--dur-fast) var(--ease-out-warm)" }}>
         <button
           type="button"
@@ -2129,6 +2303,35 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
           <Search size={15} strokeWidth={1.9} aria-hidden="true" />
         </SidebarIconButton>
         <SidebarIconButton
+          ref={sortButtonRef}
+          label={t("projects.sort")}
+          active={pinsActive || sortMenuOpen}
+          menuExpanded={sortMenuOpen}
+          onClick={() => setSortMenuOpen((open) => !open)}
+        >
+          <ArrowDownUp size={15} strokeWidth={1.9} aria-hidden="true" />
+        </SidebarIconButton>
+        <SidebarPortalMenu anchor={sortButtonRef} open={sortMenuOpen} onClose={closeSortMenu} placement="below" minWidth={150}>
+          {([
+            ["none", t("projects.sortNone")],
+            ["alphabetical", t("projects.sortAlphabetical")],
+            ["updated", t("projects.sortUpdated")],
+          ] as const).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              role="menuitemradio"
+              aria-checked={projectSortMode === mode}
+              className="sidebar-menu-item"
+              onClick={() => chooseProjectSortMode(mode)}
+              style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
+            >
+              <Check size={12} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0, visibility: projectSortMode === mode ? "visible" : "hidden" }} />
+              {label}
+            </button>
+          ))}
+        </SidebarPortalMenu>
+        <SidebarIconButton
           label={t("sessionSidebar.filterRunning")}
           title={t("sessionSidebar.filterRunningTitle")}
           active={runningOnly}
@@ -2152,6 +2355,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         <div style={{ padding: "0 10px 6px", flexShrink: 0 }}>
           <input
             ref={searchInputRef}
+            maxLength={500}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -2178,6 +2382,23 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
           />
+          {currentTranscriptSearch && currentTranscriptSearch.status !== "done" && (
+            <div role="status" aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", lineHeight: 1.35 }}>
+              {currentTranscriptSearch.status === "running" && <Loader2 size={11} strokeWidth={2} className="animate-spin" style={{ flexShrink: 0 }} aria-hidden="true" />}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                {t(currentTranscriptSearch.status === "running" ? "sessionSidebar.searchingTranscripts" : "sessionSidebar.searchStopped")}
+              </span>
+              {currentTranscriptSearch.status === "running" && (
+                <button
+                  type="button"
+                  onClick={() => transcriptSearchAbortRef.current?.abort()}
+                  style={{ flexShrink: 0, padding: "1px 6px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
+                >
+                  {t("sessionSidebar.stopSearch")}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2249,7 +2470,9 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                 onDragPathChange={setDraggedProjectPath}
                 onDropProject={(path) => void handleProjectDrop(path)}
                 onMoveProject={(path, delta) => void handleMoveProject(path, delta)}
-                isDragTarget={draggedProjectPath !== null && draggedProjectPath !== project.path}
+                pinnable={pinsActive}
+                onTogglePin={handleTogglePin}
+                isDragTarget={draggedProjectPath !== null && draggedProjectPath !== project.path && (!pinsActive || project.pinOrder !== undefined)}
                 removeBusy={removeProjectPath === project.path}
                 onSelectSession={handleSelectSessionFromList}
                 onRenamed={loadSessions}
@@ -2567,10 +2790,13 @@ interface ProjectRowProps {
   onActivate: (path: string) => void;
   onToggleExpand: (path: string) => void;
   onRemoveProject: (path: string) => void;
-  onUpdatePresentation: (path: string, updates: { alias?: string | null; sortOrder?: number | null }) => void;
+  onUpdatePresentation: (path: string, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }) => void;
   onDragPathChange: (path: string | null) => void;
   onDropProject: (path: string) => void;
   onMoveProject: (path: string, delta: -1 | 1) => void;
+  /** A sort is active: show the pin toggle; only pinned rows reorder by hand. */
+  pinnable: boolean;
+  onTogglePin: (project: ManagedProject) => Promise<void>;
   isDragTarget: boolean;
   removeBusy: boolean;
   onSelectSession: (s: SessionInfo) => void;
@@ -2620,6 +2846,8 @@ function ProjectRow({
   onDragPathChange,
   onDropProject,
   onMoveProject,
+  pinnable,
+  onTogglePin,
   isDragTarget,
   removeBusy,
   onSelectSession,
@@ -2743,6 +2971,8 @@ function ProjectRow({
     }
   }, [project.path, t, tn, onBulkArchived]);
   const label = project.alias ?? projectLabel(project.path);
+  const pinned = pinnable && project.pinOrder !== undefined;
+  const canReorder = !pinnable || pinned;
   const hasActivity = Boolean(activity && (activity.running > 0 || activity.unread > 0 || (activity.exited ?? 0) > 0));
   const visibleRoots = hiddenCount > 0 && !showAllSessions
     ? tree.slice(0, MAX_PROJECT_SESSIONS)
@@ -2772,7 +3002,7 @@ function ProjectRow({
     <section className="sidebar-project" data-active={isActive ? "true" : "false"} style={{ marginBottom: 12 }}>
       <div
         className="sidebar-project-header"
-        draggable={!aliasEditing}
+        draggable={!aliasEditing && canReorder}
         onDragStart={(event) => { event.dataTransfer.setData("text/plain", project.path); event.dataTransfer.effectAllowed = "move"; onDragPathChange(project.path); }}
         onDragOver={(event) => { if (isDragTarget) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }}
         onDrop={(event) => { event.preventDefault(); onDropProject(project.path); }}
@@ -3055,9 +3285,25 @@ function ProjectRow({
         )}
         <div
           style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 2,
             flexShrink: 0,
           }}
         >
+          {pinnable && (
+            <button
+              type="button"
+              className="sidebar-project-action"
+              onClick={() => void onTogglePin(project)}
+              aria-label={t("projects.pin", { name: label })}
+              title={pinned ? t("projects.unpin", { name: label }) : t("projects.pin", { name: label })}
+              aria-pressed={pinned}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: pinned ? "var(--accent)" : "var(--text-dim)", cursor: "pointer", lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
+            >
+              <Pin size={13} strokeWidth={2} fill={pinned ? "currentColor" : "none"} aria-hidden="true" />
+            </button>
+          )}
           <Tooltip content={t("commandPalette.actions")}>
             <button
             type="button"
@@ -3103,12 +3349,16 @@ function ProjectRow({
                 <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void revealInFileManager(project.path); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                   {t("fileExplorer.revealInFileManager")}
                 </button>
-                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-                  {t("projects.moveUp")}
-                </button>
-                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
-                  {t("projects.moveDown")}
-                </button>
+                {canReorder && (
+                  <>
+                    <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, -1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                      {t("projects.moveUp")}
+                    </button>
+                    <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { setActionMenuOpen(false); void onMoveProject(project.path, 1); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+                      {t("projects.moveDown")}
+                    </button>
+                  </>
+                )}
                 <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => setArchiveSubmenuOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                   <span>{t("projects.archiveOlderThan")}</span>
                   <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />

@@ -29,6 +29,8 @@ export interface ProjectRegistryEntry {
   alias?: string;
   /** Explicit sidebar position; lower values appear first. */
   sortOrder?: number;
+  /** Set when pinned: position among pinned workspaces; lower first. */
+  pinOrder?: number;
 }
 
 export interface ProjectRegistryFile {
@@ -76,6 +78,7 @@ export function parseProjectRegistry(raw: string): ProjectRegistryFile {
         hidden: "hidden" in item && item.hidden === true,
         alias: "alias" in item && typeof item.alias === "string" && item.alias.trim() ? item.alias.trim() : undefined,
         sortOrder: "sortOrder" in item && typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder) ? item.sortOrder : undefined,
+        pinOrder: "pinOrder" in item && typeof item.pinOrder === "number" && Number.isFinite(item.pinOrder) ? item.pinOrder : undefined,
       });
     }
     return { version: 1, projects: entries };
@@ -127,14 +130,14 @@ export function upsertProject(
   return { version: 1, projects };
 }
 
-/** Apply display-only updates (alias, sortOrder) to any number of projects in
+/** Apply display-only updates (alias, sortOrder, pinOrder) to any number of projects in
  *  ONE atomic operation — the caller persists the result once, so concurrent
  *  single-entry writes can never lose each other's changes. Paths that match
  *  no registry entry are ignored; callers wanting session-discovered projects
  *  managed must register them in the same cycle (see /api/projects PATCH). */
 export function updateProjectsPresentation(
   registry: ProjectRegistryFile,
-  updates: ReadonlyArray<{ path: string; alias?: string | null; sortOrder?: number | null }>,
+  updates: ReadonlyArray<{ path: string; alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }>,
 ): ProjectRegistryFile {
   const keyed = new Map(updates.map((update) =>
     [comparableProjectPath(canonicalProjectPath(update.path)), update] as const,
@@ -153,6 +156,10 @@ export function updateProjectsPresentation(
       if (update.sortOrder !== undefined) {
         if (update.sortOrder === null) delete next.sortOrder;
         else next.sortOrder = update.sortOrder;
+      }
+      if (update.pinOrder !== undefined) {
+        if (update.pinOrder === null) delete next.pinOrder;
+        else next.pinOrder = update.pinOrder;
       }
       return next;
     }),
@@ -194,7 +201,7 @@ export function mergeProjects(registry: ProjectRegistryFile, discovered: Iterabl
     const key = comparableProjectPath(p.path);
     if (registeredSeen.has(key)) continue; // tolerate hand-edited duplicates
     registeredSeen.add(key);
-    registered.push({ path: p.path, addedAt: p.addedAt, alias: p.alias, sortOrder: p.sortOrder });
+    registered.push({ path: p.path, addedAt: p.addedAt, alias: p.alias, sortOrder: p.sortOrder, pinOrder: p.pinOrder });
   }
   const extra: ManagedProject[] = [];
   const extraSeen = new Set<string>();

@@ -218,6 +218,7 @@ Shared foundations in `lib/omp/`:
 ```
 app/api/
   sessions/route.ts               GET  list all sessions
+  sessions/search/route.ts        GET ?q= — NDJSON { scores } batches (titles + transcripts); closing the request stops the scan
   sessions/[id]/route.ts          GET/PATCH/DELETE session
   sessions/[id]/context/route.ts  GET ?leafId= — context for a specific leaf
   sessions/[id]/export/route.ts   GET exported HTML for a session
@@ -289,6 +290,8 @@ lib/
   schedule.ts          ScheduleSpec (interval/daily/weekdays/weekly/cron/manual) + next-slot math
   scheduler-seed.test.mjs  seeds the rebuild script as a "Manual launch" scheduler on boot
   session-reader.ts    session .jsonl parsing + path cache + buildSessionContext
+  session-search.ts    shared fuzzy/phrase query scorer for sidebar search (title weights ≫ transcript)
+  session-content-search.ts  server: per-file transcript text cache (size+mtime) + searchSessions()
   session-resume.ts    mid-run session tracker (on-disk list) + resume prompt; resume orchestration lives in rpc-manager
   skills-service.ts    skill listing via `omp skill list --json`; pure-Node replica scan as fallback
   tool-presets.ts      PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
@@ -1053,10 +1056,16 @@ stored `omp-web:submit-during-run` choice overrides it.
 - `GET /api/projects` re-authorizes registered roots with `allowFileRoot()` —
   the in-memory browse allowlist does not survive restarts, and empty managed
   projects derive no root from sessions.
-- The client sorts the merged list by most-recently-added (registration
-  order), then by path for session-discovered projects
-  (`lib/project-ordering.ts`); the order deliberately does NOT depend on
-  session activity, so project rows never jump around while sessions refresh.
+- By default (sort "None") the client orders the merged list manually
+  (`sortOrder`, set by drag/Move up/down), then most-recently-added, then by
+  path (`lib/project-ordering.ts`), so rows never jump while sessions refresh.
+  The header sort button (`omp-web:project-sort` in `localStorage`, per
+  browser) switches to Alphabetical (label A→Z) or Last updated (newest last
+  message first: `lastMessageAt` from the session tail scan, else the file
+  mtime) — the latter deliberately reorders on activity. While a
+  sort is active, rows get a pin toggle: pinned projects (`pinOrder` in the
+  registry, pinned to the end of the group) lead in their own manual order and
+  alone keep Move up/down and drag; pins are ignored under "None".
   Expanded project paths live
   in `localStorage` (`omp-web:expanded-projects`), defaulting to only the
   active/restored project expanded, and stale keys are pruned against the
