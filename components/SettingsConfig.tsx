@@ -61,7 +61,7 @@ type UpdateState = {
 
 type NativeSettings = {
   defaultThinkingLevel?: "auto" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
+  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor"; tinyModelDevice?: "default" | "gpu" | "cpu" | "mlx" | "metal" | "webgpu" | "cuda" | "dml" | "coreml" | "auto" | "wasm" | "webnn" | "webnn-gpu" | "webnn-cpu" | "webnn-npu"; tinyModelDtype?: "default" | "q4" | "q4f16" | "q8" | "fp16" | "fp32" | "int8" | "uint8" | "bnb4" | "q2" | "q2f16" | "q1" | "q1f16" | "auto" };
   hideThinkingBlock?: boolean;
   externalThinking?: boolean;
   textVerbosity?: "low" | "medium" | "high";
@@ -90,6 +90,7 @@ type NativeSettings = {
     experimentalContextManagement?: boolean;
   };
   branchSummary?: { enabled?: boolean; reserveTokens?: number };
+  title?: { generator?: "fork" | "tiny"; icons?: "nf+emoji" | "emoji" | "boring"; refreshOnReplan?: boolean };
   memory?: { backend?: "off" | "local" | "mnemopi" | "hindsight" };
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
   mnemopi?: { scoping?: "global" | "per-project" | "per-project-tagged"; autoRecall?: boolean; autoRetain?: boolean; noEmbeddings?: boolean };

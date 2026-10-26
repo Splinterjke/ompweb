@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { useI18n } from "@/lib/i18n";
-import type { NativeSettings } from "@/lib/omp/settings-config";
+import type { NativeSettings, TinyModelDevice, TinyModelDtype } from "@/lib/omp/settings-config";
 import { ToggleSwitch } from "./ui/field";
 
 interface Props {
@@ -47,6 +47,51 @@ const subHeadingStyle: React.CSSProperties = {
   color: "var(--text-dim)",
   marginTop: 2,
 };
+
+const fieldLabelStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
+  color: "var(--text-muted)",
+};
+
+/** `providers.tinyModelDevice` choices, mirroring omp's own picker. */
+const TINY_DEVICE_OPTIONS: ReadonlyArray<{ value: TinyModelDevice; label: string }> = [
+  { value: "default", label: "Default (CPU-only ONNX)" },
+  { value: "gpu", label: "GPU (WebGPU/Metal/CUDA/DirectML)" },
+  { value: "cpu", label: "CPU" },
+  { value: "mlx", label: "MLX (Apple silicon, macOS arm64)" },
+  { value: "metal", label: "Metal (alias for MLX)" },
+  { value: "webgpu", label: "WebGPU" },
+  { value: "cuda", label: "CUDA (Linux x64)" },
+  { value: "dml", label: "DirectML (Windows)" },
+  { value: "coreml", label: "CoreML (opt-in)" },
+  { value: "auto", label: "Auto (ONNX Runtime chooses)" },
+  { value: "wasm", label: "WASM" },
+  { value: "webnn", label: "WebNN" },
+  { value: "webnn-gpu", label: "WebNN GPU" },
+  { value: "webnn-cpu", label: "WebNN CPU" },
+  { value: "webnn-npu", label: "WebNN NPU" },
+];
+
+/** `providers.tinyModelDtype` choices, mirroring omp's own picker. */
+const TINY_DTYPE_OPTIONS: ReadonlyArray<{ value: TinyModelDtype; label: string }> = [
+  { value: "default", label: "Default (shipped dtype, q4)" },
+  { value: "q4", label: "q4 (smallest, fastest)" },
+  { value: "q4f16", label: "q4f16" },
+  { value: "q8", label: "q8" },
+  { value: "fp16", label: "fp16" },
+  { value: "fp32", label: "fp32" },
+  { value: "int8", label: "int8" },
+  { value: "uint8", label: "uint8" },
+  { value: "bnb4", label: "bnb4" },
+  { value: "q2", label: "q2" },
+  { value: "q2f16", label: "q2f16" },
+  { value: "q1", label: "q1" },
+  { value: "q1f16", label: "q1f16" },
+  { value: "auto", label: "Auto" },
+];
 
 /** One setting row: label + what it does on the left, switch on the right. */
 function SwitchRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
@@ -190,6 +235,73 @@ export function NativeExtrasSetting({ settings, loading = false, error = null, o
               checked={settings.skills?.enableClaudeProject ?? false}
               onChange={(v) => onPatchSection("skills", { enableClaudeProject: v })}
             />
+          </div>
+
+          {/* Session titles: omp's own generator knobs (`title.*`). The web's
+              generateTitle() fully delegates to omp (generate_title RPC, /rename
+              fallback), so these decide what a generated title actually is. */}
+          <div style={cardStyle}>
+            <span style={cardTitleStyle}>{t("settingsConfig.sessionTitlesCard")}</span>
+            <label style={fieldLabelStyle}>
+              {t("settingsConfig.titleGenerator")}
+              <select
+                value={settings.title?.generator ?? "fork"}
+                onChange={(e) => onPatchSection("title", { generator: e.target.value as "fork" | "tiny" })}
+                style={inputStyle}
+              >
+                <option value="fork">{t("settingsConfig.titleGeneratorFork")}</option>
+                <option value="tiny">{t("settingsConfig.titleGeneratorTiny")}</option>
+              </select>
+            </label>
+            <label style={fieldLabelStyle}>
+              {t("settingsConfig.titleIcons")}
+              <select
+                value={settings.title?.icons ?? "nf+emoji"}
+                onChange={(e) => onPatchSection("title", { icons: e.target.value as "nf+emoji" | "emoji" | "boring" })}
+                style={inputStyle}
+              >
+                <option value="nf+emoji">{t("settingsConfig.titleIconsNfEmoji")}</option>
+                <option value="emoji">{t("settingsConfig.titleIconsEmoji")}</option>
+                <option value="boring">{t("settingsConfig.titleIconsBoring")}</option>
+              </select>
+            </label>
+            <SwitchRow
+              label={t("settingsConfig.titleRefreshOnReplan")}
+              description={t("settingsConfig.titleRefreshOnReplanDesc")}
+              checked={settings.title?.refreshOnReplan ?? true}
+              onChange={(v) => onPatchSection("title", { refreshOnReplan: v })}
+            />
+          </div>
+
+          {/* Local tiny model (providers.tinyModelDevice / tinyModelDtype):
+              the inference backend omp runs its local title + memory models on. */}
+          <div style={cardStyle}>
+            <span style={cardTitleStyle}>{t("settingsConfig.tinyModelCard")}</span>
+            <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("settingsConfig.tinyModelCardDesc")}</p>
+            <label style={fieldLabelStyle}>
+              {t("settingsConfig.tinyModelDevice")}
+              <select
+                value={settings.providers?.tinyModelDevice ?? "default"}
+                onChange={(e) => onPatchSection("providers", { tinyModelDevice: e.target.value as TinyModelDevice })}
+                style={inputStyle}
+              >
+                {TINY_DEVICE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label style={fieldLabelStyle}>
+              {t("settingsConfig.tinyModelDtype")}
+              <select
+                value={settings.providers?.tinyModelDtype ?? "default"}
+                onChange={(e) => onPatchSection("providers", { tinyModelDtype: e.target.value as TinyModelDtype })}
+                style={inputStyle}
+              >
+                {TINY_DTYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {/* Advanced strings */}

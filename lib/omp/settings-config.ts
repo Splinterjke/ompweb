@@ -51,6 +51,10 @@ export type NativeSettings = {
   branchSummary?: { enabled?: boolean; reserveTokens?: number };
   memory?: { backend?: "off" | "local" | "mnemopi" | "hindsight" };
   autolearn?: { enabled?: boolean; autoContinue?: boolean; minToolCalls?: number };
+  /** Native session-title knobs (omp >= 18.9): what names an untitled session
+   * (`fork` side turn on the session model vs the `tiny` title-role model),
+   * the icon+code card prefix, and the replan refresh. */
+  title?: { generator?: TitleGenerator; icons?: TitleIconMode; refreshOnReplan?: boolean };
   mnemopi?: { scoping?: "global" | "per-project" | "per-project-tagged"; autoRecall?: boolean; autoRetain?: boolean; noEmbeddings?: boolean };
   mcp?: { enableProjectConfig?: boolean; renderMarkdownResults?: boolean; notifications?: boolean; notificationDebounceMs?: number };
   modelRoles?: Record<string, string>;
@@ -60,7 +64,7 @@ export type NativeSettings = {
   bash?: { autoBackground?: { enabled?: boolean } };
   /** omp >= 18.8.6 per-session worktrees; `worktree.base` is the agent-managed tree (read-only surface here). */
   worktree?: { base?: string };
-  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor" };
+  providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor"; tinyModelDevice?: TinyModelDevice; tinyModelDtype?: TinyModelDtype };
   security?: { enabled?: boolean };
   github?: { enabled?: boolean };
   colorBlindMode?: boolean;
@@ -88,6 +92,23 @@ const MEMORY_BACKENDS = new Set(["off", "local", "mnemopi", "hindsight"]);
 const MEMORY_SCOPES = new Set(["global", "per-project", "per-project-tagged"]);
 const CACHE_WARMING_MODES: Record<string, true> = { off: true, streaming: true, idle: true };
 const GOAL_CONTINUATION_MODES: Record<string, true> = { interactive: true, rpc: true };
+/** `title.generator` (omp >= 18.9): a fork side turn of the session-model reply
+ * (default, adds the card icon) or the `tiny` title-role model only. */
+export const TITLE_GENERATORS = ["fork", "tiny"] as const;
+export type TitleGenerator = (typeof TITLE_GENERATORS)[number];
+/** `title.icons`: card prefix on newly generated / renamed titles. */
+export const TITLE_ICON_MODES = ["nf+emoji", "emoji", "boring"] as const;
+export type TitleIconMode = (typeof TITLE_ICON_MODES)[number];
+/** `providers.tinyModelDevice` (omp >= 18.9): ONNX execution provider or `mlx`. */
+export const TINY_MODEL_DEVICES = ["default", "gpu", "cpu", "mlx", "metal", "webgpu", "cuda", "dml", "coreml", "auto", "wasm", "webnn", "webnn-gpu", "webnn-cpu", "webnn-npu"] as const;
+export type TinyModelDevice = (typeof TINY_MODEL_DEVICES)[number];
+/** `providers.tinyModelDtype`: ONNX quantization/precision for local tiny models. */
+export const TINY_MODEL_DTYPES = ["default", "q4", "q4f16", "q8", "fp16", "fp32", "int8", "uint8", "bnb4", "q2", "q2f16", "q1", "q1f16", "auto"] as const;
+export type TinyModelDtype = (typeof TINY_MODEL_DTYPES)[number];
+const TITLE_GENERATOR_VALUES = new Set<string>(TITLE_GENERATORS);
+const TITLE_ICON_MODE_VALUES = new Set<string>(TITLE_ICON_MODES);
+const TINY_MODEL_DEVICE_VALUES = new Set<string>(TINY_MODEL_DEVICES);
+const TINY_MODEL_DTYPE_VALUES = new Set<string>(TINY_MODEL_DTYPES);
 
 function configPath(): string {
   return getSettingsPath();
@@ -199,6 +220,7 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
   const goal = isRecord(data.goal) ? data.goal : {};
   const task = isRecord(data.task) ? data.task : {};
   const telemetry = isRecord(data.telemetry) ? data.telemetry : {};
+  const title = isRecord(data.title) ? data.title : {};
   const registryHasScopedEntries = [data.enabledModels, data.disabledProviders, data.modelProviderOrder]
     .some((value) => Array.isArray(value) && !value.every((item) => typeof item === "string"));
   return {
@@ -265,6 +287,11 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         ...(typeof branchSummary.enabled === "boolean" ? { enabled: branchSummary.enabled } : {}),
         ...(isTokenBudget(branchSummary.reserveTokens) ? { reserveTokens: branchSummary.reserveTokens as number } : {}),
       } } : {}),
+      ...(Object.keys(title).length ? { title: {
+        ...(TITLE_GENERATOR_VALUES.has(title.generator as string) ? { generator: title.generator as TitleGenerator } : {}),
+        ...(TITLE_ICON_MODE_VALUES.has(title.icons as string) ? { icons: title.icons as TitleIconMode } : {}),
+        ...(typeof title.refreshOnReplan === "boolean" ? { refreshOnReplan: title.refreshOnReplan } : {}),
+      } } : {}),
       ...(Object.keys(memory).length ? { memory: { ...(MEMORY_BACKENDS.has(memory.backend as string) ? { backend: memory.backend as "off" | "local" | "mnemopi" | "hindsight" } : {}) } } : {}),
       ...(Object.keys(autolearn).length ? { autolearn: {
         ...(typeof autolearn.enabled === "boolean" ? { enabled: autolearn.enabled } : {}),
@@ -299,6 +326,8 @@ export function readNativeSettings(): { path: string; settings: NativeSettings }
         const providersOut = {
           ...(typeof providers.cacheWarming === "string" && providers.cacheWarming in CACHE_WARMING_MODES ? { cacheWarming: providers.cacheWarming as "off" | "streaming" | "idle" } : {}),
           ...(autoThinkingSource === "classifier" || autoThinkingSource === "vendor" ? { autoThinkingSource: autoThinkingSource as "classifier" | "vendor" } : {}),
+          ...(TINY_MODEL_DEVICE_VALUES.has(providers.tinyModelDevice as string) ? { tinyModelDevice: providers.tinyModelDevice as TinyModelDevice } : {}),
+          ...(TINY_MODEL_DTYPE_VALUES.has(providers.tinyModelDtype as string) ? { tinyModelDtype: providers.tinyModelDtype as TinyModelDtype } : {}),
         };
         return Object.keys(providersOut).length ? { providers: providersOut } : {};
       })(),
@@ -356,6 +385,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
   assertOptionalRecord(settings.goal, "goal");
   assertOptionalRecord(settings.task, "task");
   assertOptionalRecord(settings.telemetry, "telemetry");
+  assertOptionalRecord(settings.title, "title");
   for (const [name, value] of Object.entries({
     hideThinkingBlock: settings.hideThinkingBlock,
     externalThinking: settings.externalThinking,
@@ -394,6 +424,7 @@ export function writeNativeSettings(settings: NativeSettings): void {
     "colorBlindMode": settings.colorBlindMode,
     "contextPromotion.enabled": settings.contextPromotion?.enabled,
     "snapcompact.toolResults": settings.snapcompact?.toolResults,
+    "title.refreshOnReplan": settings.title?.refreshOnReplan,
     "task.speculativeLaunch": settings.task?.speculativeLaunch,
     "telemetry.otlpExportEnabled": settings.telemetry?.otlpExportEnabled,
   })) assertOptionalBoolean(value, name);
@@ -408,6 +439,10 @@ export function writeNativeSettings(settings: NativeSettings): void {
     throw new Error("Invalid Auto thinking source");
   }
   if (settings.providers?.cacheWarming !== undefined && !(settings.providers.cacheWarming in CACHE_WARMING_MODES)) throw new Error("providers.cacheWarming must be one of: off, streaming, idle");
+  if (settings.title?.generator !== undefined && !TITLE_GENERATOR_VALUES.has(settings.title.generator)) throw new Error(`title.generator must be one of: ${TITLE_GENERATORS.join(", ")}`);
+  if (settings.title?.icons !== undefined && !TITLE_ICON_MODE_VALUES.has(settings.title.icons)) throw new Error(`title.icons must be one of: ${TITLE_ICON_MODES.join(", ")}`);
+  if (settings.providers?.tinyModelDevice !== undefined && !TINY_MODEL_DEVICE_VALUES.has(settings.providers.tinyModelDevice)) throw new Error(`providers.tinyModelDevice must be one of: ${TINY_MODEL_DEVICES.join(", ")}`);
+  if (settings.providers?.tinyModelDtype !== undefined && !TINY_MODEL_DTYPE_VALUES.has(settings.providers.tinyModelDtype)) throw new Error(`providers.tinyModelDtype must be one of: ${TINY_MODEL_DTYPES.join(", ")}`);
   if (settings.goal?.continuationModes !== undefined && goalContinuationModes(settings.goal.continuationModes) === undefined) throw new Error("goal.continuationModes must be a non-empty array of: interactive, rpc");
   if (settings.tools?.artifactMaxBytes !== undefined && !isArtifactMb(settings.tools.artifactMaxBytes)) throw new Error("tools.artifactMaxBytes must be an integer between 0 and 1024 (MiB; 0 = unlimited)");
   for (const [key, value] of Object.entries({ "edit.mode": settings.edit?.mode, "composer.shape": settings.composer?.shape, "dev.autoqaConsent": settings.dev?.autoqaConsent, symbolPreset: settings.symbolPreset, "compaction.remoteEndpoint": settings.compaction?.remoteEndpoint })) {
@@ -507,6 +542,11 @@ export function writeNativeSettings(settings: NativeSettings): void {
   if (settings.tools?.artifactMaxBytes !== undefined) doc.setIn(["tools", "artifactMaxBytes"], settings.tools.artifactMaxBytes);
   if (settings.providers?.cacheWarming !== undefined) doc.setIn(["providers", "cacheWarming"], settings.providers.cacheWarming);
   if (autoThinkingSource !== undefined) doc.setIn(["providers", "autoThinkingSource"], autoThinkingSource);
+  if (settings.title?.generator !== undefined) doc.setIn(["title", "generator"], settings.title.generator);
+  if (settings.title?.icons !== undefined) doc.setIn(["title", "icons"], settings.title.icons);
+  if (settings.title?.refreshOnReplan !== undefined) doc.setIn(["title", "refreshOnReplan"], settings.title.refreshOnReplan);
+  if (settings.providers?.tinyModelDevice !== undefined) doc.setIn(["providers", "tinyModelDevice"], settings.providers.tinyModelDevice);
+  if (settings.providers?.tinyModelDtype !== undefined) doc.setIn(["providers", "tinyModelDtype"], settings.providers.tinyModelDtype);
   if (settings.security?.enabled !== undefined) doc.setIn(["security", "enabled"], settings.security.enabled);
   if (settings.github?.enabled !== undefined) doc.setIn(["github", "enabled"], settings.github.enabled);
   if (settings.colorBlindMode !== undefined) doc.set("colorBlindMode", settings.colorBlindMode);
