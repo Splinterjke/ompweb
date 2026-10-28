@@ -875,10 +875,11 @@ stored `omp-web:submit-during-run` choice overrides it.
   collapsible bar (header row with chevron); bars start collapsed (headers
   always show live progress / running-summary).
 - **Live status placement** ("Interface & Behavior" → Show live session
-  status in hub bars, localStorage `omp-web:live-status-placement`, default
-  `"bar"`): the transient phase line (`liveStatusText`, ChatWindow) is hosted
-  in the Tasks/Subagents hub-bar header rows only while a bar actually hosts
-  it AND the placement is `"bar"`; `"inline"` (or no host bar) renders the
+  status in Tasks bar, localStorage `omp-web:live-status-placement`, default
+  `"bar"`): the transient phase line (`liveStatusText`, ChatWindow — e.g.
+  "Waiting for model...", "Thinking...", phase progress) is hosted in the
+  Tasks bar header row (the Subagents bar only when no Tasks bar exists)
+  while the placement is `"bar"`; `"inline"` (or no host bar) renders the
   classic standalone bouncing O-M-P line in the transcript. `liveStatus` is
   passed to `ComposerPanels` as `null` in inline mode, so a bar can never
   claim a status it does not show.
