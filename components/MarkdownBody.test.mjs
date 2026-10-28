@@ -107,3 +107,23 @@ test("returns exact input reference when no math syntax is present and preserves
   const preWithMathLike = "<pre>\n$$x = y$$\n\\[z = w\\]\n\\(a = b\\)\n</pre>";
   assert.equal(normalizeDisplayMath(preWithMathLike), preWithMathLike);
 });
+
+const NUMERIC_TABLE = "| Item | Tokens |\n| ---- | ------ |\n| A    | 8k tok |\n| B    | 2k tok |\n";
+
+test("renders a numeric table as an accessible chart when autoCharts is on", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(MarkdownBody, { cwd: "/home/me/project", onOpenFile() {}, autoCharts: true, isStreaming: false }, NUMERIC_TABLE),
+  );
+
+  assert.match(html, /data-table-chart/);
+  assert.match(html, /class="markdown-table-wrap"/, "the source table stays visible under the chart");
+});
+
+test("keeps charts off while streaming the same numeric table", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(MarkdownBody, { cwd: "/home/me/project", onOpenFile() {}, autoCharts: true, isStreaming: true }, NUMERIC_TABLE),
+  );
+
+  assert.doesNotMatch(html, /data-table-chart/);
+  assert.match(html, /class="markdown-table-wrap"/);
+});

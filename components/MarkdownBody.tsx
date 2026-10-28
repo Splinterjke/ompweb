@@ -8,6 +8,7 @@ import { encodeFilePathForApi } from "@/lib/file-paths";
 import { normalizeDisplayMath, useMarkdownPlugins, type MarkdownPlugins } from "../lib/markdown";
 import { markdownCodeRenderer } from "./MarkdownCode";
 import { ClickableImage } from "./ImageLightbox";
+import { TableChart } from "./TableChart";
 
 interface MarkdownBodyProps {
   children: string;
@@ -15,9 +16,10 @@ interface MarkdownBodyProps {
   isStreaming?: boolean;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
+  autoCharts?: boolean;
 }
 
-export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile }: MarkdownBodyProps) {
+export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile, autoCharts = false }: MarkdownBodyProps) {
   // Skip normalizeDisplayMath while streaming: it scans the entire document
   // on every token batch but math content almost never arrives mid-stream.
   // The normalization runs once on the final committed message instead.
@@ -147,15 +149,17 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
       return imageParts.length > 0 ? <>{anchor}{imageParts}</> : anchor;
     },
     img: imgComponent,
-    table({ children }) {
+    table({ children, node }) {
       return (
+        <TableChart node={node} enabled={autoCharts && !isStreaming}>
         <div className="markdown-table-wrap">
           <table>{children}</table>
         </div>
+        </TableChart>
       );
     },
     };
-  }, [isStreaming, cwd, onOpenFile, openAgentLink]);
+  }, [isStreaming, cwd, onOpenFile, openAgentLink, autoCharts]);
 
   return (
     <div className={["markdown-body", className].filter(Boolean).join(" ")}>
