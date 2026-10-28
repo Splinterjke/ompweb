@@ -9,6 +9,14 @@ export interface WebServerSettings {
    * to continue without repeating completed side effects. ON by default. */
   autoResumeSessions: boolean;
   /**
+   * Server-side agent tools (issue #275: list_sessions / new_session /
+   * send_to_session). OFF by default: when on, any agent session may call
+   * them to reach other sessions, with no browser tab required. Sessions
+   * pick the tools up on their next host-tool registration (session start
+   * or SSE reconnect).
+   */
+  agentToolsEnabled: boolean;
+  /**
    * Generate a session title automatically when a session's FIRST run
    * completes (omp's own generator, tried in role order tiny → commit →
    * smol). OFF by default: the fallback first-message naming is unaffected
@@ -26,7 +34,7 @@ export interface WebServerSettings {
 // auto-resume defaults ON (it preserves the previous always-on behavior —
 // the local restoreActiveRpcSessions had no off switch); auto-title
 // generation defaults OFF, so naming stays a deliberate opt-in.
-const DEFAULTS: WebServerSettings = { autoResumeSessions: true, autoGenerateSessionTitles: false, agentEnv: {} };
+const DEFAULTS: WebServerSettings = { autoResumeSessions: true, agentToolsEnabled: false, autoGenerateSessionTitles: false, agentEnv: {} };
 
 /** String-valued entries only — the allow-list lives in lib/omp/agent-env.ts. */
 function readAgentEnvRecord(value: unknown): Record<string, string> {
@@ -58,6 +66,7 @@ export function loadWebServerSettings(): WebServerSettings {
       if (isRecord(raw)) {
         settings = {
           autoResumeSessions: raw.autoResumeSessions === true,
+          agentToolsEnabled: raw.agentToolsEnabled === true,
           autoGenerateSessionTitles: raw.autoGenerateSessionTitles === true,
           agentEnv: readAgentEnvRecord(raw.agentEnv),
         };

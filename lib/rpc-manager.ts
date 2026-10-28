@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { clearBackendErrors, recordBackendError, recentBackendErrors } from "./backend-errors";
@@ -9,7 +10,16 @@ import { getAgentEnvOverrides } from "./omp/agent-env";
 import { readNativeSettings } from "./omp/settings-config";
 import { scanSessionInfo } from "./omp/session-files";
 import { sanitizeSessionTitle } from "./session-title";
-import { cacheSessionPath, invalidateSessionListCache, readSessionHeader, resolveSessionPath } from "./session-reader";
+import { cacheSessionPath, invalidateSessionListCache, listAllSessions, readSessionHeader, resolveSessionPath } from "./session-reader";
+import { allowFileRoot } from "./file-access";
+import {
+  AGENT_TOOL_DEFINITIONS,
+  AGENT_TOOL_NAMES,
+  AgentToolGuard,
+  executeAgentTool,
+  type AgentToolDeliverResult,
+  type AgentToolSessionOps,
+} from "./agent-tools";
 import { checkSavedSessionModel, classifyStartupFailure, type SessionStartupBinding } from "./session-model-check";
 import { findSessionFileHolders, partitionSessionHolders, terminateHoldersAndWait } from "./session-watcher";
 import { markShuttingDown, recordRunningSessions, RESUME_PROMPT, takeInterruptedSessions } from "./session-resume";
@@ -1201,6 +1211,28 @@ export class AgentSessionWrapper {
       case "host_tool_call": {
         const id = typeof event.id === "string" ? event.id : "";
         const toolName = typeof event.toolName === "string" ? event.toolName : "";
+        // Server-side agent tools (#275) are answered here, before any
+        // browser routing, so they work with no tab open. A disabled gate
+        // is an explicit error, not a silent hang and not a browser call.
+        if (id && toolName && AGENT_TOOL_NAMES.has(toolName)) {
+          if (loadWebServerSettings().agentToolsEnabled) {
+            void this.answerServerAgentTool(event);
+          } else {
+            this.proc.sendFrame({
+              type: "host_tool_result",
+              id,
+              isError: true,
+              result: {
+                content: [{
+                  type: "text",
+                  text: "Agent tools are disabled. Enable \"Agent tools\" in omp-web Settings (System & Updates) first.",
+                }],
+              },
+            });
+            this.emit({ type: "notice", level: "warning", message: `Rejected disabled agent tool: ${toolName}` });
+          }
+          return;
+        }
         // Route REGISTERED host tools to an attached UI (the browser answers
         // via host_tool_result). With no tab on this session, hand the call to
         // any open omp-web tab (the user switched sessions mid-run). Otherwise
@@ -1730,6 +1762,73 @@ export class AgentSessionWrapper {
 
   onDestroy(cb: () => void): void {
     this.onDestroyCallback = cb;
+  }
+
+  /**
+   * Wait for the next `terminalEndsNeeded` terminal turn ends after this
+   * call (terminal agent_end, prompt_result, or prompt_error). The caller
+   * registers the waiter BEFORE sending the prompt/steer/follow_up, so a
+   * fast turn cannot end before the waiter exists. Rejects on timeout;
+   * the target is left running (never aborted by a waiter timeout).
+   * A follow_up sent to a running target needs two ends: the running
+   * turn ends first, then the queued message's own turn ends.
+   */
+  waitForTurnEnd(timeoutMs: number, terminalEndsNeeded = 1): Promise<void> {
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    let done = false;
+    let endsSeen = 0;
+    const timer = setTimeout(() => finish(new Error("Timed out waiting for the target session's response.")), timeoutMs);
+    timer.unref?.();
+    const detach = this.onEvent((event) => {
+      if (event.type === "agent_end" && event.isTerminal === false) return;
+      if (event.type === "agent_end" || event.type === "prompt_result") {
+        endsSeen += 1;
+        if (endsSeen >= terminalEndsNeeded) finish(null);
+      } else if (event.type === "prompt_error") {
+        finish(new Error(typeof event.errorMessage === "string" ? event.errorMessage : "Target session turn failed."));
+      }
+    });
+    const finish = (error: Error | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      detach();
+      if (error) reject(error);
+      else resolve();
+    };
+    return promise;
+  }
+
+  /**
+   * Answer a server-side agent tool call (#275) from this wrapper's child.
+   * Runs on the server, with no browser involved, and answers directly
+   * with host_tool_result — never via pendingHostTools, so a later tab
+   * disconnect cannot settle it as a UI call.
+   */
+  private async answerServerAgentTool(event: AgentEvent): Promise<void> {
+    const id = typeof event.id === "string" ? event.id : "";
+    const toolName = typeof event.toolName === "string" ? event.toolName : "";
+    if (!id) return;
+    const sendResult = (text: string, isError = false) => {
+      this.proc.sendFrame({
+        type: "host_tool_result",
+        id,
+        isError,
+        result: { content: [{ type: "text", text }] },
+      });
+    };
+    try {
+      const args = event.arguments && typeof event.arguments === "object" ? event.arguments as Record<string, unknown> : {};
+      const result = await executeAgentTool(toolName, args, createAgentToolOps(), {
+        sourceSessionId: this.sessionId,
+        sourceCwd: this.cwd,
+        enabled: loadWebServerSettings().agentToolsEnabled,
+        guard: getAgentToolGuard(),
+      });
+      sendResult(typeof result === "string" ? result : JSON.stringify(result));
+    } catch (error) {
+      sendResult(error instanceof Error ? error.message : String(error), true);
+    }
   }
 
   /** Called when a session-changing command re-keyed this wrapper (branch/new_session/switch_session). */
@@ -2363,8 +2462,16 @@ export class AgentSessionWrapper {
       case "set_host_tools": {
         const tools = Array.isArray(command.tools) ? command.tools as Array<{ name?: unknown; [key: string]: unknown }> : [];
         const valid = tools.filter((t) => typeof t.name === "string" && t.name);
-        this.hostToolNames = new Set(valid.map((t) => t.name as string));
-        await this.proc.sendCommand({ type: "set_host_tools", tools: valid });
+        // Merge the server agent tools (#275) into every registration when
+        // the gate is on, so a later UI registration cannot drop them and
+        // a no-tab session keeps them after its startup registration.
+        // With the gate off the registration is exactly what the caller
+        // asked for, so existing behavior and tests are unchanged.
+        const merged = loadWebServerSettings().agentToolsEnabled
+          ? [...valid, ...AGENT_TOOL_DEFINITIONS.filter((t) => !valid.some((v) => v.name === t.name))]
+          : valid;
+        this.hostToolNames = new Set(merged.map((t) => t.name as string));
+        await this.proc.sendCommand({ type: "set_host_tools", tools: merged });
         return null;
       }
 
@@ -2710,6 +2817,94 @@ export async function resumeInterruptedSessions(): Promise<void> {
  * Pass toolNames to pre-configure the builtin toolset of a NEW session
  * (empty array = all tools disabled); ignored when resuming.
  */
+declare global {
+  var __ompAgentToolGuard: AgentToolGuard | undefined;
+}
+
+/** Process-wide loop/spam guard for server agent tools (#275). Stored on
+ * globalThis like the session registry so a hot reload does not silently
+ * reset the chain depths mid-loop. */
+function getAgentToolGuard(): AgentToolGuard {
+  if (!globalThis.__ompAgentToolGuard) globalThis.__ompAgentToolGuard = new AgentToolGuard();
+  return globalThis.__ompAgentToolGuard;
+}
+
+/**
+ * Real session operations behind lib/agent-tools executeAgentTool.
+ * Reuses the existing spawn/resume and message-send paths (startRpcSession,
+ * wrapper.send) instead of a second session engine. Delivery rules, kept
+ * explicit because omp's commands do not all make sense in every state:
+ * - prompt: only when the target is idle (starts a new turn);
+ * - steer: only when the target is running (steers that turn);
+ * - followUp: any state (queues behind a running turn, or starts one
+ *   when idle — omp owns the queue, as with the UI's follow-ups).
+ * A waited delivery registers its turn-end waiter BEFORE sending, then
+ * reads the turn's final text with get_last_assistant_text.
+ */
+function createAgentToolOps(): AgentToolSessionOps {
+  return {
+    async listSessions() {
+      const running = new Set(getRunningRpcSessionIds());
+      const sessions = await listAllSessions();
+      return sessions.map((s) => ({ id: s.id, name: s.name, cwd: s.cwd, running: running.has(s.id) }));
+    },
+
+    async createSession(input) {
+      if (!existsSync(input.cwd)) throw new Error(`Directory does not exist: ${input.cwd}`);
+      const tempKey = `__new__${randomUUID()}`;
+      const { session, realSessionId } = await startRpcSession(tempKey, "", input.cwd, undefined, undefined);
+      allowFileRoot(input.cwd);
+      invalidateSessionListCache();
+      try {
+        if (input.provider && input.modelId) {
+          await session.send({ type: "set_model", provider: input.provider, modelId: input.modelId });
+        }
+        if (input.name) await session.send({ type: "set_session_name", name: input.name });
+        if (input.prompt) await session.send({ type: "prompt", message: input.prompt });
+      } catch (error) {
+        await session.destroyAndWait();
+        throw error;
+      }
+      return { sessionId: realSessionId };
+    },
+
+    async deliver(input): Promise<AgentToolDeliverResult> {
+      const live = getRpcSession(input.sessionId);
+      let wrapper = live?.isAlive() ? live : undefined;
+      if (!wrapper) {
+        const filePath = await resolveSessionPath(input.sessionId);
+        if (!filePath) throw new Error(`Session not found: ${input.sessionId}`);
+        const header = readSessionHeader(filePath);
+        const { cwd } = resolveSpawnCwdResult(header?.cwd);
+        const started = await startRpcSession(input.sessionId, filePath, cwd, undefined, undefined, header?.cwd);
+        wrapper = started.session;
+      }
+      const wasRunning = wrapper.isRunning();
+      if (input.delivery === "prompt" && wasRunning) {
+        throw new Error("Target session is running; use delivery \"steer\" or \"followUp\" for a running target.");
+      }
+      if (input.delivery === "steer" && !wasRunning) {
+        throw new Error("Target session is not running; use delivery \"prompt\" to start a turn.");
+      }
+      const terminalEndsNeeded = input.delivery === "followUp" && wasRunning ? 2 : 1;
+      const waiter = input.wait ? wrapper.waitForTurnEnd(input.waitTimeoutMs, terminalEndsNeeded) : null;
+      await wrapper.send({ type: input.delivery, message: input.message });
+      if (!input.wait || !waiter) {
+        return { accepted: true, targetSessionId: input.sessionId, delivery: input.delivery, waited: false, responseText: null };
+      }
+      await waiter;
+      const last = (await wrapper.send({ type: "get_last_assistant_text" })) as { text?: unknown } | null;
+      return {
+        accepted: true,
+        targetSessionId: input.sessionId,
+        delivery: input.delivery,
+        waited: true,
+        responseText: typeof last?.text === "string" ? last.text : null,
+      };
+    },
+  };
+}
+
 export async function startRpcSession(
   sessionId: string,
   sessionFile: string,
@@ -2869,6 +3064,16 @@ export async function startRpcSession(
       } catch {
         // Recorded on the next successful switch; never fail the start here.
       }
+    }
+
+    // Register server agent tools (#275) at startup when the gate is on,
+    // so a session works for agent-to-agent calls even when no browser
+    // tab ever registers host tools for it. send() merges these with any
+    // later UI registration, so this never drops the UI tools. Older omp
+    // builds without host tools simply reject the registration; ignore
+    // that the way the UI registration does.
+    if (loadWebServerSettings().agentToolsEnabled) {
+      await created.send({ type: "set_host_tools", tools: AGENT_TOOL_DEFINITIONS }).catch(() => {});
     }
 
     const realSessionId = created.sessionId;
