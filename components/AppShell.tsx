@@ -92,12 +92,14 @@ const MESSAGE_TIME_FORMAT_STORAGE_KEY = "omp-web:message-time-format";
 const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
 const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
 const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
+const LIVE_STATUS_PLACEMENT_STORAGE_KEY = "omp-web:live-status-placement";
 const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
 const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
 const CONTEXT_RING_MOBILE_STORAGE_KEY = "omp-web:context-ring-mobile";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
 export type HubBarLayout = "stack" | "row";
+export type LiveStatusPlacement = "bar" | "inline";
 export type ComposerAccentBg = "off" | "dimmed" | "themed";
 export type ContextRingMobilePlacement = "composer" | "topbar" | "hidden";
 export type HubBarsVisibility = { git: boolean; tasks: boolean; subagents: boolean };
@@ -325,6 +327,17 @@ export function AppShell({ appName }: { appName: string }) {
       return window.localStorage.getItem(HUB_BAR_LAYOUT_STORAGE_KEY) === "row" ? "row" : "stack";
     } catch {
       return "stack";
+    }
+  });
+  // Live session status placement (Interface & Behavior): "bar" (default)
+  // merges the transient status into the Tasks/Subagents hub bar headers;
+  // "inline" keeps the classic standalone bouncing O-M-P line.
+  const [liveStatusPlacement, setLiveStatusPlacement] = useState<LiveStatusPlacement>(() => {
+    if (typeof window === "undefined") return "bar";
+    try {
+      return window.localStorage.getItem(LIVE_STATUS_PLACEMENT_STORAGE_KEY) === "inline" ? "inline" : "bar";
+    } catch {
+      return "bar";
     }
   });
   // Per-bar visibility for the composer hub bars (Interface & Behavior
@@ -629,6 +642,14 @@ export function AppShell({ appName }: { appName: string }) {
     setHubBarLayout(layout);
     try {
       window.localStorage.setItem(HUB_BAR_LAYOUT_STORAGE_KEY, layout);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleLiveStatusPlacementChange = useCallback((placement: LiveStatusPlacement) => {
+    setLiveStatusPlacement(placement);
+    try {
+      window.localStorage.setItem(LIVE_STATUS_PLACEMENT_STORAGE_KEY, placement);
     } catch {
       // The preference still applies for this page load.
     }
@@ -2892,6 +2913,7 @@ export function AppShell({ appName }: { appName: string }) {
               messageTimeFormat={messageTimeFormat}
               hubBarLayout={hubBarLayout}
               hubBarsVisible={hubBarsVisible}
+              liveStatusPlacement={liveStatusPlacement}
               composerAccentBg={composerAccentBg}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
@@ -3144,6 +3166,8 @@ export function AppShell({ appName }: { appName: string }) {
         onContextRingMobileChange={handleContextRingMobileChange}
         hubBarLayout={hubBarLayout}
         onHubBarLayoutChange={handleHubBarLayoutChange}
+        liveStatusPlacement={liveStatusPlacement}
+        onLiveStatusPlacementChange={handleLiveStatusPlacementChange}
         hubBarsVisible={hubBarsVisible}
         onHubBarsVisibleChange={handleHubBarsVisibleChange}
         composerAccentBg={composerAccentBg}

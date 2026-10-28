@@ -31,7 +31,7 @@ import {
   updateNotificationPrefs,
   type NotificationSupport,
 } from "@/lib/notification-client";
-import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
+import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 
 const SettingsTabLoading = () => {
   const { t } = useI18n();
@@ -304,6 +304,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "word-completion", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.wordCompletion", descKey: "settingsConfig.wordCompletionDesc", fallbackSection: "Composer & Input", fallbackLabel: "Word completion", fallbackDesc: "Ghost text from omp's word prediction; Tab or → accepts. Auto enables it only with a mouse or trackpad (not on touch keyboards).", scope: "UI" },
   { id: "hub-bar-visibility", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.hubBarVisibility", descKey: "settingsConfig.hubBarVisibilityDesc", fallbackSection: "Composer & Input", fallbackLabel: "Hub bar visibility", fallbackDesc: "Show or hide each hub bar above the composer.", scope: "UI" },
   { id: "hub-bar-layout", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.hubBarLayout", descKey: "settingsConfig.hubBarLayoutDesc", fallbackSection: "Composer & Input", fallbackLabel: "Compact hub bar layout", fallbackDesc: "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.", scope: "UI" },
+  { id: "live-status-placement", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.liveStatusPlacement", descKey: "settingsConfig.liveStatusPlacementDesc", fallbackSection: "Composer & Input", fallbackLabel: "Show live session status in hub bars", fallbackDesc: "Merge the transient session status (Waiting → model, phase progress) into the Tasks/Subagents hub bar headers. Turn off to keep the classic bouncing O-M-P status line in the transcript.", scope: "UI" },
   { id: "show-goal-token-budget", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.showGoalTokenBudget", descKey: "settingsConfig.showGoalTokenBudgetDesc", fallbackSection: "Composer & Input", fallbackLabel: "Show token budget in goal bar", fallbackDesc: "Display the goal's token usage (and budget, when set) in the composer goal bar.", scope: "UI" },
   { id: "session-info-button", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.sessionInfoButton", descKey: "settingsConfig.sessionInfoButtonDesc", fallbackSection: "Composer & Input", fallbackLabel: "Session Info button", fallbackDesc: "Show the session token/cost/speed row below the chat input. The context gauge is always shown.", scope: "UI" },
   { id: "context-ring-mobile", tab: "general", sectionKey: "settingsConfig.sectionComposer", labelKey: "settingsConfig.contextRingMobile", descKey: "settingsConfig.contextRingMobileDesc", fallbackSection: "Composer & Input", fallbackLabel: "Context ring (mobile)", fallbackDesc: "Where the context ring sits on phone screen sizes: the top bar, the composer controls, or hidden entirely. Desktop always keeps it in the composer.", scope: "UI" },
@@ -905,7 +906,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -931,6 +932,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Composer hub bar stacking: vertical column or horizontal row. */
   hubBarLayout?: HubBarLayout;
   onHubBarLayoutChange?: (layout: HubBarLayout) => void;
+  /** Where the transient live session status renders (Interface & Behavior). */
+  liveStatusPlacement?: LiveStatusPlacement;
+  onLiveStatusPlacementChange?: (placement: LiveStatusPlacement) => void;
   /** Per-bar visibility for the composer hub bars. */
   hubBarsVisible?: HubBarsVisibility;
   onHubBarsVisibleChange?: (visible: HubBarsVisibility) => void;
@@ -1532,6 +1536,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   </NativeSetting>
                   <NativeSetting searchId="hub-bar-layout" label={t("settingsConfig.hubBarLayout")} description={t("settingsConfig.hubBarLayoutDesc")} scope="UI">
                     <ToggleSwitch checked={hubBarLayout === "row"} onChange={(next) => onHubBarLayoutChange?.(next ? "row" : "stack")} />
+                  </NativeSetting>
+                  <NativeSetting searchId="live-status-placement" label={t("settingsConfig.liveStatusPlacement")} description={t("settingsConfig.liveStatusPlacementDesc")} scope="UI">
+                    <ToggleSwitch checked={liveStatusPlacement === "bar"} onChange={(next) => onLiveStatusPlacementChange?.(next ? "bar" : "inline")} />
                   </NativeSetting>
                   <NativeSetting searchId="show-goal-token-budget" label={t("settingsConfig.showGoalTokenBudget")} description={t("settingsConfig.showGoalTokenBudgetDesc")} scope="UI">
                     <ToggleSwitch checked={showGoalTokenBudget} onChange={(v) => onShowGoalTokenBudgetChange?.(v)} />

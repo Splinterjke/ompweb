@@ -1285,6 +1285,8 @@
   "settingsConfig.hubBarLayoutDesc": "将输入框上方的状态栏（Git 变更、任务、子代理）以横向一行排列，而不是纵向堆叠。展开的栏会移到一行上方显示。",
   "settingsConfig.hubBarVisibility": "Hub 栏可见性",
   "settingsConfig.hubBarVisibilityDesc": "显示或隐藏输入框上方的每个 Hub 栏。",
+  "settingsConfig.liveStatusPlacement": "在 Hub 栏中显示实时会话状态",
+  "settingsConfig.liveStatusPlacementDesc": "将瞬时会话状态（等待模型、阶段进度）合并到任务/子代理 Hub 栏的标题行。关闭后将在对话记录中保留经典的跳动 O-M-P 状态行。",
   "settingsConfig.composerAccentBg": "聊天输入框背景次要颜色",
   "settingsConfig.composerAccentBgDesc": "聊天输入框壳层的次要颜色：关闭保持普通页面背景，变暗使用面板背景，主题色用微妙的强调色调色。",
   "settingsConfig.composerAccentBgOff": "关闭",

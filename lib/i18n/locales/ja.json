@@ -1285,6 +1285,8 @@
   "settingsConfig.hubBarLayoutDesc": "コンポーザー上のステータスバー（git 変更、タスク、サブエージェント）を縦方向の列ではなく横方向の1行に並べます。展開されたバーは行の上に表示されます。",
   "settingsConfig.hubBarVisibility": "ハブバーの表示",
   "settingsConfig.hubBarVisibilityDesc": "コンポーザー上の各ハブバーを表示または非表示にします。",
+  "settingsConfig.liveStatusPlacement": "ライブセッション状態をハブバーに表示",
+  "settingsConfig.liveStatusPlacementDesc": "一時的なセッション状態（モデル待機中、フェーズの進行）をタスク／サブエージェントのハブバーのヘッダー行に統合します。オフにすると、従来の跳ねる O-M-P の状態行がトランスクリプト内に表示されます。",
   "settingsConfig.composerAccentBg": "チャット入力欄の背景色セカンダリ",
   "settingsConfig.composerAccentBgDesc": "チャット入力欄シェルのセカンダリカラー：オフはプレーンなページ背景を維持、ディミッドはパネル背景を使用、テーマドは控えめなアクセントカラーのトーンを適用します。",
   "settingsConfig.composerAccentBgOff": "オフ",

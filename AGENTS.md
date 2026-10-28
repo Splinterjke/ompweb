@@ -874,6 +874,14 @@ stored `omp-web:submit-during-run` choice overrides it.
   scrollable message list. `ComposerPanels` renders each as an independently
   collapsible bar (header row with chevron); bars start collapsed (headers
   always show live progress / running-summary).
+- **Live status placement** ("Interface & Behavior" → Show live session
+  status in hub bars, localStorage `omp-web:live-status-placement`, default
+  `"bar"`): the transient phase line (`liveStatusText`, ChatWindow) is hosted
+  in the Tasks/Subagents hub-bar header rows only while a bar actually hosts
+  it AND the placement is `"bar"`; `"inline"` (or no host bar) renders the
+  classic standalone bouncing O-M-P line in the transcript. `liveStatus` is
+  passed to `ComposerPanels` as `null` in inline mode, so a bar can never
+  claim a status it does not show.
 - **Stacking** (`layout` prop, "Interface & Behavior" → Hub bar layout):
   `"stack"` (vertical column, default) or `"row"` (compact bars share one
   horizontal line). In row mode every bar owns a *stable slot* of one
@@ -1493,6 +1501,15 @@ stored `omp-web:submit-during-run` choice overrides it.
   controls; without a native goal the row keeps the plain web `/goal` marker rendering.
   A drop also clears the sessionStorage marker (the row must not keep showing
   "Goal active" after the native goal is gone).
+- The **plan row** on the same `ComposerModeStatus` is state-honest: it shows
+  "Planning in progress" only for the live web plan (`activePlan`), and a
+  historical plan document as a neutral "Plan document" row with the document
+  slug. It renders ONLY when something is openable — `activePlan` or
+  `planInfo.planFile` — never on the `plan-reader` marker alone (`planModeActive`
+  is a permanent signal by design). Clicking opens the document through
+  `onOpenPlan` (AppShell `handleOpenPlan` → plan route → FileViewer tab; the
+  route authorizes the session `local/` dir via `allowFileRoot`), so ChatWindow
+  MUST forward `onOpenPlan` to `ChatInput`.
 - Hydration rides `refreshSubagentRoster`'s refresh points (SSE open, mount, send, reconcile,
   restart) and the first `agent_start`; `POST /api/agent/[id]` answers `goal` + `op:"get"`
   with `{goal:null}` when no child exists (`NO_SPAWN_REPLIES.goal_get`) so background reads

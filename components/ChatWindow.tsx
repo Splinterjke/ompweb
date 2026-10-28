@@ -12,7 +12,7 @@ import { planTurnSegments, isGroupAnchor, type ActivityPiece, type TranscriptSeg
 import { collectToolResults } from "@/lib/passive-tool-context";
 import { MessageView } from "./MessageView";
 import { ToolExpansionProvider } from "./tool-expansion";
-import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
+import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import type { ChatDraft } from "@/lib/draft-store";
@@ -91,6 +91,10 @@ interface Props {
   hubBarLayout?: HubBarLayout;
   /** Per-bar visibility for the composer hub bars (Interface & Behavior). */
   hubBarsVisible?: HubBarsVisibility;
+  /** Where the transient live session status renders: merged into the hub
+   *  bar header rows ("bar", default) or the classic standalone bouncing
+   *  O-M-P line in the transcript ("inline"). */
+  liveStatusPlacement?: LiveStatusPlacement;
   /** Composer shell background secondary color (Interface & Behavior select):
    *  off = plain page bg, dimmed = panel bg, themed = accent tint. */
   composerAccentBg?: ComposerAccentBg;
@@ -671,7 +675,7 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -1404,10 +1408,12 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     : null;
   // Mirrors ComposerPanels' own bar gating exactly (showTodoBar /
   // showSubagentBar) so the standalone line vanishes only when a bar
-  // actually hosts the text.
+  // actually hosts the text. The "inline" live-status placement setting
+  // disables hosting entirely, restoring the classic bouncing-letters line.
   const statusHostExists =
-    (hubBarsVisible.tasks && todoPhases.some((phase) => (phase.tasks?.length ?? 0) > 0) && !activePlan) ||
-    (hubBarsVisible.subagents && (subagents?.length ?? 0) > 0);
+    liveStatusPlacement === "bar" &&
+    ((hubBarsVisible.tasks && todoPhases.some((phase) => (phase.tasks?.length ?? 0) > 0) && !activePlan) ||
+      (hubBarsVisible.subagents && (subagents?.length ?? 0) > 0));
 
   const chatInputElement = (
       <ChatInput
@@ -1808,7 +1814,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               // produced; a historical plan document (planInfo) must not
               // suppress the task list of a plain run.
               planModeActive={Boolean(activePlan)}
-              liveStatus={liveStatusText}
+              liveStatus={liveStatusPlacement === "bar" ? liveStatusText : null}
             />
             <ExtensionWidgets widgets={belowEditorWidgets} />
           </div>

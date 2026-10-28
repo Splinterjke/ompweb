@@ -1285,6 +1285,8 @@
   "settingsConfig.hubBarLayoutDesc": "Show the status bars above the composer (Git changes, Tasks, Subagents) as one horizontal row instead of a stacked column. An expanded bar moves above the row.",
   "settingsConfig.hubBarVisibility": "Hub bar visibility",
   "settingsConfig.hubBarVisibilityDesc": "Show or hide each hub bar above the composer.",
+  "settingsConfig.liveStatusPlacement": "Show live session status in hub bars",
+  "settingsConfig.liveStatusPlacementDesc": "Merge the transient session status (Waiting → model, phase progress) into the Tasks/Subagents hub bar headers. Turn off to keep the classic bouncing O-M-P status line in the transcript.",
   "settingsConfig.composerAccentBg": "Chat input background secondary color",
   "settingsConfig.composerAccentBgDesc": "Secondary color for the chat input shell: Off keeps the plain page background, Dimmed uses the panel background, Themed tints it with a subtle accent color.",
   "settingsConfig.composerAccentBgOff": "Off",
