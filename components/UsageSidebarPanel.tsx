@@ -4,7 +4,7 @@ import { Tooltip } from "./ui/primitives";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, ChevronRight, Eye, EyeOff, Gauge, LoaderCircle, RefreshCw, Settings2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { formatCompactNumber, formatUsageReset } from "@/lib/format";
+import { formatCompactNumber, formatUsageReset, usageBucketLabel } from "@/lib/format";
 import type { ProviderUsageReport, ProviderUsageWindow } from "@/lib/provider-usage-types";
 import { prewarmStatsData } from "./usage/UsageDashboardModal";
 import { SeparatorHandle } from "./SeparatorHandle";
@@ -139,7 +139,7 @@ export function UsageSidebarPanel({
     } catch { /* ignore malformed/private storage */ }
   }, []);
 
-  const accountKey = useCallback((report: ProviderUsageReport, index: number) => `${report.provider}:${report.accountLabel ?? report.accountIndex ?? index + 1}`, []);
+  const accountKey = useCallback((report: ProviderUsageReport, index: number) => `${report.provider}:${report.accountLabel ?? report.accountIndex ?? index + 1}:${report.tier ?? ""}:${report.bucket ?? ""}`, []);
   const toggleAccount = useCallback((key: string) => {
     setHiddenAccounts((current) => {
       const next = new Set(current);
@@ -304,10 +304,11 @@ export function UsageSidebarPanel({
               <div style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", lineHeight: 1.4 }}>{t("sidebar.usageManageHint")}</div>
               {(reports ?? []).map((report, index) => {
                 const key = accountKey(report, index);
+                const bucketLabel = usageBucketLabel(report);
                 const hidden = hiddenAccounts.has(key);
                 return <button key={`manage-${key}`} type="button" onClick={() => toggleAccount(key)} aria-pressed={!hidden} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 24, padding: "2px 3px", border: 0, background: "transparent", color: hidden ? "var(--text-dim)" : "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", opacity: hidden ? 0.65 : 1 }}>
                   {hidden ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{report.provider} · {report.accountLabel ?? t("appShell.account", { number: report.accountIndex ?? index + 1 })}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{report.provider} · {report.accountLabel ?? t("appShell.account", { number: report.accountIndex ?? index + 1 })}{bucketLabel ? ` · ${bucketLabel}` : ""}</span>
                 </button>;
               })}
             </div>
@@ -315,7 +316,7 @@ export function UsageSidebarPanel({
           {(reports ?? []).length === 0 && !error && (
             <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>{t("sidebar.usageEmpty")}</span>
           )}
-          {(reports ?? []).map((report, index) => ({ report, index, key: accountKey(report, index) })).filter(({ key }) => !hiddenAccounts.has(key)).map(({ report, index, key }) => (
+          {(reports ?? []).map((report, index) => ({ report, index, key: accountKey(report, index), bucketLabel: usageBucketLabel(report) })).filter(({ key }) => !hiddenAccounts.has(key)).map(({ report, index, key, bucketLabel }) => (
             <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                 <span style={{ fontWeight: 500, color: "var(--text)" }}>{report.provider}</span>
@@ -323,6 +324,11 @@ export function UsageSidebarPanel({
                   <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{report.accountLabel}</span>
                 ) : (
                   <span style={{ color: "var(--text-dim)" }}>{t("appShell.account", { number: report.accountIndex ?? index + 1 })}</span>
+                )}
+                {bucketLabel && (
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 10, color: "var(--text-muted)", background: "var(--bg-subtle)", border: "1px solid var(--border)", padding: "0 5px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.7 }}>
+                    {bucketLabel}
+                  </span>
                 )}
                 {report.plan && <span style={{ color: "var(--text-dim)" }}>{report.plan}</span>}
               </div>

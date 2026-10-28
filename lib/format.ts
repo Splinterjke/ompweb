@@ -2,6 +2,8 @@
  * component — AppShell had two byte-identical copies, ChatInput and
  * ModelCatalogPicker each had a near-identical variant). */
 
+import type { ProviderUsageReport } from "./provider-usage-types";
+
 /** "1.2M / 34k / 1234" compact rendering. `toLocaleString` applies only when
  * `locale` is provided (the <1000 branch in ChatInput's token counter). */
 export function formatCompactNumber(n: number, locale?: string): string {
@@ -38,4 +40,21 @@ export function formatUsageReset(value: number, unit: "minutes" | "hours"): stri
   const days = Math.floor(value / 24);
   const hours = value % 24;
   return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+}
+
+/**
+ * Label that distinguishes one usage row from another row for the same
+ * provider and account, or undefined when the row needs none.
+ * Antigravity rows carry their bucket ("Gemini", "Claude & GPT (shared)");
+ * Anthropic rows carry their tier, capitalised ("Fable", "Opus", "Sonnet")
+ * — the shared account-wide row has no tier and stays plain "Anthropic".
+ * Other providers' tiers are quota tiers, not bucket names, so they are
+ * not promoted to a label here.
+ */
+export function usageBucketLabel(report: ProviderUsageReport): string | undefined {
+  if (report.bucket) return report.bucket;
+  if (report.provider === "anthropic" && report.tier) {
+    return report.tier.charAt(0).toUpperCase() + report.tier.slice(1);
+  }
+  return undefined;
 }
