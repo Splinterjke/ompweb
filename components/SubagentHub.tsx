@@ -52,6 +52,9 @@ type SubagentHubProps = {
    *  hub keeps its own internal state. */
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  /** Transient live-agent status merged into this header row when no tasks
+   * row exists to host it (#245). See TodoList's liveStatus. */
+  liveStatus?: string | null;
 };
 
 function Metric({ icon: Icon, label, children }: {
@@ -499,6 +502,7 @@ export function SubagentHub({
   defaultExpanded = false,
   collapsed: collapsedProp,
   onCollapsedChange,
+  liveStatus = null,
 }: SubagentHubProps) {
   const { t } = useI18n();
   const [internalCollapsed, setInternalCollapsed] = useState(!defaultExpanded);
@@ -577,9 +581,20 @@ export function SubagentHub({
       >
         <Network size={15} strokeWidth={1.8} aria-hidden style={{ flexShrink: 0 }} />
         <strong className="font-medium text-text">{t("chatWindow.subagentsPanel")}</strong>
+        {liveStatus ? (
+          <span
+            role="status"
+            aria-live="polite"
+            title={liveStatus}
+            style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-muted)" }}
+          >
+            <span aria-hidden className="live-status-dot live-pulse inline-block h-2 w-2 shrink-0 rounded-full bg-accent" />
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{liveStatus}</span>
+          </span>
+        ) : null}
         <Tooltip content={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}>
           <span
-          className="ml-auto"
+          className={liveStatus ? "shrink-0" : "ml-auto"}
           aria-label={t("chatWindow.subagentSummary", { running: runningCount, total: subagents.length })}
           style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}
         >

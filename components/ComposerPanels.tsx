@@ -42,6 +42,7 @@ export function ComposerPanels({
   showSubagents = true,
   defaultExpanded = false,
   planModeActive = false,
+  liveStatus = null,
 }: {
   cwd?: string | null;
   onOpenGitTab?: () => void;
@@ -68,6 +69,12 @@ export function ComposerPanels({
   showSubagents?: boolean;
   /** Initial expansion of the panels (default: collapsed). */
   defaultExpanded?: boolean;
+  /** Transient live-agent status (the transient status line's text) to merge
+   * into an existing hub bar header row instead of mounting as its own
+   * transcript line (#245). Hosted by the tasks row when one exists, else
+   * by the subagents row; when neither exists the caller keeps the
+   * standalone line so the status is never hidden. */
+  liveStatus?: string | null;
   /** True while a plan surface (PlanPanel) owns the task grid: hide the
    *  duplicate TodoList so tasks render exactly once. */
   planModeActive?: boolean;
@@ -87,6 +94,8 @@ export function ComposerPanels({
   // bar (lib/todo-phases.ts prunes it server-side; this is the client backstop
   // for snapshots produced by an already-running older wrapper).
   const showTodoBar = showTasks && todoPhases.some((phase) => (phase.tasks?.length ?? 0) > 0) && !planModeActive;
+  // Live status host preference (#245): the tasks row wins; the subagents
+  // row hosts it only when the tasks bar is absent.
   const showSubagentBar = showSubagents && subagents.length > 0;
 
   const gitBar = showGit ? (
@@ -103,6 +112,7 @@ export function ComposerPanels({
   const todoBar = showTodoBar ? (
     <TodoList
       phases={todoPhases}
+      liveStatus={liveStatus}
       collapsible
       defaultExpanded={defaultExpanded}
       collapsed={todoCollapsed}
@@ -115,6 +125,7 @@ export function ComposerPanels({
       subagentEvents={subagentEvents}
       onSelectSubagent={onSelectSubagent ?? (() => {})}
       sessionId={sessionId}
+      liveStatus={showTodoBar ? null : liveStatus}
       defaultExpanded={defaultExpanded}
       collapsed={subagentCollapsed}
       onCollapsedChange={setSubagentCollapsed}

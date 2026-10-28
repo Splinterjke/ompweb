@@ -1384,6 +1384,31 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     if (askOpen && active instanceof HTMLElement && hiddenComposerRef.current?.contains(active)) active.blur();
   }, [askOpen]);
 
+  // Live status (#245): the transient agent status text (the in-transcript
+  // phase line). Hoisted so a hub bar header row can host it whenever one
+  // exists (tasks bar preferred); the standalone line is suppressed only
+  // then, so the status is never hidden.
+  const liveStatusText = (isCompacting || (agentRunning && !streamState.streamingMessage && pendingToolHeaders.length === 0))
+    ? [
+        phaseLabel(agentPhase),
+        activeSubagentCount > 0 ? tn("chatWindow.subagentCount", activeSubagentCount) : null,
+        isCompacting ? t("chatWindow.compactingContext") : null,
+        currentTodoPhase
+          ? t("chatWindow.todoPhaseStatus", {
+              name: currentTodoPhase.name,
+              done: currentTodoPhase.done,
+              total: currentTodoPhase.total,
+            })
+          : null,
+      ].filter(Boolean).join(" · ")
+    : null;
+  // Mirrors ComposerPanels' own bar gating exactly (showTodoBar /
+  // showSubagentBar) so the standalone line vanishes only when a bar
+  // actually hosts the text.
+  const statusHostExists =
+    (hubBarsVisible.tasks && todoPhases.some((phase) => (phase.tasks?.length ?? 0) > 0) && !activePlan) ||
+    (hubBarsVisible.subagents && (subagents?.length ?? 0) > 0);
+
   const chatInputElement = (
       <ChatInput
       draftIdentityMove={composerIdentityMove}
@@ -1685,23 +1710,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               </div>
             ))}
 
-            {(isCompacting || (agentRunning && !streamState.streamingMessage && pendingToolHeaders.length === 0)) && (
+            {liveStatusText !== null && !statusHostExists && (
               <div role="status" aria-live="polite" className="pt-2 pb-4 mb-3 text-[13px] text-text-muted flex items-center gap-2.5">
                 <OmpBouncingLetter />
-                <span>
-                  {[
-                    phaseLabel(agentPhase),
-                    activeSubagentCount > 0 ? tn("chatWindow.subagentCount", activeSubagentCount) : null,
-                    isCompacting ? t("chatWindow.compactingContext") : null,
-                    currentTodoPhase
-                      ? t("chatWindow.todoPhaseStatus", {
-                          name: currentTodoPhase.name,
-                          done: currentTodoPhase.done,
-                          total: currentTodoPhase.total,
-                        })
-                      : null,
-                  ].filter(Boolean).join(" · ")}
-                </span>
+                <span>{liveStatusText}</span>
               </div>
             )}
 
@@ -1795,6 +1807,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               // produced; a historical plan document (planInfo) must not
               // suppress the task list of a plain run.
               planModeActive={Boolean(activePlan)}
+              liveStatus={liveStatusText}
             />
             <ExtensionWidgets widgets={belowEditorWidgets} />
           </div>

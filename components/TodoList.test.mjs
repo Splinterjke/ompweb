@@ -75,3 +75,17 @@ test("collapsible mode collapses to a toggle header and expands again", () => {
   assert.match(expandedHtml, /aria-expanded="true"/);
   assert.match(expandedHtml, /Wire panels/);
 });
+
+test("merges live status into the tasks header row instead of a separate line (#245)", () => {
+  const html = renderToStaticMarkup(React.createElement(TodoList, {
+    phases: [{ name: "Implementation", tasks: [{ content: "Wire panels", status: "in_progress" }] }],
+    collapsible: true,
+    liveStatus: "Waiting for model...",
+  }));
+  assert.match(html, /Waiting for model\.\.\./);
+  assert.match(html, /role="status"/);
+  // The progress counter stays in the row (local serialization splits the
+  // number, slash and label into separate spans).
+  assert.match(html, /<span>0<\/span><span aria-hidden[^>]*>\/<\/span><span>1<\/span>/);
+  assert.match(html, />\u00A0complete<\/span>/);
+});
