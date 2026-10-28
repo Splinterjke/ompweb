@@ -3,7 +3,7 @@ import { Tooltip } from "./ui/primitives";
 
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { Ban, ChevronDown, ClipboardPaste, Clock3, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
+import { Ban, ChevronDown, ClipboardPaste, Clock3, CornerDownRight, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
 import { SessionInfoButton } from "./SessionInfoPopover";
 import type { ToolPreset } from "@/lib/tool-presets";
@@ -1759,6 +1759,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     !isStreaming
     && (Boolean(value.trim()) || dictationCapturing)
     && Boolean(onFollowUp);
+
+  // The button follows the same Settings choice as Enter: soft keyboards have no
+  // Enter to submit with, so this button is how touch devices steer.
+  const primaryActionMode = primaryActionQueuesMessage && onSteer && getSubmitDuringRunBehavior() === "steer" ? "steer" : "followup";
 
   // ── Queued follow-up bar ────────────────────────────────────────────────
   // omp reports only a queued count over RPC; the texts are tracked in a
@@ -3778,18 +3782,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               )}
             </button>
             </Tooltip>
-            {/* Primary action: Send (idle) / Queue (typed while running) / Stop (running) */}
+            {/* Primary action: Send (idle) / Steer or Queue (typed while a run owns the session but is not streaming, per Settings) / Stop (running) */}
             {primaryActionQueuesMessage ? (
-              <Tooltip content={t("chatInput.queueMessage")}>
+              <Tooltip content={t(primaryActionMode === "steer" ? "chatInput.steerNowTitle" : "chatInput.queueMessage")}>
                 <button
                 type="button"
                 onClick={() => {
-                  if (dictationCapturing) {
-                    const behavior = getSubmitDuringRunBehavior();
-                    stopAndFinishDictation(behavior === "steer" && onSteer ? "steer" : "followup");
-                  } else {
-                    sendQueued("followup");
-                  }
+                  if (dictationCapturing) stopAndFinishDictation(primaryActionMode);
+                  else sendQueued(primaryActionMode);
                 }}
                 disabled={submissionBlocked || isTranscribing}
                 style={{
@@ -3806,8 +3806,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   transition: "background var(--dur-fast) var(--ease-out-warm)",
                 }}
               >
-                <ListChecks size={13} strokeWidth={2} aria-hidden="true" />
-                {t("chatInput.queue")}
+                {primaryActionMode === "steer"
+                  ? <CornerDownRight size={13} strokeWidth={2} aria-hidden="true" />
+                  : <ListChecks size={13} strokeWidth={2} aria-hidden="true" />}
+                {t(primaryActionMode === "steer" ? "chatInput.steer" : "chatInput.queue")}
               </button>
               </Tooltip>
             ) : sendPending ? (

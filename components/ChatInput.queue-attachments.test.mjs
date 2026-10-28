@@ -134,6 +134,21 @@ test("the Queue button sends the text and the attached image as a follow-up", as
   assertQueuedWithImage(calls[0], "look at this");
 });
 
+test("a stored Steer preference turns the primary button into Steer, which steers like Enter", async () => {
+  localStorage.setItem("omp-web:submit-during-run", "steer");
+  const calls = await renderRunningWithAttachments({ isStreaming: false });
+  typeText("look at this");
+  assert.equal(screen.queryByRole("button", { name: /^queue$/i }), null, "the button no longer claims to queue");
+  // The base-ui Tooltip renders no title attribute on its trigger, so the
+  // steerNowTitle copy is verified via the trigger's presence: the same
+  // primary-action button, relabelled, steering on click.
+  const steer = screen.getByRole("button", { name: /^steer$/i });
+  await act(async () => { fireEvent.click(steer); });
+  await waitFor(() => assert.equal(calls.length, 1));
+  assert.equal(calls[0].name, "onSteer", "touch devices without Enter can steer");
+  assertQueuedWithImage(calls[0], "look at this");
+});
+
 test("a queued web slash command is expanded and keeps the attachment", async () => {
   const { expandWebSlashCommand } = await jiti.import("@/lib/web-slash-commands");
   window.HTMLElement.prototype.scrollIntoView = () => {};
