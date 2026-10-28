@@ -8,7 +8,8 @@ import { createJiti } from "jiti";
 // React module loads so these tests work regardless of the environment's
 // default (production builds throw "act(...) is not supported").
 process.env.NODE_ENV = "test";
-const { act, cleanup, renderHook } = await import("@testing-library/react/pure.js");
+const { act, cleanup, fireEvent, render, renderHook, within } = await import("@testing-library/react/pure.js");
+const React = (await import("react")).default;
 
 // Port of the upstream behavioral harness `hooks/useAgentSession.rpc.test.mjs`
 // (upstream 45b346ef) for this repo's monolithic hooks/useAgentSession.ts:
@@ -18,10 +19,9 @@ const { act, cleanup, renderHook } = await import("@testing-library/react/pure.j
 //
 // Adaptations from the upstream scaffolding (the local hook structurally
 // lacks the mechanisms those parts drove):
-// - No wrapper/session-sync machinery (world.wrappers/live/views/streams,
-//   selectSessionHistory, AgentSessionWrapper): those exist only in the
-//   upstream split files (useAgentSession-stream.ts etc.) and are not part
-//   of the ported blocks.
+// - The Edit fixtures at the end of this file attach the real
+//   AgentSessionWrapper to a fake process and serve branch contexts from
+//   world.views; the older blocks predate that machinery and never touch it.
 // - No boundary=1 route: the local send path never pre-reads the session
 //   file (upstream's snapshotRunEntries has no local counterpart), so the
 //   session-file 404 that upstream #183 handled in the send path lives in
@@ -49,6 +49,11 @@ const { useAgentSession, runHostTool } = await jiti.import("./useAgentSession.ts
 // The real notification history mirror: recording is server-side now (`publishNotification`), so
 // the browser-side notify host tool must never touch it; no alias stub, same instance as the hook's import.
 const { notificationHistory } = await jiti.import("@/lib/notification-history");
+const { MessageView } = await jiti.import("@/components/MessageView");
+const { ChatWindow } = await jiti.import("@/components/ChatWindow");
+const { translate } = await jiti.import("@/lib/i18n");
+const { AgentSessionWrapper } = await jiti.import("@/lib/rpc-manager");
+const { SESSION_EDIT_COMMAND, SESSION_EDIT_RESPONSE_PREFIX } = await jiti.import("@/lib/omp/session-edit-extension.mjs");
 
 // ---------------------------------------------------------------------------
 // Fake shared-worker event streams + fetch router
@@ -127,6 +132,10 @@ const world = {
   holds: [], // { match(method, url, body), produce: () => Promise<{ status, value }> }
   sessions: new Map(), // sid -> { leafId, messages, entryIds } served by /api/sessions/<id>
   agents: new Map(), // sid -> { running, state } served by /api/agent/<id> (the live RPC world)
+  views: new Map(), // `${sid}:${leafId}:false` -> branch context served by /api/sessions/<id>/context
+  nativeHistories: new Map(), // sid -> isolated, parent-linked native history fixture
+  wrappers: new Map(), // sid -> live AgentSessionWrapper attached by a test
+  streams: new Map(), // sid -> last wrapper event bridged onto that session's observers
   btwHistory: new Map(), // sid -> BtwRecord[] served by get_btw_history
 };
 
@@ -152,12 +161,24 @@ async function fetchStub(url, init = {}) {
   if (/\/api\/sessions\/[^/?#]+\/subagents/.test(u)) {
     return jsonResponse(200, { subagents: [] });
   }
+  if ((m = u.match(/\/api\/sessions\/([^/?#]+)\/context/)) && method === "GET") {
+    const sid = decodeURIComponent(m[1]);
+    const f = world.sessions.get(sid);
+    if (!f) return jsonResponse(404, {});
+    const leaf = decodeURIComponent(u.match(/[?&]leafId=([^&]*)/)?.[1] ?? "");
+    const view = leaf ? world.views.get(`${sid}:${leaf}:false`) : { ...f, leafId: f.leafId };
+    if (!view) return jsonResponse(404, {});
+    return jsonResponse(200, {
+      leafId: view.leafId,
+      context: { messages: view.messages, entryIds: view.entryIds, todoPhases: [] },
+    });
+  }
   if ((m = u.match(/\/api\/sessions\/([^/?#]+)/)) && method === "GET") {
     const sid = decodeURIComponent(m[1]);
     const f = world.sessions.get(sid);
     if (!f) return jsonResponse(404, {});
     return jsonResponse(200, {
-      sessionId: sid, filePath: "/fixture/session.jsonl", tree: f.tree ?? [],
+      sessionId: sid, filePath: f.filePath ?? "/fixture/session.jsonl", tree: f.tree ?? [],
       leafId: f.leafId,
       context: { todoPhases: [], thinkingLevel: "off", model: null, ...f },
     });
@@ -179,6 +200,11 @@ async function fetchStub(url, init = {}) {
       if (!world.agents.has(sid)) {
         return jsonResponse(404, { error: "Session not found", code: "session_not_found" });
       }
+      // A mounted native-history fixture answers Edit and prompts itself, so
+      // the fixtures drive the real hook through a real branch-rewinding
+      // boundary instead of the canned `{}` acknowledgement.
+      const nativeHistory = world.nativeHistories.get(sid);
+      if (nativeHistory && ["edit_message", "prompt"].includes(body?.type)) return nativeHistory.command(body);
       if (body?.type === "get_subagents") {
         return jsonResponse(200, { success: true, data: { subagents: [] } });
       }
@@ -205,6 +231,8 @@ let visibilityState = "hidden";
 const overrides = [
   [globalThis, "SharedWorker", { value: FakeSharedWorker }],
   [globalThis, "fetch", { value: fetchStub }],
+  [globalThis, "ResizeObserver", { value: class { observe() {} unobserve() {} disconnect() {} } }],
+  [window.HTMLElement.prototype, "scrollIntoView", { value() {} }],
   [document, "hidden", { get: () => visibilityState === "hidden" }],
   [document, "visibilityState", { get: () => visibilityState }],
   [window, "matchMedia", {
@@ -289,6 +317,10 @@ function resetWorld() {
   world.holds.length = 0;
   world.sessions.clear();
   world.agents.clear();
+  world.views.clear();
+  world.nativeHistories.clear();
+  world.wrappers.clear();
+  world.streams.clear();
   world.btwHistory.clear();
   world.abortRestoreQueue = null;
   sessionStorage.clear();
@@ -457,7 +489,7 @@ test("REVIEW a vanished session with no wrapper still fails loudly (real failure
     ok = await w.latest.handleSend("anyone there?");
     await sleep(30);
   });
-  assert.equal(ok, false, "the send must not report success");
+  assert.equal(ok.status, "rejected", "the send must not report success");
   assert.equal(w.latest.agentRunning, false, "the optimistic run state is rolled back");
   assert.equal(w.latest.notices.length, 1, "the failure is surfaced, not swallowed");
   assert.equal(w.latest.notices[0].type, "error");
@@ -650,7 +682,7 @@ test("a prompt queued behind a running shell command drops the phantom turn and 
   });
   lastEs()?.open();
   await act(async () => { await sending; });
-  assert.equal(await sending, true);
+  assert.equal((await sending).status, "accepted");
   assert.equal(w.latest.agentRunning, false, "no turn started behind the shell command");
   assert.deepEqual(
     w.latest.messages.filter((message) => message.role === "user").map((message) => message.content),
@@ -1236,7 +1268,7 @@ test("a fresh chat's first prompt attaches one event stream instead of an observ
     delivered = await sent;
   });
   w.unmount();
-  assert.equal(delivered, true);
+  assert.equal(delivered.status, "accepted");
   assert.equal(streamsBeforeOpen, 1, "the prompt owns the only stream");
   assert.equal(world.esInstances.length, 1);
   assert.equal(callsTo("POST", "/api/agent/fresh-send").some((call) => call.body?.type === "prompt"), true);
@@ -1345,3 +1377,544 @@ test("a failed model switch is shown as a notice instead of failing silently (#2
   assert.equal(w.latest.notices.at(-1)?.type, "error");
   assert.match(w.latest.notices.at(-1)?.message ?? "", /Could not restore model/);
 });
+
+// ---------------------------------------------------------------------------
+// Edit (rewind-and-resend) fixtures — port of upstream f7d4066e's
+// `Edit rewinds and resends…`, `cancelled and failed Edits…` and
+// `native Edit relocation…` blocks.
+// Adaptations: drafts are image-only on this client (no `files` sidecar);
+// wrapper events are the web events themselves (no `.web` indirection); the
+// wrapper is built with this repo's five-argument constructor. The upstream
+// root-ownership machinery (TestRoot/ownRoot + teardown leak assertions) is
+// dropped together with the unmount-race blocks that motivated it.
+// ---------------------------------------------------------------------------
+
+/** Poll a condition with act() drains so React state can settle. */
+async function until(predicate, message, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (predicate()) return;
+    if (Date.now() > deadline) assert.fail(`timed out: ${message}`);
+    await act(async () => { await sleep(10); });
+  }
+}
+
+// A native boundary, not an Edit callback double: active context follows parent
+// links in the persisted JSONL, and prompts consume that context independently
+// of what the hook happens to render. Metadata leaves never become model text.
+function primeEditableHistory(originalSid, messages = [
+  userMsg("u1", "U1"), assistantMsg("a1", "A1"),
+  userMsg("u2", "U2-original"), assistantMsg("a2", "A2-original"),
+  userMsg("u3", "U3-original"), assistantMsg("a3", "A3-original"),
+]) {
+  let sid = originalSid;
+  let filePath = `/fixture/${sid}.jsonl`;
+  const header = { type: "session", version: 3, id: sid, cwd: "/workspace", timestamp: "2026-01-01T00:00:00.000Z" };
+  let entries = messages.map((message, index) => ({
+    type: "message", id: `entry-${message.id}`,
+    parentId: index === 0 ? null : `entry-${messages[index - 1].id}`,
+    timestamp: header.timestamp, message: structuredClone(message),
+  }));
+  let jsonl;
+  const persistedFiles = new Map();
+  let editGate = Promise.resolve();
+  let editReplyGate = Promise.resolve();
+  let promptGate = Promise.resolve();
+
+  function context(leafId = entries.at(-1)?.id ?? null) {
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const branch = [];
+    for (let entry = byId.get(leafId); entry; entry = byId.get(entry.parentId)) branch.push(entry);
+    const messageEntries = branch.reverse().filter((entry) => entry.type === "message");
+    return { leafId, entryIds: messageEntries.map((entry) => entry.id), messages: structuredClone(messageEntries.map((entry) => entry.message)) };
+  }
+
+  function persist() {
+    jsonl = [header, ...entries].map((entry) => JSON.stringify(entry)).join("\n") + "\n";
+    persistedFiles.set(filePath, jsonl);
+    const nodes = new Map(entries.map((entry) => [entry.id, { entry: structuredClone(entry), children: [] }]));
+    const roots = [];
+    for (const entry of entries) {
+      const parent = nodes.get(entry.parentId);
+      (parent ? parent.children : roots).push(nodes.get(entry.id));
+      world.views.set(`${sid}:${entry.id}:false`, context(entry.id));
+    }
+    world.sessions.set(sid, { ...context(), filePath, tree: roots });
+  }
+
+  const native = {
+    get sessionId() { return sid; },
+    get filePath() { return filePath; },
+    edits: [], prompts: [], editOutcome: "success", moveTo: null, onMove: null,
+    persistedFiles,
+    get jsonl() { return jsonl; },
+    get entries() { return structuredClone(entries); },
+    get leafId() { return entries.at(-1)?.id ?? null; },
+    holdEdit() {
+      let release;
+      editGate = new Promise((resolve) => { release = resolve; });
+      return release;
+    },
+    holdEditReply() {
+      let release;
+      editReplyGate = new Promise((resolve) => { release = resolve; });
+      return release;
+    },
+    holdPrompt() {
+      let release;
+      promptGate = new Promise((resolve) => { release = resolve; });
+      return release;
+    },
+    reopen() {
+      const [persistedHeader, ...persistedEntries] = jsonl.trim().split("\n").map((line) => JSON.parse(line));
+      assert.equal(persistedHeader.id, sid, "reopening must retain the persisted session identity");
+      entries = persistedEntries;
+      persist();
+      world.agents.set(sid, { running: false, state: {} });
+    },
+    async command(body) {
+      if (body.type === "edit_message") {
+        const target = entries.find((entry) => entry.id === body.entryId);
+        assert.equal(target?.type, "message", "Edit must address a persisted entry, not message.id");
+        assert.equal(target.message.role, "user", "native Edit only accepts user entries");
+        native.edits.push(body.entryId);
+        await editGate;
+        let response;
+        if (native.editOutcome === "error" || native.editOutcome === "persistence-error") {
+          response = jsonResponse(400, { error: native.editOutcome === "persistence-error"
+            ? "Could not append session file: disk full" : "Native history navigation failed" });
+        } else if (native.editOutcome === "cancelled") {
+          response = jsonResponse(200, {
+            success: true, data: { cancelled: true, sessionId: sid, leafId: native.leafId },
+          });
+        } else {
+          if (native.moveTo && native.moveTo !== sid) {
+            const previousId = sid;
+            sid = native.moveTo;
+            filePath = `/fixture/${sid}.jsonl`;
+            header.id = sid;
+            world.nativeHistories.set(sid, native);
+            world.agents.set(sid, world.agents.get(previousId));
+            native.onMove?.(previousId, sid);
+          }
+          entries.push({
+            type: "custom", customType: "omp-web-history-navigation", id: `edit-marker-${native.edits.length}`,
+            parentId: target.parentId, timestamp: header.timestamp, data: { entryId: target.id },
+          });
+          persist();
+          response = jsonResponse(200, { success: true, data: { cancelled: false, sessionId: sid, leafId: native.leafId } });
+        }
+        // The native change and its SSE can precede this client's HTTP reply.
+        await editReplyGate;
+        return response;
+      }
+      await promptGate;
+      const number = native.prompts.length + 1;
+      entries.push({
+        type: "message", id: `entry-replacement-${number}`, parentId: native.leafId, timestamp: header.timestamp,
+        message: userMsg(`replacement-${number}`, body.message),
+      });
+      persist();
+      native.prompts.push({ sessionId: sid, filePath, ...context() });
+      world.agents.set(sid, { running: true, state: { isStreaming: true, isPromptRunning: true } });
+      return jsonResponse(200, { success: true, data: null });
+    },
+    completePrompt(stream) {
+      assert.equal(stream.channel.sessionId, sid);
+      const number = native.prompts.length;
+      const message = assistantMsg(`revised-answer-${number}`, "A2-revised");
+      entries.push({ type: "message", id: `entry-revised-answer-${number}`, parentId: native.leafId, timestamp: header.timestamp, message });
+      persist();
+      world.agents.set(sid, { running: false, state: { isStreaming: false, isPromptRunning: false } });
+      stream.emit({ type: "agent_start" });
+      stream.emit({ type: "message_end", message });
+      stream.emit({ type: "agent_end", isTerminal: true });
+    },
+  };
+  persist();
+  world.nativeHistories.set(sid, native);
+  world.agents.set(sid, { running: false, state: {} });
+  return native;
+}
+
+// Exercise the real server identity registry callback and Edit helper protocol.
+// Only the native process/file boundary is controlled; history frames originate
+// in AgentSessionWrapper, not from a second simulated edit implementation.
+async function attachEditableWrapper(t, native, { holdHistory = false } = {}) {
+  const listeners = new Set();
+  const historyFrames = [];
+  const identityChanges = [];
+  let protocolNegotiated = false;
+  const emitNative = (frame) => { for (const listener of [...listeners]) listener(frame); };
+  const wrapper = new AgentSessionWrapper({
+    isAlive: true,
+    async waitReady() { return { type: "ready", protocolVersion: 2 }; },
+    async negotiateProtocol() { protocolNegotiated = true; },
+    onFrame(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    async sendCommand(command) {
+      assert.equal(protocolNegotiated, true, "commands must wait for readiness and protocol negotiation");
+      if (command.type === "get_state") return {
+        sessionId: native.sessionId, sessionFile: native.filePath,
+        isStreaming: world.agents.get(native.sessionId)?.state?.isStreaming ?? false,
+        isCompacting: false, isSettled: true, hasPendingAsyncWork: false, queuedMessageCount: 0,
+      };
+      if (command.type === "get_available_commands") return { commands: [{ name: SESSION_EDIT_COMMAND, source: "extension" }] };
+      if (command.type === "prompt" && command.message.startsWith(`/${SESSION_EDIT_COMMAND} `)) {
+        const request = JSON.parse(command.message.slice(SESSION_EDIT_COMMAND.length + 2));
+        const response = await native.command({ type: "edit_message", entryId: request.entryId });
+        const value = await response.json();
+        if (native.editOutcome === "persistence-error") {
+          emitNative({ type: "notice", source: "session-persistence", level: "error", message: value.error });
+        }
+        emitNative({ type: "extension_ui_request", method: "notify", message: SESSION_EDIT_RESPONSE_PREFIX + JSON.stringify({
+          requestId: request.requestId, ...(response.ok ? value.data : { error: value.error }),
+        }) });
+        return { agentInvoked: false };
+      }
+      if (command.type === "prompt") { await native.command(command); return { agentInvoked: true }; }
+      return {};
+    },
+    sendFrame() {},
+    async dispose() { listeners.clear(); },
+  }, process.cwd(), null, false, native.sessionId);
+  t.after(() => wrapper.destroyAndWait());
+  native.onMove = () => emitNative({ type: "notice", source: "session-persistence", level: "warning", message: "Session moved to a sibling file because another process owns the original" });
+  wrapper.onIdentityChange((oldId, newId, options) => {
+    identityChanges.push({ oldId, newId, keepOldId: options?.keepOldId });
+    if (!options?.keepOldId) world.wrappers.delete(oldId);
+    world.wrappers.set(newId, wrapper);
+  });
+  wrapper.onEvent((event) => {
+    for (const [id, registered] of world.wrappers) {
+      if (registered === wrapper) world.streams.set(id, event);
+    }
+    if (holdHistory && event.type === "session_history_changed") { historyFrames.push(event); return; }
+    for (const stream of world.esInstances) {
+      if (!stream.closedByCaller && world.wrappers.get(stream.channel.sessionId) === wrapper) stream.emit(event);
+    }
+  });
+  wrapper.start();
+  await wrapper.waitUntilReady();
+  world.wrappers.set(native.sessionId, wrapper);
+  return {
+    wrapper, identityChanges, emitNative,
+    completePrompt() { native.completePrompt({ channel: { sessionId: native.sessionId }, emit: emitNative }); },
+    releaseHistory() {
+      holdHistory = false;
+      for (const event of historyFrames.splice(0)) {
+        for (const stream of world.esInstances) {
+          if (!stream.closedByCaller && world.wrappers.get(stream.channel.sessionId) === wrapper) stream.emit(event);
+        }
+      }
+    },
+  };
+}
+
+async function mountMovableChat(initialId) {
+  const chatInputRef = React.createRef();
+  let selectedId = initialId;
+  let navigate;
+  let changeLeaf;
+  let activeLeaf;
+  const onBranchDataChange = (_tree, leaf, handler) => { activeLeaf = leaf; changeLeaf = handler; };
+  function Shell() {
+    const [session, setSession] = React.useState(() => sessionInfo(initialId));
+    const [navigationKey, setNavigationKey] = React.useState(0);
+    navigate = (id) => {
+      selectedId = id;
+      setSession(sessionInfo(id));
+      setNavigationKey((key) => key + 1);
+      window.history.replaceState(null, "", `?session=${encodeURIComponent(id)}`);
+    };
+    return React.createElement(ChatWindow, {
+      key: navigationKey, session, newSessionCwd: null, chatInputRef, onBranchDataChange,
+      onSessionMoved(oldId, newId) {
+        if (selectedId !== oldId) return;
+        selectedId = newId;
+        setSession(sessionInfo(newId));
+        window.history.replaceState(null, "", `?session=${encodeURIComponent(newId)}`);
+      },
+    });
+  }
+  window.history.replaceState(null, "", `?session=${encodeURIComponent(initialId)}`);
+  const view = render(React.createElement(Shell));
+  await settle();
+  await act(async () => { lastEs()?.open(); });
+  await settle();
+  return {
+    view, chatInputRef, unmount: view.unmount,
+    navigate: (id) => navigate(id), changeLeaf: (leaf) => changeLeaf(leaf),
+    editButton: () => view.getAllByRole("button", { name: translate("messageView.editFromHereTitle") })[1],
+    get selectedId() { return selectedId; }, get activeLeaf() { return activeLeaf; },
+  };
+}
+
+async function mountEditableSession(sid, options = {}) {
+  const { getDraft, setDraft } = await jiti.import("@/lib/draft-store");
+  const session = sessionInfo(sid);
+  const chatInputRef = options.chatInputRef ?? React.createRef();
+  let latest;
+  let sending;
+  let changeLeaf;
+  const onBranchDataChange = (_tree, _leaf, handler) => { changeLeaf = handler; };
+  function Chat() {
+    const [value, setValue] = React.useState(() => getDraft(sid)?.value ?? "");
+    React.useImperativeHandle(chatInputRef, () => ({
+      insertIfEmpty(text) { setValue((current) => current.trim() ? current : text); },
+    }), []);
+    React.useEffect(() => { setDraft(sid, { value, images: [] }); }, [value]);
+    const hook = useAgentSession({ session, newSessionCwd: null, ...options, chatInputRef, onBranchDataChange });
+    latest = hook;
+    const historyBusy = hook.editingEntryId !== null || hook.forkingEntryId !== null;
+    return React.createElement(React.Fragment, null,
+      hook.messages.map((message, index) => message.role === "user"
+        ? React.createElement("section", { key: hook.entryIds[index] ?? index, "data-testid": `message-${hook.entryIds[index]}` },
+          React.createElement(MessageView, {
+            message, entryId: hook.entryIds[index], onEdit: hook.handleEdit,
+            editing: hook.editingEntryId === hook.entryIds[index], editDisabled: historyBusy,
+            onFork: hook.handleFork, forking: hook.forkingEntryId === hook.entryIds[index], forkDisabled: historyBusy,
+          })) : null),
+      React.createElement("form", { onSubmit: (event) => {
+        event.preventDefault();
+        sending = hook.handleSend(value);
+        void sending.then((sent) => { if (sent.status === "accepted") setValue((current) => current === value ? "" : current); });
+      } },
+      React.createElement("textarea", { "aria-label": "Test composer", value, onChange: (event) => setValue(event.target.value) }),
+      React.createElement("button", { type: "submit" }, "Submit replacement")));
+  }
+  const view = render(React.createElement(Chat));
+  await settle();
+  assert.equal(latest.loading, false, "the real hook must finish hydration");
+  return {
+    view, unmount: view.unmount, changeLeaf: (leafId) => changeLeaf(leafId),
+    editButton: (entryId) => within(view.getByTestId(`message-${entryId}`)).getByRole("button", { name: translate("messageView.editFromHereTitle") }),
+    get latest() { return latest; },
+    get sending() { return sending; },
+  };
+}
+
+test("Edit rewinds and resends in the same persisted session while retaining the old branch", async (t) => {
+  resetWorld();
+  const { clearDraft } = await jiti.import("@/lib/draft-store");
+  const sid = "edit-same-session";
+  clearDraft(sid);
+  t.after(() => clearDraft(sid));
+  const native = primeEditableHistory(sid);
+  const originalEntries = native.entries;
+  const original = world.sessions.get(sid);
+  const forked = [];
+  const options = { onSessionForked: (id) => forked.push(id) };
+  const w = await mountEditableSession(sid, options);
+  assert.equal(w.latest.data.filePath, native.filePath);
+  const release = native.holdEdit();
+  t.after(release);
+  const edit = w.editButton("entry-u2");
+  await act(async () => { fireEvent.click(edit); });
+  await until(() => native.edits.length === 1, "the actual Edit button must reach native history navigation");
+  assert.equal(w.latest.editingEntryId, "entry-u2");
+  assert.equal(edit.disabled, true);
+  await act(async () => {
+    fireEvent.click(edit);
+    assert.equal(await w.latest.handleEdit("entry-u2", "U2-original"), false, "the hook also refuses overlapping Edits");
+    await w.latest.handleFork("entry-u2", true);
+    fireEvent.change(w.view.getByRole("textbox"), { target: { value: "must not reach the old runtime" } });
+  });
+  await act(async () => {
+    fireEvent.click(w.view.getByRole("button", { name: "Submit replacement" }));
+    assert.equal((await w.sending).status, "rejected", "a nonempty send is refused while Edit is pending");
+  });
+  assert.deepEqual(native.edits, ["entry-u2"]);
+  assert.deepEqual(native.prompts, []);
+  assert.deepEqual(world.sessions.get(sid).messages, original.messages);
+  await act(async () => {
+    fireEvent.change(w.view.getByRole("textbox"), { target: { value: "" } });
+    release();
+  });
+  await until(() => w.latest.editingEntryId === null && w.latest.entryIds.length === 2, "Edit must reload the real active prefix");
+  assert.equal(w.latest.sessionIdRef.current, sid);
+  assert.deepEqual(w.latest.messages, original.messages.slice(0, 2));
+  assert.deepEqual(w.latest.entryIds, ["entry-u1", "entry-a1"]);
+  assert.equal(w.latest.activeLeafId, "edit-marker-1", "the durable leaf is metadata, not the last visible message");
+  assert.equal(w.view.getByRole("textbox").value, "U2-original");
+  assert.deepEqual(native.entries.slice(0, originalEntries.length), originalEntries, "navigation must not remove the original continuation");
+  assert.equal(native.entries.at(-1).parentId, "entry-a1");
+
+  await act(async () => {
+    fireEvent.change(w.view.getByRole("textbox"), { target: { value: "U2-modified" } });
+  });
+  await act(async () => { fireEvent.click(w.view.getByRole("button", { name: "Submit replacement" })); });
+  await until(() => world.esInstances.some((stream) => stream.channel.sessionId === sid), "resend must connect to the same session");
+  const stream = lastEs();
+  await act(async () => { stream.open(); assert.equal((await w.sending).status, "accepted"); });
+  assert.equal(native.prompts.length, 1);
+  assert.equal(native.prompts[0].sessionId, sid);
+  assert.equal(native.prompts[0].filePath, native.filePath);
+  assert.deepEqual(native.prompts[0].messages, [original.messages[0], original.messages[1], userMsg("replacement-1", "U2-modified")],
+    "the effective model context must exclude U2-original and every message after it");
+  assert.equal(world.calls.findLast((call) => call.body?.type === "prompt").url, `/api/agent/${sid}`);
+  await act(async () => { native.completePrompt(stream); });
+  await until(() => !w.latest.agentRunning && w.latest.entryIds.at(-1) === "entry-revised-answer-1", "the revised branch must persist and hydrate");
+  const revised = structuredClone(world.sessions.get(sid));
+  const persisted = native.jsonl;
+  w.unmount();
+  world.sessions.delete(sid);
+  native.reopen();
+  const reopened = await mountEditableSession(sid, options);
+  assert.equal(reopened.latest.sessionIdRef.current, sid);
+  assert.equal(reopened.latest.data.filePath, native.filePath);
+  assert.deepEqual(reopened.latest.entryIds, revised.entryIds);
+  assert.deepEqual(reopened.latest.messages, revised.messages, "a cold reopen must select the persisted revised branch");
+  assert.equal(reopened.latest.activeLeafId, revised.leafId);
+  const branchReadsStart = world.calls.length;
+  await act(async () => { await reopened.changeLeaf(original.leafId); });
+  assert.deepEqual(reopened.latest.entryIds, original.entryIds);
+  assert.deepEqual(reopened.latest.messages, original.messages, "the prior continuation remains reachable through read-only browsing");
+  assert.deepEqual(world.sessions.get(sid).messages, revised.messages, "browsing must not move the native branch");
+  await act(async () => { await reopened.changeLeaf(null); });
+  assert.deepEqual(reopened.latest.messages, revised.messages);
+  assert.equal(native.jsonl, persisted, "neither reopen nor read-only browsing rewrites the session file");
+  assert.ok(world.calls.slice(branchReadsStart).every((call) => call.method === "GET"));
+  assert.deepEqual([...world.sessions.keys()], [sid], "Edit never creates another session");
+  assert.equal(world.calls.some((call) => call.body?.type === "fork" || call.url === "/api/agent/new" || call.body?.type === "new_session"), false);
+  assert.deepEqual(forked, []);
+});
+
+test("cancelled and failed Edits preserve history selection and draft, then release the guard", async (t) => {
+  const { getDraft, setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+  for (const outcome of ["cancelled", "error"]) {
+    await t.test(outcome, async (t) => {
+      resetWorld();
+      const sid = `edit-${outcome}`;
+      setDraft(sid, { value: "keep my draft", images: [] });
+      t.after(() => clearDraft(sid));
+      const native = primeEditableHistory(sid);
+      native.editOutcome = outcome;
+      const original = structuredClone(world.sessions.get(sid));
+      const persisted = native.jsonl;
+      const forked = [];
+      const w = await mountEditableSession(sid, { onSessionForked: (id) => forked.push(id) });
+      await act(async () => { await w.changeLeaf("entry-a2"); });
+      const selectedIds = [...w.latest.entryIds];
+      const selectedMessages = structuredClone(w.latest.messages);
+      await act(async () => { fireEvent.click(w.editButton("entry-u2")); });
+      await until(() => native.edits.length === 1 && w.latest.editingEntryId === null, "the unsuccessful Edit must settle");
+      assert.equal(w.latest.sessionIdRef.current, sid);
+      assert.equal(w.latest.activeLeafId, "entry-a2");
+      assert.deepEqual(w.latest.entryIds, selectedIds);
+      assert.deepEqual(w.latest.messages, selectedMessages);
+      assert.deepEqual(world.sessions.get(sid), original);
+      assert.equal(native.jsonl, persisted);
+      assert.equal(w.view.getByRole("textbox").value, "keep my draft");
+      assert.equal(getDraft(sid)?.value, "keep my draft");
+      assert.deepEqual(w.latest.notices.map((notice) => notice.type), outcome === "error" ? ["error"] : []);
+
+      native.editOutcome = "success";
+      await act(async () => { fireEvent.click(w.editButton("entry-u2")); });
+      await until(() => native.edits.length === 2 && w.latest.editingEntryId === null, "a settled refusal must allow another Edit");
+      assert.deepEqual(world.sessions.get(sid).entryIds, ["entry-u1", "entry-a1"]);
+      assert.deepEqual(w.latest.entryIds, ["entry-u1", "entry-a1"]);
+      assert.equal(w.view.getByRole("textbox").value, "keep my draft", "successful insertIfEmpty must not overwrite existing text");
+      assert.equal(getDraft(sid)?.value, "keep my draft");
+      assert.deepEqual([...world.sessions.keys()], [sid]);
+      assert.equal(world.calls.some((call) => call.body?.type === "fork" || call.url === "/api/agent/new"), false);
+      assert.deepEqual(forked, []);
+      w.unmount();
+    });
+  }
+});
+
+for (const order of ["identity/history before HTTP", "HTTP before history delivery"]) {
+  test(`native Edit relocation keeps the prefix, composer and resend (${order})`, async (t) => {
+    resetWorld();
+    const { getDraft, setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+    const sid = `edit-move-${order.startsWith("identity") ? "early" : "late"}`;
+    const target = `${sid}-owned`;
+    for (const id of [sid, target]) clearDraft(id);
+    t.after(() => { clearDraft(sid); clearDraft(target); });
+    const images = [{ data: "AAAA", mimeType: "image/png" }];
+    setDraft(sid, { value: "", images });
+    const native = primeEditableHistory(sid);
+    native.moveTo = target;
+    const original = structuredClone(world.sessions.get(sid));
+    const originalEntries = native.entries;
+    const originalJsonl = native.jsonl;
+    const server = await attachEditableWrapper(t, native, { holdHistory: order.startsWith("HTTP") });
+    const w = await mountMovableChat(sid);
+    const composer = w.view.getByRole("textbox");
+    let releaseReply;
+    let replyReady = false;
+    if (order.startsWith("identity")) {
+      const replyGate = new Promise((resolve) => { releaseReply = resolve; });
+      t.after(releaseReply);
+      world.holds.push({
+        match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "edit_message",
+        produce: async () => {
+          const result = await server.wrapper.send({ type: "edit_message", entryId: "entry-u2" });
+          replyReady = true;
+          await replyGate;
+          return { value: { success: true, data: result } };
+        },
+      });
+    }
+    await act(async () => { fireEvent.click(w.editButton()); });
+    await until(() => server.identityChanges.length === 1, "native identity machinery must confirm the copy-on-write move");
+    assert.deepEqual(server.identityChanges, [{ oldId: sid, newId: target, keepOldId: true }]);
+    assert.equal(world.wrappers.get(sid), world.wrappers.get(target), "the existing alias registry retains the originating observer");
+    if (releaseReply) {
+      await until(() => replyReady, "the wrapper history event must precede the held HTTP response");
+      assert.equal(w.selectedId, sid, "a native identity/history event alone cannot navigate the client");
+      assert.equal(w.activeLeaf, original.leafId);
+      assert.equal(composer.value, "");
+      await act(async () => { releaseReply(); });
+    }
+    await until(() => w.selectedId === target && w.activeLeaf === native.leafId, "confirmed Edit must reload and select the moved conversation");
+    await settle();
+    assert.equal(w.view.getByRole("textbox"), composer, "ownership relocation preserves the live composer instance");
+    assert.equal(w.view.getByRole("textbox").value, "U2-original");
+    assert.equal(new URL(window.location.href).searchParams.get("session"), target);
+    assert.deepEqual(getDraft(target), { value: "U2-original", images });
+    assert.equal(getDraft(sid), null, "the draft moves rather than remaining on the abandoned branch");
+    assert.deepEqual(world.sessions.get(sid), original, "the non-owned source file remains historical");
+    assert.equal(native.persistedFiles.get(original.filePath), originalJsonl, "copy-on-write must never append the Edit marker to the source file");
+    assert.deepEqual(native.entries.slice(0, originalEntries.length), originalEntries);
+    assert.deepEqual(world.sessions.get(target).messages, original.messages.slice(0, 2));
+    assert.equal(w.view.queryByText("U3-original"), null);
+
+    // A held server frame is delivered during the replacement response. It must
+    // not clear the optimistic prompt or reset streaming after the id changed.
+    await act(async () => {
+      fireEvent.change(w.view.getByRole("textbox"), { target: { value: "U2-modified" } });
+      fireEvent.keyDown(w.view.getByRole("textbox"), { key: "Enter", code: "Enter" });
+    });
+    await until(() => lastEs()?.channel.sessionId === target, "resend must attach the confirmed native identity");
+    await act(async () => { lastEs().open(); });
+    await until(() => native.prompts.length === 1, "replacement prompt must reach native history");
+    const partial = assistantMsg("moving-partial", "Moved response in progress");
+    await act(async () => { server.emitNative({ type: "agent_start" }); server.emitNative({ type: "message_update", message: partial }); });
+    await settle(90);
+    await act(async () => { server.releaseHistory(); });
+    await settle();
+    assert.ok(w.view.getByText("Moved response in progress"), "a delayed history echo must not reset the new response");
+    assert.equal(native.prompts[0].sessionId, target);
+    assert.deepEqual(native.prompts[0].messages.slice(0, 2), original.messages.slice(0, 2));
+    assert.match(native.prompts[0].messages.at(-1).content, /U2-modified/);
+    assert.equal(native.prompts[0].messages.some((message) => message.content === "U3-original"), false);
+    const promptCall = world.calls.findLast((call) => call.body?.type === "prompt");
+    assert.equal(promptCall.url, `/api/agent/${target}`);
+    assert.deepEqual(promptCall.body.images.map(({ data, mimeType }) => ({ data, mimeType })), images);
+    await act(async () => { server.completePrompt(); });
+    await until(() => w.activeLeaf === native.leafId && w.view.queryByText("A2-revised") !== null, "the moved replacement must persist and hydrate");
+    await act(async () => { await w.changeLeaf(original.leafId); });
+    assert.ok(w.view.getByText("U3-original"), "the abandoned continuation remains browsable in the copied history");
+    assert.deepEqual(world.sessions.get(sid), original);
+    await act(async () => { await w.changeLeaf(null); });
+    const revised = structuredClone(world.sessions.get(target));
+    w.unmount();
+    native.reopen();
+    const reopened = await mountMovableChat(new URL(window.location.href).searchParams.get("session"));
+    assert.equal(reopened.selectedId, target);
+    assert.equal(reopened.activeLeaf, revised.leafId);
+    assert.ok(reopened.view.getByText("A2-revised"), "reloading the selected URL keeps the revised conversation");
+    assert.equal(reopened.view.queryByText("U3-original"), null);
+  });
+}

@@ -12,7 +12,7 @@ import type { ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import type { SttAfter } from "@/lib/stt";
 import { formatCompactNumber, formatPercent } from "@/lib/format";
 import { getSubmitDuringRunBehavior, isWordCompletionEnabled } from "@/lib/composer-prefs";
-import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
+import type { BuiltinSlashCommandResult, CompactResultInfo, PromptSubmissionResult, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import { useWordPrediction, type PredictWord, type PredictWordFeedback } from "@/hooks/useWordPrediction";
 import { acceptGhost } from "@/lib/word-prediction";
 import { GhostMirror } from "./GhostMirror";
@@ -25,7 +25,7 @@ import { useDictation } from "@/hooks/useDictation";
 import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
-import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraftImage } from "@/lib/draft-store";
+import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraft, type ChatDraftImage } from "@/lib/draft-store";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, buildSlashInsertText, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import {
@@ -127,7 +127,8 @@ interface ModelOption {
 }
 
 interface Props {
-  onSend: (message: string, images?: AttachedImage[]) => void;
+  /** Only a rejected submission is restored; completed/superseded runs must not be replayed. */
+  onSend: (message: string, images?: AttachedImage[]) => Promise<PromptSubmissionResult>;
   /** Ghost-text word completion for the draft (omp `predict_word`); absent = no ghost text. */
   onPredictWord?: PredictWord;
   onPredictWordFeedback?: PredictWordFeedback;
@@ -137,6 +138,8 @@ interface Props {
   onFollowUp?: (message: string, images?: AttachedImage[]) => Promise<boolean>;
   onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => Promise<boolean>;
   isStreaming: boolean;
+  /** Refuse submission without treating a pending history edit as a model run. */
+  submissionBlocked?: boolean;
   /** True while a prompt is in flight but the turn has not visibly started
    *  yet (session spawn / first stream frame) — shows the loading state
    *  between Send and Stop. */
@@ -194,6 +197,8 @@ interface Props {
   onBuiltinCommand?: (message: string, images?: AttachedImage[]) => Promise<BuiltinSlashCommandResult>;
   onAudioUnlock?: () => void;
   draftKey?: string;
+  /** Backend-confirmed ownership relocation, distinct from navigating to a draft. */
+  draftIdentityMove?: { from: string; to: string; sourceDraft?: ChatDraft };
   /** Session working directory — enables the @ file autocomplete menu */
   cwd?: string | null;
   activeGoal?: ActiveGoal | null;
@@ -244,6 +249,8 @@ export interface ChatInputHandle {
   insertText: (text: string) => void;
   insertIfEmpty: (text: string) => void;
   prependText: (text: string) => void;
+  /** Retarget captured queue recoveries before a confirmed move can render. */
+  retargetPendingRecovery: (from: string, to: string) => void;
   addFiles: (files: File[]) => void;
   /** Open the Session Info popover (e.g. from the /session command). */
   openSessionInfo: () => void;
@@ -658,6 +665,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   onBuiltinCommand,
   onAudioUnlock,
   onPromptWithStreamingBehavior,
+  submissionBlocked = false,
   advisorActive,
   advisorModel,
   onCompact,
@@ -675,6 +683,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   onPromoteQueuedToSteer,
   draftKey = "new:unassigned",
   cwd,
+  draftIdentityMove,
   activeGoal,
   activePlan,
   onOpenPlan,
@@ -791,13 +800,22 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const fileIndexMetaRef = useRef<{ cwd: string; fetchedAt: number } | null>(null);
   const fileIndexFetchingRef = useRef<string | null>(null);
   const draftKeyRef = useRef(draftKey);
+  const consumedIdentityMoveRef = useRef<typeof draftIdentityMove>(undefined);
+  // Pending queue edits retain this identity across confirmed moves only.
+  // Navigation starts a new identity, even when a draft key is later reused.
+  const draftRecoveryIdentityRef = useRef({ key: draftKey });
+  const persistedDraftRef = useRef<ChatDraft | null>(null);
+  // Async dictation and slash-command completions must see the latest edit gate.
+  const submissionBlockedRef = useRef(submissionBlocked);
   const valueRef = useRef(value);
   const attachedImagesRef = useRef(attachedImages);
   // Bumped whenever the user clears/sends the composer: in-flight FileReader
   // reads must not re-append their results afterwards.
   const attachmentRevisionRef = useRef(0);
+  const attachmentIdentityRevisionRef = useRef(0);
   const pendingImageCountRef = useRef(0);
   const lastMeasuredValueRef = useRef(value);
+  submissionBlockedRef.current = submissionBlocked;
   valueRef.current = value;
   attachedImagesRef.current = attachedImages;
   const insertTextAtCursor = useCallback((text: string) => {
@@ -845,6 +863,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     confirmTranscribe: confirmTranscribeDictation,
   } = useDictation({
     scope: draftKey,
+    identityMove: draftIdentityMove,
     // `after` comes back with the transcript from the server job, so a send or
     // queue chosen before a session switch (which remounts this composer) holds.
     // The run may have started or ended since: queue while the agent runs
@@ -854,6 +873,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       const sep = base.length > 0 && !base.endsWith(" ") ? " " : "";
       const finalText = base + sep + text;
       insertTextAtCursor(text);
+      // A send/queue chosen before Edit started now remains an unsent draft.
+      if (submissionBlockedRef.current) {
+        toast.success(t("chatInput.dictationSuccess"));
+        return;
+      }
       if (after && onFollowUp) {
         sendQueued(after === "send" ? "followup" : after, finalText);
       } else if (after && !isStreaming) {
@@ -881,6 +905,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // From the review deck the recorder has already stopped, so finishing with a
   // send/queue choice transcribes the reviewed recording instead.
   const stopAndFinishDictation = useCallback((after: SttAfter) => {
+    if (submissionBlockedRef.current) return;
     if (isReviewing) confirmTranscribeDictation({ after });
     else stopDictation({ after });
   }, [isReviewing, confirmTranscribeDictation, stopDictation]);
@@ -953,6 +978,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       if (ringHidden) return;
       setContextOpen(true);
     },
+    retargetPendingRecovery(from, to) {
+      const identity = draftRecoveryIdentityRef.current;
+      if (identity.key === from) identity.key = to;
+    },
   }));
   const processImageFiles = useCallback(async (files: File[]) => {
     const remaining = Math.max(
@@ -973,6 +1002,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       return;
     }
     const revision = attachmentRevisionRef.current;
+    const identityRevision = attachmentIdentityRevisionRef.current;
     pendingImageCountRef.current += imageFiles.length;
     const created: AttachedImage[] = [];
     try {
@@ -1007,7 +1037,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         return;
       }
       setAttachedImages((prev) => {
-        const accepted = newImages.slice(0, Math.max(0, MAX_ATTACHED_IMAGES - prev.length));
+        // These reads already passed the picker budget before the move.
+        // A merged target must not take away their reserved slots.
+        const accepted = identityRevision !== attachmentIdentityRevisionRef.current
+          ? newImages
+          : newImages.slice(0, Math.max(0, MAX_ATTACHED_IMAGES - prev.length));
         newImages.slice(accepted.length).forEach(revokeImagePreview);
         return [...prev, ...accepted];
       });
@@ -1140,15 +1174,54 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 
   useLayoutEffect(() => {
     if (!draftKey || draftKeyRef.current !== draftKey) return;
-    setDraft(draftKey, {
+    const draft = {
       value,
       images: attachedImages.map(imageToDraftImage),
-    });
+    };
+    persistedDraftRef.current = draft;
+    setDraft(draftKey, draft);
   }, [attachedImages, draftKey, value]);
 
   useLayoutEffect(() => {
     const previousDraftKey = draftKeyRef.current;
     if (previousDraftKey === draftKey) return;
+
+    if (draftIdentityMove !== consumedIdentityMoveRef.current
+      && draftIdentityMove?.from === previousDraftKey && draftIdentityMove.to === draftKey) {
+      consumedIdentityMoveRef.current = draftIdentityMove;
+      attachmentIdentityRevisionRef.current += 1;
+      draftRecoveryIdentityRef.current.key = draftKey;
+      // The hook's transfer may precede this batch's mounted state updates.
+      // Add only live deltas to its merged snapshot, not the source twice.
+      const source = draftIdentityMove.sourceDraft ?? persistedDraftRef.current;
+      const draft = getDraft(draftKey);
+      draftKeyRef.current = draftKey;
+      setValue((current) => {
+        const transferred = draft?.value ?? "";
+        if (!source || current === source.value) return transferred;
+        const destination = source.value && transferred.startsWith(source.value)
+          ? transferred.slice(source.value.length).replace(/^\n\n/, "")
+          : transferred;
+        return mergeRecoveredText(destination, { text: current });
+      });
+      setAttachedImages((current) => {
+        // Match occurrences, not a set: intentional identical attachments in
+        // the source or target must retain their original multiplicity.
+        const remaining = [...(source?.images ?? [])];
+        const added = current.filter((image) => {
+          const index = remaining.findIndex((item) => item.data === image.data && item.mimeType === image.mimeType);
+          if (index === -1 && source) return true;
+          if (index !== -1) remaining.splice(index, 1);
+          revokeImagePreview(image);
+          return false;
+        });
+        return [...draftImagesToAttachedImages(draft?.images), ...added];
+      });
+      setQueuedDeleteTarget(null);
+      return;
+    }
+
+    draftRecoveryIdentityRef.current = { key: draftKey };
 
     if (previousDraftKey) {
       setDraft(previousDraftKey, {
@@ -1167,7 +1240,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       prev.forEach(revokeImagePreview);
       return draftImagesToAttachedImages(draft?.images);
     });
-  }, [draftKey]);
+  }, [draftKey, draftIdentityMove]);
 
   // Recover text returned from a dismissed question-answer dialog or an
   // edited queued message: the recovery payload may target this composer's
@@ -1202,13 +1275,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
    * success and only if it still holds what was sent (the user may have
    * started typing while the command ran). */
   const runBuiltinCommand = useCallback(async (msg: string, overrideText?: string, images?: AttachedImage[]): Promise<boolean> => {
-    if (!onBuiltinCommand) return false;
+    if (submissionBlockedRef.current || !onBuiltinCommand) return false;
     const sentValue = overrideText ?? valueRef.current;
     setIsSubmitting(true);
     try {
       const result = await onBuiltinCommand(msg, images);
       if (!result.handled) return false;
-      if (!result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
+      if (!submissionBlockedRef.current && !result.error && !result.retainInput && (overrideText !== undefined || valueRef.current === sentValue)) clearInput();
       return true;
     } finally {
       setIsSubmitting(false);
@@ -1232,6 +1305,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const raw = overrideText ?? value;
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
+    if (submissionBlockedRef.current) return;
     onAudioUnlock?.();
     if (sendSideQuestion(msg, overrideText)) return;
     if (msg.startsWith("/") && onBuiltinCommand) {
@@ -1250,14 +1324,28 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         if (await runBuiltinCommand(msg, overrideText, attachedImages.length ? attachedImages : undefined)) return;
       }
     }
+    if (submissionBlockedRef.current) return;
     const validationError = validateOutgoingPrompt(msg, attachedImages);
     if (validationError) {
       setAttachError(validationError);
       return;
     }
     setAttachError(null);
-    onSend(msg, attachedImages.length ? attachedImages : undefined);
+    const key = draftKeyRef.current;
+    const images = attachedImages.length ? attachedImages : undefined;
+    const recovery = { text: msg, images: images?.map(imageToDraftImage) };
+    const pending = onSend(msg, images);
     clearInput();
+    try {
+      const result = await pending;
+      if (result.status === "rejected") {
+        const destination = result.recoveryKey ?? key;
+        if (destination) recoverDraft(destination, recovery);
+      }
+    } catch (error) {
+      if (key) recoverDraft(key, recovery);
+      throw error;
+    }
   }, [value, attachedImages, isStreaming, isSubmitting, onBuiltinCommand, onSend, clearInput, onAudioUnlock, runBuiltinCommand, sendSideQuestion]);
 
   // Slash token follows the caret, not the input start: typing a slash after
@@ -1586,6 +1674,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   }, [slashMatch, value]);
 
   const sendQueued = useCallback((mode: "steer" | "followup", overrideText?: string) => {
+    if (submissionBlockedRef.current) return;
     const raw = overrideText ?? value;
     const msg = raw.trim();
     if (!msg && !attachedImages.length) return;
@@ -1697,10 +1786,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     entry: { kind: "follow-up" | "steer"; text: string },
     action: "edit" | "delete" | "steer",
   ) => {
-    if (queueActionPendingRef.current) return;
+    if (queueActionPendingRef.current || (action === "steer" && submissionBlockedRef.current)) return;
     queueActionPendingRef.current = true;
     setQueueActionPending(true);
-    const key = draftKeyRef.current;
+    // Pending queue edits retain this identity across confirmed moves only.
+    const recoveryIdentity = draftRecoveryIdentityRef.current;
     try {
       if (action === "steer") {
         if (entry.kind === "follow-up") await onPromoteQueuedToSteer?.(entry.text);
@@ -1711,7 +1801,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       );
       setQueuedDeleteTarget(null);
       if (!removed || action !== "edit") return;
-      if (draftKeyRef.current === key) {
+      if (draftKeyRef.current === recoveryIdentity.key) {
         // Same composer still owns the key — restore directly, preserving
         // the local edit UX (focus + caret at the end + autosize). omp
         // labels an image-only message "[Image]": not text when it has images.
@@ -1733,7 +1823,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         // The user switched sessions during the round-trip; write the text
         // and images back through the draft store so they reappear if that
         // session is reopened.
-        recoverDraft(key, { text: entry.text === "[Image]" && removed.length > 0 ? "" : entry.text, images: removed });
+        recoverDraft(recoveryIdentity.key, { text: entry.text === "[Image]" && removed.length > 0 ? "" : entry.text, images: removed });
       }
     } catch (error) {
       setQueuedDeleteTarget(null);
@@ -1950,6 +2040,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         // (remote-access setting) is on; desktop always submits.
         if (isMobile && !mobileEnterToSend) return;
         e.preventDefault();
+        if (submissionBlockedRef.current) return;
         if (isStreaming && (onSteer || onFollowUp)) {
           // Submit-during-run behavior comes from Settings (Queue follow-up by
           // default, or Steer current run); no in-composer selector.
@@ -3700,7 +3791,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                     sendQueued("followup");
                   }
                 }}
-                disabled={isTranscribing}
+                disabled={submissionBlocked || isTranscribing}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
@@ -3772,7 +3863,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <button
                 type="button"
                 onClick={isRecording || isPaused || isReviewing ? () => stopAndFinishDictation("send") : () => void handleSend()}
-                disabled={isTranscribing || isSubmitting || (!value.trim() && !attachedImages.length && !isRecording && !isPaused && !isReviewing)}
+                disabled={submissionBlocked || isTranscribing || isSubmitting || (!value.trim() && !attachedImages.length && !isRecording && !isPaused && !isReviewing)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   height: 28,
@@ -3781,7 +3872,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                   border: "none",
                   borderRadius: 8,
                   color: (isRecording || isPaused || isReviewing || isTranscribing || value.trim() || attachedImages.length) && !isSubmitting ? "var(--on-accent)" : "var(--text-dim)",
-                  cursor: isTranscribing ? "wait" : ((isRecording || isPaused || value.trim() || attachedImages.length) && !isSubmitting ? "pointer" : "not-allowed"),
+                  cursor: submissionBlocked ? "not-allowed" : isTranscribing ? "wait" : ((isRecording || isPaused || value.trim() || attachedImages.length) && !isSubmitting ? "pointer" : "not-allowed"),
                   fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
                   fontWeight: 600,
                   boxShadow: (isRecording || isPaused || isReviewing || isTranscribing || value.trim() || attachedImages.length) && !isSubmitting ? "var(--shadow-card)" : "none",

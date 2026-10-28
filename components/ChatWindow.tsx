@@ -15,6 +15,7 @@ import { ToolExpansionProvider } from "./tool-expansion";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import type { ChatDraft } from "@/lib/draft-store";
 import { ExtensionDialog } from "./ExtensionDialog";
 import { BtwHistoryDialog, type BtwPanelProps } from "./BtwPanel";
 import { ChatMinimap } from "./ChatMinimap";
@@ -68,6 +69,7 @@ interface Props {
   onAgentEnd?: () => void;
   onSessionCreated?: (session: SessionInfo) => void;
   onSessionForked?: (newSessionId: string) => void;
+  onSessionMoved?: (oldId: string, newId: string) => void;
   modelsRefreshKey?: number;
   chatInputRef?: React.RefObject<ChatInputHandle | null>;
   onBranchDataChange?: (tree: SessionTreeNode[], activeLeafId: string | null, onLeafChange: (leafId: string | null) => void) => void;
@@ -286,8 +288,9 @@ interface CommittedTranscriptProps {
   isNew: boolean;
   forkingEntryId: string | null;
   handleFork: (entryId: string, editPrompt: boolean) => void;
-  handleNavigate: (entryId: string) => void;
-  handleEditContent: (content: string) => void;
+  isCompacting: boolean;
+  editingEntryId: string | null;
+  handleEdit: (entryId: string, content: string) => Promise<boolean>;
   modelNames: Record<string, string>;
   messageCwd: string | undefined;
   onOpenFile?: (filePath: string) => void;
@@ -320,8 +323,8 @@ interface CommittedTranscriptProps {
  * grouping/splitting work at display-frame cadence.
  */
 const CommittedTranscript = memo(function CommittedTranscript({
-  messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isNew, forkingEntryId,
-  handleFork, handleNavigate, handleEditContent, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
+  messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isCompacting, isNew, forkingEntryId, editingEntryId,
+  handleFork, handleEdit, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
   toolCallsDefaultCollapsed, hideToolActivity = true, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
@@ -342,10 +345,6 @@ const CommittedTranscript = memo(function CommittedTranscript({
 
   const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] } = {}): ReactNode => {
     const msg = options.messageOverride ?? messages[idx];
-    const prevAssistantEntryId =
-      msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant"
-        ? entryIds[idx - 1]
-        : undefined;
     const isVisible = msg.role === "user" || msg.role === "assistant";
     const currentRefIdx = visibleRefIndexByMessage.get(idx);
     const keyPrefix = options.keyPrefix ?? "message";
@@ -365,6 +364,8 @@ const CommittedTranscript = memo(function CommittedTranscript({
     if (options.showTimestamp !== undefined) showTimestamp = options.showTimestamp;
     const forkTarget = forkTargets[idx];
     const canOfferFork = !sessionBusy && !isNew && !!forkTarget;
+    const canOfferEdit = !sessionBusy && !isCompacting && !isNew && msg.role === "user" && !msg.branchSummary && !!entryIds[idx];
+    const historyMutationPending = forkingEntryId !== null || editingEntryId !== null;
     const view = (
       <MessageView
         key={`${keyPrefix}-view-${idx}`}
@@ -379,10 +380,10 @@ const CommittedTranscript = memo(function CommittedTranscript({
         forkEditsPrompt={forkTarget?.editPrompt}
         onFork={canOfferFork ? handleFork : undefined}
         forking={forkingEntryId === forkTarget?.entryId}
-        forkDisabled={forkingEntryId !== null}
-        onNavigate={sessionBusy ? undefined : handleNavigate}
-        prevAssistantEntryId={sessionBusy ? undefined : prevAssistantEntryId}
-        onEditContent={handleEditContent}
+        forkDisabled={historyMutationPending}
+        onEdit={canOfferEdit ? handleEdit : undefined}
+        editing={editingEntryId === entryIds[idx]}
+        editDisabled={historyMutationPending}
         showTimestamp={showTimestamp}
         prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
         sessionId={sessionId}
@@ -670,12 +671,28 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
   const { playDoneSound, unlockAudio } = useAudio();
+  const internalChatInputRef = useRef<ChatInputHandle | null>(null);
+  const composerRef = chatInputRef ?? internalChatInputRef;
+  const [composerIdentityMove, setComposerIdentityMove] = useState<{ from: string; to: string; sourceDraft?: ChatDraft }>();
+  const handleSessionMoved = useCallback((oldId: string, newId: string, sourceDraft?: ChatDraft) => {
+    if (!onSessionMoved) return;
+    // A confirmed Edit changes this conversation's owner, not its composer.
+    // Keep pending reads, capture and transcription alive while rekeying drafts.
+    // Queue HTTP responses can settle before React commits the new draft key.
+    composerRef.current?.retargetPendingRecovery(oldId, newId);
+    setComposerIdentityMove({ from: oldId, to: newId, sourceDraft });
+    onSessionMoved(oldId, newId);
+  }, [composerRef, onSessionMoved]);
+  // 稳定化草稿插入引用：EmptyChatHero 的推荐词点击
+  const handleInsertDraft = useCallback((content: string) => {
+    composerRef.current?.insertIfEmpty(content);
+  }, [composerRef]);
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
@@ -699,16 +716,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     onAgentEnd?.();
   }, [onAgentEnd]);
 
-  // 稳定化 onEditContent 引用，配合 React.memo 防止历史消息重渲染
-  const handleEditContent = useCallback((content: string) => {
-    chatInputRef?.current?.insertIfEmpty(content);
-  }, [chatInputRef]);
-
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
     agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
     liveModelMeta,
-    retryInfo, contextUsage, forkingEntryId, liveToolResults,
+    retryInfo, contextUsage, forkingEntryId, editingEntryId, liveToolResults,
     modelSwitching, modelRestoreFailure,
     isCompacting, compactResult, tokensPerSecond, displayModel: displayModelValue, sessionStats,
     slashCommands, slashCommandsLoading, queuedMessages, advisorActive, advisorEnabled, handleAdvisorChange,
@@ -720,7 +732,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     goal, sendGoalCommand, trackGoal,
     isNew,
     sessionIdRef, messagesEndRef, scrollContainerRef,
-    handleSend, handleAbort, handleFork, handleNavigate, handleModelChange, retrySession, scrollToBottom,
+    handleSend, handleAbort, handleFork, handleEdit, handleModelChange, retrySession, scrollToBottom,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
     toolPreset, handleToolPresetChange,
     removeQueuedMessage, promoteQueuedToSteer,
@@ -728,8 +740,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     btw, askBtw,
     handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleModelRestore, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
-    session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked,
-    modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
+    session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked, onSessionMoved: handleSessionMoved,
+    modelsRefreshKey, chatInputRef: composerRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
     onOpenFile, onOpenUrl,
   });
   // The restore dialog re-opens on every fresh failure; dismissing one stays
@@ -1210,8 +1222,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   }, [onSelectSubagent]);
 
   const onDrop = useCallback((files: File[]) => {
-    chatInputRef?.current?.addFiles(files);
-  }, [chatInputRef]);
+    composerRef.current?.addFiles(files);
+  }, [composerRef]);
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
   const inputHistory = useMemo(() => {
@@ -1374,7 +1386,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
 
   const chatInputElement = (
       <ChatInput
-      ref={chatInputRef}
+      draftIdentityMove={composerIdentityMove}
+      ref={composerRef}
       onSend={handleSend}
       onPredictWord={handlePredictWord}
       onPredictWordFeedback={handlePredictWordFeedback}
@@ -1383,6 +1396,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onFollowUp={agentRunning ? handleFollowUp : undefined}
       onPromptWithStreamingBehavior={agentRunning ? handlePromptWithStreamingBehavior : undefined}
       isStreaming={sessionBusy}
+      submissionBlocked={editingEntryId !== null}
       sendPending={turnStarting}
       modelSwitching={modelSwitching}
       model={displayModelValue}
@@ -1525,7 +1539,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       {isEmptyNew ? (
         <div className="relative flex flex-1 flex-col overflow-hidden">
           <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8" style={{ minHeight: 0 }}>
-              <EmptyChatHero onSelectPrompt={handleEditContent} cwd={session?.cwd ?? newSessionCwd} />
+              <EmptyChatHero onSelectPrompt={handleInsertDraft} cwd={session?.cwd ?? newSessionCwd} />
               {/* The workspace picker and chat input share the hero's 720px
                   column so all three (cards, picker, input) align edge to edge.
                   CHAT_COLUMN_MAX_WIDTH (960) is too wide for the empty state. */}
@@ -1580,7 +1594,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                 <button
                   type="button"
                   onClick={togglePreCompactionHistory}
-                  disabled={historyToggling}
+                  disabled={historyToggling || editingEntryId !== null}
                   style={{
                     flexShrink: 0, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border)",
                     background: "var(--bg)", color: "var(--text)", cursor: historyToggling ? "wait" : "pointer",
@@ -1612,11 +1626,12 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
               messageRefs={messageRefs}
               isStreaming={streamState.isStreaming}
               sessionBusy={sessionBusy}
+              isCompacting={isCompacting}
               isNew={isNew}
               forkingEntryId={forkingEntryId}
+              editingEntryId={editingEntryId}
               handleFork={handleFork}
-              handleNavigate={handleNavigate}
-              handleEditContent={handleEditContent}
+              handleEdit={handleEdit}
               modelNames={modelNames}
               messageCwd={messageCwd}
               onOpenFile={onOpenFile}
@@ -1758,13 +1773,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
             <ComposerPanels
               cwd={messageCwd}
               onOpenGitTab={onOpenGitTab}
-              onCommitWithAgent={(message) =>
-                handleSend(
+              onCommitWithAgent={async (message) => {
+                const result = await handleSend(
                   message
                     ? t("gitChangesBar.commitWithAgentPrompt", { message })
                     : t("gitChangesBar.commitWithAgentEmptyPrompt"),
-                )
-              }
+                );
+                return result.status !== "rejected";
+              }}
               todoPhases={todoPhases}
               subagents={subagents ?? []}
               subagentEvents={subagentEvents}

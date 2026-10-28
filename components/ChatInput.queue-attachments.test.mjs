@@ -58,7 +58,7 @@ async function renderRunningWithAttachments({ isStreaming = true, queued = true 
   const calls = [];
   // Images are the last argument of every queue callback, which resolves
   // false when omp refused the message.
-  const record = (name) => async (message, ...rest) => { calls.push({ name, message, images: rest.at(-1) }); return queued; };
+  const record = (name) => async (message, ...rest) => { calls.push({ name, message, images: rest.at(-1) }); return name === "onSend" ? { status: "accepted" } : queued; };
   const ref = React.createRef();
   render(React.createElement(ChatInput, {
     ref,
@@ -184,7 +184,7 @@ test("an idle web command with an attached image goes to the builtin with the im
     ref,
     draftKey: KEY,
     isStreaming: false,
-    onSend: (message, images) => { calls.push({ name: "onSend", message, images }); },
+    onSend: async (message, images) => { calls.push({ name: "onSend", message, images }); return { status: "accepted" }; },
     onBuiltinCommand: async (message, images) => {
       calls.push({ name: "builtin", message, images });
       return { handled: true };
@@ -219,7 +219,7 @@ test("an action command with an attached image keeps the raw send", async () => 
     ref,
     draftKey: KEY,
     isStreaming: false,
-    onSend: (message, images) => { calls.push({ name: "onSend", message, images }); },
+    onSend: async (message, images) => { calls.push({ name: "onSend", message, images }); return { status: "accepted" }; },
     onBuiltinCommand: async (message, images) => {
       calls.push({ name: "builtin", message, images });
       return { handled: true };

@@ -26,7 +26,7 @@ import { recordBackendError } from "@/lib/backend-errors";
 import { sessionPathKey } from "@/lib/paths";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getAgentDir } from "@/lib/omp/paths";
-import { clearExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
+import { clearExitedRpcSession, getRpcSession, WebRpcError } from "@/lib/rpc-manager";
 
 // BranchNavigator still traverses recursively, so keep the response tree shallow.
 const MAX_PROJECTED_TREE_DEPTH = 200;
@@ -42,6 +42,16 @@ function rustAuthorityError(kind: string, error: unknown): Error {
   return Object.assign(new Error(`Rust session service unavailable: ${message}`), {
     code: typeof sourceCode === "string" ? sourceCode : kind,
   });
+}
+
+/** Stable, client-safe error body for the catch-all handlers: a WebRpcError
+ *  fence (e.g. a live history edit holding the session) keeps its 409; every
+ *  other error goes through the generic stable-body mapper. */
+function sessionsErrorResponse(error: unknown): NextResponse {
+  if (error instanceof WebRpcError && error.code === "session_busy") {
+    return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
+  }
+  return apiErrorResponse(error);
 }
 
 function branchPreviewForEntry(entry: { id?: string; type?: string; message?: unknown }): { role?: "user" | "assistant"; text: string } | undefined {
@@ -281,7 +291,7 @@ export async function GET(
       ...(agent ? { agent } : {}),
     });
   } catch (error) {
-    return apiErrorResponse(error);
+    return sessionsErrorResponse(error);
   }
 }
 
@@ -307,6 +317,7 @@ export async function PATCH(
         await rpc.send({ type: "set_session_name", name: name.trim() });
         rpcRenamed = true;
       } catch (error) {
+        if (error instanceof WebRpcError && error.code === "session_busy") throw error;
         console.warn("[ompweb] set_session_name RPC failed:", error instanceof Error ? error.message : error);
       }
     }
@@ -314,6 +325,11 @@ export async function PATCH(
     // reflects the rename immediately instead of waiting for the next flush.
     let diskWritten = false;
     const filePath = await resolveSessionPath(id);
+    // Resolution awaited: an Edit may have started on the current wrapper
+    // since the failed native rename. Never bypass its fence with a file write.
+    if (getRpcSession(id)?.isEditingHistory?.()) {
+      throw new WebRpcError("Wait for the history edit to finish", "session_busy");
+    }
     if (filePath) {
       if (rustBackendActive()) {
         try {
@@ -333,7 +349,7 @@ export async function PATCH(
     invalidateSessionListCache();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return apiErrorResponse(error);
+    return sessionsErrorResponse(error);
   }
 }
 
@@ -480,6 +496,6 @@ export async function DELETE(
       ...(skippedChildren.length > 0 ? { skippedChildren } : {}),
     });
   } catch (error) {
-    return apiErrorResponse(error);
+    return sessionsErrorResponse(error);
   }
 }

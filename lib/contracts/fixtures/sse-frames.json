@@ -3,6 +3,7 @@
   "frames": [
     { "type": "connected", "payload": { "sessionId": "0f2a6b7c" } },
     { "type": "session_destroyed", "payload": {} },
+    { "type": "session_history_changed", "payload": { "leafId": "0f2a6b7c-1a2b-4c9d-9e0f-1a2b3c4d5e6f" } },
     { "type": "agent_start", "payload": {} },
     { "type": "agent_end", "payload": { "isTerminal": true } },
     { "type": "prompt_result", "payload": { "agentInvoked": true } },

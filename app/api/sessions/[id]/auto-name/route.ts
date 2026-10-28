@@ -70,6 +70,13 @@ export async function POST(
     if ("response" in resolved) return resolved.response;
     const filePath = resolved.filePath;
 
+    // Path resolution yielded; Edit may have taken over this session while the
+    // generator ran or the list cache aged. Never fall back to a title write —
+    // or a stale-title answer — while Edit owns the history.
+    if (getRpcSession(id)?.isEditingHistory?.()) {
+      return NextResponse.json({ error: "Wait for the history edit to finish", code: "session_busy" }, { status: 409 });
+    }
+
     const info = scanSessionInfo(filePath, false);
     const storedTitle = sanitizeSessionTitle(info?.title);
     if (storedTitle) {

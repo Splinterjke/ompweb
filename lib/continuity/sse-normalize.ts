@@ -17,6 +17,7 @@ import type { EventClass, ReliableEvent } from "./model";
 export const SSE_FRAME_CLASSES: Readonly<Record<string, EventClass>> = Object.freeze({
   agent_start: "reliable",
   agent_end: "reliable",
+  session_history_changed: "reliable",
   prompt_result: "reliable",
   prompt_error: "reliable",
   queue_update: "coalesced",

@@ -92,7 +92,7 @@ export async function POST(
       : (Object.hasOwn(NO_SPAWN_REPLIES, body.type) ? body.type : undefined);
     const liveOnly = LIVE_SESSION_ONLY.has(body.type);
     if (existing?.isAlive()) {
-      if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning()) {
+      if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning() || existing.isEditingHistory()) {
         const result = await existing.send(command);
         return NextResponse.json({ success: true, data: result });
       }

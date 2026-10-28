@@ -75,7 +75,7 @@ async function pump(done = () => false, attempts = 200) {
 /** Every way the composer can hand text to the agent, recorded by name. */
 function renderComposer(props) {
   const calls = [];
-  const record = (name) => (...args) => { calls.push([name, args[0]]); };
+  const record = (name) => (...args) => { calls.push([name, args[0]]); return name === "onSend" ? { status: "accepted" } : undefined; };
   const ref = React.createRef();
   render(React.createElement(ChatInput, {
     ref,
