@@ -114,6 +114,29 @@ export async function POST(
     const { cwd } = resolveSpawnCwdResult(header?.cwd);
 
     const { session } = await startRpcSession(id, filePath, cwd, undefined, advisor, header?.cwd, startup);
+    if (startup?.modelOverride && command.type === "set_model") {
+      // The spawn already bound the requested model (--model). Try the RPC
+      // first: when it succeeds it also records the new model in the session,
+      // so later spawns restore it without an override. But in omp 18.12.6
+      // set_model can fail spuriously with "Model not found" for a catalog
+      // model whose provider has no credentials configured, even though the
+      // spawn already bound it. In that case the switch itself succeeded —
+      // verify from live state and report success rather than a false
+      // failure. A mismatch rethrows the RPC error, so a real failure still
+      // surfaces through commandErrorResponse.
+      try {
+        const result = await session.send(command);
+        return NextResponse.json({ success: true, data: result });
+      } catch (error) {
+        const state = (await session.send({ type: "get_state" })) as {
+          model?: { id?: unknown; provider?: unknown };
+        } | null;
+        if (state?.model?.provider === command.provider && state?.model?.id === command.modelId) {
+          return NextResponse.json({ success: true, data: { id: command.modelId, provider: command.provider } });
+        }
+        throw error;
+      }
+    }
     const result = await session.send(command);
 
     return NextResponse.json({ success: true, data: result });
