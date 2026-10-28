@@ -3,7 +3,7 @@ import { basename } from "path";
 import { allowFileRoot, getAllowedFileRoots, isExistingFilePathAllowed, isPathWithinRoots } from "@/lib/file-access";
 import { deleteMcpServer, deleteUserMcpServer, getBuiltinMcpPresets, parseMcpListOutput, readDiscoveredMcpServers, readMcpConfig, readUserMcpConfig, type McpServer, type McpLiveServer, validateMcpServer, writeMcpServer, writeUserMcpServer } from "@/lib/omp/mcp-config";
 import { listAllSessions, readSessionHeader, resolveSessionPath } from "@/lib/session-reader";
-import { getRpcSession, resolveSpawnCwdResult, startRpcSession } from "@/lib/rpc-manager";
+import { WebRpcError, getRpcSession, resolveSpawnCwdResult, startRpcSession } from "@/lib/rpc-manager";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { redactMcpServer } from "@/lib/omp/mcp-config";
 import { comparableProjectPath } from "@/lib/comparable-path";
@@ -18,11 +18,11 @@ function mcpErrorResponse(error: unknown) {
 }
 
 function mergeMcpServers(primary: McpLiveServer[], secondary: McpLiveServer[]): McpLiveServer[] {
-  const result = [...primary];
+  const result: McpLiveServer[] = primary.map((server) => ({ ...server, sourcePath: secondary.find((other) => other.name === server.name && other.source === server.source)?.sourcePath }));
   const seen = new Set(primary.map((server) => `${server.source}:${server.name}`));
   for (const server of secondary) {
     const key = `${server.source}:${server.name}`;
-    if (!seen.has(key)) result.push(server);
+    if (!seen.has(key)) { result.push(server); seen.add(key); }
   }
   return result;
 }
@@ -112,8 +112,8 @@ export async function GET(request: Request) {
     });
 
     const inventory: McpLiveServer[] = [
-      ...user.servers.map(({ name, config }) => ({ name, source: "User level", status: config.enabled === false ? ("disabled" as const) : ("configured" as const), type: mcpType(config) })),
-      ...user.disabledServers.map((name) => ({ name, source: "Disabled", status: "disabled" as const })),
+      ...user.servers.map(({ name, config }) => ({ name, source: "User level", sourcePath: user.path, status: config.enabled === false ? ("disabled" as const) : ("configured" as const), type: mcpType(config) })),
+      ...user.disabledServers.map((name) => ({ name, source: "Disabled", sourcePath: user.path, status: "disabled" as const })),
       ...globalDiscovered,
       ...workspaceEntries.flatMap((w) => w.live),
     ];
@@ -217,5 +217,31 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, ...deleteMcpServer(cwd, body.name as string) });
   } catch (error) {
     return mcpErrorResponse(error);
+  }
+}
+
+/** Native local commands only: never a model prompt or shell command. */
+export async function PATCH(request: Request) {
+  try {
+    const body = await parseJsonWithinLimit<{ sessionId?: unknown; action?: unknown; name?: unknown }>(request, MAX_MCP_REQUEST_BYTES);
+    if (typeof body.sessionId !== "string" || !body.sessionId) throw new Error("Select a session first");
+    if (body.action !== "enable" && body.action !== "disable" && body.action !== "reload") throw new Error("Invalid MCP action");
+    if (body.action !== "reload" && (typeof body.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(body.name))) throw new Error("Invalid MCP server name");
+    // Load the selected session through the same validated path as inventory.
+    // Do not create a different session or apply the caller's arbitrary cwd.
+    let session = getRpcSession(body.sessionId);
+    if (!session?.isAlive()) {
+      const sessionFile = await resolveSessionPath(body.sessionId);
+      if (!sessionFile) throw new Error("Session not found");
+      const header = readSessionHeader(sessionFile);
+      const { cwd } = resolveSpawnCwdResult(header?.cwd);
+      ({ session } = await startRpcSession(body.sessionId, sessionFile, cwd, undefined, undefined, header?.cwd));
+    }
+    if (session.isRunning()) return NextResponse.json({ error: "Wait for the current run to finish before changing MCP servers." }, { status: 409 });
+    await session.changeMcp(body.action, typeof body.name === "string" ? body.name : undefined);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof WebRpcError ? error.message : (console.error("[api/mcp] patch failed:", error), "MCP change failed");
+    return NextResponse.json({ error: message }, { status: error instanceof WebRpcError && error.code === "session_busy" ? 409 : 400 });
   }
 }

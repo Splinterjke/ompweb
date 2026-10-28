@@ -1,15 +1,18 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
   ChevronRight,
   Code,
   Globe,
+  Info,
+  LoaderCircle,
   Plus,
   RefreshCw,
+  RotateCw,
   Search,
   Sliders,
   Sparkles,
@@ -17,6 +20,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import { ToggleSwitch } from "@/components/ui/field";
 import { toast } from "@/components/ui/toast";
 import { useI18n } from "@/lib/i18n";
 
@@ -36,7 +40,7 @@ type BuiltinMcpPreset = {
 };
 type McpUserConfig = { path: string; servers: Array<{ name: string; status: string; type: string; enabled: boolean; valid: boolean }>; disabledServers: string[]; error?: string };
 type McpLiveStatus = "connected" | "connecting" | "not_connected" | "inactive" | "disabled" | "configured";
-type McpLiveServer = { name: string; source: string; status: McpLiveStatus; type?: string };
+type McpLiveServer = { name: string; source: string; status: McpLiveStatus; type?: string; sourcePath?: string };
 
 const inputStyle = {
   width: "100%",
@@ -90,6 +94,8 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
+  const [changing, setChanging] = useState<string | null>(null);
 
   // Discovered Servers Filter & Fold
   const [filterQuery, setFilterQuery] = useState("");
@@ -124,6 +130,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
   };
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setMessage(null);
     setLiveError(null);
@@ -151,6 +158,7 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
       };
 
       const data = await read(false);
+      if (generation !== loadGeneration.current) return;
       const all = data.workspaces ?? [];
       setWorkspaces(all);
       // Active scope: the requested workspace if present in the allow-listed set,
@@ -174,25 +182,47 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
       // Keep it off the initial paint path; the static inventory is already
       // useful and the live result can replace it when the command responds.
       if (sessionId) {
-        void read(true).then((liveData) => {
+        await read(true).then((liveData) => {
+          if (generation !== loadGeneration.current) return;
           setLiveServers(Array.isArray(liveData.liveServers) ? liveData.liveServers : null);
           setLiveError(liveData.liveError ?? null);
         }).catch((error) => {
+          if (generation !== loadGeneration.current) return;
           setLiveError(error instanceof Error ? error.message : String(error));
         });
       }
     } catch (error) {
+      if (generation !== loadGeneration.current) return;
       const detail = error instanceof Error ? error.message : String(error);
       setMessage(detail);
       toast.error(t("mcpConfig.loadError"), detail);
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [activeCwd, sessionId, t]);
 
+  const invalidateLoad = useCallback(() => { loadGeneration.current++; }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateLoad;
+  }, [load, invalidateLoad]);
+
+  const change = async (action: "enable" | "disable" | "reload", name?: string) => {
+    if (!sessionId || changing) return;
+    setChanging(name ?? "reload");
+    setMessage(null);
+    try {
+      const response = await fetch("/api/mcp", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, action, name }) });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      toast.success(t("mcpConfig.applied"));
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally { setChanging(null); }
+  };
+
   // Follow the parent's project-workspace switch (load() re-runs on change).
   useEffect(() => {
     setActiveCwd(cwd);
@@ -974,12 +1004,34 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                 }}
               />
             </div>
+            <button
+              type="button"
+              onClick={() => void change("reload")}
+              disabled={!sessionId || loading || !!changing || saving}
+              className="ui-focus-ring"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 24,
+                padding: "0 8px",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                background: "var(--bg)",
+                color: "var(--text-muted)",
+                fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+                cursor: !sessionId || loading || !!changing || saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {changing === "reload" ? <LoaderCircle size={13} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" /> : <RotateCw size={13} aria-hidden="true" />}
+              {t(changing === "reload" ? "mcpConfig.applying" : "mcpConfig.reload")}
+            </button>
             <Tooltip content={t("mcpConfig.refreshLiveStatus")}>
               <button
               type="button"
               aria-label={t("mcpConfig.refreshLiveStatus")}
               onClick={() => void load()}
-              disabled={loading}
+              disabled={loading || !!changing || saving}
               className="ui-focus-ring"
               style={{
                 width: 24,
@@ -1002,6 +1054,13 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
         </div>
 
         <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+            {t(sessionId ? "mcpConfig.applyHint" : "mcpConfig.selectSessionHint")}
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
+            <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
+            <span>{t("mcpConfig.connectionHint")}</span>
+          </div>
           {Object.entries(groupedDiscovered).map(([sourceName, groupServers]) => {
             const isExpanded = expandedSources[sourceName] ?? true;
             return (
@@ -1050,9 +1109,14 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                   >
                     {groupServers.map((server) => {
                       const active = server.status === "connected" || server.status === "configured";
+                      // The native /mcp enable|disable writes OMP's user config, so
+                      // switches are only honest for the sources built from it.
+                      const manageable = ["User level", "Project level", "Disabled"].includes(sourceName);
+                      const statusKey = server.status === "configured" ? "statusConfigured" : server.status === "connected" ? "statusConnected" : server.status === "connecting" ? "statusConnecting" : server.status === "disabled" ? "statusDisabled" : server.status === "inactive" ? "statusInactive" : "statusNotConnected";
                       return (
                         <div
                           key={`${sourceName}:${server.name}`}
+                          aria-busy={changing === server.name}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -1077,9 +1141,24 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                           <code style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {server.name}
                           </code>
-                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginLeft: "auto" }}>
-                            {server.type ? `[${server.type}]` : ""}
+                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {changing === server.name ? t("mcpConfig.applying") : t(`mcpConfig.${statusKey}`)}{server.type ? ` [${server.type}]` : ""}
                           </span>
+                          {manageable ? (
+                            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              {changing === server.name && <LoaderCircle size={12} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />}
+                              <ToggleSwitch
+                                checked={server.status !== "disabled"}
+                                disabled={!sessionId || loading || !!changing || saving}
+                                aria-label={t("mcpConfig.serverToggle", { name: server.name })}
+                                onChange={(enabled) => void change(enabled ? "enable" : "disable", server.name)}
+                              />
+                            </span>
+                          ) : (
+                            <span style={{ marginLeft: "auto", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
+                              {t("mcpConfig.readOnly")}
+                            </span>
+                          )}
                         </div>
                       );
                     })}

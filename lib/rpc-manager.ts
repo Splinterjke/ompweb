@@ -1886,9 +1886,21 @@ export class AgentSessionWrapper {
 
   /** Get OMP's own complete MCP inventory and live connection states. */
   async getMcpList(): Promise<string> {
+    return this.runMcpCommand("list");
+  }
+
+  /** RPC /mcp reload refreshes command metadata only. Reboot the idle child
+   * against its saved session to actually rediscover MCP tools. */
+  async changeMcp(action: "enable" | "disable" | "reload", name?: string): Promise<void> {
+    if (!["enable", "disable", "reload"].includes(action)) throw new Error("Invalid MCP action");
+    if (action !== "reload" && (!name || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name))) throw new Error("Invalid MCP server name");
+    await this.runMcpCommand(action, name, true);
+  }
+
+  private async runMcpCommand(action: "list" | "enable" | "disable" | "reload", name?: string, apply = false): Promise<string> {
     if (this.restarting) throw new WebRpcError(RESTARTING_MESSAGE, "session_restarting");
     if (!this.isAlive()) throw new Error("Session is no longer running");
-    if (this.isRunning() || this.historyEditInFlight) throw new WebRpcError("Wait for the current operation to finish", "session_busy");
+    if (this.isRunning() || this.historyEditInFlight || this.pendingUiRequests.size > 0 || this.pendingHostTools.size > 0 || this.pendingHostUris.size > 0) throw new WebRpcError("Wait for the current operation to finish", "session_busy");
     if (this.mcpListWaiter) throw new WebRpcError("MCP list is already loading", "mcp_list_loading");
 
     this.historyMutationPendingCount += 1;
@@ -1920,8 +1932,16 @@ export class AgentSessionWrapper {
     this.mcpListWaiter = waiter;
 
     try {
-      await this.proc.sendCommand({ type: "prompt", message: "/mcp list" });
-      return await output;
+      await this.proc.sendCommand({ type: "prompt", message: action === "list" ? "/mcp list" : `/mcp ${action}${name ? ` ${name}` : ""}` }, PROMPT_ACK_TIMEOUT_MS);
+      const result = await output;
+      if (action !== "list" && /^(?:Failed|Usage:|Server .* not found|Unknown)/m.test(result)) {
+        throw new WebRpcError("OMP could not update this MCP server. Check its source configuration.", "mcp_change_failed");
+      }
+      if (apply) {
+        try { await this.restart(); }
+        catch { throw new WebRpcError("MCP configuration was saved, but session reload failed. Reopen the session to apply it.", "mcp_reload_failed"); }
+      }
+      return result;
     } catch (error) {
       if (this.mcpListWaiter === waiter) {
         clearTimeout(waiter.timer);
@@ -2234,6 +2254,7 @@ export class AgentSessionWrapper {
 
   async send(command: Record<string, unknown>): Promise<unknown> {
     if (this.restarting) throw new WebRpcError(RESTARTING_MESSAGE, "session_restarting");
+    if (this.mcpListWaiter) throw new WebRpcError("MCP management is in progress. Try again when it finishes.", "session_busy");
     if (!this.isAlive()) throw new Error("Session is no longer running");
     const mutatesHistory = HISTORY_MUTATING_COMMANDS.has(command.type as string);
     if (mutatesHistory && this.historyEditInFlight) {
