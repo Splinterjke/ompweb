@@ -111,6 +111,9 @@ const PROMPT_ACK_TIMEOUT_MS = 30_000;
 const GENERATE_TITLE_TIMEOUT_MS = 60_000;
 const RENAME_POLL_INTERVAL_MS = 500;
 const RENAME_POLL_TIMEOUT_MS = 20_000;
+/** Background title requests per session. omp declines low-signal openers
+ * (a bare greeting), so a later turn of the same session retries. */
+const AUTO_TITLE_MAX_ATTEMPTS = 3;
 const AWAITING_AGENT_START_TIMEOUT_MS = 10_000;
 
 // ── RPC 健康信号 ──────────────────────────────────────────────────────────
@@ -699,9 +702,11 @@ export class AgentSessionWrapper {
     }
   }
 
-  /** Whether the one-shot automatic title for a brand-new session was already
-   *  attempted after its first run completed. */
-  private autoTitleAttempted = false;
+  /** Background title requests made per session id: omp declines low-signal
+   *  openers (a bare greeting), so a later settled run of the same session
+   *  retries, up to AUTO_TITLE_MAX_ATTEMPTS. */
+  private autoTitleAttempts = new Map<string, number>();
+  private autoTitleInFlight = false;
   /** Whether omp answered `generate_title` with "Unknown command" (cached per child). */
   private generateTitleUnsupported = false;
   /** Set while the web-initiated argument-less `/rename` run is in flight. Its
@@ -716,9 +721,11 @@ export class AgentSessionWrapper {
    * Prefers the native `generate_title` RPC command and falls back to the
    * argument-less `/rename` slash command. Returns null when omp cannot do
    * either right now (older omp, or the session is mid-run, where `/rename`
-   * would be queued as a prompt).
+   * would be queued as a prompt). With `quiet`, the `/rename` fallback skips
+   * the prompt bookkeeping (the UI never sees a run) and its output stays out
+   * of the chat.
    */
-  async generateTitle(): Promise<string | null> {
+  async generateTitle({ quiet = false }: { quiet?: boolean } = {}): Promise<string | null> {
     if (this.restarting) throw new WebRpcError(RESTARTING_MESSAGE, "session_restarting");
     if (!this.isAlive()) throw new Error("Session is no longer running");
     if (!this.generateTitleUnsupported) {
@@ -739,7 +746,13 @@ export class AgentSessionWrapper {
     this.renameRunFailed = false;
     this.renameOutputPending = true;
     try {
-      await this.send({ type: "prompt", message: "/rename" });
+      if (quiet) {
+        // Bypass send()'s prompt bookkeeping so the background title never
+        // shows as a run; the renameOutputPending flag still hides the echo.
+        await this.proc.sendCommand({ type: "prompt", message: "/rename" }, PROMPT_ACK_TIMEOUT_MS);
+      } else {
+        await this.send({ type: "prompt", message: "/rename" });
+      }
       const deadline = Date.now() + RENAME_POLL_TIMEOUT_MS;
       let title = await this.readSessionName();
       while (!(title && title !== before) && !this.renameRunFailed && Date.now() < deadline && this.isAlive()) {
@@ -759,26 +772,36 @@ export class AgentSessionWrapper {
   }
 
   /**
-   * One-shot automatic naming at session start: when the FIRST run of a
-   * brand-new session completes with no title, ask omp for a generated one —
-   * the same generator the top-bar wand uses (title model roles tried in
-   * order: tiny → commit → smol; no title model answers before the first
-   * response starts, which is why this waits for the run to settle).
-   * Gated by the Interface & Behavior setting; best-effort — a failure leaves
-   * the session titled by its first message, and the wand stays available.
+   * Automatic naming at session start: when a settled run of a brand-new
+   * session leaves it untitled, ask omp for a generated one — the same
+   * generator the top-bar wand uses (title model roles tried in order:
+   * tiny → commit → smol; no title model answers before the first response
+   * starts, which is why this waits for the run to settle). omp declines
+   * low-signal openers (a bare greeting), so a later settled turn retries, up
+   * to AUTO_TITLE_MAX_ATTEMPTS. Gated by the Interface & Behavior setting;
+   * best-effort — a failure leaves the session titled by its first message,
+   * and the wand stays available.
    */
   private maybeAutoTitleOnStart(): void {
-    if (this.autoTitleAttempted) return;
-    this.autoTitleAttempted = true;
+    const sessionId = this._sessionId;
+    if (!sessionId || this._sessionName || this.autoTitleInFlight) return;
     // Only brand-new web sessions: a session resumed from a file may already
     // carry a stored title (and re-titling an existing conversation is the
     // wand's job, never a side effect of continuing it).
     if (this.recordedCwd !== null) return;
-    if (this._sessionName) return;
+    // omp writes the session file once the history holds an assistant message.
+    if (!this._sessionFile || !existsSync(this._sessionFile)) return;
     if (!loadWebServerSettings().autoGenerateSessionTitles) return;
-    void this.generateTitle().catch(() => {
-      // The automatic title must never surface as an error.
-    });
+    const attempts = this.autoTitleAttempts.get(sessionId) ?? 0;
+    if (attempts >= AUTO_TITLE_MAX_ATTEMPTS) return;
+    this.autoTitleAttempts.set(sessionId, attempts + 1);
+    this.autoTitleInFlight = true;
+    this.generateTitle({ quiet: true })
+      .catch((error) => {
+        // The automatic title must never surface as an error.
+        console.warn(`[omp-web] could not title session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+      })
+      .finally(() => { this.autoTitleInFlight = false; });
   }
 
   private async readSessionName(): Promise<string | null> {
