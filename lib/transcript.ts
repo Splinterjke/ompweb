@@ -117,7 +117,10 @@ export function transcriptToMarkdown(messages: AgentMessage[], meta: TranscriptM
           }
           body.push(lines.join("\n\n"));
         }
-        if (message.errorMessage) body.push(`**Error:** ${message.errorMessage}`);
+        if (message.errorMessage) {
+          const isInterrupted = message.stopReason === "aborted" || /^interrupted(\s+by\s+user)?/i.test(message.errorMessage);
+          body.push(isInterrupted ? "_Generation interrupted_" : `**Error:** ${message.errorMessage}`);
+        }
         if (body.length > 0) sections.push(`${header}\n\n${body.join("\n\n")}`);
         break;
       }
