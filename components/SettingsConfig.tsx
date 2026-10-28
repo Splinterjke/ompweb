@@ -18,6 +18,7 @@ import { SettingsTabs, type SettingsTab, SETTINGS_CATEGORIES, getNormalizedActiv
 import { BackendDiagnosticsBody } from "./BackendDiagnostics";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
+import { useRecentRunsLimit, type RecentRunsLimitPreset } from "@/hooks/useRecentRunsLimit";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
 import { NOTIFICATION_TYPES, renderNotification, type NotificationType } from "@/lib/notification-events";
@@ -319,6 +320,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior — Sidebar & Panels
   { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
+  { id: "recent-runs-limit", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.recentRunsLimit", descKey: "settingsConfig.recentRunsLimitDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Recent Runs Filter Limit", fallbackDesc: "Maximum number of recently completed sessions retained and displayed when filtering the sidebar", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
   { id: "chat-border-beam", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.chatBorderBeam", descKey: "settingsConfig.chatBorderBeamDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat Border Flow", fallbackDesc: "Clockwise luminous beam on input border during active conversation.", scope: "UI" },
   { id: "omp-bouncing-letters", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.ompBouncingLetters", descKey: "settingsConfig.ompBouncingLettersDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "OMP Loader Jump", fallbackDesc: "Sequential jumping letters animation while waiting for response.", scope: "UI" },
@@ -1030,6 +1032,12 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   }, []);
   const workspaceReady = cwd !== null;
   const {
+    preset: recentRunsPreset,
+    customValue: recentRunsCustomValue,
+    setPreset: setRecentRunsPreset,
+    setCustomValue: setRecentRunsCustomValue,
+  } = useRecentRunsLimit();
+  const {
     isSupported: ttsSupported,
     autoPlayEnabled: ttsAutoPlay,
     setAutoPlay: setTtsAutoPlay,
@@ -1627,6 +1635,40 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="second" style={nativeOptionStyle}>{t("settingsConfig.gitStatsSecondLine")}</option>
                       <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.gitStatsHidden")}</option>
                     </select>
+                  </NativeSetting>
+                  <NativeSetting searchId="recent-runs-limit" label={t("settingsConfig.recentRunsLimit")} description={t("settingsConfig.recentRunsLimitDesc")} scope="UI">
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <select
+                        style={nativeSelectStyle}
+                        value={recentRunsPreset}
+                        onChange={(e) => setRecentRunsPreset(e.target.value as RecentRunsLimitPreset)}
+                      >
+                        <option value="10" style={nativeOptionStyle}>{t("settingsConfig.recentRunsOption10")}</option>
+                        <option value="15" style={nativeOptionStyle}>{t("settingsConfig.recentRunsOption15")}</option>
+                        <option value="20" style={nativeOptionStyle}>{t("settingsConfig.recentRunsOption20")}</option>
+                        <option value="custom" style={nativeOptionStyle}>{t("settingsConfig.recentRunsOptionCustom")}</option>
+                      </select>
+                      {recentRunsPreset === "custom" && (
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={recentRunsCustomValue}
+                          onChange={(e) => setRecentRunsCustomValue(Number(e.target.value))}
+                          style={{
+                            width: 80,
+                            height: "var(--control-height)",
+                            padding: "0 10px",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-control)",
+                            background: "var(--bg)",
+                            color: "var(--text)",
+                            fontSize: "var(--text-sm)",
+                          }}
+                          placeholder={t("settingsConfig.recentRunsCustomPlaceholder")}
+                        />
+                      )}
+                    </div>
                   </NativeSetting>
                 </SettingsSubsection>
 

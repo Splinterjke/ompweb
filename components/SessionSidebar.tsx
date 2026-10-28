@@ -24,6 +24,15 @@ import { comparableProjectPath } from "@/lib/comparable-path";
 import { compileSearchQuery, FIRST_MESSAGE_WEIGHT, scoreSearchFields, searchField, TITLE_WEIGHT } from "@/lib/session-search";
 import { AlertTriangle, Archive, ArrowDownUp, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, Loader2, MoreHorizontal, PanelsTopLeft, Pin, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { openEventStream } from "@/lib/event-stream";
+import {
+  loadRecentRuns,
+  recordCompletedRun,
+  removeActiveFromCompleted,
+  saveRecentRuns,
+  seedRecentRuns,
+  type RecentRunEntry,
+} from "@/lib/recent-runs";
+import { useRecentRunsLimit } from "@/hooks/useRecentRunsLimit";
 import { ARCHIVE_OLDER_THAN_BUCKET_MS, type ArchiveOlderThanBucket } from "@/lib/archive-older-than";
 import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { SchedulersPanel } from "./SchedulersPanel";
@@ -766,6 +775,37 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
    *  workspace (not the one being viewed) and titled by the prompt. */
   const [runningMeta, setRunningMeta] = useState<Map<string, RunningSessionMeta>>(() => new Map());
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
+  const { limit: recentRunsLimit } = useRecentRunsLimit();
+  const [recentCompletedRuns, setRecentCompletedRuns] = useState<RecentRunEntry[]>(() => loadRecentRuns());
+  const effectiveRecentCompletedSet = useMemo(() => {
+    const timestampMap = new Map<string, number>();
+
+    // 1. Live and persisted recent completed runs
+    for (const r of recentCompletedRuns) {
+      if (!runningSessionIds.has(r.sessionId)) {
+        timestampMap.set(r.sessionId, r.completedAt);
+      }
+    }
+
+    // 2. On-disk active sessions (fallback & recency backfill)
+    for (const s of allSessions) {
+      if (runningSessionIds.has(s.id)) continue;
+      const isValid = (s.firstMessage && s.firstMessage !== "(no messages)") || s.messageCount > 0 || Boolean(s.name);
+      if (!isValid) continue;
+      const ts = new Date(s.modified).getTime();
+      const existing = timestampMap.get(s.id);
+      if (existing === undefined || ts > existing) {
+        timestampMap.set(s.id, ts);
+      }
+    }
+
+    // Sort by latest timestamp descending, pick top dynamic limit
+    const sorted = [...timestampMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, recentRunsLimit);
+
+    return new Set(sorted.map(([id]) => id));
+  }, [recentCompletedRuns, allSessions, runningSessionIds, recentRunsLimit]);
   const [exitedSessions, setExitedSessions] = useState<Map<string, ExitedRpcSession>>(() => new Map());
   const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
   // Relative session times must age while the sidebar stays open; one shared
@@ -969,6 +1009,24 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   useEffect(() => {
     saveUnreadSessionIds(unreadSessionIds);
   }, [unreadSessionIds]);
+  useEffect(() => {
+    saveRecentRuns(recentCompletedRuns, undefined, recentRunsLimit);
+  }, [recentCompletedRuns, recentRunsLimit]);
+
+  useEffect(() => {
+    if (allSessions.length === 0) return;
+    setRecentCompletedRuns((prev) => {
+      const seeded = seedRecentRuns(allSessions, recentRunsLimit);
+      if (prev.length === 0) return seeded;
+      const newestPrev = Math.max(...prev.map((p) => p.completedAt), 0);
+      const newestSeeded = Math.max(...seeded.map((s) => s.completedAt), 0);
+      if (newestSeeded > newestPrev) {
+        return seeded;
+      }
+      return prev;
+    });
+  }, [allSessions, recentRunsLimit]);
+
 
   // Debounce refresh bursts (agent_start + session_info_update + file-appear signal can fire within 250ms)
   const pendingRefreshRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1061,8 +1119,22 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
 
   useEffect(() => {
     const previous = previousRunningSessionIdsRef.current;
-    const completedInBackground = [...previous].filter((id) => !runningSessionIds.has(id) && id !== selectedSessionId);
+    const allCompleted = [...previous].filter((id) => !runningSessionIds.has(id));
+    const completedInBackground = allCompleted.filter((id) => id !== selectedSessionId);
     const newlyRunning = [...runningSessionIds].filter((id) => !previous.has(id));
+
+    if (allCompleted.length > 0 || newlyRunning.length > 0) {
+      setRecentCompletedRuns((prev) => {
+        let updated = prev;
+        if (newlyRunning.length > 0) {
+          updated = removeActiveFromCompleted(updated, runningSessionIds);
+        }
+        for (const id of allCompleted) {
+          updated = recordCompletedRun(updated, id, undefined, recentRunsLimit);
+        }
+        return updated;
+      });
+    }
 
     if (completedInBackground.length > 0 || newlyRunning.length > 0) {
       setUnreadSessionIds((prev) => {
@@ -1082,7 +1154,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     }
 
     previousRunningSessionIdsRef.current = runningSessionIds;
-  }, [runningSessionIds, selectedSessionId, loadSessions]);
+  }, [runningSessionIds, selectedSessionId, loadSessions, recentRunsLimit]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
@@ -1509,7 +1581,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     const entries: { project: ManagedProject; sessions: SessionInfo[]; scores?: Map<string, number>; rank: number }[] = [];
     for (const project of sortedProjects) {
       let list = sessionsByProject.get(project.path) ?? [];
-      if (runningOnly) list = list.filter((s) => runningSessionIds.has(s.id));
+      if (runningOnly) list = list.filter((s) => runningSessionIds.has(s.id) || effectiveRecentCompletedSet.has(s.id));
       if (!query) {
         if (list.length === 0 && runningOnly) continue;
         entries.push({ project, sessions: list, rank: 0 });
@@ -1533,7 +1605,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     // Best match first; ties keep the workspace order (stable sort).
     if (query) entries.sort((a, b) => b.rank - a.rank);
     return entries;
-  }, [sortedProjects, sessionsByProject, runningOnly, trimmedSearchQuery, currentTranscriptSearch, runningSessionIds]);
+  }, [sortedProjects, sessionsByProject, runningOnly, trimmedSearchQuery, currentTranscriptSearch, runningSessionIds, effectiveRecentCompletedSet]);
 
   const treesByProject = useMemo(() => {
     const m = new Map<string, SessionTreeNode[]>();
@@ -2333,7 +2405,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
         </SidebarPortalMenu>
         <SidebarIconButton
           label={t("sessionSidebar.filterRunning")}
-          title={t("sessionSidebar.filterRunningTitle")}
+          title={t("sessionSidebar.filterRunningTitle", { count: recentRunsLimit })}
           active={runningOnly}
           onClick={() => setRunningOnly((v) => !v)}
         >
@@ -2462,6 +2534,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                 runningSessionIds={runningSessionIds}
                 unreadSessionIds={unreadSessionIds}
                 exitedSessions={exitedSessions}
+                recentlyCompletedIds={effectiveRecentCompletedSet}
                 relativeTimeNow={relativeTimeNow}
                 onActivate={activateProject}
                 onToggleExpand={toggleProjectExpanded}
@@ -2785,6 +2858,7 @@ interface ProjectRowProps {
   selectedSessionId: string | null;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
+  recentlyCompletedIds?: Set<string>;
   exitedSessions: Map<string, ExitedRpcSession>;
   relativeTimeNow: number;
   onActivate: (path: string) => void;
@@ -2837,6 +2911,7 @@ function ProjectRow({
   selectedSessionId,
   runningSessionIds,
   unreadSessionIds,
+  recentlyCompletedIds,
   exitedSessions,
   relativeTimeNow,
   onActivate,
@@ -3427,6 +3502,7 @@ function ProjectRow({
                   runningSessionIds={runningSessionIds}
                   unreadSessionIds={unreadSessionIds}
                   exitedSessions={exitedSessions}
+                  recentlyCompletedIds={recentlyCompletedIds}
                   relativeTimeNow={relativeTimeNow}
                   onSelectSession={onSelectSession}
                   onRenamed={onRenamed}
@@ -3762,6 +3838,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   runningSessionIds,
   unreadSessionIds,
   exitedSessions,
+  recentlyCompletedIds,
   relativeTimeNow,
   onSelectSession,
   onRenamed,
@@ -3774,6 +3851,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
   exitedSessions: Map<string, ExitedRpcSession>;
+  recentlyCompletedIds?: Set<string>;
   relativeTimeNow: number;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
@@ -3790,6 +3868,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
   const isSelected = sessionId === selectedSessionId;
   const isRunning = runningSessionIds.has(sessionId);
   const isUnread = unreadSessionIds.has(sessionId);
+  const isRecentlyCompleted = !isRunning && (recentlyCompletedIds?.has(sessionId) ?? false);
   const exited = exitedSessions.get(sessionId);
   // Stable callbacks: depend only on primitives / stable parent callbacks so
   // SessionItem's React.memo stays effective across re-renders.
@@ -3823,6 +3902,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
           isRunning={isRunning}
           isUnread={isUnread}
           exited={exited}
+          isRecentlyCompleted={isRecentlyCompleted}
           relativeTimeNow={relativeTimeNow}
           onClick={handleClick}
           onRenamed={onRenamed}
@@ -3844,6 +3924,7 @@ const SessionTreeItem = memo(function SessionTreeItem({
               runningSessionIds={runningSessionIds}
               unreadSessionIds={unreadSessionIds}
               exitedSessions={exitedSessions}
+              recentlyCompletedIds={recentlyCompletedIds}
               relativeTimeNow={relativeTimeNow}
               onSelectSession={onSelectSession}
               onRenamed={onRenamed}
@@ -3867,6 +3948,10 @@ const SessionTreeItem = memo(function SessionTreeItem({
   if (prev.runningSessionIds !== next.runningSessionIds) {
     const id = prev.node.session.id;
     if (prev.runningSessionIds.has(id) !== next.runningSessionIds.has(id)) return false;
+  }
+  if (prev.recentlyCompletedIds !== next.recentlyCompletedIds) {
+    const id = prev.node.session.id;
+    if ((prev.recentlyCompletedIds?.has(id) ?? false) !== (next.recentlyCompletedIds?.has(id) ?? false)) return false;
   }
   if (prev.unreadSessionIds !== next.unreadSessionIds) {
     const id = prev.node.session.id;
@@ -3899,6 +3984,27 @@ function ExitedSessionIndicator({ title, size = 14 }: { title: string; size?: nu
       }}
     >
       <AlertTriangle size={size} strokeWidth={2.2} aria-hidden="true" />
+    </span>
+  );
+}
+
+function RecentlyCompletedIndicator({ size = 12 }: { size?: number }) {
+  const { t } = useI18n();
+  return (
+    <span
+      title={t("sessionSidebar.recentlyCompleted")}
+      aria-label={t("sessionSidebar.recentlyCompleted")}
+      style={{
+        width: size,
+        height: size,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        color: "var(--status-success)",
+      }}
+    >
+      <Check size={size} strokeWidth={2.4} aria-hidden="true" />
     </span>
   );
 }
@@ -3969,6 +4075,7 @@ export const SessionItem = memo(function SessionItem({
   isRunning,
   isUnread,
   exited,
+  isRecentlyCompleted,
   onClick,
   onRenamed,
   onOptimisticRename,
@@ -3984,6 +4091,7 @@ export const SessionItem = memo(function SessionItem({
   isRunning?: boolean;
   isUnread?: boolean;
   exited?: ExitedRpcSession;
+  isRecentlyCompleted?: boolean;
   onClick: () => void;
   onRenamed?: () => void;
   onOptimisticRename?: (id: string, name: string | null) => void;
@@ -4211,7 +4319,7 @@ export const SessionItem = memo(function SessionItem({
                 {isRunning && <RunningSessionIndicator size={12} />}
                 {!isRunning && (exited ? (
                   <ExitedSessionIndicator title={formatExitedSessionNotice(exited)} size={12} />
-                ) : isUnread && <UnreadSessionIndicator size={11} />)}
+                ) : isRecentlyCompleted ? <RecentlyCompletedIndicator size={12} /> : isUnread && <UnreadSessionIndicator size={11} />)}
                 {relativeTime && <Tooltip content={new Date(session.modified).toLocaleString(locale)}>
                   <span style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>
                 </Tooltip>}
