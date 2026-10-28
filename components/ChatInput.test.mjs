@@ -199,6 +199,26 @@ test("renders goal, planning, and advisor indicators at the composer", () => {
   assert.match(html, /aria-expanded="false"/);
 });
 
+test("a historical plan document renders a neutral label with the document slug", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(ChatInput, {
+      onSend() {},
+      onAbort() {},
+      onModelChange() {},
+      isStreaming: false,
+      model: { provider: "test", modelId: "model" },
+      modelList: [{ provider: "test", modelId: "model", id: "model", name: "Test model" }],
+      modelNames: {},
+      activePlan: { objective: "new-task-plan", historical: true },
+    }),
+  );
+
+  // The pill must not claim "Planning in progress" for a finished plan.
+  assert.doesNotMatch(html, /Planning in progress/);
+  assert.match(html, /(Plan document|chatWindow\.planDocument)/);
+  assert.match(html, /new-task-plan/);
+});
+
 test("shows the advisor thunder indicator with the reviewing model and reasoning", () => {
   const html = renderToStaticMarkup(
     React.createElement(ChatInput, {

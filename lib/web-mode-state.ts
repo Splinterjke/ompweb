@@ -5,6 +5,8 @@ export interface ActiveGoal {
 
 export interface ActivePlan {
   objective: string;
+  /** True when this is a historical plan document (not live planning). */
+  historical?: boolean;
 }
 
 export function createActiveGoal(objective: string, startedAt = Date.now()): ActiveGoal {

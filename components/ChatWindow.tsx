@@ -1455,7 +1455,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onGoalCommand={sendGoalCommand}
       onTrackGoal={trackGoal}
       showGoalTokenBudget={showGoalTokenBudget}
-      activePlan={activePlan ?? (planInfo?.planModeActive ? { objective: t("chatWindow.planDocument") } : null)}
+      activePlan={activePlan ?? (planInfo?.planFile ? { objective: (planInfo.planFile.split(/[\\/]/).pop() ?? "").replace(/\.md$/, ""), historical: true } : null)}
+      onOpenPlan={onOpenPlan}
       advisorEnabled={advisorEnabled}
       toolPreset={toolPreset}
       onToolPresetChange={handleToolPresetChange}

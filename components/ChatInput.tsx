@@ -647,7 +647,7 @@ function ComposerModeStatus({ goal, goalInfo, onGoalCommand, onTrackGoal, showGo
           }}
         >
           <ListChecks size={14} strokeWidth={2} style={{ flexShrink: 0, color: "var(--accent)" }} aria-hidden="true" />
-          <span style={{ fontWeight: 600 }}>{t("chatInput.planningInProgress")}</span>
+          <span style={{ fontWeight: 600 }}>{t(plan.historical ? "chatWindow.planDocument" : "chatInput.planningInProgress")}</span>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-dim)", flex: 1 }}>{plan.objective}</span>
         </button>
         </Tooltip>
