@@ -917,8 +917,13 @@ function parseSessionListHeader(
   return undefined;
 }
 
-function readTextSlices(filePath: string, prefixBytes: number, suffixBytes: number): [string, string, number, Date] {
-  const stat = statSync(filePath);
+function readTextSlices(
+  filePath: string,
+  prefixBytes: number,
+  suffixBytes: number,
+  knownStat?: { size: number; mtime: Date },
+): [string, string, number, Date] {
+  const stat = knownStat ?? statSync(filePath);
   const fd = openSync(filePath, "r");
   try {
     const prefixLength = Math.min(prefixBytes, stat.size);
@@ -944,12 +949,17 @@ function readTextSlices(filePath: string, prefixBytes: number, suffixBytes: numb
  * window (plus a 32 KiB tail window when `withStatus` is set). Faithful port
  * of omp's scanSessionFile — messageCount is a prefix-derived lower bound.
  */
-export function scanSessionInfo(filePath: string, withStatus = true): OmpSessionInfo | undefined {
+export function scanSessionInfo(
+  filePath: string,
+  withStatus = true,
+  knownStat?: { size: number; mtime: Date },
+): OmpSessionInfo | undefined {
   try {
     const [content, suffix, size, mtime] = readTextSlices(
       filePath,
       SESSION_LIST_PREFIX_BYTES,
       withStatus ? SESSION_LIST_SUFFIX_BYTES : 0,
+      knownStat,
     );
     const entries = parseJsonlLenient<Record<string, unknown>>(content);
     const header = parseSessionListHeader(content, entries);
@@ -1034,7 +1044,7 @@ function getSessionScanCache(): Map<string, SessionScanCacheEntry> {
 /** scanSessionInfo memoized on (path, size, mtimeMs). Callers must treat the
  * returned info as immutable — cache hits share one object. */
 function scanSessionInfoCached(filePath: string): OmpSessionInfo | undefined {
-  let stat: { size: number; mtimeMs: number };
+  let stat: { size: number; mtime: Date; mtimeMs: number };
   try {
     stat = statSync(filePath);
   } catch {
@@ -1048,7 +1058,7 @@ function scanSessionInfoCached(filePath: string): OmpSessionInfo | undefined {
     return cached.info;
   }
   if (cached) cache.delete(filePath);
-  const info = scanSessionInfo(filePath, true);
+  const info = scanSessionInfo(filePath, true, stat);
   // Failed scans are not negatively cached: a transient read error must not
   // hide a session until its next mtime bump.
   if (info) {

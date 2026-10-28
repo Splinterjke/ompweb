@@ -99,3 +99,11 @@ test("does not leak react-markdown node metadata onto inline code", () => {
   assert.match(html, /<code class="markdown-inline-code">npm test<\/code>/);
   assert.doesNotMatch(html, /\snode=/);
 });
+
+test("returns exact input reference when no math syntax is present and preserves pre blocks with math-like text", () => {
+  const plain = "Hello world\nThis has no math syntax at all.\n";
+  assert.strictEqual(normalizeDisplayMath(plain), plain);
+
+  const preWithMathLike = "<pre>\n$$x = y$$\n\\[z = w\\]\n\\(a = b\\)\n</pre>";
+  assert.equal(normalizeDisplayMath(preWithMathLike), preWithMathLike);
+});
