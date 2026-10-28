@@ -1119,8 +1119,8 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                           aria-busy={changing === server.name}
                           style={{
                             display: "flex",
-                            alignItems: "center",
-                            gap: 8,
+                            flexDirection: "column",
+                            gap: 3,
                             padding: "6px 10px",
                             borderRadius: 5,
                             background: "var(--bg-panel)",
@@ -1128,37 +1128,41 @@ export function McpConfig({ cwd, sessionId }: { cwd: string | null; sessionId?: 
                             fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
                           }}
                         >
-                          <span
-                            aria-hidden="true"
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: "50%",
-                              flexShrink: 0,
-                              background: active ? "var(--status-success)" : "var(--border)",
-                            }}
-                          />
-                          <code style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {server.name}
-                          </code>
-                          <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {/* Name line: the status moved to its own row so the
+                              server name gets the full card width. */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                flexShrink: 0,
+                                background: active ? "var(--status-success)" : "var(--border)",
+                              }}
+                            />
+                            <code title={server.name} style={{ color: "var(--text)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {server.name}
+                            </code>
+                            {manageable ? (
+                              <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                {changing === server.name && <LoaderCircle size={12} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />}
+                                <ToggleSwitch
+                                  checked={server.status !== "disabled"}
+                                  disabled={!sessionId || loading || !!changing || saving}
+                                  aria-label={t("mcpConfig.serverToggle", { name: server.name })}
+                                  onChange={(enabled) => void change(enabled ? "enable" : "disable", server.name)}
+                                />
+                              </span>
+                            ) : (
+                              <span style={{ marginLeft: "auto", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
+                                {t("mcpConfig.readOnly")}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ marginLeft: 14, fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {changing === server.name ? t("mcpConfig.applying") : t(`mcpConfig.${statusKey}`)}{server.type ? ` [${server.type}]` : ""}
                           </span>
-                          {manageable ? (
-                            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                              {changing === server.name && <LoaderCircle size={12} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />}
-                              <ToggleSwitch
-                                checked={server.status !== "disabled"}
-                                disabled={!sessionId || loading || !!changing || saving}
-                                aria-label={t("mcpConfig.serverToggle", { name: server.name })}
-                                onChange={(enabled) => void change(enabled ? "enable" : "disable", server.name)}
-                              />
-                            </span>
-                          ) : (
-                            <span style={{ marginLeft: "auto", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", flexShrink: 0 }}>
-                              {t("mcpConfig.readOnly")}
-                            </span>
-                          )}
                         </div>
                       );
                     })}
