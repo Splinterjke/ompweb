@@ -49,47 +49,47 @@
     "transitionDeclarations": 47,
     "reducedMotionBlocks": [
       {
-        "line": 2673,
+        "line": 2726,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 2903,
+        "line": 2956,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3665,
+        "line": 3728,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3770,
+        "line": 3833,
         "rules": 2,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3950,
+        "line": 4031,
         "rules": 4,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 4121,
+        "line": 4202,
         "rules": 1,
         "disables": []
       },
       {
-        "line": 4733,
+        "line": 4814,
         "rules": 1,
         "disables": [
           "none"
@@ -126,7 +126,7 @@
       "inlineTransitions": 2
     },
     "components/ChatInput.tsx": {
-      "inlineTransitions": 21
+      "inlineTransitions": 22
     },
     "components/ChatMinimap.tsx": {
       "inlineTransitions": 2
@@ -219,7 +219,7 @@
       "reducedMotionHook": true
     },
     "components/SessionSidebar.tsx": {
-      "inlineTransitions": 27,
+      "inlineTransitions": 28,
       "reducedMotionHook": true,
       "smil": {
         "animate": 2,
@@ -231,6 +231,9 @@
     },
     "components/SettingsTabs.tsx": {
       "inlineTransitions": 3
+    },
+    "components/ShowAllFilesButton.tsx": {
+      "inlineTransitions": 1
     },
     "components/SkillsConfig.tsx": {
       "inlineTransitions": 5
