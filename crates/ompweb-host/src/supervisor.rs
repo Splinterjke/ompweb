@@ -23,7 +23,7 @@ use crate::process_visibility::hide_console_window;
 
 pub const MAX_RPC_FRAME_BYTES: usize = 1024 * 1024;
 pub const MAX_RPC_REASSEMBLED_BYTES: usize = 64 * 1024 * 1024;
-const RPC_CHUNK_PAYLOAD_BYTES: usize = 256 * 1024;
+
 const MAX_RESTARTS: u32 = 3;
 
 #[derive(Clone)]
@@ -153,8 +153,18 @@ impl Supervisor {
         cmd.spawn().map_err(|e| e.to_string())
     }
 
-    /// Send one logical RPC frame (JSON object text) to the child's stdin,
-    /// chunking per protocol v2 when above the 1 MiB line cap.
+    /// Send one logical RPC frame (JSON object text) to the child's stdin as
+    /// exactly one JSONL line.
+    ///
+    /// The child's stdin parser reads WHOLE records: protocol v2 `rpc_chunk`
+    /// reassembly is OUTBOUND-only (the child chunks its large stdout frames
+    /// and the reader below reassembles them), while inbound `rpc_chunk`
+    /// records are answered as unknown commands even after a successful
+    /// `negotiate_protocol` — verified against omp 18.13.3. Multi-megabyte
+    /// single lines (image-attached prompts) are accepted, so the inbound
+    /// direction never chunks and merely caps the line at the same transport
+    /// limit the client pre-flight uses, turning an oversized frame into a
+    /// clean error instead of a child that silently never answers.
     pub fn send(&self, session_id: &str, frame_json: &str) -> Result<(), String> {
         let stdin = {
             let guard = self.sessions.lock().unwrap();
@@ -162,15 +172,21 @@ impl Supervisor {
             if session.killed { return Err("session stopped".into()); }
             Arc::clone(&session.stdin)
         };
-        let lines = encode_rpc_frames(frame_json).map_err(|e| e.to_string())?;
+        if frame_json.len() + 1 > crate::ipc_server::MAX_FRAME_BYTES {
+            return Err("frame exceeds the transport limit".into());
+        }
         // A blocked pipe must not hold the registry lock: list, broadcast and
         // kill (including this session's kill) must remain available.
         let mut stdin = stdin.lock().map_err(|_| "stdin writer unavailable")?;
-        for line in &lines {
-            stdin
-                .write_all(line.as_bytes())
-                .map_err(|e| format!("stdin: {e}"))?;
-        }
+        // One write, one newline terminator: the mutex keeps concurrent sends
+        // from interleaving bytes mid-line, and a single physical line makes
+        // partial-frame interleaving impossible by construction.
+        let mut line = String::with_capacity(frame_json.len() + 1);
+        line.push_str(frame_json);
+        line.push('\n');
+        stdin
+            .write_all(line.as_bytes())
+            .map_err(|e| format!("stdin: {e}"))?;
         stdin.flush().map_err(|e| format!("flush: {e}"))?;
         Ok(())
     }
@@ -508,36 +524,6 @@ impl FrameReassembler {
         Ok(Some(json))
     }
 }
-
-/// Encode one logical frame into physical lines (v1 single line, v2 chunked).
-pub fn encode_rpc_frames(frame_json: &str) -> Result<Vec<String>, String> {
-    let single = format!("{frame_json}\n");
-    if single.len() <= MAX_RPC_FRAME_BYTES {
-        return Ok(vec![single]);
-    }
-    let bytes = frame_json.as_bytes();
-    if bytes.len() > MAX_RPC_REASSEMBLED_BYTES {
-        return Err("frame exceeds reassembly limit".into());
-    }
-    let count = bytes.len().div_ceil(RPC_CHUNK_PAYLOAD_BYTES);
-    let chunk_id = format!("rust-{}", std::process::id());
-    let mut lines = Vec::with_capacity(count);
-    for index in 0..count {
-        let start = index * RPC_CHUNK_PAYLOAD_BYTES;
-        let end = (start + RPC_CHUNK_PAYLOAD_BYTES).min(bytes.len());
-        let data = encode_base64(&bytes[start..end]);
-        lines.push(format!(
-            "{{\"type\":\"rpc_chunk\",\"chunkId\":{},\"index\":{},\"count\":{},\"byteLength\":{},\"data\":{}}}\n",
-            crate::ipc_server::json_str(&chunk_id),
-            index,
-            count,
-            bytes.len(),
-            crate::ipc_server::json_str(&data)
-        ));
-    }
-    Ok(lines)
-}
-
 fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(input.len() * 3 / 4 + 3);
     let mut acc: u32 = 0;
@@ -561,31 +547,6 @@ fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
     }
     Ok(out)
 }
-
-fn encode_base64(input: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
-    for chunk in input.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
-        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-        out.push(TABLE[(triple >> 18) as usize & 63] as char);
-        out.push(TABLE[(triple >> 12) as usize & 63] as char);
-        if chunk.len() > 1 {
-            out.push(TABLE[(triple >> 6) as usize & 63] as char);
-        } else {
-            out.push('=');
-        }
-        if chunk.len() > 2 {
-            out.push(TABLE[triple as usize & 63] as char);
-        } else {
-            out.push('=');
-        }
-    }
-    out
-}
-
 #[cfg(all(test, unix))]
 mod lifecycle_tests {
     use super::*;
@@ -622,6 +583,45 @@ mod lifecycle_tests {
         }
         s.kill("session").unwrap();
         assert!(responded, "new child must read the next command");
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn large_frames_reach_stdin_as_one_physical_line() {
+        // The child's stdin parser cannot reassemble inbound rpc_chunks
+        // (chunking is outbound-only), so an image-attached-prompt sized
+        // frame must arrive as exactly one line — never split up.
+        let (dir, s) = fixture("exec cat > received.jsonl");
+        s.spawn("session", dir.to_str().unwrap(), &[]).unwrap();
+        let frame = format!(
+            "{{\"type\":\"prompt\",\"message\":\"{}\"}}",
+            "x".repeat(2 * 1024 * 1024)
+        );
+        s.send("session", &frame).unwrap();
+        let path = dir.join("received.jsonl");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let content = loop {
+            let c = std::fs::read_to_string(&path).unwrap_or_default();
+            if c.len() == frame.len() + 1 {
+                break c;
+            }
+            assert!(Instant::now() < deadline, "child never received the frame");
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(content, format!("{frame}\n"));
+        assert_eq!(content.matches('\n').count(), 1);
+        s.kill("session").ok();
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn oversized_frames_are_rejected_before_touching_stdin() {
+        let (dir, s) = fixture("exec cat > received.jsonl");
+        s.spawn("session", dir.to_str().unwrap(), &[]).unwrap();
+        let frame = "x".repeat(crate::ipc_server::MAX_FRAME_BYTES);
+        let err = s.send("session", &frame).unwrap_err();
+        assert!(err.contains("transport limit"), "unexpected error: {err}");
+        s.kill("session").ok();
         std::fs::remove_dir_all(dir).ok();
     }
 

@@ -4,10 +4,10 @@
 //! (NDJSON) protocol with request/response plus per-request streaming
 //! frames; same-user auth via a per-run token (128-bit from /dev/urandom)
 //! printed once on the host's boot stdout line, which the embedded/headless
-//! client reads before connecting. Max frame 1 MiB — enforced while READING
-//! (bounded buffering), and oversized frames are rejected with a stable
-//! error, not silently truncated. Hello must authenticate before any other
-//! method is served.
+//! client reads before connecting. Max frame `MAX_FRAME_BYTES` — enforced
+//! while READING (bounded buffering), and oversized frames are rejected with
+//! a stable error, not silently truncated. Hello must authenticate before
+//! any other method is served.
 //!
 //! Wire shapes:
 //!   → {"id":"1","method":"hello","params":{"token":"..."}}
@@ -22,7 +22,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 pub const IPC_PROTOCOL_VERSION: u32 = 1;
-pub const MAX_FRAME_BYTES: usize = 1024 * 1024;
+/// Frame cap for reads from IPC clients. Image-attached prompt commands
+/// travel as ONE NDJSON line: the agent routes accept an 8 MiB request body
+/// with up to 5 MiB of decoded images (≈6.9 MiB of base64), so the old 1 MiB
+/// cap rejected exactly the prompts the routes had just accepted — and the
+/// rejection answer raced the RST of the still-writing client, surfacing in
+/// Node as a bare `read ECONNRESET` ("Failed to send message" toast). 16 MiB
+/// covers every image payload the routes accept; `RustRpcProcess.send`
+/// preflights the exact line size for the residual JSON-escaping blow-up
+/// cases (memory stays bounded: cap × MAX_CONNECTIONS, single local client).
+pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 /// Hard cap on concurrent client connections (per-thread handling): a local
 /// flood must exhaust the cap, not the process (v4 P28 crash boundary). The
 /// cap must cover the shared control connection plus one isolated connection
@@ -195,7 +204,9 @@ fn handle_connection(
                     &mut stream,
                     "null",
                     false,
-                    "{\"code\":\"frame_too_large\",\"message\":\"frame exceeds 1MiB\"}",
+                    &format!(
+                        "{{\"code\":\"frame_too_large\",\"message\":\"frame exceeds {MAX_FRAME_BYTES} bytes\"}}"
+                    ),
                 );
                 return Ok(());
             }
@@ -507,21 +518,35 @@ mod tests {
         let port = server.port();
         let handler: Arc<Handler> = Arc::new(|_m, _p, _e| Ok(Some("null".into())));
         std::thread::spawn(move || server.serve(handler));
-        // A >1MiB stream with NO newline: the host must answer
+        // A >MAX_FRAME_BYTES stream with NO newline: the host must answer
         // frame_too_large from bounded memory and close — it must not buffer
         // the whole line, nor block draining an open hostile socket.
-        use std::io::{BufRead as _, Read as _, Write as _};
+        use std::io::{BufRead as _, Write as _};
+        use std::sync::mpsc;
+        use std::time::Duration;
         let mut sock = std::net::TcpStream::connect(("127.0.0.1", port)).expect("connect");
+        // Read the rejection on a separate thread FIRST: at the full image
+        // cap the flood can no longer sit entirely in kernel buffers, so the
+        // answer arrives while (or before) the client's write is still
+        // blocked — and the close that follows races it for the queue.
+        let (tx, rx) = mpsc::channel();
+        let mut reader_sock = sock.try_clone().expect("clone");
+        std::thread::spawn(move || {
+            let mut reader = std::io::BufReader::new(&mut reader_sock);
+            let mut line = String::new();
+            let _ = reader.read_line(&mut line);
+            let _ = tx.send(line);
+        });
         let flood = "x".repeat(MAX_FRAME_BYTES + 64);
-        sock.write_all(flood.as_bytes()).unwrap();
-        sock.flush().unwrap();
-        let mut reader = std::io::BufReader::new(sock.try_clone().unwrap());
-        let mut response = String::new();
-        reader.read_line(&mut response).unwrap();
+        // The host closes once it has answered: the remainder of the flood
+        // legitimately fails with a reset.
+        let _ = sock.write_all(flood.as_bytes());
+        let response = rx
+            .recv_timeout(Duration::from_secs(15))
+            .expect("frame_too_large answer");
         assert!(response.contains("frame_too_large"), "{response}");
-        // Server closed: further reads hit EOF.
-        let mut rest = String::new();
-        let n = reader.read_to_string(&mut rest).unwrap();
-        assert_eq!(n, 0, "connection must be closed after an oversized frame");
+        // Connection terminated: EOF or reset, never an open hang.
+        let mut rest = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut sock, &mut rest);
     }
 }

@@ -2,6 +2,20 @@
 import { isRecord } from "../type-guards";
 export const MAX_RPC_FRAME_BYTES = 1024 * 1024;
 export const MAX_RPC_REASSEMBLED_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Hard cap on one logical command frame written to a child's stdin. omp
+ * parses stdin records as WHOLE lines — it has no inbound line-length cap,
+ * and protocol v2 rpc_chunk reassembly exists only in the OUTBOUND
+ * direction (verified against omp 18.13.3: a 6.18 MB single-line prompt is
+ * accepted, while inbound rpc_chunk records are rejected as unknown even
+ * after successful negotiation). Writers therefore send one complete line
+ * and bound memory at this cap; the 8 MiB/5 MiB route gates plus
+ * JSON-string-inside-JSON escaping make the real ceiling ~7 MB, and the
+ * Rust host IPC frame cap is this same number so the transport never
+ * silently truncates or strands a command mid-line.
+ */
+export const MAX_IPC_FRAME_BYTES = 16 * 1024 * 1024;
 const RPC_CHUNK_PAYLOAD_BYTES = 256 * 1024;
 
 export type RpcProtocolVersion = 1 | 2;
@@ -78,7 +92,13 @@ export class RpcFrameDecoder {
   }
 }
 
-/** Physical JSONL records for a logical RPC frame at the selected protocol. */
+/**
+ * Physical JSONL records for a logical RPC frame at the selected protocol.
+ * NEVER use this for child-stdin writes: omp rejects inbound rpc_chunk
+ * records (chunking is outbound-only — see MAX_IPC_FRAME_BYTES). This is the
+ * pinned mirror of omp's OUTBOUND chunk format and the fixture generator
+ * for the decoder's tests.
+ */
 export function encodeRpcFrames(frame: RpcFrameRecord, protocolVersion: RpcProtocolVersion, chunkId: string): string[] {
   const json = JSON.stringify(frame);
   if (lineByteLength(json) <= MAX_RPC_FRAME_BYTES) return [`${json}\n`];

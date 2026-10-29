@@ -21,7 +21,7 @@ import { getAgentDir } from "./paths";
 import { getAgentEnvOverrides } from "./agent-env";
 import { createChildProcessEnvironment } from "../project-command-env";
 import { assertHostAvailable, resolveHostBin, resolveModuleDir } from "./host-bin";
-import { RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
+import { MAX_IPC_FRAME_BYTES, RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
 import { RpcCommandError, RpcCommandTimeoutError } from "./rpc-process";
 import type { RpcProcessOptions } from "./rpc-process";
 
@@ -590,7 +590,21 @@ export class RustHostManager {
   }
 
   async send(sessionId: string, command: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
-    return this.controlRequest("agent.send", { sessionId, command: JSON.stringify(command) }, timeoutMs);
+    const commandJson = JSON.stringify(command);
+    // A command line above the host frame cap is rejected by the IPC reader,
+    // and that rejection answer races the RST of the still-writing client
+    // into a bare `read ECONNRESET` toast (image-attached prompts). Measure
+    // the EXACT wire line — `command` travels escaped as a JSON string — and
+    // refuse honestly before touching the socket.
+    const lineBytes = Buffer.byteLength(JSON.stringify({ method: "agent.send", params: { sessionId, command: commandJson } }), "utf8") + 64; // id field + newline slack
+    if (lineBytes > MAX_IPC_FRAME_BYTES) {
+      throw new RpcCommandError(
+        "agent.send",
+        `Prompt payload is too large for the local host transport (${(lineBytes / (1024 * 1024)).toFixed(1)} MB > ${(MAX_IPC_FRAME_BYTES / (1024 * 1024)).toFixed(0)} MB) — attach fewer or smaller images.`,
+        "ipc_frame_too_large",
+      );
+    }
+    return this.controlRequest("agent.send", { sessionId, command: commandJson }, timeoutMs);
   }
 
   async kill(sessionId: string): Promise<void> {

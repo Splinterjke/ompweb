@@ -357,6 +357,35 @@ hooks/
 - `globalThis` survives Next.js hot-reload; plain module-level Map does not.
 - Idle sessions are disposed after a timeout; concurrent `startRpcSession()`
   calls must share a single start promise.
+- **Prompt images and the host IPC frame cap**: user-prompt images stay
+  inline base64 in the `prompt` command, and that command is ONE NDJSON line
+  on every hop to the Rust host — `MAX_IPC_FRAME_BYTES` (`rpc-frame.ts`,
+  shared) must match `MAX_FRAME_BYTES` (`ipc_server.rs`, 16 MiB). The routes
+  accept an 8 MiB body with ≤5 MiB decoded images (≈7 MiB of base64 → one
+  line), which the 1 MiB-era cap rejected exactly after acceptance: the host
+  answers `frame_too_large` and closes while the client is still writing, the
+  RST discards that answer, and Node reports a bare `read ECONNRESET` — the
+  "Failed to send message: Error: read ECONNRESET" toast when attaching big
+  clipboard images. `RustHostManager.send` preflights the EXACT escaped line
+  size and refuses with `ipc_frame_too_large` before touching the socket
+  (the JSON-string-inside-JSON escaping can double a body-sized payload, so
+  no cap alone makes the pre-flight redundant). Chunking is NOT an escape
+  hatch for the child-stdin direction: protocol v2 `rpc_chunk` reassembly
+  exists only in the child's OUTBOUND direction — verified against omp
+  18.13.3, a child answers inbound `rpc_chunk` records with "Unknown command"
+  even after a successful `negotiate_protocol`, while a multi-MB single stdin
+  line is accepted (prompt acked, run streams normally). Both writers —
+  `Supervisor::send` and Node-mode `RpcProcess.writeFrame` — therefore always
+  write ONE complete line (`encodeRpcFrames` is the pinned mirror of omp's
+  outbound format + decoder-test fixture only; never use it for stdin).
+  Frames FROM omp children legitimately exceed the line cap (user-message
+  image echoes): omp chunks them into `rpc_chunk` lines and the supervisor
+  reassembles (`MAX_RPC_REASSEMBLED_BYTES`) — the supervisor's 1 MiB
+  per-line READ cap is a transport framing bound, not payload budget.
+  Regression: `lib/omp/rust-rpc-frame-limit.test.mjs`,
+  `supervisor::large_frames_reach_stdin_as_one_physical_line`,
+  `oversized_frames_are_rejected_before_touching_stdin`, the oversized-frame
+  test in `ipc_server.rs`.
 - Two cleanup backstops, both unref'd so they never hold the event loop:
   `IDLE_DESTROY_MS` (10 min) and `DISCONNECT_DESTROY_MS`
   (`OMP_WEB_DISCONNECT_DESTROY_MS`, 2 min, `0` disables). The shorter one only

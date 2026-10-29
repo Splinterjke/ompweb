@@ -3,7 +3,7 @@ import { createInterface } from "readline";
 import { proxyEnv } from "../proxy-config";
 import { sanitizeProjectCommandEnvironment } from "../project-command-env";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
-import { encodeRpcFrames, RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
+import { MAX_IPC_FRAME_BYTES, RpcFrameDecoder, type RpcFrameRecord, type RpcProtocolVersion } from "./rpc-frame";
 
 /**
  * Process + protocol layer for `omp --mode rpc-ui` (NDJSON over stdio).
@@ -87,12 +87,11 @@ export class RpcProcess {
   private exited = false;
   private exitInfo: { code: number | null; signal: NodeJS.Signals | null } | null = null;
   private protocolVersion: RpcProtocolVersion = 1;
-  private nextChunkId = 1;
   private readonly spawnProcess: typeof spawn;
-  // Serializes physical stdin writes: a v2 logical frame can span multiple
-  // `rpc_chunk` records (>1 MiB payloads), and two frames written concurrently
-  // would interleave their chunk sequences on stdin, which RpcFrameDecoder
-  // rejects. Each logical frame is enqueued whole.
+  // Serializes physical stdin writes: every command is ONE whole JSONL line
+  // (omp's stdin parser has no inbound rpc_chunk reassembly — see writeFrame),
+  // and two concurrent writers would interleave bytes mid-line on the pipe.
+  // Each logical frame is enqueued whole.
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(options: RpcProcessOptions) {
@@ -298,15 +297,27 @@ export class RpcProcess {
   }
 
   private writeFrame(frame: RpcFrame, callback: (error?: Error | null) => void): void {
-    let lines: string[];
+    // omp's stdin parser reads WHOLE JSONL records and does not understand
+    // protocol v2 rpc_chunk (chunking is OUTBOUND-only — a child answers
+    // inbound chunks with "Unknown command" even after a successful
+    // negotiate_protocol, while multi-megabyte single lines are accepted).
+    // Every command therefore goes out as exactly one line, bounded by the
+    // shared transport cap; the promise-chain queue still serializes writers
+    // so two concurrent sends can never interleave bytes mid-line on the pipe.
+    let line: string;
     try {
-      lines = encodeRpcFrames(frame, this.protocolVersion, `web-${this.nextChunkId++}`);
+      line = JSON.stringify(frame);
     } catch (error) {
       callback(error instanceof Error ? error : new Error(String(error)));
       return;
     }
-    // Enqueue the entire encoded logical frame; the next frame's physical
-    // records only start after this frame's last write callback completes.
+    if (Buffer.byteLength(line) + 1 > MAX_IPC_FRAME_BYTES) {
+      callback(new Error(`Prompt payload is too large for the OMP transport limit (${(Buffer.byteLength(line) / (1024 * 1024)).toFixed(1)} MB > ${MAX_IPC_FRAME_BYTES / (1024 * 1024)} MB) — attach fewer or smaller images.`));
+      return;
+    }
+    const lines = [line + "\n"];
+    // Enqueue the whole logical frame; the next frame's physical records only
+    // start after this frame's last write callback completes.
     this.writeQueue = this.writeQueue.then(
       () => new Promise<void>((resolve) => {
         if (this.exited || this.child.stdin.destroyed) {
