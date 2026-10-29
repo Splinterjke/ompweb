@@ -4319,7 +4319,7 @@ export const SessionItem = memo(function SessionItem({
                 {isRunning && <RunningSessionIndicator size={12} />}
                 {!isRunning && (exited ? (
                   <ExitedSessionIndicator title={formatExitedSessionNotice(exited)} size={12} />
-                ) : isRecentlyCompleted ? <RecentlyCompletedIndicator size={12} /> : isUnread && <UnreadSessionIndicator size={11} />)}
+                ) : isUnread ? <UnreadSessionIndicator size={11} /> : isRecentlyCompleted ? <RecentlyCompletedIndicator size={12} /> : null)}
                 {relativeTime && <Tooltip content={new Date(session.modified).toLocaleString(locale)}>
                   <span style={{ minWidth: 42, whiteSpace: "nowrap", textAlign: "right", color: isSelected ? "var(--accent)" : "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontVariantNumeric: "tabular-nums" }}>{relativeTime}</span>
                 </Tooltip>}
