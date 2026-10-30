@@ -1,7 +1,6 @@
 import { execFile, execFileSync, spawn } from "child_process";
-import { chmodSync, copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { chmodSync, copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
 import { ProxyAgent, request } from "undici";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { proxyEnv, readProxyConfig, resolveEffectiveProxy } from "../proxy-config";
@@ -97,7 +96,11 @@ async function downloadOmpBinaryViaProxy(proxyUrl: string | null, onLine?: (line
   const binPath = resolveOmpBin();
   if (!binPath) return false;
   const assetUrl = OMP_RELEASE_ASSET_URL.replace("{tag}", ompAssetName());
-  const tempFile = join(tmpdir(), "omp-download-" + process.pid);
+  // The temp download MUST live in the binary's own directory: rename(2) is
+  // per-device, and /tmp vs e.g. /root or a 9p/mounted install dir fails the
+  // final replace with EXDEV (cross-device link not permitted) after the
+  // whole 260+ MB download already succeeded.
+  const tempFile = join(dirname(binPath), ".omp-download-" + process.pid);
   let downloaded = Buffer.alloc(0);
   onLine?.("[omp-web] Downloading via curl through proxy: " + assetUrl + " …");
   const viaCurl = await new Promise<boolean>((resolve) => {
@@ -137,12 +140,17 @@ async function downloadOmpBinaryViaProxy(proxyUrl: string | null, onLine?: (line
     }
     downloaded = Buffer.concat(chunks);
   }
-  if (downloaded.length < 1024 * 1024) throw new Error("downloaded asset too small: " + downloaded.length);
   const backup = binPath + ".bak-ompweb";
-  if (!existsSync(backup)) copyFileSync(binPath, backup);
-  writeFileSync(tempFile, downloaded);
-  chmodSync(tempFile, 0o755);
-  renameSync(tempFile, binPath);
+  try {
+    if (downloaded.length < 1024 * 1024) throw new Error("downloaded asset too small: " + downloaded.length);
+    if (!existsSync(backup)) copyFileSync(binPath, backup);
+    writeFileSync(tempFile, downloaded);
+    chmodSync(tempFile, 0o755);
+    renameSync(tempFile, binPath);
+  } finally {
+    // A failed rename leaves the staged binary beside the target; never litter.
+    rmSync(tempFile, { force: true });
+  }
   onLine?.("[omp-web] Replaced " + binPath + ", verifying new binary…");
   try {
     const version = execFileSync(binPath, ["--version"], { encoding: "utf8", timeout: 10_000 }).trim();
