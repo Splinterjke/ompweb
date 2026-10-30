@@ -1075,6 +1075,20 @@ export class AgentSessionWrapper {
           this.maybeAutoTitleOnStart();
         }
         break;
+      // omp >= 18.13.3 announces RPC `compact` / extension ctx.compact() with
+      // manual_compaction_start/end. Mirror the compaction state (isCompacting
+      // must be right for tabs that did not start it and for extension-driven
+      // compactions); context_compacted keeps dispatching from the `compact`
+      // command path only, so a manual compaction fires the chat-event action
+      // exactly once.
+      case "manual_compaction_start":
+        this.compacting = true;
+        break;
+      case "manual_compaction_end":
+        this.compacting = false;
+        patchEstimatedTokensAfter(event.result);
+        invalidateSessionListCache();
+        break;
       case "auto_compaction_start":
         this.compacting = true;
         break;

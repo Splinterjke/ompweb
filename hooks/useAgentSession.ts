@@ -2988,18 +2988,24 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "auto_retry_end":
         setRetryInfo(null);
         break;
+      case "manual_compaction_start":
       case "auto_compaction_start":
         setIsCompacting(true);
         setCompactError(null);
         setCompactResult(null);
         break;
+      case "manual_compaction_end":
       case "auto_compaction_end":
         setIsCompacting(false);
         if (event.errorMessage) {
           setCompactError(event.errorMessage as string);
           setCompactResult(null);
         } else if (!event.aborted && !event.skipped) {
-          setCompactResult(readCompactResult(event.result, "auto"));
+          // omp >= 18.13.3 announces RPC-compact / ctx.compact() with the
+          // manual_* twins; same payload, so one handler with the origin tag
+          // picked from the frame type (the button/slash path still sets its
+          // own "manual" banner when the command resolves — same values).
+          setCompactResult(readCompactResult(event.result, event.type === "manual_compaction_end" ? "manual" : "auto"));
           if (sessionIdRef.current) loadSession(sessionIdRef.current, false, true);
         }
         break;

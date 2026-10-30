@@ -28,6 +28,8 @@
     { "type": "auto_retry_end", "payload": { "attempt": 1 } },
     { "type": "auto_compaction_start", "payload": { "tokensBefore": 180000 } },
     { "type": "auto_compaction_end", "payload": { "tokensBefore": 180000, "tokensAfter": 42000 } },
+    { "type": "manual_compaction_start", "payload": { "tokensBefore": 180000 } },
+    { "type": "manual_compaction_end", "payload": { "tokensBefore": 180000, "tokensAfter": 42000 } },
     { "type": "subagent_lifecycle", "payload": { "id": "sub_1", "phase": "started" } },
     { "type": "goal_updated", "payload": { "goal": { "id": "g_1", "objective": "Ship the release", "status": "active", "tokensUsed": 1200, "timeUsedSeconds": 45 }, "state": { "mode": "active" } } },
     { "type": "host_tool_call", "payload": { "callId": "hc_1", "toolName": "browser" } },

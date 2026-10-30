@@ -644,9 +644,16 @@ wait for that commit:
   image in the lightbox. The route serves only PNG/JPEG/GIF/WebP by magic bytes.
 
 ### Event protocol differences vs pi
-omp emits no `prompt_done` / `prompt_error` / `compaction_start` /
-`compaction_end` events. Completion is `agent_end` (`isTerminal !== false`),
-errors surface as failed RPC responses plus `notice` events.
+omp emits no `prompt_done` / `prompt_error` events. Completion is `agent_end`
+(`isTerminal !== false`), errors surface as failed RPC responses plus `notice`
+events. Compaction is announced as `auto_compaction_start`/
+`auto_compaction_end`, and (omp >= 18.13.3) additionally
+`manual_compaction_start`/`manual_compaction_end` around RPC `compact`,
+`/compact` and extension `ctx.compact()` — both wrappers mirror the manual
+frames into the `compacting`/`isCompacting` state, but the
+`context_compacted` chat-event action still fires once per compaction (the
+auto frame, or the `compact` command's success path — never the manual
+frames).
 New frame types (`turn_start/end`, `notice`, `todo_reminder`, ...) must be
 handled or safely ignored.
 
