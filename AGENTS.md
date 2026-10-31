@@ -221,6 +221,9 @@ Shared foundations in `lib/omp/`:
   `lib/hosts/hub.ts` for a remote one).
 - `auth-gateway.ts` — shared, idle-killed `omp auth-gateway stdio` child:
   omp's own credentials and models behind JSON-line gateway requests.
+- `title-generator.ts` — web mirror of omp's auto-title generator (opener
+  gates, model chain, response parse); drives `auth-gateway.ts` for the
+  mid-run session naming in `rpc-manager.ts`.
 
 ---
 
@@ -826,19 +829,39 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
   breadcrumb (`AppShell`).
 
 ### Auto-generated titles at session start (web setting `autoGenerateSessionTitles`)
-- When the FIRST settled run of a brand-new session completes (the same
-  `conversation_completed` signal — `prompt_result` settled or the deferred
-  `session_settled`), `AgentSessionWrapper.maybeAutoTitleOnStart()` fires omp's
-  own title generator once (one-shot flag per wrapper). New sessions only
-  (`recordedCwd === null` — resumed sessions keep their saved names), and only
-  when no title exists yet (memory or title slot). The generator is omp's
-  utility model role chain: **tiny → commit → smol** (verified from the 18.10.1
-  binary); a role that is unmapped or answers reasoning-only is skipped, and
-  the first-message-derived title is the honest fallback. Naming strictly
-  BEFORE the first assistant response is impossible (omp has no
-  `generate_title` RPC; `/rename` is a prompt run which `PI_NO_TITLE` forces
-  on rpc-ui children; native auto-tiling needs interactive mode), so the
-  trigger is first completion — after turn 1 settles.
+- Two triggers, one setting. **Mid-run (TUI parity):** the TUI names a new
+  session the moment its first assistant reply starts, but omp wires that
+  generator only for the interactive terminal — an `omp --mode rpc-ui` child
+  never runs it, and no released omp (through 18.16.0) has a title-generation
+  RPC (`set_session_name {name}` is the apply command; it hardcodes source
+  `"user"`, which only blocks native auto-over-user, so the wand can still
+  regenerate an early web title). So when the FIRST real agent run of a
+  brand-new session is dispatched, `AgentSessionWrapper.maybeAutoTitleDuringFirstRun()`
+  generates the name from the opening message through `lib/omp/title-generator.ts`
+  (a faithful mirror of omp's gates and parser, verified against the 18.16.0
+  binary: low-signal/weak-pointer opener gates, the `<user>`-wrapped prompt,
+  the tiny→commit→smol role chain plus the session model per `title.generator`,
+  the `Ee`→`z`→`$$` response parse) and applies it mid-run with
+  `set_session_name` — exactly what the TUI's own generator does at that
+  instant. The completions run through the shared `omp auth-gateway stdio`
+  child (`/v1/chat/completions`, `@tiny`/`@commit`/`@smol` resolved by omp),
+  so LOCAL-HOST sessions only — a remote session's title stays with the
+  generator on its own machine. One shot per wrapper (`earlyAutoTitleTried`);
+  early titles are PLAIN (the `🧪 CODE:` cards are applied only by native
+  rename paths).
+- **Settle fallback (unchanged):** when the FIRST settled run of a brand-new
+  session still leaves it untitled (the `conversation_completed` signal —
+  `prompt_result` settled or the deferred `session_settled`),
+  `AgentSessionWrapper.maybeAutoTitleOnStart()` fires omp's quiet
+  `/rename` generator; omp declines low-signal openers, so a later
+  settled turn retries up to `AUTO_TITLE_MAX_ATTEMPTS`. Both triggers are
+  brand-new sessions only (`recordedCwd === null` — resumed sessions keep
+  their saved names) and only while no title exists; the shared
+  `autoTitleInFlight` fence means the settle path never races the in-flight
+  mid-run attempt — when the mid-run attempt yields nothing, its `finally`
+  hands naming back to the settle path. A title that arrived elsewhere
+  (terminal, wand) always outranks the mid-run result (re-checked before
+  applying).
 - Toggle: Settings → Interface & Behavior (Session & Agent Behavior) →
   "Auto-generate session titles" — **default OFF**, a deliberate opt-in; the
   fallback first-message naming and the top-bar wand work regardless.

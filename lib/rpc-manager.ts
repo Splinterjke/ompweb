@@ -46,6 +46,8 @@ import { freezeHostLinks, getHost, killOrphan, lastUplinkAt, listHosts, orphanEx
 import { LOCAL_HOST_ID } from "./hosts/registry";
 import type { OpResult } from "./hosts/session-ops";
 import { hostForSessionId, invalidateHostSessionList, listSessionsAllHosts, sessionSpawnTarget } from "./hosts/session-index";
+import { buildTitleModelChain, generateOpenerTitle, isLowSignalOpener, isWeakPointerOpener } from "./omp/title-generator";
+import { readNativeSettings } from "./omp/settings-config";
 
 // ============================================================================
 // Types
@@ -164,6 +166,10 @@ const RENAME_POLL_TIMEOUT_MS = 20_000;
 /** Background title requests per session. omp declines low-signal openers
  * (a bare greeting), so a later turn of the same session retries. */
 const AUTO_TITLE_MAX_ATTEMPTS = 3;
+/** Cap on the opener text handed to the web-side title generator mid-run:
+ *  the native TUI generator passes the whole opener; this keeps a gateway
+ *  request sane while covering any opener worth naming. */
+const EARLY_TITLE_INPUT_MAX_CHARS = 4000;
 const AWAITING_AGENT_START_TIMEOUT_MS = 10_000;
 
 // ── RPC 健康信号 ──────────────────────────────────────────────────────────
@@ -569,9 +575,10 @@ export class AgentSessionWrapper {
       || this.pendingUiRequests.size > 0 || this.pendingHostTools.size > 0 || this.pendingHostUris.size > 0);
   }
 
-  /** Remember the first prompt's text for the sidebar placeholder row. */
-  private notePromptText(command: Record<string, unknown>): void {
-    if (this.firstPrompt) return;
+  /** The prompt command's text blocks joined and whitespace-normalized; the
+   *  sidebar label caps at 160, the title-generator input at
+   *  {@link EARLY_TITLE_INPUT_MAX_CHARS}. */
+  private promptText(command: Record<string, unknown>, maxChars: number): string {
     const raw = command.message;
     let text = "";
     if (typeof raw === "string") text = raw;
@@ -585,7 +592,13 @@ export class AgentSessionWrapper {
         })
         .join(" ");
     }
-    text = text.replace(/\s+/g, " ").trim().slice(0, 160);
+    return text.replace(/\s+/g, " ").trim().slice(0, maxChars);
+  }
+
+  /** Remember the first prompt's text for the sidebar placeholder row. */
+  private notePromptText(command: Record<string, unknown>): void {
+    if (this.firstPrompt) return;
+    const text = this.promptText(command, 160);
     if (text) this.firstPrompt = text;
   }
 
@@ -863,6 +876,9 @@ export class AgentSessionWrapper {
    *  retries, up to AUTO_TITLE_MAX_ATTEMPTS. */
   private autoTitleAttempts = new Map<string, number>();
   private autoTitleInFlight = false;
+  /** The mid-run (first-prompt) title attempt gets one shot per wrapper:
+   *  retries for later turns are the settle path's job, not the gateway's. */
+  private earlyAutoTitleTried = false;
   /** Whether omp answered `generate_title` with "Unknown command" (cached per child). */
   private generateTitleUnsupported = false;
   /** Set while the web-initiated argument-less `/rename` run is in flight. Its
@@ -976,6 +992,96 @@ export class AgentSessionWrapper {
         console.warn(`[omp-web] could not title session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
       })
       .finally(() => { this.autoTitleInFlight = false; });
+  }
+
+  /**
+   * Automatic naming DURING the first run (the TUI's timing, which the settle
+   * path above cannot have): omp titles interactive sessions itself the moment
+   * the first assistant reply starts, but wires that generator only for the
+   * TUI — an `omp --mode rpc-ui` child never runs it, and no released omp has
+   * a title-generation RPC. So when the first real agent run of a brand-new
+   * session is dispatched, generate the name through omp's own auth gateway
+   * (lib/omp/title-generator.ts) from the opening message and apply it
+   * mid-run with `set_session_name` — the same apply the TUI's own generator
+   * performs. Best-effort like the settle path: a failure (gateway, no title
+   * model, an untitlable opener) leaves naming to the run's settle-time
+   * quiet-`/rename` attempt, and the same web setting gates both. Local-host
+   * only: the gateway reads THIS machine's omp config and credentials, so a
+   * remote session's title stays with the generator running on its machine.
+   */
+  private maybeAutoTitleDuringFirstRun(command: Record<string, unknown>): void {
+    if (this.earlyAutoTitleTried) return;
+    this.earlyAutoTitleTried = true;
+    const sessionId = this._sessionId;
+    if (!sessionId || this._sessionName || this.autoTitleInFlight) return;
+    // Brand-new web sessions only — a resumed session may already carry a
+    // stored title, and naming the opener of an old conversation is wrong.
+    if (this.recordedCwd !== null) return;
+    if (this.host.id !== LOCAL_HOST_ID) return;
+    if (!loadWebServerSettings().autoGenerateSessionTitles) return;
+    const text = this.promptText(command, EARLY_TITLE_INPUT_MAX_CHARS);
+    // A slash prompt is a command, not a task: the wand's `/rename` run (and
+    // any other native slash command) must never be named FROM its own text —
+    // that title comes from the history, via the settle path or the wand.
+    if (!text || text.startsWith("/")) return;
+    // The native generator's own gates (`eE` / `wRt`): a bare greeting or a
+    // pure "look at this [Image #1]" carries nothing to name.
+    if (isLowSignalOpener(text) || isWeakPointerOpener(text)) return;
+    const attempts = this.autoTitleAttempts.get(sessionId) ?? 0;
+    if (attempts >= AUTO_TITLE_MAX_ATTEMPTS) return;
+    this.autoTitleAttempts.set(sessionId, attempts + 1);
+    // Held across generation so the settle path cannot race a quiet `/rename`
+    // against this attempt and land a second title over the first.
+    this.autoTitleInFlight = true;
+    void this.generateAndApplyOpenerTitle(sessionId, text)
+      .catch((error) => {
+        // Like the settle path, an automatic title never surfaces as an error.
+        console.warn(`[omp-web] could not title session ${sessionId} at its first run: ${error instanceof Error ? error.message : String(error)}`);
+      })
+      .finally(() => {
+        this.autoTitleInFlight = false;
+        // A run may have settled while this attempt was in flight (its settle
+        // hook skipped, this flag was held). Hand the naming back to the
+        // settle path when the early attempt produced nothing.
+        if (!this._sessionName) this.maybeAutoTitleOnStart();
+      });
+  }
+
+  /** Name the opener with omp's own gateway models and apply the result to
+   *  the live child. Anything that moved on meanwhile — a dying child, a
+   *  restart, a history edit, a session-id change, a title that arrived from
+   *  elsewhere — drops the apply: naming the wrong conversation is worse
+   *  than waiting for the settle path's. */
+  private async generateAndApplyOpenerTitle(sessionId: string, text: string): Promise<void> {
+    let sessionModel: string | null = null;
+    try {
+      const state = await this.getStateWithTimeout();
+      if (state.model?.provider && state.model.id) sessionModel = `${state.model.provider}/${state.model.id}`;
+    } catch {
+      // The role chain still names the session without the session model.
+    }
+    let generator: "fork" | "tiny" | undefined;
+    try {
+      generator = readNativeSettings().settings.title?.generator;
+    } catch {
+      // An unreadable config file keeps the native default chain order.
+    }
+    const generated = await generateOpenerTitle({
+      text,
+      modelChain: buildTitleModelChain({ sessionModel, generator }),
+    });
+    if (!generated) return;
+    if (!this.isAlive() || this.restarting || this.historyEditInFlight) return;
+    if (this._sessionId !== sessionId || this._sessionName) return;
+    // `set_session_name` appends a title entry — the same history-mutation
+    // fence `generateTitle()` wraps its own sends in.
+    this.historyMutationPendingCount += 1;
+    try {
+      await this.proc.sendCommand({ type: "set_session_name", name: generated.title }, GENERATE_TITLE_TIMEOUT_MS);
+    } finally {
+      this.historyMutationPendingCount -= 1;
+    }
+    this.adoptSessionName(generated.title);
   }
 
   private async readSessionName(): Promise<string | null> {
@@ -2733,6 +2839,11 @@ export class AgentSessionWrapper {
           } else if (!streamingBehavior && ack?.agentInvoked !== false) {
             this.awaitingAgentStart = true;
             this.awaitingAgentStartDeadline = Date.now() + AWAITING_AGENT_START_TIMEOUT_MS;
+            // TUI parity: the session titles itself the moment its first
+            // reply starts there; an rpc-ui child never runs omp's own
+            // generator, so name it mid-run from this dispatch (the run's
+            // settle path stays the fallback, see maybeAutoTitleOnStart).
+            this.maybeAutoTitleDuringFirstRun(command);
           }
         } catch (error) {
           this.promptRunning = false;
