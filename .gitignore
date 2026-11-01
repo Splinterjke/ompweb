@@ -97,3 +97,9 @@ build-resources/
 # staged host binary for the npm package (scripts/stage-host.mjs --vendor);
 # the publish workflow stages it per-platform before packing
 vendor/ompweb-host/
+# npm packaging archives
+*.tgz
+
+# graphify: track only the graph; each clone rebuilds the rest
+graphify-out/*
+!graphify-out/graph.json

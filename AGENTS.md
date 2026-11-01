@@ -6,6 +6,12 @@
 npm run dev   # port 30178
 ```
 
+**Optional graphify graph** (upstream #358): the repo tracks `graphify-out/graph.json`
+and a `.githooks/pre-commit` that rebuilds it per commit. It is INACTIVE unless you run
+`uv tool install graphifyy==0.9.99 && sh scripts/setup-hooks.sh` per clone — keep it
+inactive here: the hook refuses `git commit <path>` commits, and this repo's convention
+is pathspec-scoped `git add -- … && git commit -m … -- …`. Bypass with `GRAPHIFY_SKIP_HOOK=1`.
+
 Typecheck: `node_modules/.bin/tsc --noEmit`  
 Lint: `npm run lint`  
 **Dev and build use separate distDirs** — `next dev` writes to `.next-dev/`
