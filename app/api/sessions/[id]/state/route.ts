@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearExitedRpcSession, getExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
-import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
+import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
+import { localHost } from "@/lib/hosts/local-host";
 import { isExternallyActive, heldSessionsWithLivePendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
 
 // An external omp goes quiet while the model is thinking or a long tool runs
@@ -66,8 +67,14 @@ export async function GET(
       return NextResponse.json({ running: false, exited });
     }
 
-    const resolved = await resolveSessionPathOr404(id);
+    const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return resolved.response;
+    // Another host owns the file: this machine's watcher cannot see its holders
+    // or its activity log, so ask that host's own state probe instead.
+    if (resolved.host !== localHost) {
+      const result = await resolved.host.sessionOps.readSessionState(id);
+      return result.ok ? NextResponse.json(result.value) : opErrorResponse(result);
+    }
     // File activity alone lapses after EXTERNAL_ACTIVITY_WINDOW_MS of silence,
     // but a live external holder goes quiet while the model thinks or a long
     // tool runs. The holder's process being alive with a pending committed

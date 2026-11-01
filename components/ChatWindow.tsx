@@ -43,10 +43,18 @@ import {
   type ChatGroup,
   type VirtualWindow,
 } from "@/lib/chat-groups";
+import { isLinkUp, type HostStatus } from "@/lib/hosts/host";
+import { newChatDraftKey, remoteHostId } from "@/lib/project-ordering";
 
 interface Props {
   session: SessionInfo | null;
   newSessionCwd: string | null;
+  /** Host a fresh chat starts on (this machine when absent). */
+  newSessionHostId?: string;
+  /** The chat's host from the `hosts` channel: the source of truth until a
+   *  `host_status` frame reports a change, and for a chat opened mid-outage. */
+  hostStatus?: HostStatus;
+  hostLabel?: string;
   /** Workspace picker rendered above the new-session composer (owns the destination cwd). */
   newSessionWorkspace?: ReactNode;
   toolCallsDefaultCollapsed?: boolean;
@@ -675,7 +683,8 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+
 
   const { t, tn } = useI18n();
   const isMobile = useIsMobile();
@@ -734,7 +743,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     agentPhase, activeGoal, activePlan, planInfo,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
     goal, sendGoalCommand, trackGoal,
-    isNew,
+    isNew, hostStatus: frameHostStatus,
     sessionIdRef, messagesEndRef, scrollContainerRef,
     handleSend, handleAbort, handleFork, handleEdit, handleModelChange, retrySession, scrollToBottom,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
@@ -744,7 +753,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     btw, askBtw,
     handleThinkingLevelChange, handleFastModeChange, handleSlowModeChange, handleModelRestore, handleCycleModel, handleCycleThinkingLevel, handleAbortRetry, loadSlashCommands,
   } = useAgentSession({
-    session, newSessionCwd, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked, onSessionMoved: handleSessionMoved,
+    session, newSessionCwd, newSessionHostId, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked, onSessionMoved: handleSessionMoved,
     modelsRefreshKey, chatInputRef: composerRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
     onOpenFile, onOpenUrl,
   });
@@ -863,6 +872,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     return () => window.removeEventListener("keydown", handler);
   }, [session, handleCycleModel, handleCycleThinkingLevel]);
 
+  const draftKey = session?.id ?? (newSessionCwd ? newChatDraftKey(newSessionCwd, newSessionHostId) : undefined);
   // --- 虚拟化（doc 14 T2.1/T2.2）---
   // 消息全量在内存（session-reader 全量解析）；组索引只依赖消息结构，
   // 流式 token 帧（length/id 不变）复用缓存，不重建。
@@ -930,6 +940,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
   const [layoutRevision, setLayoutRevision] = useState(0);
   // 滚动位置 → 可见组窗口（O(log n) 二分；双向回收由窗口移动自然完成）。
   const win = useMemo(() => computeWindow(layout, scrollTop, viewportHeight, VIRTUAL_OVERSCAN), [layout, layoutRevision, scrollTop, viewportHeight]);
+  const remoteWorkspace = session ? remoteHostId(session.hostId) !== undefined : newSessionHostId !== undefined;
+  // The hosts channel is the source of truth; a frame only speaks before its first snapshot.
+  const currentHostStatus = channelHostStatus ?? frameHostStatus;
+  const hostBanner = currentHostStatus && !isLinkUp(currentHostStatus) ? <HostOfflineBanner host={hostLabel ?? ""} /> : null;
   const scrollRafRef = useRef<number | null>(null);
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -1348,6 +1362,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
     return () => controller.abort();
   }, [advisorEnabled]);
 
+
   const advisorModelMeta = useMemo(() => {
     if (!advisorRoleSelector) return null;
     const [qualified, effort] = advisorRoleSelector.split(":");
@@ -1487,8 +1502,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
       onLoadSlashCommands={loadSlashCommands}
       onBuiltinCommand={handleBuiltinSlashCommand}
       onAudioUnlock={unlockAudio}
-      draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
-      cwd={session?.cwd ?? newSessionCwd}
+      draftKey={draftKey}
+      // @-mentions and skill lookups read this machine's disk: not for a remote workspace yet.
+      cwd={remoteWorkspace ? null : session?.cwd ?? newSessionCwd}
       narrowColumn={isEmptyNew}
     />
   );
@@ -1577,14 +1593,17 @@ export function ChatWindow({ session, newSessionCwd, newSessionWorkspace, toolCa
                   CHAT_COLUMN_MAX_WIDTH (960) is too wide for the empty state. */}
               <div className="flex w-full flex-col items-center" style={{ maxWidth: 720, minWidth: 0 }}>
                 {newSessionWorkspace}
+                {hostBanner}
                 <NoticeShelf notices={notices} align="right" />
                 <SkillDiagnosticsNotice snapshot={skillDiagnostics} onDisable={() => setSkillStartupDiagnostics(false)} />
                 {chatInputElement}
               </div>
             </div>
+
           </div>
       ) : (
       <>
+      {hostBanner}
       <div className="relative flex flex-1 overflow-hidden">
         <div
           style={{
@@ -1902,6 +1921,18 @@ function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: st
         </pre>
         </Tooltip>
       ))}
+    </div>
+  );
+}
+
+function HostOfflineBanner({ host }: { host: string }) {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      style={{ flexShrink: 0, margin: `0 ${CHAT_COLUMN_GUTTER} 8px`, padding: "7px 10px", border: "1px solid color-mix(in srgb, var(--status-warning) 40%, var(--border))", borderRadius: "var(--radius-control)", background: "color-mix(in srgb, var(--status-warning) 8%, var(--bg))", color: "var(--text)", fontSize: 12, lineHeight: 1.4 }}
+    >
+      {t("hosts.offlineBanner", { host })}
     </div>
   );
 }

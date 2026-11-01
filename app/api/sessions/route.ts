@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
-import { listAllSessions } from "@/lib/session-reader";
+import { listSessionsAllHosts } from "@/lib/hosts/session-index";
 import { getRunningRpcSessionIds, getRunningRpcSessionMeta } from "@/lib/rpc-manager";
 import { getAutomationSessions } from "@/lib/scheduler-store";
 
@@ -16,7 +16,9 @@ const SESSION_LIST_HEADERS = {
 
 export async function GET(req: Request) {
   try {
-    const sessions = await listAllSessions();
+    // Every host's sessions (this machine first, each tagged with its hostId);
+    // the automation annotation is main's own scheduler metadata.
+    const sessions = await listSessionsAllHosts();
     const automation = getAutomationSessions();
     const annotated = automation && Object.keys(automation).length > 0
       ? sessions.map((s) => (automation[s.id] ? { ...s, automation: automation[s.id] } : s))

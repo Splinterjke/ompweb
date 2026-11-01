@@ -61,7 +61,10 @@ fn collect_session_files_inner(root: &Path, allow_loose_files: bool) -> Vec<Path
 }
 
 /// Accept legacy/imported session files with non-standard names only when
-/// their bounded prefix proves they contain a session header.
+/// their bounded prefix proves they contain a session header. A file renamed
+/// by the web starts with a fixed title-slot line — it is metadata, so the
+/// header check continues to the next line instead of rejecting the file
+/// (Node `isSessionHeaderFile` parity).
 fn is_session_header_file(path: &Path) -> bool {
     let Ok(raw) = fs::read_to_string(path) else {
         return false;
@@ -73,6 +76,9 @@ fn is_session_header_file(path: &Path) -> bool {
         let Ok(value) = JsonValue::parse(line) else {
             return false;
         };
+        if value.get(&["type"]).and_then(|v| v.as_str()) == Some("title") {
+            continue;
+        }
         return value.get(&["type"]).and_then(|v| v.as_str()) == Some("session")
             && value
                 .get(&["id"])
@@ -745,6 +751,31 @@ mod tests {
         .unwrap();
         assert_eq!(project_file(&only).unwrap().first_message, "prefilled");
         fs::remove_file(&only).ok();
+    }
+
+    #[test]
+    fn renamed_legacy_file_with_title_slot_stays_listed() {
+        // A web rename of a legacy (non `<ts>_<uuid>`) session file inserts a
+        // fixed title-slot line as line 1. The header probe must look past
+        // that metadata line, or the renamed session vanishes from the list.
+        let root = fixture_dir();
+        let project = root.join("-work-renamed-probe");
+        fs::create_dir_all(&project).unwrap();
+        let slot = {
+            let base = "{\"type\":\"title\",\"v\":1,\"title\":\"Renamed\",\"source\":\"user\",\"updatedAt\":\"2026-01-01T00:00:00.000Z\",\"pad\":\"";
+            let tail = "\"}\n";
+            let pad = 256 - base.len() - tail.len();
+            format!("{base}{}{tail}", " ".repeat(pad))
+        };
+        let file = project.join("legacy-import.jsonl");
+        let body = "{\"type\":\"session\",\"version\":3,\"id\":\"0000test00000000000000000000leg1\",\"timestamp\":\"2026-01-15T12:00:00Z\",\"cwd\":\"/work/renamed\"}\n\
+                    {\"type\":\"message\",\"id\":\"m1\",\"parentId\":null,\"message\":{\"role\":\"user\",\"content\":\"legacy question\"}}\n";
+        fs::write(&file, format!("{slot}\n{body}")).unwrap();
+        let collected = collect_session_files(&root);
+        assert!(collected.contains(&file), "{collected:?}");
+        let p = project_file(&file).unwrap();
+        assert_eq!(p.title, "Renamed");
+        fs::remove_dir_all(&project).ok();
     }
 
     #[test]

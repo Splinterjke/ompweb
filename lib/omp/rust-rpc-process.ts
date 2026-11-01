@@ -18,6 +18,7 @@ import { createConnection, type Socket } from "node:net";
 import { StringDecoder } from "node:string_decoder";
 import { join } from "node:path";
 import { getAgentDir } from "./paths";
+import type { RpcTransport } from "./rpc-transport";
 import { getAgentEnvOverrides } from "./agent-env";
 import { createChildProcessEnvironment } from "../project-command-env";
 import { assertHostAvailable, resolveHostBin, resolveModuleDir } from "./host-bin";
@@ -921,6 +922,9 @@ export async function createRpcProcess(options: {
 export interface RpcProcessLike {
   readonly cwd: string;
   readonly isAlive: boolean;
+  /** Byte transport under the protocol layer (direct RpcProcess only; the
+   * Rust-host variant has no local transport and leaves this undefined). */
+  readonly transport?: RpcTransport;
   waitReady(timeoutMs?: number): Promise<RpcFrameRecord>;
   onFrame(handler: RpcFrameHandler): () => void;
   negotiateProtocol(ready: RpcFrameRecord): Promise<unknown>;

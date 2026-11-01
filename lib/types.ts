@@ -467,6 +467,9 @@ export interface SessionInfo {
   worktreeBranch?: string;
   /** Name of the automation (prompt) task that created this session, if any. */
   automation?: string;
+  /** Host the session's file lives on ("local" for this machine). Set by the
+   *  all-hosts session list; a host's own list leaves it out. */
+  hostId?: string;
 }
 
 /** Metadata for a gzip-compressed session in OMP's archive tree. */
@@ -481,6 +484,16 @@ export interface ArchivedSessionInfo {
   firstMessage: string;
   size: number;
   status?: "complete" | "interrupted" | "aborted" | "error" | "pending" | "unknown";
+}
+
+/** Per-workspace omp launch options stored on a registered project. */
+export interface ProjectLaunchConfig {
+  /** The OMP profile to use. */
+  profile?: string;
+  /** Whether to launch with advisor mode. */
+  advisor?: boolean;
+  /** Extra OMP CLI args, stored as an array. */
+  extraArgs?: string[];
 }
 
 /** A project in the sidebar: an explicitly added directory (registered in the
@@ -499,6 +512,10 @@ export interface ManagedProject {
   /** Set when pinned: position among pinned workspaces (lower first). Pins
    *  only apply while the sidebar sorts by name or activity. */
   pinOrder?: number;
+  /** Workspace-level omp launch configuration. */
+  launchConfig?: ProjectLaunchConfig;
+  /** Host the project lives on ("local" for this machine). Set by GET /api/projects. */
+  hostId?: string;
 }
 
 export interface SessionContext {
@@ -521,6 +538,8 @@ export interface CrossSessionHostToolCall {
 export interface ExitedRpcSession {
   id: string;
   cwd: string;
+  /** Absent on this machine, as on `SessionInfo`. */
+  hostId?: string;
   at: number;
   code: number | null;
   signal: string | null;

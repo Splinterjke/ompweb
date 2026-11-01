@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { isAbsolute, resolve } from "path";
 import { comparableProjectPath } from "./comparable-path";
 import { getAgentDir } from "./omp/paths";
-import type { ManagedProject } from "./types";
+import type { ManagedProject, ProjectLaunchConfig } from "./types";
 
 // ============================================================================
 // Project registry: which directories the user explicitly manages, and which
@@ -31,6 +31,8 @@ export interface ProjectRegistryEntry {
   sortOrder?: number;
   /** Set when pinned: position among pinned workspaces; lower first. */
   pinOrder?: number;
+  /** Workspace-level omp launch configuration. */
+  launchConfig?: ProjectLaunchConfig;
 }
 
 export interface ProjectRegistryFile {
@@ -59,6 +61,29 @@ function canonicalProjectPath(value: string): string {
   }
 }
 
+/** Launch args the web UI manages itself; a workspace config must never carry
+ *  them (bare or `--flag=value`), or a stored config could hijack the session
+ *  boundary (`--cwd`/`--resume`) or the rpc-ui mode. */
+const RESERVED_LAUNCH_ARGS: Record<string, true> = { "--mode": true, "rpc-ui": true, "--cwd": true, "--resume": true };
+const RESERVED_LAUNCH_ARG_PREFIXES = ["--mode=", "--cwd=", "--resume="];
+export function isReservedLaunchArg(arg: string): boolean {
+  return RESERVED_LAUNCH_ARGS[arg] === true || RESERVED_LAUNCH_ARG_PREFIXES.some((prefix) => arg.startsWith(prefix));
+}
+
+/** Parse the on-disk registry's launch config; invalid fields are safely ignored. */
+function parseLaunchConfig(item: Record<string, unknown>): ProjectLaunchConfig | undefined {
+  const raw = item.launchConfig;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  const profile = typeof value.profile === "string" && value.profile.trim() && !value.profile.trim().startsWith("-") ? value.profile.trim() : undefined;
+  const advisor = value.advisor === true ? true : undefined;
+  const extraArgs = Array.isArray(value.extraArgs)
+    ? value.extraArgs.filter((arg): arg is string => typeof arg === "string" && arg.length > 0 && arg.length <= 256 && !isReservedLaunchArg(arg)).slice(0, 32)
+    : undefined;
+  if (!profile && advisor === undefined && (!extraArgs || extraArgs.length === 0)) return undefined;
+  return { profile, advisor, extraArgs };
+}
+
 /** Parse registry JSON; missing, corrupt, or foreign-shaped input yields an
  *  empty registry rather than failing the whole sidebar. */
 export function parseProjectRegistry(raw: string): ProjectRegistryFile {
@@ -79,6 +104,7 @@ export function parseProjectRegistry(raw: string): ProjectRegistryFile {
         alias: "alias" in item && typeof item.alias === "string" && item.alias.trim() ? item.alias.trim() : undefined,
         sortOrder: "sortOrder" in item && typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder) ? item.sortOrder : undefined,
         pinOrder: "pinOrder" in item && typeof item.pinOrder === "number" && Number.isFinite(item.pinOrder) ? item.pinOrder : undefined,
+        launchConfig: parseLaunchConfig(item as Record<string, unknown>),
       });
     }
     return { version: 1, projects: entries };
@@ -122,11 +148,16 @@ export function upsertProject(
   registry: ProjectRegistryFile,
   path: string,
   now = new Date().toISOString(),
+  launchConfig?: ProjectLaunchConfig,
 ): ProjectRegistryFile {
   const canonical = canonicalProjectPath(path);
   const key = comparableProjectPath(canonical);
+  const existing = registry.projects.find((p) => comparableProjectPath(p.path) === key);
   const projects = registry.projects.filter((p) => comparableProjectPath(p.path) !== key);
-  projects.push({ path: canonical, addedAt: now, hidden: false });
+  // An omitted launchConfig preserves the stored one: re-adding a workspace
+  // (e.g. un-hiding) without config must not wipe it. Explicit clear goes
+  // through PATCH with null.
+  projects.push({ path: canonical, addedAt: now, hidden: false, launchConfig: launchConfig ?? existing?.launchConfig });
   return { version: 1, projects };
 }
 
@@ -137,7 +168,7 @@ export function upsertProject(
  *  managed must register them in the same cycle (see /api/projects PATCH). */
 export function updateProjectsPresentation(
   registry: ProjectRegistryFile,
-  updates: ReadonlyArray<{ path: string; alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }>,
+  updates: ReadonlyArray<{ path: string; alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }>,
 ): ProjectRegistryFile {
   const keyed = new Map(updates.map((update) =>
     [comparableProjectPath(canonicalProjectPath(update.path)), update] as const,
@@ -161,6 +192,10 @@ export function updateProjectsPresentation(
         if (update.pinOrder === null) delete next.pinOrder;
         else next.pinOrder = update.pinOrder;
       }
+      if (update.launchConfig !== undefined) {
+        if (update.launchConfig === null) delete next.launchConfig;
+        else next.launchConfig = update.launchConfig;
+      }
       return next;
     }),
   };
@@ -183,8 +218,13 @@ export function hideProject(registry: ProjectRegistryFile, path: string): Projec
  *  entries. A hidden registry entry suppresses re-discovery, so hiding a
  *  project keeps its sessions off the sidebar until it is added again.
  *  Registered projects come first in most-recently-added order; discovered
- *  projects follow sorted by path. */
-export function mergeProjects(registry: ProjectRegistryFile, discovered: Iterable<string>): ManagedProject[] {
+ *  projects follow sorted by path. `canonical` resolves discovered paths on
+ *  this machine; another host's paths pass through unchanged. */
+export function mergeProjects(
+  registry: ProjectRegistryFile,
+  discovered: Iterable<string>,
+  canonical: (path: string) => string = canonicalProjectPath,
+): ManagedProject[] {
   const hidden = new Set(
     registry.projects.filter((p) => p.hidden).map((p) => comparableProjectPath(p.path)),
   );
@@ -201,11 +241,11 @@ export function mergeProjects(registry: ProjectRegistryFile, discovered: Iterabl
     const key = comparableProjectPath(p.path);
     if (registeredSeen.has(key)) continue; // tolerate hand-edited duplicates
     registeredSeen.add(key);
-    registered.push({ path: p.path, addedAt: p.addedAt, alias: p.alias, sortOrder: p.sortOrder, pinOrder: p.pinOrder });
+    registered.push({ path: p.path, addedAt: p.addedAt, alias: p.alias, sortOrder: p.sortOrder, pinOrder: p.pinOrder, launchConfig: p.launchConfig });
   }
   const extra: ManagedProject[] = [];
   const extraSeen = new Set<string>();
-  for (const raw of new Set([...discovered].filter(Boolean).map(canonicalProjectPath))) {
+  for (const raw of new Set([...discovered].filter(Boolean).map(canonical))) {
     const key = comparableProjectPath(raw);
     if (hidden.has(key) || registeredSeen.has(key) || extraSeen.has(key)) continue;
     extraSeen.add(key);

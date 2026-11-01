@@ -12,7 +12,7 @@
   <a href="./README.md">English</a> | <a href="./README.zh-CN.md">简体中文</a> | <a href="./README.ja.md">日本語</a> | <a href="./README.ru.md">Русский</a>
 </p>
 
-ompweb provides a browser workspace for your local omp runtime: session browsing with branch navigation and forking, real-time chat over the omp RPC protocol, model / MCP / skill management, Git worktree switching, and rich file previews. Skill conflicts and redundant installations appear above the composer when an omp session starts; **×** dismisses the notice for that session until the report changes, and **Turn off** and **Settings → Skill startup notices** disable it.
+ompweb provides a browser workspace for your local omp runtime: session browsing with branch navigation and forking, real-time chat over the omp RPC protocol, model / MCP / skill management, Git worktree switching, and rich file previews. One ompweb can also link other machines and run sessions there, with the sidebar grouping sessions by host (see **Run sessions on another machine**). Skill conflicts and redundant installations appear above the composer when an omp session starts; **×** dismisses the notice for that session until the report changes, and **Turn off** and **Settings → Skill startup notices** disable it.
 
 <details>
 <summary>📸 I believe screenshots sometimes describe better than words</summary>
@@ -245,6 +245,76 @@ session you are viewing. Clicking a notification opens its session.
 
 Completion notifications use omp's `prompt_result` and `session_settled` RPC
 frames (omp 18.3.1 or later).
+
+## 🖥️ Run sessions on another machine
+
+One ompweb can start and watch omp sessions on other machines. Each machine keeps
+its own `omp` install, `~/.omp/agent` directory, sessions, and credentials;
+ompweb only routes. The remote machine needs Node 24 and `omp` installed, and must
+be able to reach the ompweb server over HTTP(S). It dials out, so it can sit behind NAT.
+
+1. On the ompweb server, open **Settings → Hosts → Add host**, enter a name, and copy
+   the token. The token is shown once; only its hash is stored.
+2. On the remote machine, save the link. The token is read from stdin, never from
+   an argument, so it does not show up in `ps`:
+
+   ```bash
+   ompweb host login --url https://your-ompweb.example.com
+   ```
+
+   Paste the token when prompted (or pipe it in). It is saved to
+   `~/.omp/agent/omp-web/host.json` with mode `600`.
+3. Start the link and leave it running:
+
+   ```bash
+   ompweb host
+   ```
+
+   The host shows **online** in Settings → Hosts, the sidebar gets a group for it,
+   and the new-session screen gets a host picker.
+
+`https://` is required. Plain `http://` is accepted only for loopback addresses, or
+with `--allow-http` (for example on a tailnet):
+
+```bash
+ompweb host login --url http://100.64.0.1:6767
+ompweb host --allow-http
+```
+
+If the connection drops, the daemon reconnects by itself (1 s backoff doubling to
+60 s). After a network drop, runs keep going on the remote machine; the chat shows
+an offline banner and the runs reattach when the link returns. A laptop that goes
+to sleep (closing the lid, usually) pauses the daemon and its omp runs along with
+everything else on it: they resume when it wakes, and the link returns then. A
+docked or no-sleep setup keeps running with the lid closed. Revoking a host in
+Settings closes its link and the daemon stops its omp processes.
+
+Notes:
+
+- **The server's agent directory holds the host list** (`omp-web/hosts.json`).
+  Starting the ompweb server with a different `PI_CODING_AGENT_DIR`, or losing
+  that file, makes every host token unknown: each daemon is told it was revoked,
+  stops its omp processes and exits. In Docker this is the `~/.omp` volume mounted
+  into the container, so keep it persistent.
+- **Trust:** a linked host runs omp with full tool access on that machine for
+  whoever controls the ompweb server or the token. Keep the token private and
+  revoke it when a machine is retired.
+- **Not available on remote hosts yet:** the file explorer, Git and worktree
+  panels, directory browsing, and the Skills, Plugins, Agents and MCP settings only
+  work on the machine ompweb runs on. Chat, session history, notifications and
+  starting sessions work on every host.
+- **Agent-started sessions:** with agent tools enabled, an agent can pass a `host`
+  to `new_session` (it defaults to the agent's own host). A remote host asks for
+  confirmation each time unless **Agents can start sessions here without asking**
+  is switched on for it in Settings → Hosts. An agent running on a remote host
+  always asks before it starts or messages a session on this machine.
+- The daemon exits with code `1` when the server revokes its token or when the
+  link protocol versions differ (either side may be the newer one; upgrade ompweb
+  on the older side), and `0` when a newer link for the same host replaces it.
+  SIGTERM or SIGINT stops the daemon and its omp processes. A link is one-per-host,
+  so never run two daemons with the same token. To keep the link up across logouts
+  or reboots, run `ompweb host` under a supervisor of your choice that restarts it
+  after failure.
 
 ## 🛠️ Environment variables
 

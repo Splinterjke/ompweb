@@ -21,7 +21,7 @@ import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
 import { WorkspaceState } from "./WorkspaceState";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Check, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, ScrollText, Search, Sun, TerminalSquare, Wand2, X } from "lucide-react";
+import { Check, ChevronDown, Folder, GitBranch, GitFork, History, Menu, Moon, MoreHorizontal, PanelLeft, PanelRight, Plus, ScrollText, Search, Server, Sun, TerminalSquare, Wand2, X } from "lucide-react";
 import { ThemePicker } from "./ThemePicker";
 import { DesktopUpdateBanner } from "./DesktopUpdateBanner";
 import { OmpSetupWizard } from "./OmpSetupWizard";
@@ -47,6 +47,10 @@ import { buildAtMentionText, buildFileAtMentionsText, buildFileLineMentionText }
 import { getInitialNavigation } from "@/lib/initial-navigation";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import { showBrowserNotification } from "@/lib/browser-notifications";
+import { LOCAL_HOST_ID, remoteHostId } from "@/lib/project-ordering";
+import { isLinkUp } from "@/lib/hosts/host";
+import { useHostRows } from "@/hooks/useHostRows";
+import { hostName, hostStatusText } from "./host-status";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
@@ -206,10 +210,19 @@ export function AppShell({ appName }: { appName: string }) {
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);
-  const [workspaceOptions, setWorkspaceOptions] = useState<{ projects: ManagedProject[]; selectedProject: string | null; cwd: string | null }>({ projects: [], selectedProject: null, cwd: null });
+  // Host of newSessionCwd; undefined is this machine. Every host-aware state
+  // here uses that form (see remoteHostId).
+  const [newSessionHostId, setNewSessionHostId] = useState<string | undefined>(undefined);
+  const [workspaceOptions, setWorkspaceOptions] = useState<{ projects: ManagedProject[]; selectedProject: string | null; cwd: string | null; hostId: string }>({ projects: [], selectedProject: null, cwd: null, hostId: LOCAL_HOST_ID });
   const [addProjectOpen, setAddProjectOpen] = useState(false);
-  const handleWorkspaceOptionsChange = useCallback((projects: ManagedProject[], selectedProject: string | null, cwd: string | null) => {
-    setWorkspaceOptions({ projects, selectedProject, cwd });
+  const [addProjectHostId, setAddProjectHostId] = useState<string>(LOCAL_HOST_ID);
+  const openAddProject = useCallback((open: boolean, hostId: string = LOCAL_HOST_ID) => {
+    setAddProjectHostId(hostId);
+    setAddProjectOpen(open);
+  }, []);
+  const { hosts } = useHostRows();
+  const handleWorkspaceOptionsChange = useCallback((projects: ManagedProject[], selectedProject: string | null, cwd: string | null, hostId: string) => {
+    setWorkspaceOptions({ projects, selectedProject, cwd, hostId });
   }, []);
   const [initialCwdStatus, setInitialCwdStatus] = useState<"idle" | "validating" | "ready" | "error">(
     () => initialNavigation.requestedCwd ? "validating" : "idle",
@@ -1242,6 +1255,7 @@ export function AppShell({ appName }: { appName: string }) {
 
   const initialSessionId = initialNavigation.sessionId;
   const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const [activeHostId, setActiveHostId] = useState<string | undefined>(undefined);
   // Owned by the sidebar; rendered by the right workbench's Worktrees view.
   const [worktreeCtx, setWorktreeCtx] = useState<WorktreeContext | null>(null);
   // The boot gate stays closed until the sidebar has either restored a URL /
@@ -1293,8 +1307,9 @@ export function AppShell({ appName }: { appName: string }) {
     return () => controller.abort();
   }, [initialNavigation, armCwdSuppression]);
 
-  const handleCwdChange = useCallback((cwd: string | null, projectRoot?: string | null) => {
+  const handleCwdChange = useCallback((cwd: string | null, projectRoot: string | null, hostId: string) => {
     setActiveCwd(cwd);
+    setActiveHostId(remoteHostId(hostId));
     // Skip if cwd is null (initial mount) or during the initial URL restore.
     if (!cwd) return;
     const newProject = projectRoot ?? cwd;
@@ -1319,7 +1334,7 @@ export function AppShell({ appName }: { appName: string }) {
     // casing (Windows/NTFS) between the session's projectRoot and the
     // sidebar's resolved project root.
     const sessionProject = selectedSession ? (selectedSession.projectRoot ?? selectedSession.cwd) : null;
-    if (sessionProject && comparableProjectPath(sessionProject) === comparableProjectPath(newProject)) {
+    if (sessionProject && remoteHostId(selectedSession?.hostId) === remoteHostId(hostId) && comparableProjectPath(sessionProject) === comparableProjectPath(newProject)) {
       return;
     }
     // No session open: a workspace move (worktree switch, adding/removing a
@@ -1333,6 +1348,7 @@ export function AppShell({ appName }: { appName: string }) {
     // matches the selected project directory.
     setSelectedSession(null);
     setNewSessionCwd(null);
+    setNewSessionHostId(remoteHostId(hostId));
     setSessionKey((k) => k + 1);
     setBranchTree([]);
     setBranchActiveLeafId(null);
@@ -1415,9 +1431,10 @@ export function AppShell({ appName }: { appName: string }) {
     return () => window.removeEventListener("omp-open-usage-dashboard", handler);
   }, []);
 
-  const handleNewSession = useCallback((_sessionId: string, cwd: string | null) => {
+  const handleNewSession = useCallback((_sessionId: string, cwd: string | null, hostId?: string) => {
     setSelectedSession(null);
     setNewSessionCwd(cwd);
+    setNewSessionHostId(remoteHostId(hostId));
     setInitialSessionRestored(true);
     setSessionKey((k) => k + 1);
     setBranchTree([]);
@@ -1453,8 +1470,9 @@ export function AppShell({ appName }: { appName: string }) {
     recordNavigationView({
       sessionId: navSessionId,
       cwd: navSessionId ? navSessionCwd : newSessionCwd,
+      ...(!navSessionId && newSessionHostId ? { hostId: newSessionHostId } : {}),
     });
-  }, [navSessionId, navSessionCwd, newSessionCwd, recordNavigationView]);
+  }, [navSessionId, navSessionCwd, newSessionCwd, newSessionHostId, recordNavigationView]);
 
   // Resolves a history entry's session id against the live list. `null`
   // means the id is gone (entry should be dropped); "unavailable" means the
@@ -1485,7 +1503,7 @@ export function AppShell({ appName }: { appName: string }) {
         // Mobile: the workbench is full-width there, so a chat switch would
         // otherwise land behind it (see rightPanelOpen width in the render).
         if (isMobile) setRightPanelOpen(false);
-        handleNewSession("navigate-history", entry.cwd);
+        handleNewSession("navigate-history", entry.cwd, entry.hostId);
         return;
       }
       const versionAtPress = navViewVersionRef.current;
@@ -1530,7 +1548,7 @@ export function AppShell({ appName }: { appName: string }) {
 
   // Global keyboard shortcuts (handles Esc, Ctrl+Alt+N etc.)
   useGlobalKeyboardShortcuts({
-    onNewSession: (cwd: string) => handleNewSession(`kb-${Date.now()}`, cwd),
+    onNewSession: (cwd: string) => handleNewSession(`kb-${Date.now()}`, cwd, activeHostId),
     onNavigateBack: handleNavigateBack,
     onNavigateForward: handleNavigateForward,
     activeCwd,
@@ -1822,6 +1840,11 @@ export function AppShell({ appName }: { appName: string }) {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
 
+  // Host of what the user is looking at: the open session's, else the new
+  // chat's, else the sidebar's selection. Undefined is this machine.
+  const currentHostId = selectedSession ? remoteHostId(selectedSession.hostId) : newSessionCwd !== null ? newSessionHostId : activeHostId;
+  const remoteHost = currentHostId !== undefined;
+
   // Open the session's omp plan document as a normal file in the sidebar
   // viewer: fetch the plan artifact (which authorizes its local/ dir), then
   // open the .md through the standard file pipeline (FileViewer renders
@@ -1876,6 +1899,11 @@ export function AppShell({ appName }: { appName: string }) {
   // A project selection is not an intent to start a conversation. Only an
   // explicit user action (or a validated ?cwd= launch request) sets this.
   const effectiveNewSessionCwd = newSessionCwd;
+  const newSessionHost = newSessionCwd !== null ? newSessionHostId : activeHostId;
+  const newSessionHostKey = newSessionHost ?? LOCAL_HOST_ID;
+  const hostProjects = workspaceOptions.projects.filter((project) => (project.hostId ?? LOCAL_HOST_ID) === newSessionHostKey);
+  const chatHost = remoteHost ? hosts?.find((host) => host.id === currentHostId) : undefined;
+  const settingsHostId = activeCwd ? activeHostId : currentHostId;
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
   // While restoring initial session from URL, don't show the placeholder
   const showPlaceholder = initialSessionRestored && !showChat;
@@ -1944,7 +1972,8 @@ export function AppShell({ appName }: { appName: string }) {
       const cwd = comparableProjectPath(sessionCwd);
       return cwd === root || cwd.startsWith(`${root}/`);
     });
-  const explorerCwd = (sessionWorktreeRemoved ? null : sessionCwd) ?? activeCwd ?? newSessionCwd ?? null;
+  // Files, Git and worktrees only read this machine's disk for now.
+  const explorerCwd = remoteHost ? null : (sessionWorktreeRemoved ? null : sessionCwd) ?? activeCwd ?? newSessionCwd ?? null;
   useEffect(() => {
     if (!gitProbeCwd) {
       setGitWorkspace(null);
@@ -2038,7 +2067,7 @@ export function AppShell({ appName }: { appName: string }) {
     <>
       <CommandPalette
         onSelectSession={handleSelectSession}
-        onNewSession={() => handleNewSession(`palette-${Date.now()}`, activeCwd ?? "")}
+        onNewSession={() => handleNewSession(`palette-${Date.now()}`, activeCwd ?? "", activeHostId)}
         currentModel={null}
       />
       <SessionSidebar
@@ -2053,11 +2082,13 @@ export function AppShell({ appName }: { appName: string }) {
         onSessionDeleted={handleSessionDeleted}
         optimisticRename={wandTitleRename}
         selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
+        selectedHostId={selectedSession ? selectedSession.hostId ?? LOCAL_HOST_ID : newSessionHostId ?? LOCAL_HOST_ID}
         onCwdChange={handleCwdChange}
         onWorkspaceOptionsChange={handleWorkspaceOptionsChange}
         onWorktreeContextChange={setWorktreeCtx}
         addProjectOpen={addProjectOpen}
-        setAddProjectOpen={setAddProjectOpen}
+        addProjectHostId={addProjectHostId}
+        setAddProjectOpen={openAddProject}
         onOpenFile={handleOpenFile}
         explorerRefreshKey={explorerRefreshKey}
         onExplorerRefresh={handleExplorerRefresh}
@@ -2863,25 +2894,65 @@ export function AppShell({ appName }: { appName: string }) {
               key={sessionKey}
               session={selectedSession}
               newSessionCwd={effectiveNewSessionCwd}
+              newSessionHostId={newSessionHost}
+              hostStatus={chatHost?.status}
+              hostLabel={chatHost ? hostName(t, chatHost) : undefined}
               newSessionWorkspace={effectiveNewSessionCwd && (
-                <WorkspaceSelector
-                  projects={workspaceOptions.projects}
-                  selectedPath={effectiveNewSessionCwd}
-                  onSelect={(cwd) => {
-                    if (cwd === effectiveNewSessionCwd) return;
-                    armCwdSuppression(cwd);
-                    setActiveCwd(cwd);
-                    handleNewSession("", cwd);
-                  }}
-                  onAdd={() => setAddProjectOpen(true)}
-                  worktreePicker={worktreeCtx && worktreeCtx.worktrees.length > 1
-                    && (comparableProjectPath(worktreeCtx.projectRoot) === comparableProjectPath(effectiveNewSessionCwd)
-                      || comparableProjectPath(worktreeCtx.currentPath) === comparableProjectPath(effectiveNewSessionCwd)) ? {
-                    currentPath: worktreeCtx.currentPath,
-                    worktrees: worktreeCtx.worktrees,
-                    onSelect: worktreeCtx.select,
-                  } : undefined}
-                />
+                <>
+                  {hosts && hosts.length > 1 && (
+                    <div className="new-session-workspace">
+                      <label htmlFor="new-session-host" className="new-session-workspace-label">
+                        {t("hosts.pickerLabel")}
+                      </label>
+                      <div className="new-session-workspace-control">
+                        <span className="new-session-workspace-icon" aria-hidden="true">
+                          <Server size={17} strokeWidth={1.8} />
+                        </span>
+                        <select
+                          id="new-session-host"
+                          value={newSessionHostKey}
+                          onChange={(event) => {
+                            // Workspaces belong to one host: land on its first one.
+                            const first = workspaceOptions.projects.find((project) => (project.hostId ?? LOCAL_HOST_ID) === event.target.value);
+                            if (!first || event.target.value === newSessionHostKey) return;
+                            armCwdSuppression(first.path);
+                            setActiveCwd(first.path);
+                            setActiveHostId(remoteHostId(event.target.value));
+                            handleNewSession("", first.path, event.target.value);
+                          }}
+                        >
+                          {hosts.map((host) => {
+                            const hasProjects = workspaceOptions.projects.some((project) => (project.hostId ?? LOCAL_HOST_ID) === host.id);
+                            return (
+                              <option key={host.id} value={host.id} disabled={host.id !== newSessionHostKey && (!isLinkUp(host.status) || !hasProjects)}>
+                                {isLinkUp(host.status) ? hostName(t, host) : `${hostName(t, host)} — ${hostStatusText(t, host)}`}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <ChevronDown className="new-session-workspace-chevron" size={16} strokeWidth={1.8} aria-hidden="true" />
+                      </div>
+                    </div>
+                  )}
+                  <WorkspaceSelector
+                    projects={hostProjects}
+                    selectedPath={effectiveNewSessionCwd}
+                    onSelect={(cwd) => {
+                      if (cwd === effectiveNewSessionCwd) return;
+                      armCwdSuppression(cwd);
+                      setActiveCwd(cwd);
+                      handleNewSession("", cwd, newSessionHostKey);
+                    }}
+                    onAdd={() => openAddProject(true, newSessionHostKey)}
+                    worktreePicker={worktreeCtx && worktreeCtx.worktrees.length > 1
+                      && (comparableProjectPath(worktreeCtx.projectRoot) === comparableProjectPath(effectiveNewSessionCwd)
+                        || comparableProjectPath(worktreeCtx.currentPath) === comparableProjectPath(effectiveNewSessionCwd)) ? {
+                      currentPath: worktreeCtx.currentPath,
+                      worktrees: worktreeCtx.worktrees,
+                      onSelect: worktreeCtx.select,
+                    } : undefined}
+                  />
+                </>
               )}
               onAgentEnd={handleAgentEnd}
               onSessionCreated={handleSessionCreated}
@@ -2889,7 +2960,8 @@ export function AppShell({ appName }: { appName: string }) {
               onSessionMoved={handleSessionMoved}
               modelsRefreshKey={modelsRefreshKey}
               chatInputRef={chatInputRef}
-              onOpenFile={handleOpenLinkedFile}
+              // File links open this machine's files: not for a remote workspace yet.
+              onOpenFile={remoteHost ? undefined : handleOpenLinkedFile}
               onOpenUrl={handleSessionOpenUrl}
               onBranchDataChange={handleBranchDataChange}
               onSystemPromptChange={handleSystemPromptChange}
@@ -2951,7 +3023,7 @@ export function AppShell({ appName }: { appName: string }) {
                 <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", lineHeight: 1.6 }}>{t("appShell.noWorkspacesHint")}</div>
                 <button
                   type="button"
-                  onClick={() => { if (isMobile) setSidebarOpen(true); setAddProjectOpen(true); }}
+                  onClick={() => { if (isMobile) setSidebarOpen(true); openAddProject(true); }}
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer", marginTop: 4 }}
                 >
                   <Plus size={14} aria-hidden="true" />{t("appShell.addWorkspace")}
@@ -3064,7 +3136,8 @@ export function AppShell({ appName }: { appName: string }) {
             onActiveViewChange={setWorkbenchActiveView}
             storageKey={selectedSession?.id ?? activeCwd ?? newSessionCwd ?? "new"}
             cwd={explorerCwd}
-            worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} />}
+            remoteHost={remoteHost}
+            worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} remoteHost={remoteHost} />}
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -3175,6 +3248,7 @@ export function AppShell({ appName }: { appName: string }) {
         openUrlAutomatically={openUrlAutomatically}
         onOpenUrlAutomaticallyChange={handleOpenUrlAutomaticallyChange}
         cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd}
+        remoteHost={settingsHostId !== undefined}
         sessionId={selectedSession?.id ?? null}
         onModelsSaved={() => setModelsRefreshKey((k) => k + 1)}
         onPluginsReloaded={() => setSessionKey((k) => k + 1)}

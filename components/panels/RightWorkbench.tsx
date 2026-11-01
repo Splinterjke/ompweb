@@ -231,6 +231,7 @@ function BrowserView() {
 export function RightWorkbench({
   storageKey,
   cwd,
+  remoteHost,
   files,
   agents,
   worktrees,
@@ -240,6 +241,8 @@ export function RightWorkbench({
 }: {
   storageKey?: string;
   cwd: string | null;
+  /** The workspace lives on a remote host: Files, Git and Worktrees are not available there yet. */
+  remoteHost: boolean;
   files: ReactNode;
   agents: ReactNode;
   /** Right-panel Worktrees view content (rendered per `requestedView` / the + menu). */
@@ -330,14 +333,18 @@ export function RightWorkbench({
 
   const renderView = useCallback((view: WorkbenchView, active: boolean) => {
     if (view === "notifications") return <NotificationListView />;
-    if (view === "files") return files;
+    if (view === "files") return remoteHost
+      ? <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>{t("hosts.notAvailableRemote")}</div>
+      : files;
     if (view === "agents") return agents;
     if (view === "worktrees") return worktrees;
-    if (view === "git") return cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
+    if (view === "git") return remoteHost
+      ? <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>{t("hosts.notAvailableRemote")}</div>
+      : cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
     if (view === "memory") return <MemoryPanel cwd={cwd} />;
     return <BrowserView />;
-  }, [agents, cwd, files, onOpenFile, worktrees]);
+  }, [agents, cwd, files, onOpenFile, remoteHost, t, worktrees]);
 
   // The Notifications entry belongs to the top-bar bell on desktop (upstream 351237d7).
   const actions = useMemo(() => (["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[]).filter((view) => isMobile || view !== "notifications"), [isMobile]);

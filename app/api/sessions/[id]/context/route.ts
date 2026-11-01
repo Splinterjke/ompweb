@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { loadSessionFile } from "@/lib/omp/session-files";
-import { buildSessionContext } from "@/lib/session-reader";
+import { buildSessionContext, resolveSessionPath } from "@/lib/session-reader";
 import { getLeafEntryId } from "@/lib/omp/session-files";
-import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
+import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
+import { localHost } from "@/lib/hosts/local-host";
 import { getRpcSession } from "@/lib/rpc-manager";
 
 export async function GET(
@@ -18,7 +19,7 @@ export async function GET(
   const includePreCompaction = url.searchParams.has("includePreCompaction");
 
   try {
-    const resolved = await resolveSessionPathOr404(id);
+    const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) {
       // omp does not create the session file until the first assistant message
       // commits, so a live web-owned session (its first turn still running) can
@@ -32,7 +33,25 @@ export async function GET(
       }
       return resolved.response;
     }
-    const filePath = resolved.filePath;
+
+    // Another host owns the file: the host facade reads it there and answers
+    // with the same `{ context }` shape (its 413/malformed mapping included).
+    // That machine's file tail is unknown here, so only the requested leaf is
+    // echoed back.
+    if (resolved.host !== localHost) {
+      const result = await resolved.host.sessionOps.readContext(id, leafId, {
+        deferThinking,
+        deferMedia: deferToolResultImages,
+        includePreCompaction,
+      });
+      if (!result.ok) return opErrorResponse(result);
+      return NextResponse.json({ context: (result.value as { context?: unknown }).context, leafId: leafId ?? null });
+    }
+
+    const filePath = await resolveSessionPath(id);
+    if (!filePath) {
+      return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+    }
 
     const { header, entries, error: loadError } = loadSessionFile(filePath, {
       resolveBlobs: true,

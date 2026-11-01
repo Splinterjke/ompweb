@@ -50,6 +50,7 @@ import { NetworkProxyConfig } from "./NetworkProxyConfig";
 import { SplashAnimationSetting } from "./SplashAnimationSetting";
 import { NativeExtrasSetting } from "./NativeExtrasSetting";
 import { isUpdateNoticeEnabled, setUpdateNoticeEnabled } from "@/lib/update-notice";
+const HostsConfig = dynamic(() => import("./HostsConfig").then((module) => module.HostsConfig), { loading: SettingsTabLoading, ssr: false });
 
 type UpdateState = {
   currentVersion: string | null;
@@ -906,7 +907,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -973,6 +974,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   onExtendedBlocksChange?: (enabled: boolean) => void;
   onHideThinkingBlockChange?: (hide: boolean) => void;
   cwd: string | null;
+  /** `cwd` lives on a remote host: its MCP settings are not available yet. */
+  remoteHost: boolean;
   sessionId: string | null;
   onModelsSaved: () => void;
   onPluginsReloaded: () => void;
@@ -1035,6 +1038,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     };
   }, []);
   const workspaceReady = cwd !== null;
+  // Workspace-scoped panels read this machine's disk: not for a remote workspace yet.
+  const remoteUnavailable = <p role="status" style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>{t("hosts.notAvailableRemote")}</p>;
   const {
     preset: recentRunsPreset,
     customValue: recentRunsCustomValue,
@@ -2163,9 +2168,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div>
                   <h3 style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600, margin: 0 }}>{t("settingsConfig.extensionsTools")}</h3>
                   <p style={{ margin: "4px 0 0", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.extensionsToolsDesc")}</p>
-                  {cwd && <button type="button" className="settings-back ui-focus-ring" onClick={() => handleSelectTab("skills")}>{t("skillsConfig.title")}</button>}
+                  {cwd && !remoteHost && <button type="button" className="settings-back ui-focus-ring" onClick={() => handleSelectTab("skills")}>{t("skillsConfig.title")}</button>}
                 </div>
-                {cwd && (
+                {cwd && !remoteHost && (
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                     <NativeSetting searchId="load-project-mcp-servers" label={t("settingsConfig.loadProjectMcp")} description={t("settingsConfig.loadProjectMcpDesc")} scope="Native OMP">
                       <ToggleSwitch
@@ -2187,21 +2192,21 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     </NativeSetting>
                   </div>
                 )}
-                <McpConfig cwd={cwd} sessionId={sessionId} />
+                {remoteHost ? remoteUnavailable : <McpConfig cwd={cwd} sessionId={sessionId} />}
               </div>
             )}
 
             {/* SKILLS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "skills" && (
               <div className="settings-panel-inner" role="tabpanel" id="settings-panel-skills" aria-labelledby="settings-tab-mcp" style={{ display: currentTab === "skills" ? "flex" : "none", flexDirection: "column" }}>
-                <SkillsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} />
+                {remoteHost ? remoteUnavailable : <SkillsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} />}
               </div>
             )}
 
             {/* PLUGINS SUB-PANEL CONTRACT MATCH */}
             {cwd && currentTab === "plugins" && (
               <div className="settings-panel-inner" role="tabpanel" id="settings-panel-plugins" aria-labelledby="settings-tab-plugins" style={{ display: currentTab === "plugins" ? "flex" : "none", flexDirection: "column" }}>
-                <PluginsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onPluginsReloaded} />
+                {remoteHost ? remoteUnavailable : <PluginsConfig embedded cwd={cwd} sessionId={sessionId} onClose={onClose} onReloaded={onPluginsReloaded} />}
               </div>
             )}
 
@@ -2248,7 +2253,17 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     {t("settingsConfig.agentsDesc")}
                   </p>
                 </div>
-                <AgentsConfig cwd={cwd} />
+                {remoteHost ? remoteUnavailable : <AgentsConfig cwd={cwd} />}
+              </div>
+            )}
+
+            {/* HOSTS TAB */}
+            {currentTab === "hosts" && (
+              <div role="tabpanel" id="settings-panel-hosts" aria-labelledby="settings-tab-hosts" className="settings-panel-inner" style={{ padding: isMobile ? "16px 14px 32px" : "32px 24px 64px", gap: 16 }}>
+                <div style={{ marginBottom: 4 }}>
+                  <h2 className="display-serif" style={{ fontSize: 22, fontWeight: 600, margin: 0, color: "var(--text)", letterSpacing: "-0.01em" }}>{t("hostsConfig.title")}</h2>
+                </div>
+                <HostsConfig />
               </div>
             )}
 

@@ -7,7 +7,9 @@ import { promisify } from "util";
 import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { inlineExportVendorScripts } from "@/lib/omp/export-vendor";
-import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
+import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
+import { localHost } from "@/lib/hosts/local-host";
+import { resolveSessionPath } from "@/lib/session-reader";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,31 +54,49 @@ export async function GET(
   const inline = new URL(req.url).searchParams.get("inline") === "1";
 
   try {
-    const resolved = await resolveSessionPathOr404(id);
+    const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return resolved.response;
-    const filePath = resolved.filePath;
+    if (resolved.host === localHost) {
+      // This machine's export keeps the fork's own pipeline: the HTML is
+      // post-processed to inline the vendored scripts, and the omp shim needs
+      // wrapWindowsScript — neither happens in the host facade.
+      const filePath = await resolveSessionPath(id);
+      if (!filePath) return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
 
-    const tempDir = join(tmpdir(), "omp-web-export");
-    mkdirSync(tempDir, { recursive: true });
+      const tempDir = join(tmpdir(), "omp-web-export");
+      mkdirSync(tempDir, { recursive: true });
 
-    const sessionBase = basename(filePath, ".jsonl");
-    const fileName = `omp-session-${sessionBase}.html`;
-    const outputPath = join(tempDir, `${randomUUID()}.html`);
+      const sessionBase = basename(filePath, ".jsonl");
+      const fileName = `omp-session-${sessionBase}.html`;
+      const outputPath = join(tempDir, `${randomUUID()}.html`);
 
-    try {
-      await exportSession(filePath, outputPath);
+      try {
+        await exportSession(filePath, outputPath);
 
-      const html = inlineExportVendorScripts(readFileSync(outputPath, "utf8"));
-      return new Response(html, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Content-Disposition": getContentDisposition(fileName, inline),
-          "Cache-Control": "no-cache",
-        },
-      });
-    } finally {
-      rmSync(outputPath, { force: true });
+        const html = inlineExportVendorScripts(readFileSync(outputPath, "utf8"));
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Disposition": getContentDisposition(fileName, inline),
+            "Cache-Control": "no-cache",
+          },
+        });
+      } finally {
+        rmSync(outputPath, { force: true });
+      }
     }
+
+    // A session on another host is rendered by that host's omp; its HTML is
+    // untrusted, so it is never served inline on this origin.
+    const result = await resolved.host.sessionOps.exportSession(id);
+    if (!result.ok) return opErrorResponse(result);
+    return new Response(result.value.html, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Disposition": getContentDisposition(result.value.fileName, false),
+        "Cache-Control": "no-cache",
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("omp binary not found")) {

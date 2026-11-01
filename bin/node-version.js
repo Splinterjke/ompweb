@@ -53,9 +53,17 @@ function getUnsupportedRuntimeVersionMessage(versions = process.versions) {
   return getUnsupportedNodeVersionMessage(versions.node);
 }
 
+/** First statement of every published executable: npm treats `engines` as advisory. */
+function exitIfUnsupportedRuntime() {
+  if (isRuntimeSupported()) return;
+  console.error(getUnsupportedRuntimeVersionMessage());
+  process.exit(1);
+}
+
 module.exports = {
   MIN_NODE_VERSION,
   MIN_BUN_VERSION,
+  exitIfUnsupportedRuntime,
   getUnsupportedNodeVersionMessage,
   getUnsupportedRuntimeVersionMessage,
   isBunVersionSupported,

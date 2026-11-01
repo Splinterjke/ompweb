@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { readSessionHeader } from "@/lib/session-reader";
-import { apiErrorResponse, resolveSessionPathOr404 } from "@/lib/api-utils";
-import { startRpcSession, getRpcSession, getExitedRpcSession, resolveSpawnCwdResult, WebRpcError } from "@/lib/rpc-manager";
+import { apiErrorResponse, hostOfflineResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
+import { startRpcSession, getRpcSession, getExitedRpcSession, WebRpcError } from "@/lib/rpc-manager";
+import { localHost } from "@/lib/hosts/local-host";
+import { sessionSpawnTarget } from "@/lib/hosts/session-index";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
@@ -45,7 +46,8 @@ function commandErrorResponse(error: unknown) {
   if (error instanceof SyntaxError) {
     return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
-  if (error instanceof WebRpcError) {
+  // host_offline falls through to apiErrorResponse: 503 {hostOffline: true}.
+  if (error instanceof WebRpcError && error.code !== "host_offline") {
     return NextResponse.json(
       { error: error.message, code: error.code, ...(error.data !== undefined ? { data: error.data } : {}) },
       { status: 400 },
@@ -96,6 +98,9 @@ export async function POST(
         const result = await existing.send(command);
         return NextResponse.json({ success: true, data: result });
       }
+      // Disposing a child behind a down link would wait for the link to return.
+      const offline = hostOfflineResponse(existing.host);
+      if (offline) return offline;
       await existing.destroyAndWait();
     }
     if (noSpawnKey) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
@@ -106,24 +111,31 @@ export async function POST(
       );
     }
 
-    const resolved = await resolveSessionPathOr404(id);
+    const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return resolved.response;
-    const filePath = resolved.filePath;
+    const { host } = resolved;
+    const offline = hostOfflineResponse(host);
+    if (offline) return offline;
+    const target = await sessionSpawnTarget(id, host);
+    if (!target) return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
 
-    const header = readSessionHeader(filePath);
-    const { cwd } = resolveSpawnCwdResult(header?.cwd);
-
-    const { session } = await startRpcSession(id, filePath, cwd, undefined, advisor, header?.cwd, startup);
+    const { session } = await startRpcSession(id, target.sessionFile, target.cwd, undefined, advisor, target.recordedCwd, startup, host);
     if (startup?.modelOverride && command.type === "set_model") {
-      // The spawn already bound the requested model (--model). Try the RPC
-      // first: when it succeeds it also records the new model in the session,
-      // so later spawns restore it without an override. But in omp 18.12.6
-      // set_model can fail spuriously with "Model not found" for a catalog
-      // model whose provider has no credentials configured, even though the
-      // spawn already bound it. In that case the switch itself succeeded —
-      // verify from live state and report success rather than a false
-      // failure. A mismatch rethrows the RPC error, so a real failure still
-      // surfaces through commandErrorResponse.
+      // A cold set_model must reach omp before the saved model is restored:
+      // spawning with only --resume lets omp exit on an unrestorable saved
+      // model before the RPC below ever runs (#277). The startup binding
+      // carries the requested model into `--model`, so the spawn already
+      // bound it and omp skips that restore check. Live children never reach
+      // this path (they take the fast path above), and any other command
+      // keeps the previous spawn behavior.
+      // Try the RPC first: when it succeeds it also records the new model in
+      // the session, so later spawns restore it without an override. But in
+      // omp 18.12.6 set_model can fail spuriously with "Model not found" for
+      // a catalog model whose provider has no credentials configured, even
+      // though the spawn already bound it. In that case the switch itself
+      // succeeded — verify from live state and report success rather than a
+      // false failure. A mismatch rethrows the RPC error, so a real failure
+      // still surfaces through commandErrorResponse.
       try {
         const result = await session.send(command);
         return NextResponse.json({ success: true, data: result });
@@ -187,8 +199,11 @@ export async function GET(
       if (externallyActive) return NextResponse.json({ running: true, external: true, state: null });
       return NextResponse.json({ running: false, exited });
     }
-    const resolved = await resolveSessionPathOr404(id);
+    const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return NextResponse.json({ running: false });
+    // The watcher below sees this machine's files only: an omp on another host
+    // is invisible here, so a remote session can never look externally held.
+    if (resolved.host !== localHost) return NextResponse.json({ running: false, external: false, state: null });
     // Same detection as /state: a live external holder (long thinking/tool
     // gap) keeps the session running even after the activity window lapses.
     const externallyActive =

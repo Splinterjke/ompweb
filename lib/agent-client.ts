@@ -14,6 +14,19 @@ import { formatApiError } from "@/lib/i18n/api-error";
 // decision happens inside the route, which only sees id + query string.
 const advisorSpawnSessions = new Set<string>();
 
+/** 503 `{hostOffline: true}`: the session's host has no link right now. With
+ *  `delivery: "refused"` the request never left, so the caller keeps what the
+ *  user typed; with `"unknown"` the link dropped after it was sent, so it may
+ *  still run once the host reconnects (`mayHaveRun`). */
+export class HostOfflineError extends Error {
+  readonly mayHaveRun: boolean;
+
+  constructor(message: string, mayHaveRun = false) {
+    super(message);
+    this.mayHaveRun = mayHaveRun;
+  }
+}
+
 export function setSessionAdvisorSpawn(sessionId: string, enabled: boolean) {
   if (enabled) advisorSpawnSessions.add(sessionId);
   else advisorSpawnSessions.delete(sessionId);
@@ -34,15 +47,21 @@ export async function sendAgentCommand<T = unknown>(
     data?: T;
     error?: string;
     code?: string;
+    hostOffline?: boolean;
+    delivery?: string;
   };
- if (!res.ok || body.error) {
-   // Routes attach a stable `code` for well-known failures; these messages are
-   // surfaced to the user as notices, so localize before throwing.
-    const error = new Error(body.error || body.code ? formatApiError(body) : `HTTP ${res.status}`) as Error & { code?: string; data?: unknown };
+  if (!res.ok || body.error) {
+    // Routes attach a stable `code` for well-known failures; these messages are
+    // surfaced to the user as notices, so localize before throwing.
+    const message = body.error || body.code ? formatApiError(body) : `HTTP ${res.status}`;
+    // A session/agent whose host link is down keeps its own error class so the
+    // UI can distinguish "retry later" from a real failure.
+    if (res.status === 503 && body.hostOffline) throw new HostOfflineError(message, body.delivery === "unknown");
+    const error = new Error(message) as Error & { code?: string; data?: unknown };
     if (typeof body.code === "string") error.code = body.code;
     // Structured failure payload (e.g. session_model_unavailable's model id).
     if (body.error && body.data !== undefined) error.data = body.data;
     throw error;
-}
+  }
   return body.data as T;
 }

@@ -5,6 +5,7 @@ import {
   invalidateSessionFileListCache,
   listAllSessionInfos,
   loadSessionFile,
+  MAX_SESSION_LOAD_BYTES,
   readSessionHeaderSync,
   type OmpSessionInfo,
 } from "./omp/session-files";
@@ -161,17 +162,50 @@ declare global {
 
 const SESSION_LIST_CACHE_TTL_MS = 30_000;
 
-export function invalidateSessionListCache(): void {
+/** Invalidate the session LIST metadata (30s TTL result + generation gate)
+ * and the directory-walk cache, but leave per-session parse caches intact.
+ * Use this when a session changed but you know which one: call
+ * invalidateSessionEntriesCache(path) for the specific file instead of paying
+ * for a full parse-cache flush. */
+export function invalidateSessionListMeta(): void {
   globalThis.__piSessionListGeneration = (globalThis.__piSessionListGeneration ?? 0) + 1;
   globalThis.__piSessionListCache = undefined;
   // The session-file walk cache keys on the sessions-root mtime, which does
   // not change when a file is added inside an existing project subdirectory
   // (Windows/NTFS). Clear it too so new sessions appear immediately.
   invalidateSessionFileListCache();
+}
+
+export function invalidateSessionListCache(): void {
+  invalidateSessionListMeta();
   // Drop cached entry parses so a mutation preserving size+mtime (rare) can
   // never serve stale entries; the (size, mtimeMs) key already invalidates
   // the common case, this closes the remaining window.
   globalThis.__ompSessionEntriesCache?.clear();
+}
+
+/** Invalidate ONLY the per-session entry-parse cache for one session file.
+ * Callers that know exactly which session changed use this instead of
+ * invalidateSessionListCache() so unrelated sessions keep their parsed-entry
+ * cache — a single busy session must not force every other open session to
+ * re-parse multi-MB transcripts. The (size, mtimeMs) key already invalidates
+ * the common case; this closes the mutation-preserving-metadata window. */
+export function invalidateSessionEntriesCache(filePath: string): void {
+  globalThis.__ompSessionEntriesCache?.delete(filePath);
+  globalThis.__ompSessionEntriesCache?.delete(normalizePath(filePath));
+}
+
+/** Invalidate session-list metadata plus ONLY the given file's parse caches
+ * when the path is known; without a path, fall back to the full flush (list
+ * + every session's parse caches). This is the shared entry point for code
+ * that edits a session and knows which file it touched. */
+export function invalidateSessionCaches(filePath?: string): void {
+  if (filePath) {
+    invalidateSessionListMeta();
+    invalidateSessionEntriesCache(filePath);
+  } else {
+    invalidateSessionListCache();
+  }
 }
 
 function getPathCache(): Map<string, string> {
@@ -353,6 +387,45 @@ function loadSessionEntriesCached(filePath: string): SessionEntry[] {
 
 /** Session entries without blob resolution (fine for reference/thinking scans). */
 export function getSessionEntries(filePath: string): SessionEntry[] {
+  return loadSessionEntriesCached(filePath);
+}
+
+/** Past the load ceiling: the session routes answer 413 (`session_file_too_large`),
+ * never an empty transcript — a file that merely failed to parse must not read
+ * as "history gone". */
+export class SessionFileTooLargeError extends Error {
+  readonly code = "session_file_too_large" as const;
+  constructor(filePath: string) {
+    super(`Session file is too large to open in omp-web: ${filePath}`);
+    this.name = "SessionFileTooLargeError";
+  }
+}
+
+/**
+ * Display-path entry read for the session/context facade: the memoized
+ * (size, mtimeMs) parse serves unchanged files from memory (one stat), and
+ * past the load ceiling the caller gets SessionFileTooLargeError instead of
+ * the lenient empty read. `skipToolResultImages` exists for facade parity —
+ * the fork defers tool-result images at message conversion
+ * (entryToUiMessage's deferToolResultImages), so entries carry no blob work
+ * either way.
+ */
+export async function getSessionEntriesForDisplayAsync(
+  filePath: string,
+  options: { skipToolResultImages?: boolean } = {},
+): Promise<SessionEntry[]> {
+  void options;
+  let size = 0;
+  try {
+    size = statSync(filePath).size;
+  } catch {
+    size = 0; // missing/unreadable: fall through to the lenient load
+  }
+  if (size > MAX_SESSION_LOAD_BYTES) {
+    // The stale (small-size) cache entry for this path can never match again.
+    globalThis.__ompSessionEntriesCache?.delete(filePath);
+    throw new SessionFileTooLargeError(filePath);
+  }
   return loadSessionEntriesCached(filePath);
 }
 

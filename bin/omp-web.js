@@ -23,6 +23,13 @@ if (process.argv[2] === "hash-password" || process.argv[2] === "hash_password") 
 }
 
 function startLauncher() {
+// `ompweb host` runs in this process: a supervisor's SIGTERM must reach the daemon, not a wrapper.
+if (process.argv[2] === "host") {
+  process.argv.splice(2, 1);
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require("./omp-web-host.js");
+  return;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { spawn } = require("child_process");

@@ -1227,7 +1227,9 @@ function collectSessionFiles(sessionsRoot: string): string[] {
 }
 
 /** Accept legacy/imported session files with non-standard names only when
- * their bounded prefix proves they contain a session header. */
+ * their bounded prefix proves they contain a session header. A file renamed
+ * by the web starts with a fixed title-slot line — it is metadata, so the
+ * header check continues to the next line instead of rejecting the file. */
 function isSessionHeaderFile(filePath: string): boolean {
   try {
     const fd = openSync(filePath, "r");
@@ -1238,6 +1240,7 @@ function isSessionHeaderFile(filePath: string): boolean {
         if (!line.trim()) continue;
         try {
           const value = JSON.parse(line) as Record<string, unknown>;
+          if (value.type === "title") continue;
           return value.type === "session" && typeof value.id === "string" && value.id.length > 0;
         } catch {
           return false;

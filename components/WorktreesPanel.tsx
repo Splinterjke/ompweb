@@ -9,7 +9,7 @@ import { displayCwd, PathLabel, type WorktreeContext } from "./SessionSidebar";
 /** Right-workbench Worktrees view: the active Git workspace's worktrees —
  *  list, switch, create and remove them. Switching moves the sidebar's
  *  effective cwd (where a new session starts); the open session is unchanged. */
-export function WorktreesPanel({ ctx }: { ctx: WorktreeContext | null }) {
+export function WorktreesPanel({ ctx, remoteHost = false }: { ctx: WorktreeContext | null; remoteHost?: boolean }) {
   const { t } = useI18n();
   const [homeDir, setHomeDir] = useState("");
   const [newOpen, setNewOpen] = useState(false);
@@ -30,7 +30,7 @@ export function WorktreesPanel({ ctx }: { ctx: WorktreeContext | null }) {
       <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 24, textAlign: "center" }}>
         <GitFork size={26} strokeWidth={1.5} aria-hidden="true" style={{ color: "var(--text-dim)" }} />
         <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 600 }}>{t("tabBar.worktrees")}</div>
-        <div style={{ color: "var(--text-dim)", fontSize: 11, lineHeight: 1.6, maxWidth: 260 }}>{t("sessionSidebar.gitRepoRootOnlyTitle")}</div>
+        <div style={{ color: "var(--text-dim)", fontSize: 11, lineHeight: 1.6, maxWidth: 260 }}>{t(remoteHost ? "hosts.notAvailableRemote" : "sessionSidebar.gitRepoRootOnlyTitle")}</div>
       </div>
     );
   }
