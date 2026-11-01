@@ -264,6 +264,11 @@ afterEach(() => {
   }
 });
 
+// Edit only opens a confirm dialog; the edit starts from its confirm button.
+async function confirmEdit(view, button) {
+  await act(async () => { fireEvent.click(button); });
+  await act(async () => { fireEvent.click(view.getByRole("button", { name: translate("messageView.editFromHere") })); });
+}
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -1693,6 +1698,7 @@ async function mountEditableSession(sid, options = {}) {
   };
 }
 
+
 test("Edit rewinds and resends in the same persisted session while retaining the old branch", async (t) => {
   resetWorld();
   const { clearDraft } = await jiti.import("@/lib/draft-store");
@@ -1709,7 +1715,7 @@ test("Edit rewinds and resends in the same persisted session while retaining the
   const release = native.holdEdit();
   t.after(release);
   const edit = w.editButton("entry-u2");
-  await act(async () => { fireEvent.click(edit); });
+  await confirmEdit(w.view, edit);
   await until(() => native.edits.length === 1, "the actual Edit button must reach native history navigation");
   assert.equal(w.latest.editingEntryId, "entry-u2");
   assert.equal(edit.disabled, true);
@@ -1779,6 +1785,7 @@ test("Edit rewinds and resends in the same persisted session while retaining the
   assert.deepEqual(forked, []);
 });
 
+
 test("cancelled and failed Edits preserve history selection and draft, then release the guard", async (t) => {
   const { getDraft, setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
   for (const outcome of ["cancelled", "error"]) {
@@ -1796,7 +1803,7 @@ test("cancelled and failed Edits preserve history selection and draft, then rele
       await act(async () => { await w.changeLeaf("entry-a2"); });
       const selectedIds = [...w.latest.entryIds];
       const selectedMessages = structuredClone(w.latest.messages);
-      await act(async () => { fireEvent.click(w.editButton("entry-u2")); });
+      await confirmEdit(w.view, w.editButton("entry-u2"));
       await until(() => native.edits.length === 1 && w.latest.editingEntryId === null, "the unsuccessful Edit must settle");
       assert.equal(w.latest.sessionIdRef.current, sid);
       assert.equal(w.latest.activeLeafId, "entry-a2");
@@ -1809,7 +1816,7 @@ test("cancelled and failed Edits preserve history selection and draft, then rele
       assert.deepEqual(w.latest.notices.map((notice) => notice.type), outcome === "error" ? ["error"] : []);
 
       native.editOutcome = "success";
-      await act(async () => { fireEvent.click(w.editButton("entry-u2")); });
+      await confirmEdit(w.view, w.editButton("entry-u2"));
       await until(() => native.edits.length === 2 && w.latest.editingEntryId === null, "a settled refusal must allow another Edit");
       assert.deepEqual(world.sessions.get(sid).entryIds, ["entry-u1", "entry-a1"]);
       assert.deepEqual(w.latest.entryIds, ["entry-u1", "entry-a1"]);
@@ -1856,7 +1863,7 @@ for (const order of ["identity/history before HTTP", "HTTP before history delive
         },
       });
     }
-    await act(async () => { fireEvent.click(w.editButton()); });
+    await confirmEdit(w.view, w.editButton());
     await until(() => server.identityChanges.length === 1, "native identity machinery must confirm the copy-on-write move");
     assert.deepEqual(server.identityChanges, [{ oldId: sid, newId: target, keepOldId: true }]);
     assert.equal(world.wrappers.get(sid), world.wrappers.get(target), "the existing alias registry retains the originating observer");
