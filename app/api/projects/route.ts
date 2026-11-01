@@ -1,10 +1,11 @@
+import { existsSync } from "fs";
 import { NextResponse } from "next/server";
 import { apiErrorResponse, opErrorResponse, resolveHostOrError } from "@/lib/api-utils";
 import { allowFileRoot } from "@/lib/file-access";
-import { localHost } from "@/lib/hosts/local-host";
-import { listRemoteProjects } from "@/lib/hosts/session-index";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
+import { listProjectsAllHosts } from "@/lib/hosts/session-index";
 import type { ProjectUpdate } from "@/lib/hosts/session-ops";
-import { existingDiscoveredProjectPaths, isReservedLaunchArg, mergeProjects, ProjectPathError } from "@/lib/project-registry";
+import { isReservedLaunchArg, ProjectPathError } from "@/lib/project-registry";
 import type { ProjectLaunchConfig } from "@/lib/types";
 const MAX_EXTRA_ARGS = 32;
 const MAX_EXTRA_ARG_LENGTH = 256;
@@ -36,25 +37,19 @@ function parseLaunchConfig(value: unknown): ProjectLaunchConfig | undefined {
 // sort with pins first — see lib/project-ordering.ts).
 export async function GET() {
   try {
-    const { sessionOps } = localHost;
-    const registry = { version: 1 as const, projects: await sessionOps.listProjects() };
-    const sessions = await sessionOps.listSessions();
     // Session files outlive their working directories: only existing paths
     // become discovered rows. Registered projects stay unfiltered, so a
     // user-managed workspace remains visible while its disk is offline.
-    const discovered = existingDiscoveredProjectPaths(
-      sessions
-        .map((s) => s.projectRoot ?? s.cwd)
-        .filter((path): path is string => Boolean(path)),
+    // Another host's paths cannot be stat'ed here, so its rows always stay.
+    const projects = (await listProjectsAllHosts()).filter(
+      (project) => project.addedAt !== undefined || project.hostId !== LOCAL_HOST_ID || existsSync(project.path),
     );
-    const projects = mergeProjects(registry, discovered);
     // Keep the in-memory browse allowlist warm for registered projects that
     // have no sessions (the in-memory list does not survive restarts, and an
     // empty managed project derives no root from sessions). Only this
     // machine's: another host's paths do not exist here.
-    for (const project of projects) allowFileRoot(project.path);
-    const local = projects.map((project) => ({ ...project, hostId: localHost.id }));
-    return NextResponse.json({ projects: [...local, ...await listRemoteProjects()] });
+    for (const project of projects) if (project.hostId === LOCAL_HOST_ID) allowFileRoot(project.path);
+    return NextResponse.json({ projects });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -73,7 +68,7 @@ export async function POST(req: Request) {
     const { host } = target;
     const result = await host.sessionOps.addProject(cwd, launchConfig);
     if (!result.ok) return opErrorResponse(result);
-    if (host !== localHost) return NextResponse.json({ project: { ...result.value, hostId: host.id } });
+    if (host.id !== LOCAL_HOST_ID) return NextResponse.json({ project: { ...result.value, hostId: host.id } });
     allowFileRoot(result.value.path);
     return NextResponse.json({ project: result.value });
   } catch (error) {
@@ -136,9 +131,9 @@ export async function PATCH(req: Request) {
     if (!result.ok) return opErrorResponse(result);
     // Only after a successful save: a failed write must not leave an orphaned
     // in-memory browse authorization behind. Never for another host's paths.
-    if (target.host === localHost) for (const root of result.value.newRoots) allowFileRoot(root);
+    if (target.host.id === LOCAL_HOST_ID) for (const root of result.value.newRoots) allowFileRoot(root);
     const { projects } = result.value;
-    return NextResponse.json({ projects: target.host === localHost ? projects : projects.map((project) => ({ ...project, hostId: target.host.id })) });
+    return NextResponse.json({ projects: target.host.id === LOCAL_HOST_ID ? projects : projects.map((project) => ({ ...project, hostId: target.host.id })) });
   } catch (error) {
     if (error instanceof ProjectPathError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiErrorResponse, hostOfflineResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
 import { startRpcSession, getRpcSession, getExitedRpcSession, WebRpcError } from "@/lib/rpc-manager";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { sessionSpawnTarget } from "@/lib/hosts/session-index";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
@@ -203,7 +203,7 @@ export async function GET(
     if ("response" in resolved) return NextResponse.json({ running: false });
     // The watcher below sees this machine's files only: an omp on another host
     // is invisible here, so a remote session can never look externally held.
-    if (resolved.host !== localHost) return NextResponse.json({ running: false, external: false, state: null });
+    if (resolved.host?.id !== LOCAL_HOST_ID) return NextResponse.json({ running: false, external: false, state: null });
     // Same detection as /state: a live external holder (long thinking/tool
     // gap) keeps the session running even after the activity window lapses.
     const externallyActive =

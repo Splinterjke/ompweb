@@ -575,7 +575,7 @@ function SidebarPortalMenu({
 
 /** The host a project or session belongs to: this machine unless it says otherwise. */
 const hostOf = (item: { hostId?: string }): string => item.hostId ?? LOCAL_HOST_ID;
-const THIS_MACHINE = { id: LOCAL_HOST_ID, label: "This machine" };
+const THIS_MACHINE = { id: LOCAL_HOST_ID, label: "" };
 const COLLAPSED_HOSTS_STORAGE_KEY = "omp-web:collapsed-hosts";
 
 function loadCollapsedHosts(): Set<string> {

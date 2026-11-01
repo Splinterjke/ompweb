@@ -3,7 +3,7 @@ import { loadSessionFile } from "@/lib/omp/session-files";
 import { buildSessionContext, resolveSessionPath } from "@/lib/session-reader";
 import { getLeafEntryId } from "@/lib/omp/session-files";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { getRpcSession } from "@/lib/rpc-manager";
 
 export async function GET(
@@ -20,25 +20,25 @@ export async function GET(
 
   try {
     const resolved = await resolveSessionHostOr404(id);
-    if ("response" in resolved) {
-      // omp does not create the session file until the first assistant message
-      // commits, so a live web-owned session (its first turn still running) can
-      // have no file yet. A live wrapper proves the session exists — answer with
-      // an empty context instead of a 404 so the client can attach its event
-      // stream and show the running state (mirrors GET /api/sessions/[id]).
-      const live = getRpcSession(id);
-      if (live?.isAlive()) {
-        const context = buildSessionContext([], null, { deferThinking, deferToolResultImages, includePreCompaction });
-        return NextResponse.json({ context, leafId: null });
-      }
-      return resolved.response;
+    if ("response" in resolved) return resolved.response;
+
+    // A live session resolves to its host even before its file exists: omp
+    // does not create the session file until the first assistant message
+    // commits, so a session in its first turn has no file on its host yet.
+    // A live wrapper proves the session exists — answer with an empty context
+    // instead of a 404 so the client can attach its event stream and show the
+    // running state (mirrors GET /api/sessions/[id]).
+    const live = getRpcSession(id);
+    if (live?.isAlive() && !(await live.host.sessionFileExists(live.sessionFile))) {
+      const context = buildSessionContext([], null, { deferThinking, deferToolResultImages, includePreCompaction });
+      return NextResponse.json({ context, leafId: null });
     }
 
     // Another host owns the file: the host facade reads it there and answers
     // with the same `{ context }` shape (its 413/malformed mapping included).
     // That machine's file tail is unknown here, so only the requested leaf is
     // echoed back.
-    if (resolved.host !== localHost) {
+    if (resolved.host.id !== LOCAL_HOST_ID) {
       const result = await resolved.host.sessionOps.readContext(id, leafId, {
         deferThinking,
         deferMedia: deferToolResultImages,

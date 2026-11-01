@@ -1,6 +1,6 @@
 # Direct client-API call inventory (W0 baseline)
 
-Generated: 2026-10-28T08:43:27.103Z · totals: 198 calls / 41 files · http 190 (read 94 / write 104) · sse 8
+Generated: 2026-11-02T14:02:30.768Z · totals: 199 calls / 42 files · http 190 (read 95 / write 104) · sse 9
 
 | domain | calls |
 |---|---|
@@ -11,8 +11,8 @@ Generated: 2026-10-28T08:43:27.103Z · totals: 198 calls / 41 files · http 190 
 | projects | 9 |
 | web-settings | 8 |
 | omp-settings | 7 |
+| dynamic | 7 |
 | skills | 7 |
-| dynamic | 6 |
 | git | 6 |
 | files | 6 |
 | mcp | 6 |

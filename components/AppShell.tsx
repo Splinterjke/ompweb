@@ -50,6 +50,7 @@ import { showBrowserNotification } from "@/lib/browser-notifications";
 import { LOCAL_HOST_ID, remoteHostId } from "@/lib/project-ordering";
 import { isLinkUp } from "@/lib/hosts/host";
 import { useHostRows } from "@/hooks/useHostRows";
+import { LocalDaemonBanner } from "./LocalDaemonBanner";
 import { hostName, hostStatusText } from "./host-status";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
@@ -3264,6 +3265,7 @@ export function AppShell({ appName }: { appName: string }) {
       initialTab={usageDashboardTab}
       onOpenSessionFile={handleOpenSessionFromFile}
     />
+    <LocalDaemonBanner />
     {archiveBrowserOpen && (
       <ArchiveBrowser
         open={archiveBrowserOpen}

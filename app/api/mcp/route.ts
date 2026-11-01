@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { basename } from "path";
 import { allowFileRoot, getAllowedFileRoots, isExistingFilePathAllowed, isPathWithinRoots } from "@/lib/file-access";
 import { deleteMcpServer, deleteUserMcpServer, getBuiltinMcpPresets, parseMcpListOutput, readDiscoveredMcpServers, readMcpConfig, readUserMcpConfig, type McpServer, type McpLiveServer, validateMcpServer, writeMcpServer, writeUserMcpServer } from "@/lib/omp/mcp-config";
-import { listAllSessions, readSessionHeader, resolveSessionPath } from "@/lib/session-reader";
+import { listAllSessions } from "@/lib/session-reader";
 import { WebRpcError, getRpcSession, startRpcSession } from "@/lib/rpc-manager";
-import { resolveSpawnCwdResult } from "@/lib/hosts/local-host";
+import { getHost } from "@/lib/hosts/hub";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
+import { sessionSpawnTarget } from "@/lib/hosts/session-index";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { redactMcpServer } from "@/lib/omp/mcp-config";
 import { comparableProjectPath } from "@/lib/comparable-path";
@@ -155,13 +157,13 @@ export async function GET(request: Request) {
       try {
         let session = getRpcSession(sessionId);
         if (!session?.isAlive()) {
-          const sessionFile = await resolveSessionPath(sessionId);
-          if (!sessionFile) throw new Error("Session not found");
-          const header = readSessionHeader(sessionFile);
-          const { cwd: sessionCwd } = resolveSpawnCwdResult(header?.cwd);
+          // MCP settings are this machine's only.
+          const host = getHost(LOCAL_HOST_ID);
+          const target = await sessionSpawnTarget(sessionId, host);
+          if (!target) throw new Error("Session not found");
           // No advisor opinion: this spawn is a side effect of listing MCP
           // servers and must not replace a child spawned with --advisor.
-          ({ session } = await startRpcSession(sessionId, sessionFile, sessionCwd, undefined, undefined, header?.cwd));
+          ({ session } = await startRpcSession(sessionId, target.sessionFile, target.cwd, undefined, undefined, target.recordedCwd, undefined, host));
         }
         liveServers = mergeMcpServers(parseMcpListOutput(await session.getMcpList()), inventory);
       } catch (error) {
@@ -232,11 +234,10 @@ export async function PATCH(request: Request) {
     // Do not create a different session or apply the caller's arbitrary cwd.
     let session = getRpcSession(body.sessionId);
     if (!session?.isAlive()) {
-      const sessionFile = await resolveSessionPath(body.sessionId);
-      if (!sessionFile) throw new Error("Session not found");
-      const header = readSessionHeader(sessionFile);
-      const { cwd } = resolveSpawnCwdResult(header?.cwd);
-      ({ session } = await startRpcSession(body.sessionId, sessionFile, cwd, undefined, undefined, header?.cwd));
+      const host = getHost(LOCAL_HOST_ID);
+      const target = await sessionSpawnTarget(body.sessionId, host);
+      if (!target) throw new Error("Session not found");
+      ({ session } = await startRpcSession(body.sessionId, target.sessionFile, target.cwd, undefined, undefined, target.recordedCwd, undefined, host));
     }
     if (session.isRunning()) return NextResponse.json({ error: "Wait for the current run to finish before changing MCP servers." }, { status: 409 });
     await session.changeMcp(body.action, typeof body.name === "string" ? body.name : undefined);

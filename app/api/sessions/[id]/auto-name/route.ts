@@ -5,7 +5,7 @@ import { invalidateHostSessionList, sessionSpawnTarget } from "@/lib/hosts/sessi
 import { HostOpError } from "@/lib/hosts/link-protocol";
 import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { scanSessionInfo } from "@/lib/omp/session-files";
 
 /**
@@ -90,7 +90,7 @@ export async function POST(
     // host's list stands in for the scan.
     let storedTitle: string | undefined;
     let firstMessage: string | undefined;
-    if (resolved.host === localHost) {
+    if (resolved.host?.id === LOCAL_HOST_ID) {
       const filePath = await resolveSessionPath(id);
       const scanned = filePath ? scanSessionInfo(filePath, false) : undefined;
       storedTitle = sanitizeSessionTitle(scanned?.title);

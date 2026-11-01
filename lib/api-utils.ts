@@ -3,19 +3,28 @@ import { resolveSessionPath } from "./session-reader";
 import { isLinkUp, type Host } from "./hosts/host";
 import { getHost } from "./hosts/hub";
 import { HostOpError } from "./hosts/link-protocol";
-import { localHost } from "./hosts/local-host";
 import type { OpResult } from "./hosts/session-ops";
 import { hostForSessionId } from "./hosts/session-index";
-import { WebRpcError } from "./rpc-manager";
+import { LOCAL_HOST_ID } from "./hosts/registry";
+import { getRpcSession, WebRpcError } from "./rpc-manager";
 
 const SESSION_NOT_FOUND = { error: "Session not found", code: "session_not_found" } as const;
 
-/** Resolve a session id to the host holding its file, or a 404 JSON response. */
+/** Resolve a session id to the host holding its file: a live session's own host first, then the
+ * hosts' lists. A 404 JSON response when no host has it, 503 while this machine's sessions are unknown. */
 export async function resolveSessionHostOr404(
   id: string,
 ): Promise<{ host: Host } | { response: NextResponse }> {
-  const host = await hostForSessionId(id);
-  return host ? { host } : { response: NextResponse.json(SESSION_NOT_FOUND, { status: 404 }) };
+  const live = getRpcSession(id);
+  if (live?.isAlive()) return { host: live.host };
+  try {
+    const host = await hostForSessionId(id);
+    return host ? { host } : { response: NextResponse.json(SESSION_NOT_FOUND, { status: 404 }) };
+  } catch (error) {
+    // Nothing was sent: a command the composer holds is refused, not lost.
+    if (error instanceof HostOpError && error.code === "host_offline") return { response: apiErrorResponse(new WebRpcError(error.message, "host_offline", undefined, "refused")) };
+    throw error;
+  }
 }
 
 /** Resolve a session id to its file path on this machine, or a 404 JSON response.
@@ -38,7 +47,7 @@ export function hostOfflineResponse(host: Host): NextResponse | null {
 
 /** The host a request names (`hostId`, this machine when absent): 404 when unknown, 503 while offline. */
 export function resolveHostOrError(hostId: unknown): { host: Host } | { response: NextResponse } {
-  const host = hostId === undefined ? localHost : typeof hostId === "string" ? getHost(hostId) : null;
+  const host = hostId === undefined ? getHost(LOCAL_HOST_ID) : typeof hostId === "string" ? getHost(hostId) : null;
   if (!host) return { response: NextResponse.json({ error: "Host not found", code: "host_not_found" }, { status: 404 }) };
   const offline = hostOfflineResponse(host);
   return offline ? { response: offline } : { host };

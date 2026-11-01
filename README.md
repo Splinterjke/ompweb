@@ -246,6 +246,34 @@ session you are viewing. Clicking a notification opens its session.
 Completion notifications use omp's `prompt_result` and `session_settled` RPC
 frames (omp 18.3.1 or later).
 
+## Two services: the web server and the local daemon
+
+ompweb runs this machine's `omp` sessions through a small daemon, `ompweb host`,
+linked to the web server over loopback.
+
+**Running ompweb** (`ompweb` in a terminal, or `npx @kahme247/ompweb@latest`) does
+not start the daemon itself, so nothing runs `ompweb host`: keep `ompweb host`
+(with npx: `npx @kahme247/ompweb@latest host`) running in a second terminal.
+Without it "This machine" stays offline. The web server writes
+the daemon's link when it starts, so start the web server first.
+
+- **Restarting or redeploying the web server does not interrupt runs.** The daemon
+  keeps the omp processes running; the restarted web server takes them over, with
+  no resume prompt, and dialogs or tool calls omp was waiting on reappear.
+- **Restarting the daemon does end runs** (it owns the omp processes). With auto-resume
+  on, sessions that were running resume once. Upgrades restart the daemon only when
+  its link protocol version is outside the range the new release supports.
+- **First start after an upgrade:** if no daemon has linked after about 90 seconds,
+  ompweb shows a banner with the command to start the daemon. Until the daemon runs,
+  "This machine" shows offline and new sessions on it cannot start.
+- **It is a host like any other.** Rename "This machine" in **Settings → Hosts**
+  (clear the name to reset it); it cannot be revoked. The web server writes the
+  daemon's link (`~/.omp/agent/omp-web/host.json`, mode `600`) at startup, only
+  for a loopback bind address.
+- **Development:** `npm run dev` does not take the daemon: only the production web
+  server writes the daemon's `host.json`, so "This machine" shows offline in dev
+  and the daemon stays linked to your installed ompweb.
+
 ## 🖥️ Run sessions on another machine
 
 One ompweb can start and watch omp sessions on other machines. Each machine keeps
@@ -282,7 +310,9 @@ ompweb host --allow-http
 ```
 
 If the connection drops, the daemon reconnects by itself (1 s backoff doubling to
-60 s). After a network drop, runs keep going on the remote machine; the chat shows
+60 s; 3 s at most for the web server on the same machine). After a failed dial it
+re-reads its saved link, so a web server that came back on another port is found
+without restarting the daemon. After a network drop, runs keep going on the remote machine; the chat shows
 an offline banner and the runs reattach when the link returns. A laptop that goes
 to sleep (closing the lid, usually) pauses the daemon and its omp runs along with
 everything else on it: they resume when it wakes, and the link returns then. A
@@ -290,6 +320,7 @@ docked or no-sleep setup keeps running with the lid closed. Revoking a host in
 Settings closes its link and the daemon stops its omp processes.
 
 Notes:
+
 
 - **The server's agent directory holds the host list** (`omp-web/hosts.json`).
   Starting the ompweb server with a different `PI_CODING_AGENT_DIR`, or losing
@@ -308,9 +339,10 @@ Notes:
   confirmation each time unless **Agents can start sessions here without asking**
   is switched on for it in Settings → Hosts. An agent running on a remote host
   always asks before it starts or messages a session on this machine.
-- The daemon exits with code `1` when the server revokes its token or when the
-  link protocol versions differ (either side may be the newer one; upgrade ompweb
-  on the older side), and `0` when a newer link for the same host replaces it.
+- The daemon exits with code `1` when the server revokes its token or when its
+  link protocol version is outside the range the server supports (older than the
+  server's oldest supported version, or newer than the server: update ompweb on
+  the older side), and `0` when a newer link for the same host replaces it.
   SIGTERM or SIGINT stops the daemon and its omp processes. A link is one-per-host,
   so never run two daemons with the same token. To keep the link up across logouts
   or reboots, run `ompweb host` under a supervisor of your choice that restarts it
@@ -337,6 +369,7 @@ Notes:
 | `HTTP_PROXY` / `HTTPS_PROXY` | Proxies for server-side requests | *(System default)* |
 
 **`OMP_WEB_NAME` and installed apps.** An installed app (PWA) is usually named after the page it was installed from. If you later change `OMP_WEB_NAME`, or reach omp-web through a different address while `OMP_WEB_NAME` is `url`, `host` or `domain`, your operating system may rename the installed app as well. Leave `OMP_WEB_NAME` empty, or set a name that identifies this omp-web server whatever domain name or address is used to reach it.
+
 
 The development server allows loopback and RFC1918 private IPv4 origins
 (`10.0.0.0/8`, `172.16.0.0/12`, and `192.168.0.0/16`). When using a tunnel

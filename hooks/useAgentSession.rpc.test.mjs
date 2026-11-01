@@ -1,6 +1,7 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 
@@ -280,6 +281,18 @@ async function confirmEdit(view, button) {
   await act(async () => { fireEvent.click(button); });
   await act(async () => { fireEvent.click(view.getByRole("button", { name: translate("messageView.editFromHere") })); });
 }
+// Wrappers built directly need an online host: this machine's, as its daemon answers, minus spawning.
+const onlineHost = {
+  id: "local",
+  label: "This machine",
+  sessionOps: {},
+  status: () => "online",
+  onStatus: () => () => {},
+  spawnRpc: async () => { throw new Error("this test never spawns"); },
+  sessionFileExists: async (path) => existsSync(path),
+  invalidateSessionLists() {},
+  autoApproveExtension: () => false,
+};
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -1592,7 +1605,7 @@ async function attachEditableWrapper(t, native, { holdHistory = false } = {}) {
     },
     sendFrame() {},
     async dispose() { listeners.clear(); },
-  }, process.cwd(), null, false, native.sessionId);
+  }, process.cwd(), null, false, native.sessionId, undefined, onlineHost);
   t.after(() => wrapper.destroyAndWait());
   native.onMove = () => emitNative({ type: "notice", source: "session-persistence", level: "warning", message: "Session moved to a sibling file because another process owns the original" });
   wrapper.onIdentityChange((oldId, newId, options) => {

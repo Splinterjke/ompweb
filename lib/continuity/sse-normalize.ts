@@ -43,6 +43,7 @@ export const SSE_FRAME_CLASSES: Readonly<Record<string, EventClass>> = Object.fr
   manual_compaction_end: "reliable",
   subagent_lifecycle: "reliable",
   goal_updated: "reliable",
+  host_status: "reliable",
   host_tool_call: "reliable",
   host_uri_request: "reliable",
   subagent_progress: "coalesced",

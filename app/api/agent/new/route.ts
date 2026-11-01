@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiErrorResponse, opErrorResponse, resolveHostOrError } from "@/lib/api-utils";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { WebRpcError, startNewRpcSession, type AgentSessionWrapper } from "@/lib/rpc-manager";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     // an explicit allowFileRoot). This prevents spawning into arbitrary absolute
     // paths that were never browsed/validated. The allowlist holds this
     // machine's paths, so a remote cwd is checked by that host instead.
-    if (host === localHost) {
+    if (host.id === LOCAL_HOST_ID) {
       const allowedRoots = await getAllowedFileRoots();
       if (!isExistingFilePathAllowed(requestedCwd, allowedRoots)) {
         return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });

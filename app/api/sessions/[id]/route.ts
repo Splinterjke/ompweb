@@ -24,7 +24,8 @@ import { sessionPathKey } from "@/lib/paths";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getAgentDir } from "@/lib/omp/paths";
 import { HostOpError } from "@/lib/hosts/link-protocol";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
+import { getHost } from "@/lib/hosts/hub";
 import { hostForSessionId, invalidateHostSessionList } from "@/lib/hosts/session-index";
 import { RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { clearExitedRpcSession, getLiveRpcSessionIds, getRpcSession, WebRpcError } from "@/lib/rpc-manager";
@@ -177,13 +178,13 @@ export async function PATCH(
     // This machine's cached path lookup first; only when there is no local file
     // do we ask the linked hosts. A session on another host has no file here.
     const filePath = await resolveSessionPath(id);
-    const host = filePath ? localHost : await hostForSessionId(id);
+    const host = filePath ? getHost(LOCAL_HOST_ID) : await hostForSessionId(id);
     // Resolution awaited: an Edit may have started on the current wrapper
     // since the failed native rename. Never bypass its fence with a file write.
     if (getRpcSession(id)?.isEditingHistory?.()) {
       throw new WebRpcError("Wait for the history edit to finish", "session_busy");
     }
-    if (host && host !== localHost) {
+    if (host && host.id !== LOCAL_HOST_ID) {
       // The title slot lives on the owning host: write it through the facade.
       const result = await host.sessionOps.renameSessionFile(id, name.trim());
       if (!result.ok) return opErrorResponse(result);
@@ -228,7 +229,7 @@ export async function DELETE(
     // re-attached before the file goes away.
     let filePath = "";
     const skippedChildren: Array<{ id: string; reason: string }> = [];
-    if (resolved.host === localHost) {
+    if (resolved.host?.id === LOCAL_HOST_ID) {
       const localPath = await resolveSessionPath(id);
       if (!localPath) {
         return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
@@ -350,7 +351,7 @@ export async function DELETE(
     const offline = hostOfflineResponse(resolved.host);
     if (offline) return offline;
     await getRpcSession(id)?.destroyAndWait?.();
-    if (resolved.host === localHost) {
+    if (resolved.host?.id === LOCAL_HOST_ID) {
       if (rustBackendActive()) {
         try {
           await hostClient.sessions.delete(join(getAgentDir(), "sessions"), filePath);

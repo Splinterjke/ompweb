@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { inlineExportVendorScripts } from "@/lib/omp/export-vendor";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { resolveSessionPath } from "@/lib/session-reader";
 
 const execFileAsync = promisify(execFile);
@@ -56,7 +56,7 @@ export async function GET(
   try {
     const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return resolved.response;
-    if (resolved.host === localHost) {
+    if (resolved.host.id === LOCAL_HOST_ID) {
       // This machine's export keeps the fork's own pipeline: the HTML is
       // post-processed to inline the vendored scripts, and the omp shim needs
       // wrapWindowsScript — neither happens in the host facade.
@@ -90,6 +90,7 @@ export async function GET(
     // untrusted, so it is never served inline on this origin.
     const result = await resolved.host.sessionOps.exportSession(id);
     if (!result.ok) return opErrorResponse(result);
+
     return new Response(result.value.html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

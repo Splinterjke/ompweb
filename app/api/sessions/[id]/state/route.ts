@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { clearExitedRpcSession, getExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { localHost } from "@/lib/hosts/local-host";
+import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { isExternallyActive, heldSessionsWithLivePendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
 
 // An external omp goes quiet while the model is thinking or a long tool runs
@@ -71,7 +71,7 @@ export async function GET(
     if ("response" in resolved) return resolved.response;
     // Another host owns the file: this machine's watcher cannot see its holders
     // or its activity log, so ask that host's own state probe instead.
-    if (resolved.host !== localHost) {
+    if (resolved.host?.id !== LOCAL_HOST_ID) {
       const result = await resolved.host.sessionOps.readSessionState(id);
       return result.ok ? NextResponse.json(result.value) : opErrorResponse(result);
     }
