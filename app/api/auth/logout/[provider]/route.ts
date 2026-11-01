@@ -1,10 +1,8 @@
-import { NextResponse } from "next/server";
 import { disposeUtilityRpc, runUtilityCommand } from "@/lib/omp/rpc-utility";
 import { invalidateModelsCache } from "@/lib/models-cache";
 import { invalidateModelAvailability } from "@/lib/session-model-check";
 import { planLogout, type LogoutAccount } from "@/lib/auth-logout";
 
-export const dynamic = "force-dynamic";
 
 const TERMINAL_GUIDANCE =
   "Run `omp` in a terminal and use /logout to remove the credential.";
@@ -25,7 +23,7 @@ export async function POST(
     const body = (await req.json().catch(() => ({}))) as { credentialId?: unknown };
     if (body.credentialId !== undefined) {
       if (typeof body.credentialId !== "number" || !Number.isInteger(body.credentialId)) {
-        return NextResponse.json(
+        return Response.json(
           { error: "credentialId must be an integer", code: "credential_id_invalid" },
           { status: 400 },
         );
@@ -33,7 +31,7 @@ export async function POST(
       credentialId = body.credentialId;
     }
   } catch {
-    return NextResponse.json(
+    return Response.json(
       { error: "Invalid JSON request body", code: "invalid_json" },
       { status: 400 },
     );
@@ -54,7 +52,7 @@ export async function POST(
     const message = error instanceof Error ? error.message : String(error);
     if (/unknown command/i.test(message)) {
       // omp predates the logout RPC (added in 18.7.0).
-      return NextResponse.json(
+      return Response.json(
         {
           error: `omp-web cannot disconnect "${provider}": this omp build exposes no logout command. ${TERMINAL_GUIDANCE}`,
           code: "logout_unsupported",
@@ -62,12 +60,12 @@ export async function POST(
         { status: 501 },
       );
     }
-    return NextResponse.json({ error: message, code: "logout_accounts_failed" }, { status: 502 });
+    return Response.json({ error: message, code: "logout_accounts_failed" }, { status: 502 });
   }
 
   const plan = planLogout(accounts, credentialId);
   if (plan.kind === "none") {
-    return NextResponse.json(
+    return Response.json(
       { error: `No stored credentials for "${provider}".`, code: "no_accounts" },
       { status: 404 },
     );
@@ -75,13 +73,13 @@ export async function POST(
   if (plan.kind === "choose") {
     // Several accounts are stored; the client shows the selector and
     // retries with the chosen credentialId.
-    return NextResponse.json(
+    return Response.json(
       { error: `Multiple accounts are stored for "${provider}".`, code: "credential_choice_required", accounts: plan.accounts },
       { status: 409 },
     );
   }
   if (plan.kind === "not_found") {
-    return NextResponse.json(
+    return Response.json(
       {
         error: `Credential ${credentialId} is not stored for "${provider}".`,
         code: "credential_not_found",
@@ -101,9 +99,9 @@ export async function POST(
     invalidateModelsCache();
     invalidateModelAvailability();
     disposeUtilityRpc();
-    return NextResponse.json({ ok: true, remainingSource: result?.remainingSource });
+    return Response.json({ ok: true, remainingSource: result?.remainingSource });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message, code: "logout_failed" }, { status: 502 });
+    return Response.json({ error: message, code: "logout_failed" }, { status: 502 });
   }
 }

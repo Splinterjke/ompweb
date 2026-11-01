@@ -2,19 +2,16 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import React, { act } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react/pure.js";
-import { createJiti } from "jiti";
+const { cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react/pure.js");
 
 // Port of upstream da7eb347's rewrite of this file (it replaced the
 // `queueAllowsAttachments` predicate unit tests when the gate came down).
 // Adaptations: this fork's composer is image-only — non-image files insert
 // their path as text (no folded-in content) — so every attached-text-file
-// assertion is dropped and the picker attaches only an image; and this repo
-// has no @testing-library/user-event, so the textarea is driven with
-// fireEvent instead of user.type()/keyboard().
-const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
-const { ChatInput } = await jiti.import("./ChatInput.tsx");
-const { clearDraft, getDraft } = await jiti.import("@/lib/draft-store");
+// assertion is dropped and the picker attaches only an image; and the
+// textarea is driven with fireEvent instead of user.type()/keyboard().
+const { ChatInput } = await import("./ChatInput.tsx");
+const { clearDraft, getDraft } = await import("@/lib/draft-store");
 
 const KEY = "queue-attachments";
 // 1x1 transparent PNG.
@@ -150,7 +147,7 @@ test("a stored Steer preference turns the primary button into Steer, which steer
 });
 
 test("a queued web slash command is expanded and keeps the attachment", async () => {
-  const { expandWebSlashCommand } = await jiti.import("@/lib/web-slash-commands");
+  const { expandWebSlashCommand } = await import("@/lib/web-slash-commands");
   window.HTMLElement.prototype.scrollIntoView = () => {};
   const calls = await renderRunningWithAttachments();
   typeText("/goal ship it");
@@ -177,9 +174,10 @@ test("a refused follow-up goes back whole to its draft, ahead of what was typed 
   assert.equal(screen.getByRole("textbox").value, `${calls[0].message}\n\ntyped meanwhile`);
 });
 
+
 test("recovered images past the attachment cap all stay in the composer", async () => {
-  const { MAX_ATTACHED_IMAGES } = await jiti.import("@/lib/image-attachments");
-  const { recoverDraft } = await jiti.import("@/lib/draft-store");
+  const { MAX_ATTACHED_IMAGES } = await import("@/lib/image-attachments");
+  const { recoverDraft } = await import("@/lib/draft-store");
   await renderRunningWithAttachments();
   const recovered = Array.from({ length: MAX_ATTACHED_IMAGES }, () => ({ data: PNG, mimeType: "image/png" }));
   await act(async () => { recoverDraft(KEY, { text: "", images: recovered }); });

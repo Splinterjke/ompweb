@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -49,7 +48,7 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-// Per-cwd cache on globalThis so it survives Next.js hot-reload; the @ menu
+// Per-cwd cache on globalThis so it survives a `bun --hot` re-evaluation; the @ menu
 // re-requests on every open and searches on every keystroke, so listings must
 // not be recomputed within a short window.
 declare global {
@@ -118,30 +117,31 @@ function listWithWalk(cwd: string): FileListing {
 // repos larger than MAX_FILES still find deep files (cap applied after
 // matching, like the TUI passing the query to fd).
 // Guarded by the same allow-list as /api/files.
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    const cwd = req.nextUrl.searchParams.get("cwd")?.trim() ?? "";
+    const { searchParams } = new URL(req.url);
+    const cwd = searchParams.get("cwd")?.trim() ?? "";
     if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {
-      return NextResponse.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
+      return Response.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
     }
-    const query = req.nextUrl.searchParams.get("q")?.slice(0, MAX_QUERY_LENGTH) ?? "";
+    const query = searchParams.get("q")?.slice(0, MAX_QUERY_LENGTH) ?? "";
 
     const allowedRoots = await getAllowedFileRoots();
     if (!isFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
     let stat: fs.Stats;
     try {
       stat = fs.statSync(cwd);
     } catch {
-      return NextResponse.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
+      return Response.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
     }
     if (!stat.isDirectory()) {
-      return NextResponse.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
+      return Response.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
     }
     if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
     const cache = getIndexCache();
@@ -159,11 +159,11 @@ export async function GET(req: NextRequest) {
 
     if (query) {
       cached.entries ??= buildEntriesFromFiles(cached.listing.files);
-      return NextResponse.json({ matches: filterFileEntries(cached.entries, query) });
+      return Response.json({ matches: filterFileEntries(cached.entries, query) });
     }
 
     const { files, hardTruncated } = cached.listing;
-    return NextResponse.json({
+    return Response.json({
       files: files.slice(0, MAX_FILES),
       truncated: hardTruncated || files.length > MAX_FILES,
     });

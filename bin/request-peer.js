@@ -1,16 +1,15 @@
 "use strict";
 
-// Preloaded by our launchers before Next starts. NextRequest omits socket IP;
-// stamp it at the HTTP boundary, overwriting any client-supplied values.
+// The socket peer of an incoming request, stamped at the HTTP boundary so no
+// client can claim loopback by sending a header. The Bun server stamps with
+// `requestPeerHeaders` (server.requestIP) before the gate and handlers run;
+// `verifiedRequestPeer` is the only accepted reader of the stamp.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { randomBytes, createHmac, timingSafeEqual } = require("node:crypto");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { Server } = require("node:http");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { isIP } = require("node:net");
 const PEER_HEADER = "x-ompweb-socket-peer";
 const PROOF_HEADER = "x-ompweb-socket-proof";
-const INSTALLED = Symbol.for("ompweb.requestPeerTracking");
 
 function verifiedRequestPeer(headers) {
   const peer = headers.get(PEER_HEADER);
@@ -21,25 +20,19 @@ function verifiedRequestPeer(headers) {
   return timingSafeEqual(expected, Buffer.from(proof, "hex")) ? peer : null;
 }
 
-function installRequestPeerTracking() {
-  if (Server.prototype[INSTALLED]) return;
-  const secret = randomBytes(32).toString("hex");
-  process.env.OMPWEB_PEER_SECRET = secret;
-  const emit = Server.prototype.emit;
-  Object.defineProperty(Server.prototype, INSTALLED, { value: true });
-  Server.prototype.emit = function (event, ...args) {
-    if (event === "request" && args[0]?.headers) {
-      const request = args[0];
-      delete request.headers[PEER_HEADER];
-      delete request.headers[PROOF_HEADER];
-      const peer = request.socket?.remoteAddress;
-      if (peer && isIP(peer)) {
-        request.headers[PEER_HEADER] = peer;
-        request.headers[PROOF_HEADER] = createHmac("sha256", secret).update(peer).digest("hex");
-      }
-    }
-    return emit.call(this, event, ...args);
-  };
+/**
+ * Header stamp for a request whose socket peer is `peer` (null when the
+ * server could not resolve one). A `null` value means "delete the header",
+ * so client-supplied peer claims are always dropped first.
+ */
+function requestPeerHeaders(peer) {
+  const headers = { [PEER_HEADER]: null, [PROOF_HEADER]: null };
+  if (peer && isIP(peer)) {
+    const secret = process.env.OMPWEB_PEER_SECRET || (process.env.OMPWEB_PEER_SECRET = randomBytes(32).toString("hex"));
+    headers[PEER_HEADER] = peer;
+    headers[PROOF_HEADER] = createHmac("sha256", secret).update(peer).digest("hex");
+  }
+  return headers;
 }
 
-module.exports = { installRequestPeerTracking, verifiedRequestPeer };
+module.exports = { verifiedRequestPeer, requestPeerHeaders };

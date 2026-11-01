@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { resolveOmpBin, getOmpVersion } from "@/lib/omp/omp-cli";
 import { readProxyConfig, resolveEffectiveProxy } from "@/lib/proxy-config";
 import { recentRpcFailures } from "@/lib/rpc-manager";
@@ -11,7 +10,6 @@ import { hostClient } from "@/lib/omp/host-client";
 import { getConfigRoot, getAgentDir, getSessionsDir, getSettingsPath, getModelsConfigPath } from "@/lib/omp/paths";
 import YAML from "yaml";
 
-export const dynamic = "force-dynamic";
 
 /**
  * GET /api/diagnostics — backend service health for the settings panel:
@@ -55,7 +53,7 @@ export async function GET() {
     node: hasTool("node"),
   };
 
-  return NextResponse.json({
+  return Response.json({
     server: {
       node: process.version,
       platform: process.platform,
@@ -125,12 +123,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({})) as { action?: string };
     if (body.action !== "clear") {
-      return NextResponse.json({ error: "unknown action", code: "unknown_action" }, { status: 400 });
+      return Response.json({ error: "unknown action", code: "unknown_action" }, { status: 400 });
     }
     clearBackendErrors();
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return Response.json({ error: String(error) }, { status: 500 });
   }
 }
 

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { spawn } from "child_process";
 import { statSync } from "fs";
 import { getAllowedFileRoots, isExistingFilePathAllowed, normalizeSlashes } from "@/lib/file-access";
@@ -8,7 +7,6 @@ import { resolveOmpBin } from "@/lib/omp/omp-cli";
 import { hostClient } from "@/lib/omp/host-client";
 import path from "path";
 
-export const dynamic = "force-dynamic";
 
 /**
  * POST /api/reveal  body: { path }
@@ -25,7 +23,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const target = typeof body?.path === "string" ? body.path : "";
     if (!target) {
-      return NextResponse.json({ error: "Missing path", code: "missing_path" }, { status: 400 });
+      return Response.json({ error: "Missing path", code: "missing_path" }, { status: 400 });
     }
     const allowedRoots = await getAllowedFileRoots();
     try {
@@ -44,20 +42,20 @@ export async function POST(req: Request) {
       (rustHost?.path && normalizedTarget === path.resolve(rustHost.path));
 
     if (!isSpecialAllowed && !isExistingFilePathAllowed(target, allowedRoots)) {
-      return NextResponse.json({ error: "Path not allowed", code: "path_not_allowed" }, { status: 403 });
+      return Response.json({ error: "Path not allowed", code: "path_not_allowed" }, { status: 403 });
     }
     let stat;
     try {
       stat = statSync(target);
     } catch {
-      return NextResponse.json({ error: "Path does not exist", code: "path_not_found" }, { status: 404 });
+      return Response.json({ error: "Path does not exist", code: "path_not_found" }, { status: 404 });
     }
 
     let launcher: { command: string; args: string[] };
     try {
       launcher = buildRevealSpawn(process.platform, target, stat.isDirectory());
     } catch {
-      return NextResponse.json(
+      return Response.json(
         { error: `Reveal unsupported on ${process.platform}`, code: "unsupported_platform" },
         { status: 501 },
       );
@@ -82,9 +80,9 @@ export async function POST(req: Request) {
       });
     });
 
-    return NextResponse.json({ ok: true, path: target });
+    return Response.json({ ok: true, path: target });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to reveal path";
-    return NextResponse.json({ error: message, code: "reveal_failed" }, { status: 500 });
+    return Response.json({ error: message, code: "reveal_failed" }, { status: 500 });
   }
 }

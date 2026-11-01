@@ -1,4 +1,3 @@
-import { NextResponse, type NextRequest } from "next/server";
 import { isApiRequestHostAllowed, isApiRequestOriginAllowed, shouldCheckApiRequestOrigin } from "@/lib/request-security";
 import {
   isTrustedProxyRequest,
@@ -51,7 +50,7 @@ function readPairingState(): PairingFileState | null {
   }
 }
 
-function checkPairingGate(request: NextRequest): NextResponse | null {
+function checkPairingGate(request: Request): Response | null {
   // Loopback exemption is decided by the SOCKET peer, carried from the HTTP
   // boundary by the launcher preload (bin/request-peer.js stamps the real
   // remoteAddress plus an HMAC proof; verifiedRequestPeer rejects forged
@@ -61,13 +60,13 @@ function checkPairingGate(request: NextRequest): NextResponse | null {
   const loopback = isLoopbackSocket(request);
   if (loopback) return null;
 
-  const pathname = request.nextUrl.pathname;
+  const pathname = new URL(request.url).pathname;
   // Token ISSUANCE must stay loopback-only: minting a token is how a device
   // pairs itself, so a remote peer must not be able to bootstrap one. The
   // phone only ever consumes tokens via /api/pair/accept, which stays
   // reachable below.
   if (pathname === "/api/pair/token") {
-    return NextResponse.json({ error: "Pairing tokens can only be issued from this computer", code: "token_loopback_only" }, { status: 403 });
+    return Response.json({ error: "Pairing tokens can only be issued from this computer", code: "token_loopback_only" }, { status: 403 });
   }
   if (isPairingFlowPath(pathname)) return null;
   // The /remote landing page is part of the pairing FLOW itself (the phone
@@ -85,7 +84,7 @@ function checkPairingGate(request: NextRequest): NextResponse | null {
   if (!state) return deny();
 
   const cookieName = typeof rawConfig.cookieName === "string" ? rawConfig.cookieName : "dsh_pair";
-  const deviceId = request.cookies.get(cookieName)?.value;
+  const deviceId = parseCookie(request, cookieName);
   if (!deviceId) return deny();
 
   const devices = Array.isArray(state.devices) ? state.devices : [];
@@ -98,14 +97,14 @@ function checkPairingGate(request: NextRequest): NextResponse | null {
   return null;
 }
 
-function deny(): NextResponse {
-  return NextResponse.json({ error: "Remote access requires a paired device", code: "pairing_required" }, { status: 401 });
+function deny(): Response {
+  return Response.json({ error: "Remote access requires a paired device", code: "pairing_required" }, { status: 401 });
 }
 
 /** Socket-peer loopback detection — never infer a trusted peer from a
  * forgeable request header. A configured reverse proxy may provide the
  * client address; otherwise only a runtime-resolved peer IP counts. */
-function isLoopbackSocket(request: NextRequest): boolean {
+function isLoopbackSocket(request: { headers: Headers; ip?: string } | Request): boolean {
   const trustedProxy = process.env.OMP_WEB_TRUSTED_PROXY === "1";
   if (trustedProxy) {
     const cf = request.headers.get("cf-connecting-ip");
@@ -138,16 +137,49 @@ function isIpLoopback(ip: string): boolean {
 }
 
 /** Pure loopback decision used by the pairing gate (exported for tests). */
-export function isLoopbackConnection(request: NextRequest): boolean {
+export function isLoopbackConnection(request: Request): boolean {
   return isLoopbackSocket(request);
 }
 
-export function proxy(request: NextRequest) {
-  if (!isApiRequestHostAllowed(request)) {
-    return NextResponse.json({ error: "Untrusted Host header" }, { status: 403 });
+// The sign-in screen still needs its JavaScript, CSS and fonts (/assets/, and
+// in dev only Bun's bundles under /_bun/) before a session exists; these and the
+// ordinary browser icons are public assets, not workspace data. /api/manifest
+// stays authenticated: its link includes credentials and its embedded
+// installation icons need no separate request. The service worker script holds
+// no data either, and the browser re-fetches it for update checks even after
+// the sign-in cookie expired. /assets/ is a prefix on purpose: it holds only the
+// hashed build output. The icon and sw.js names are exact (anchored), so no path
+// below or beside them skips the gate. /api/hosts/link and its blob/ subpath
+// authenticate the host's bearer token themselves before they read any body
+// (lib/hosts/hub.ts).
+export const UNGATED = /^\/(?:assets\/|(?:favicon\.ico|favicon\.png|favicon\.svg|favicon-\d+x\d+\.png|icon\.svg|icon\.png|icon-192\.png|badge-96\.png|sw\.js)$|api\/hosts\/link(?:\/|$))/;
+
+// Relative: request.url is always http:// under Bun, so an absolute Location would leave https behind a TLS proxy.
+const redirect = (location: string) => new Response(null, { status: 307, headers: { location } });
+
+// Cookie reading shared by the gate paths; a plain parser keeps proxy.ts
+// importable under Node (the pairing-gate tests run there) as well as Bun.
+function parseCookie(request: Request, name: string): string | undefined {
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > -1 && part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
   }
-  if (request.nextUrl.pathname.startsWith("/api/") && shouldCheckApiRequestOrigin(request) && !isApiRequestOriginAllowed(request)) {
-    return NextResponse.json({ error: "Cross-origin API requests are not allowed" }, { status: 403 });
+  return undefined;
+}
+
+/**
+ * The password gate and API origin check. A Response answers the request; otherwise it continues, "authenticated"
+ * when it carries a session or the trusted header (or no password is set), "public" when it needs neither.
+ */
+export function proxy(request: Request): Response | "public" | "authenticated" {
+  const url = new URL(request.url);
+  const { pathname } = url;
+  if (UNGATED.test(pathname) || (process.env.NODE_ENV === "development" && pathname.startsWith("/_bun/"))) return "public";
+  if (!isApiRequestHostAllowed(request)) {
+    return Response.json({ error: "Untrusted Host header" }, { status: 403 });
+  }
+  if (pathname.startsWith("/api/") && shouldCheckApiRequestOrigin(request) && !isApiRequestOriginAllowed(request)) {
+    return Response.json({ error: "Cross-origin API requests are not allowed" }, { status: 403 });
   }
   const pairingDenied = checkPairingGate(request);
   if (pairingDenied) return pairingDenied;
@@ -158,62 +190,48 @@ export function proxy(request: NextRequest) {
   // deliberately logs nothing — a doomed request loop must not flood the log.
   const passwordProblem = webPasswordConfigurationProblem();
   if (passwordProblem) {
-    return new NextResponse(`omp-web password configuration error\n\n${passwordProblem}\n`, {
+    return new Response(`omp-web password configuration error\n\n${passwordProblem}\n`, {
       status: 503,
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
     });
   }
   if (!isWebPasswordEnabled()) {
-    return request.nextUrl.pathname === "/login"
-      ? NextResponse.redirect(new URL("/", request.url))
-      : NextResponse.next();
+    return pathname === "/login" ? redirect("/") : "authenticated";
   }
 
-  const { pathname } = request.nextUrl;
   // The pairing flow must stay reachable from a phone even when a web
   // password is enabled (the paired cookie is checked on every other
   // remote /api request; the password protects the session afterwards).
   // The /remote landing page performs the accept itself, so it is exempt
   // too; it renders no data.
-  if (isPairingFlowPath(pathname) || pathname === "/remote") return NextResponse.next();
-  // The ordinary browser icons (tab/favicon) stay public: browsers fetch
-  // them without cookies. /api/manifest is authenticated instead — its link
-  // carries credentials and its embedded installation icons need no separate
-  // request, so installs work behind the web password.
-  if (/^\/icon/.test(pathname) || /^\/favicon/.test(pathname)) return NextResponse.next();
+  if (isPairingFlowPath(pathname) || pathname === "/remote") return "public";
+  // The ordinary browser icons (tab/favicon) are covered by UNGATED above:
+  // browsers fetch them without cookies, but the names are matched exactly, so
+  // no path below or beside them skips the gate. /api/manifest is
+  // authenticated instead — its link carries credentials and its embedded
+  // installation icons need no separate request, so installs work behind the
+  // web password.
   // The rebuild reaper POSTs /api/ui/refresh from loopback after every
   // restart (detached, no session cookie) to mark the boot "updated", wake
-  // the Rust host (hostClient.ui.refresh() -> ensure() -> boot), and fan out
-  // the refresh frame. The endpoint exposes no data — it only pokes the host
-  // and broadcasts — so a loopback-only exemption is safe. Same socket-peer
-  // precedent as the pairing gate above; a non-loopback caller still 401s.
-  if (pathname === "/api/ui/refresh" && isLoopbackConnection(request)) return NextResponse.next();
+  // the host daemon, and fan out the refresh frame. The endpoint exposes no
+  // data — it only pokes the host and broadcasts — so a loopback-only
+  // exemption is safe. Same socket-peer precedent as the pairing gate above;
+  // a non-loopback caller still 401s.
+  if (pathname === "/api/ui/refresh" && isLoopbackConnection(request)) return "public";
   // `OMP_WEB_TRUSTED_PROXY=1` (loopback-via-forwarded-headers for the pairing
   // gate above) is separate legacy behavior; X-Omp-Web-Auth is the only
   // *authentication* vouch — a matching digest counts as signed in.
   const hasSession = isTrustedProxyRequest(request.headers.get(OMP_WEB_TRUSTED_HEADER))
-    || isValidWebSession(request.cookies.get(OMP_WEB_SESSION_COOKIE)?.value);
+    || isValidWebSession(parseCookie(request, OMP_WEB_SESSION_COOKIE));
   if (pathname === "/login") {
-    return hasSession ? NextResponse.redirect(new URL("/", request.url)) : NextResponse.next();
+    return hasSession ? redirect("/") : "public";
   }
-  if (pathname === "/api/web-auth/session") return NextResponse.next();
-  if (hasSession) return NextResponse.next();
+  if (pathname === "/api/web-auth/session") return "public";
+  if (hasSession) return "authenticated";
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Password required", code: "password_required" }, { status: 401 });
+    return Response.json({ error: "Password required", code: "password_required" }, { status: 401 });
   }
-  const login = new URL("/login", request.url);
   // Keep a deep link to a session (e.g. a notification click) across sign-in.
-  if (pathname === "/" && request.nextUrl.search) login.searchParams.set("next", `/${request.nextUrl.search}`);
-  return NextResponse.redirect(login);
+  return redirect(pathname === "/" && url.search ? `/login?${new URLSearchParams({ next: `/${url.search}` })}` : "/login");
 }
 
-// The sign-in screen still needs its Next.js JavaScript and CSS before a
-// session exists; these are public build assets, not workspace data.
-// The service worker script holds no data either, and the browser re-fetches
-// it for update checks even after the sign-in cookie expired.
-// /api/hosts/link and its blob/ subpath (only those: the exclusion is anchored)
-// are excluded too: the proxy buffers and silently truncates request bodies
-// over 10 MB, larger than host link uploads may be, and the route
-// authenticates the host's bearer token itself before it reads any body
-// (lib/hosts/hub.ts).
-export const config = { matcher: "/((?!_next/static|_next/image|favicon.ico|sw\\.js|badge-96\\.png|api/hosts/link(?:/|$)).*)" };

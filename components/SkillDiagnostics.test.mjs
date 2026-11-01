@@ -2,11 +2,9 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react/pure.js";
-import { createJiti } from "jiti";
+const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react/pure.js");
 
-const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
-const { SkillDiagnosticsDialog, SkillDiagnosticsNotice } = await jiti.import("./SkillDiagnostics.tsx");
+const { SkillDiagnosticsDialog, SkillDiagnosticsNotice } = await import("./SkillDiagnostics.tsx");
 afterEach(cleanup);
 
 const snapshot = {

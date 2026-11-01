@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { getSchedulerWithState } from "@/lib/scheduler-engine";
@@ -15,8 +14,8 @@ import { ScheduleValidationError, validateSchedule, type ScheduleSpec } from "@/
 
 const MAX_REQUEST_BYTES = 8_192;
 
-function notFound(id: string): NextResponse {
-  return NextResponse.json({ error: "Scheduler not found", code: "scheduler_not_found" }, { status: 404 });
+function notFound(id: string): Response {
+  return Response.json({ error: "Scheduler not found", code: "scheduler_not_found" }, { status: 404 });
 }
 
 // GET /api/schedulers/[id]  →  { scheduler: SchedulerEntry & { running } }
@@ -29,7 +28,7 @@ export async function GET(
   try {
     const scheduler = getSchedulerWithState(id);
     if (!scheduler) return notFound(id);
-    return NextResponse.json({ scheduler });
+    return Response.json({ scheduler });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -69,7 +68,7 @@ export async function PATCH(
     if (body.script !== undefined) {
       const check = validateScriptPath(typeof body.script === "string" ? body.script : "");
       if (!check.ok) {
-        return NextResponse.json({ error: check.error, code: check.error }, { status: 400 });
+        return Response.json({ error: check.error, code: check.error }, { status: 400 });
       }
       body.script = check.path;
     }
@@ -79,7 +78,7 @@ export async function PATCH(
     if (typeof body.cwd === "string") {
       const workspaceCheck = validateWorkspacePath(body.cwd);
       if (!workspaceCheck.ok) {
-        return NextResponse.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
+        return Response.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
       }
       body.cwd = workspaceCheck.path ?? "";
     }
@@ -90,7 +89,7 @@ export async function PATCH(
         schedule = validateSchedule(body.schedule);
       } catch (err) {
         if (err instanceof ScheduleValidationError) {
-          return NextResponse.json({ error: err.code, code: err.code }, { status: 400 });
+          return Response.json({ error: err.code, code: err.code }, { status: 400 });
         }
         throw err;
       }
@@ -117,17 +116,17 @@ export async function PATCH(
       },
     );
     saveSchedulerFile(file);
-    return NextResponse.json({ scheduler: entry });
+    return Response.json({ scheduler: entry });
   } catch (error) {
     if (error instanceof ScheduleValidationError) {
-      return NextResponse.json({ error: error.code, code: error.code }, { status: 400 });
+      return Response.json({ error: error.code, code: error.code }, { status: 400 });
     }
     if (error instanceof SchedulerStoreError) {
       const status = error.code === "scheduler_not_found" ? 404 : 400;
-      return NextResponse.json({ error: String(error), code: error.code }, { status });
+      return Response.json({ error: String(error), code: error.code }, { status });
     }
     if (error instanceof RequestBodyTooLargeError) {
-      return NextResponse.json({ error: String(error), code: "request_too_large" }, { status: 400 });
+      return Response.json({ error: String(error), code: "request_too_large" }, { status: 400 });
     }
     return apiErrorResponse(error);
   }
@@ -144,7 +143,7 @@ export async function DELETE(
   if (!isValidSchedulerId(id)) return notFound(id);
   try {
     saveSchedulerFile(deleteSchedulerEntry(id));
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     if (error instanceof SchedulerStoreError && error.code === "scheduler_not_found") {
       return notFound(id);

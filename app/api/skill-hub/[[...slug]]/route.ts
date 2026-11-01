@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import {
   clearTrashSkill,
   createSkill,
@@ -56,7 +55,6 @@ import type {
   WritableRoot,
 } from '@/lib/skill-hub/protocol';
 
-export const dynamic = 'force-dynamic';
 
 function getCwdFromUrl(url: URL): string | undefined {
   const cwd = url.searchParams.get('cwd');
@@ -78,19 +76,19 @@ export async function GET(
     switch (path) {
       case 'catalog': {
         const catalog = await scanAllRoots({ cwd });
-        return NextResponse.json(catalog);
+        return Response.json(catalog);
       }
 
       case 'skill': {
         const name = url.searchParams.get('name') ?? '';
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const skill = await getSkillDetail(name, { cwd });
         if (!skill) {
-          return NextResponse.json({ error: `Skill not found: ${name}` }, { status: 404 });
+          return Response.json({ error: `Skill not found: ${name}` }, { status: 404 });
         }
-        return NextResponse.json({ ok: true, skill });
+        return Response.json({ ok: true, skill });
       }
 
       case 'groups': {
@@ -129,7 +127,7 @@ export async function GET(
           ...(sourceGroupOrder.length > 0 ? { sourceGroupOrder } : {}),
           ...(collectionOrder.length > 0 ? { collectionOrder } : {}),
         };
-        return NextResponse.json(res);
+        return Response.json(res);
       }
 
       case 'sources': {
@@ -160,7 +158,7 @@ export async function GET(
             return a.name.localeCompare(b.name);
           });
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           sources,
           origins,
@@ -171,14 +169,14 @@ export async function GET(
 
       case 'market': {
         const repos = await store.listMarketSources();
-        return NextResponse.json({ ok: true, repos } satisfies MarketSourcesResponse);
+        return Response.json({ ok: true, repos } satisfies MarketSourcesResponse);
       }
 
       case 'market/source/versions': {
         const repoParam = url.searchParams.get('repo') ?? '';
         const parsed = normalizeRepoInput(repoParam);
         if (!parsed) {
-          return NextResponse.json({ error: 'Valid repo is required' }, { status: 400 });
+          return Response.json({ error: 'Valid repo is required' }, { status: 400 });
         }
         const repo = repoSlug(parsed);
         const source = await store.getMarketSource(repo);
@@ -186,7 +184,7 @@ export async function GET(
           listRepoReleases(repo),
           listRepoBranches(repo),
         ]);
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           repo,
           ...(source?.ref ? { current: source.ref } : {}),
@@ -230,14 +228,14 @@ export async function GET(
             });
           }
         }
-        return NextResponse.json({ ok: true, results } satisfies MarketCheckResponse);
+        return Response.json({ ok: true, results } satisfies MarketCheckResponse);
       }
 
       case 'repo': {
         const repoParam = url.searchParams.get('repo') ?? '';
         const parsed = normalizeRepoInput(repoParam);
         if (!parsed) {
-          return NextResponse.json({ error: 'Valid repo is required' }, { status: 400 });
+          return Response.json({ error: 'Valid repo is required' }, { status: 400 });
         }
         const repo = repoSlug(parsed);
         let ref = parsed.ref;
@@ -251,7 +249,7 @@ export async function GET(
             ref = releaseTag;
           } else {
             const branches = await listRepoBranches(repo);
-            return NextResponse.json({
+            return Response.json({
               ok: true,
               repo,
               ref: null,
@@ -266,7 +264,7 @@ export async function GET(
         for (const d of catalog.disabled) existingNames.add(d.name);
 
         const entries = discoverRepoEntries(tree, repo, existingNames);
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           repo,
           ref: resolvedRef,
@@ -279,7 +277,7 @@ export async function GET(
         const jobId = url.searchParams.get('jobId') ?? '';
         const job = getImportJob(jobId);
         if (!job) {
-          return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+          return Response.json({ error: 'Job not found' }, { status: 404 });
         }
         const res: RepoImportProgressResponse = {
           ok: true,
@@ -295,16 +293,16 @@ export async function GET(
           skipped: job.skipped,
           failed: job.failed,
         };
-        return NextResponse.json(res);
+        return Response.json(res);
       }
 
       case 'config': {
         const config = await store.getConfig();
-        return NextResponse.json({ ok: true, pluginVersion: '1.0.0', config, saved: config });
+        return Response.json({ ok: true, pluginVersion: '1.0.0', config, saved: config });
       }
 
       case 'update': {
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           currentVersion: '1.0.0',
           latestVersion: '1.0.0',
@@ -314,11 +312,11 @@ export async function GET(
       }
 
       default:
-        return NextResponse.json({ error: `Not found: ${path}` }, { status: 404 });
+        return Response.json({ error: `Not found: ${path}` }, { status: 404 });
     }
   } catch (error) {
     console.error(`[api/skill-hub/${path} GET]`, error);
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: error instanceof StoreError ? 400 : 500 }
     );
@@ -349,11 +347,11 @@ export async function POST(
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         const enabled = body.enabled === true;
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const result = await toggleSkill(name, enabled, { cwd });
         void restartAllRpcSessions().catch(() => {});
-        return NextResponse.json(result);
+        return Response.json(result);
       }
 
       case 'toggle-batch': {
@@ -362,47 +360,47 @@ export async function POST(
           : [];
         const enabled = body.enabled === true;
         if (names.length === 0) {
-          return NextResponse.json({ error: 'names must be non-empty array' }, { status: 400 });
+          return Response.json({ error: 'names must be non-empty array' }, { status: 400 });
         }
         const result = await toggleBatch(names, enabled, { cwd });
         void restartAllRpcSessions().catch(() => {});
-        return NextResponse.json(result);
+        return Response.json(result);
       }
       case 'create': {
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         const description = typeof body.description === 'string' ? body.description.trim() : '';
         const root = (typeof body.root === 'string' ? body.root : 'user-agents') as WritableRoot;
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const result = await createSkill(root, name, description, { cwd });
-        return NextResponse.json(result);
+        return Response.json(result);
       }
 
       case 'skill/delete': {
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const result = await deleteSkill(name, { cwd });
         if (!result.ok) {
-          return NextResponse.json({ error: result.error }, { status: 400 });
+          return Response.json({ error: result.error }, { status: 400 });
         }
         const catalog = await scanAllRoots({ cwd });
-        return NextResponse.json({ ok: true, catalog });
+        return Response.json({ ok: true, catalog });
       }
 
       case 'diagnostic/fix': {
         const filePath = typeof body.path === 'string' ? body.path.trim() : '';
         if (!filePath) {
-          return NextResponse.json({ error: 'path is required' }, { status: 400 });
+          return Response.json({ error: 'path is required' }, { status: 400 });
         }
         const result = await fixDiagnostic(filePath);
         if (!result.ok) {
-          return NextResponse.json({ error: result.error }, { status: 400 });
+          return Response.json({ error: result.error }, { status: 400 });
         }
         const catalog = await scanAllRoots({ cwd });
-        return NextResponse.json({ ok: true, catalog });
+        return Response.json({ ok: true, catalog });
       }
 
       case 'tag': {
@@ -411,19 +409,19 @@ export async function POST(
         const color = typeof body.color === 'string' ? body.color.trim() : undefined;
         const icon = typeof body.icon === 'string' ? body.icon.trim() : undefined;
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const tag = await store.saveTag({ id, name, color, icon });
-        return NextResponse.json({ ok: true, tag });
+        return Response.json({ ok: true, tag });
       }
 
       case 'tag/delete': {
         const id = typeof body.id === 'string' ? body.id.trim() : '';
         if (!id) {
-          return NextResponse.json({ error: 'id is required' }, { status: 400 });
+          return Response.json({ error: 'id is required' }, { status: 400 });
         }
         await store.deleteTag(id);
-        return NextResponse.json({ ok: true });
+        return Response.json({ ok: true });
       }
 
       case 'tag/members': {
@@ -432,10 +430,10 @@ export async function POST(
           ? body.skillNames.filter((n): n is string => typeof n === 'string')
           : [];
         if (!id) {
-          return NextResponse.json({ error: 'id is required' }, { status: 400 });
+          return Response.json({ error: 'id is required' }, { status: 400 });
         }
         const tag = await store.setTagSkills(id, skillNames);
-        return NextResponse.json({ ok: true, tag });
+        return Response.json({ ok: true, tag });
       }
 
       case 'tag/reorder': {
@@ -443,7 +441,7 @@ export async function POST(
           ? body.orderedIds.filter((id): id is string => typeof id === 'string')
           : [];
         const tags = await store.reorderTags(orderedIds);
-        return NextResponse.json({ ok: true, tags });
+        return Response.json({ ok: true, tags });
       }
 
       case 'collections/reorder': {
@@ -451,7 +449,7 @@ export async function POST(
           ? body.orderedNames.filter((n): n is string => typeof n === 'string')
           : [];
         const order = await store.setCollectionOrder(orderedNames);
-        return NextResponse.json({ ok: true, collectionOrder: order });
+        return Response.json({ ok: true, collectionOrder: order });
       }
 
       case 'source-groups/reorder': {
@@ -459,27 +457,27 @@ export async function POST(
           ? body.orderedNames.filter((n): n is string => typeof n === 'string')
           : [];
         const order = await store.setSourceGroupOrder(orderedNames);
-        return NextResponse.json({ ok: true, sourceGroupOrder: order });
+        return Response.json({ ok: true, sourceGroupOrder: order });
       }
 
       case 'market/source': {
         const input = typeof body.repo === 'string' ? body.repo.trim() : '';
         const parsed = normalizeRepoInput(input);
         if (!parsed) {
-          return NextResponse.json({ error: 'Valid repo is required' }, { status: 400 });
+          return Response.json({ error: 'Valid repo is required' }, { status: 400 });
         }
         const repos = await store.addMarketSource(repoSlug(parsed), parsed.ref);
-        return NextResponse.json({ ok: true, repos });
+        return Response.json({ ok: true, repos });
       }
 
       case 'market/source/delete': {
         const input = typeof body.repo === 'string' ? body.repo.trim() : '';
         const parsed = normalizeRepoInput(input);
         if (!parsed) {
-          return NextResponse.json({ error: 'Valid repo is required' }, { status: 400 });
+          return Response.json({ error: 'Valid repo is required' }, { status: 400 });
         }
         const repos = await store.removeMarketSource(repoSlug(parsed));
-        return NextResponse.json({ ok: true, repos });
+        return Response.json({ ok: true, repos });
       }
 
       case 'market/source/ref': {
@@ -487,33 +485,33 @@ export async function POST(
         const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
         const parsed = normalizeRepoInput(input);
         if (!parsed || !ref) {
-          return NextResponse.json({ error: 'repo and ref are required' }, { status: 400 });
+          return Response.json({ error: 'repo and ref are required' }, { status: 400 });
         }
         const repo = repoSlug(parsed);
         const record = await store.setMarketSourceRef(repo, ref);
         if (!record) {
-          return NextResponse.json({ error: 'Market source not found' }, { status: 404 });
+          return Response.json({ error: 'Market source not found' }, { status: 404 });
         }
         const repos = await store.listMarketSources();
-        return NextResponse.json({ ok: true, repos });
+        return Response.json({ ok: true, repos });
       }
 
       case 'market/source/sync': {
         const input = typeof body.repo === 'string' ? body.repo.trim() : '';
         const parsed = normalizeRepoInput(input);
         if (!parsed) {
-          return NextResponse.json({ error: 'Valid repo is required' }, { status: 400 });
+          return Response.json({ error: 'Valid repo is required' }, { status: 400 });
         }
         const repo = repoSlug(parsed);
         const source = await store.getMarketSource(repo);
         if (!source) {
-          return NextResponse.json({ error: 'Market source not found' }, { status: 404 });
+          return Response.json({ error: 'Market source not found' }, { status: 404 });
         }
         let ref = source.ref;
         if (!ref) {
           const latestTag = await getLatestReleaseTag(repo);
           if (!latestTag) {
-            return NextResponse.json({ error: 'Repo has no release. Pick a branch first' }, { status: 409 });
+            return Response.json({ error: 'Repo has no release. Pick a branch first' }, { status: 409 });
           }
           ref = latestTag;
           await store.setMarketSourceRef(repo, ref);
@@ -522,7 +520,7 @@ export async function POST(
         await store.setMarketSourceCommit(repo, latest.commitSha);
         await store.setSourceRef(repo, ref);
         const tracked = await store.getSource(repo);
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           repo,
           ref,
@@ -540,7 +538,7 @@ export async function POST(
         const targetRoot = (typeof body.root === 'string' ? body.root : 'user-agents') as WritableRoot;
 
         if (!repoInput || paths.length === 0) {
-          return NextResponse.json({ error: 'repo and non-empty paths are required' }, { status: 400 });
+          return Response.json({ error: 'repo and non-empty paths are required' }, { status: 400 });
         }
 
         const job = await startImportJob(
@@ -548,7 +546,7 @@ export async function POST(
           { targetRoot, cwd }
         );
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           jobId: job.jobId,
           total: job.total,
@@ -559,10 +557,10 @@ export async function POST(
       case 'repo/import/cancel': {
         const jobId = typeof body.jobId === 'string' ? body.jobId.trim() : '';
         if (!jobId) {
-          return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
+          return Response.json({ error: 'jobId is required' }, { status: 400 });
         }
         const success = cancelImportJob(jobId);
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           jobId,
           status: success ? 'cancelled' : 'done',
@@ -572,7 +570,7 @@ export async function POST(
       case 'config': {
         const patch = body;
         const config = await store.updateConfig(patch);
-        return NextResponse.json({ ok: true, config, saved: config });
+        return Response.json({ ok: true, config, saved: config });
       }
 
       case 'sources/check': {
@@ -587,7 +585,7 @@ export async function POST(
           : await store.listSources();
 
         if (only && sources.length === 0) {
-          return NextResponse.json({ error: `Source not found: ${only}` }, { status: 404 });
+          return Response.json({ error: `Source not found: ${only}` }, { status: 404 });
         }
 
         const results: SourceCheckResult[] = [];
@@ -630,19 +628,19 @@ export async function POST(
             });
           }
         }
-        return NextResponse.json({ ok: true, results } satisfies SourceCheckResponse);
+        return Response.json({ ok: true, results } satisfies SourceCheckResponse);
       }
 
       case 'sources/sync': {
         const repoInput = typeof body.repo === 'string' ? body.repo.trim() : '';
         if (!repoInput) {
-          return NextResponse.json({ error: 'repo is required' }, { status: 400 });
+          return Response.json({ error: 'repo is required' }, { status: 400 });
         }
         const parsed = normalizeRepoInput(repoInput);
         const repo = parsed ? repoSlug(parsed) : repoInput;
         const source = await store.getSource(repo);
         if (!source) {
-          return NextResponse.json({ error: `Source not found: ${repo}` }, { status: 404 });
+          return Response.json({ error: `Source not found: ${repo}` }, { status: 404 });
         }
         const selected = Array.isArray(body.skills)
           ? body.skills.filter((n): n is string => typeof n === 'string' && n.trim() !== '')
@@ -680,7 +678,7 @@ export async function POST(
           await store.setSourceCommit(repo, latest.commitSha);
         }
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           repo,
           commitSha: latest.commitSha,
@@ -697,14 +695,14 @@ export async function POST(
           ? body.skills.filter((n): n is string => typeof n === 'string' && n.trim() !== '')
           : [];
         if (!repo) {
-          return NextResponse.json({ error: 'repo is required' }, { status: 400 });
+          return Response.json({ error: 'repo is required' }, { status: 400 });
         }
         if (skills.length === 0) {
-          return NextResponse.json({ error: 'skills must be non-empty array' }, { status: 400 });
+          return Response.json({ error: 'skills must be non-empty array' }, { status: 400 });
         }
         const source = await store.getSource(repo);
         if (!source) {
-          return NextResponse.json({ error: `Source not found: ${repo}` }, { status: 404 });
+          return Response.json({ error: `Source not found: ${repo}` }, { status: 404 });
         }
         const trashed: string[] = [];
         const failed: Array<{ name: string; error: string }> = [];
@@ -720,19 +718,19 @@ export async function POST(
         if (trashed.length > 0) {
           await store.setSourceSkills(repo, source.skills.filter((n) => !trashed.includes(n)));
         }
-        return NextResponse.json({ ok: true, trashed, failed } satisfies SourceDeleteResponse);
+        return Response.json({ ok: true, trashed, failed } satisfies SourceDeleteResponse);
       }
 
       case 'sources/restore': {
         const name = typeof body.name === 'string' ? body.name.trim() : '';
         if (!name) {
-          return NextResponse.json({ error: 'name is required' }, { status: 400 });
+          return Response.json({ error: 'name is required' }, { status: 400 });
         }
         const res = await restoreTrashSkill(name);
         if (!res.ok) {
-          return NextResponse.json({ error: res.error ?? 'Restore failed' }, { status: 400 });
+          return Response.json({ error: res.error ?? 'Restore failed' }, { status: 400 });
         }
-        return NextResponse.json({ ok: true, name, path: res.path ?? '' } satisfies SourceRestoreResponse);
+        return Response.json({ ok: true, name, path: res.path ?? '' } satisfies SourceRestoreResponse);
       }
 
       case 'sources/trash/clear': {
@@ -750,15 +748,15 @@ export async function POST(
             failed.push({ name: entry.name, error: res.error ?? 'Failed to delete' });
           }
         }
-        return NextResponse.json({ ok: true, deleted, failed } satisfies SourceTrashClearResponse);
+        return Response.json({ ok: true, deleted, failed } satisfies SourceTrashClearResponse);
       }
 
       default:
-        return NextResponse.json({ error: `Not found: ${path}` }, { status: 404 });
+        return Response.json({ error: `Not found: ${path}` }, { status: 404 });
     }
   } catch (error) {
     console.error(`[api/skill-hub/${path} POST]`, error);
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: error instanceof StoreError ? 400 : 500 }
     );

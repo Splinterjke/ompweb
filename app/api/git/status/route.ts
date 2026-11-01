@@ -1,5 +1,4 @@
 import fs from "fs";
-import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
@@ -13,36 +12,36 @@ import { applyPerFileStats } from "@/lib/git-numstat";
 // single `git status` (single-flight) and serves repeats without spawning git.
 const STATUS_TTL_MS = 5000;
 
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const cwd = request.nextUrl.searchParams.get("cwd")?.trim() ?? "";
+    const cwd = new URL(request.url).searchParams.get("cwd")?.trim() ?? "";
     if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {
-      return NextResponse.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
+      return Response.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
     }
 
     const allowedRoots = await getAllowedFileRoots();
     if (!isFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
     let stat: fs.Stats;
     try {
       stat = fs.statSync(cwd);
     } catch {
-      return NextResponse.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
+      return Response.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
     }
     if (!stat.isDirectory()) {
-      return NextResponse.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
+      return Response.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
     }
     if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
     // Doc 16 route 10: in Rust mode the host owns local git (status parity
     // against the Node implementation is frozen by lib/git-parity.test.mjs);
     // the Node path exists only for the explicit OMPWEB_BACKEND=node rollback.
     // ?refresh=1 bypasses the cache (manual refresh / right after a commit).
-    const refresh = request.nextUrl.searchParams.get("refresh") === "1";
+    const refresh = new URL(request.url).searchParams.get("refresh") === "1";
     // Per-file +/- stats are augmented on top of whichever backend answered
     // (the frozen Node↔Rust parity shapes must not grow the fields) and
     // inside the cache window, so the extra `git diff --numstat` collapses
@@ -52,7 +51,7 @@ export async function GET(request: NextRequest) {
     const status = refresh
       ? await loadStatus()
       : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, loadStatus);
-    return NextResponse.json(status);
+    return Response.json(status);
   } catch (error) {
     // A non-repo is a normal situation, not a backend failure — recording
     // it would degrade the whole app for every non-git workspace.
@@ -60,6 +59,6 @@ export async function GET(request: NextRequest) {
       recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
     }
     const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_status_failed";
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
   }
 }

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { ensureSchedulerEngine, triggerManualRun } from "@/lib/scheduler-engine";
 import { isValidSchedulerId } from "@/lib/scheduler-store";
@@ -13,16 +12,16 @@ export async function POST(
 ) {
   const { id } = await params;
   if (!isValidSchedulerId(id)) {
-    return NextResponse.json({ error: "Scheduler not found", code: "scheduler_not_found" }, { status: 404 });
+    return Response.json({ error: "Scheduler not found", code: "scheduler_not_found" }, { status: 404 });
   }
   try {
     ensureSchedulerEngine();
     const result = triggerManualRun(id);
     if (!result.ok) {
       const status = result.error === "scheduler_not_found" ? 404 : 409;
-      return NextResponse.json({ error: result.error, code: result.error }, { status });
+      return Response.json({ error: result.error, code: result.error }, { status });
     }
-    return NextResponse.json({ started: true }, { status: 202 });
+    return Response.json({ started: true }, { status: 202 });
   } catch (error) {
     return apiErrorResponse(error);
   }

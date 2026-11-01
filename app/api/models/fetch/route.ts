@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +7,7 @@ export async function POST(req: Request) {
     let { baseUrl } = body;
 
     if (!baseUrl || typeof baseUrl !== "string") {
-      return NextResponse.json({ error: "Missing or invalid baseUrl" }, { status: 400 });
+      return Response.json({ error: "Missing or invalid baseUrl" }, { status: 400 });
     }
 
     // Normalize baseUrl: remove trailing slashes
@@ -58,7 +56,7 @@ export async function POST(req: Request) {
     }
 
     if (!rawData) {
-      return NextResponse.json({
+      return Response.json({
         error: `Failed to fetch models from ${baseUrl}. Please check baseUrl, apiKey, and network proxy.`,
       }, { status: 502 });
     }
@@ -101,7 +99,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       endpoint: successfulUrl,
       count: models.length,
@@ -109,6 +107,6 @@ export async function POST(req: Request) {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to fetch models";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

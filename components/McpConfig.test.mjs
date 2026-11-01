@@ -1,20 +1,13 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
-import { createJiti } from "jiti";
-
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
+import React from "react";
 const { act, cleanup, fireEvent, render, screen, waitFor } = await import("@testing-library/react/pure.js");
 
-// Port of upstream 8a7f22b2's McpConfig.test.mjs. Adaptations: this fork has
-// no @testing-library/user-event (clicks go through fireEvent + act), and the
-// mocked GET payload matches this fork's multi-workspace /api/mcp DTO.
-const jiti = createJiti(import.meta.url, { tsconfigPaths: true, fsCache: false, jsx: { runtime: "automatic" } });
-const { McpConfig } = await jiti.import("./McpConfig.tsx");
+// Port of upstream 8a7f22b2's McpConfig.test.mjs. Adaptations: clicks go
+// through fireEvent + act, and the mocked GET payload matches this fork's
+// multi-workspace /api/mcp DTO.
+const { McpConfig } = await import("./McpConfig.tsx");
 afterEach(cleanup);
 
 test("MCP switches persist the named action and reload without sending a model prompt", async (t) => {

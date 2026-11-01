@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
 import { getPairingService } from "@/lib/remote-pairing-store";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
-export const dynamic = "force-dynamic";
 
 /** Device roster. Doc 16 route 13: the Rust registry is the roster truth;
  *  config stays an HTTP-adapter concern (cookie name / publicUrl / ...). */
@@ -18,5 +16,5 @@ export async function GET() {
         lastActiveAt: device.lastActiveAt,
         online: service.isOnline(device),
       }));
-  return NextResponse.json({ devices, config: service.getConfig() });
+  return Response.json({ devices, config: service.getConfig() });
 }

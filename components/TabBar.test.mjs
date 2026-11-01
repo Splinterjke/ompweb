@@ -1,13 +1,7 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
-import { createJiti } from "jiti";
-
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
+import React from "react";
 const { cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
 
 // These tests exercise the roving-tabindex keyboard model of the tab strip:
@@ -15,11 +9,7 @@ const { cleanup, fireEvent, render, screen } = await import("@testing-library/re
 // (with wrap), Home/End jump to the ends, Enter/Space activate, and
 // Delete/Backspace close the focused tab.
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { TabBar } = await jiti.import("./TabBar.tsx");
+const { TabBar } = await import("./TabBar.tsx");
 
 beforeEach(() => {
   globalThis.CSS ??= { escape: (value) => value };

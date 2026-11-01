@@ -6,6 +6,7 @@ import { isUpdateDisabled } from "./update-policy";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const NPM_PACKAGE = "@Splinterjke/ompweb";
+const RELEASES_URL = "https://github.com/Splinterjke/ompweb/releases/latest";
 const CHECK_TTL_MS = 60 * 60 * 1000;
 
 // The registry check must honor the app's resolved proxy (warm-up in
@@ -26,6 +27,8 @@ export interface NpmUpdateStatus {
   currentVersion: string;
   availableVersion: string | null;
   updateAvailable: boolean;
+  /** "binary": the compiled release (scripts/build-binary.ts), which updates by download, not by a package manager. */
+  installMethod: "npm" | "bun" | "binary";
   /** True when OMP_WEB_DISABLE_AUTOUPDATE is set; the UI shows "updates disabled". */
   updatesDisabled?: boolean;
   updateCommand: string;
@@ -72,8 +75,11 @@ export const SERVER_STARTED_AT = Date.now();
 export async function checkNpmUpdate(force = false): Promise<NpmUpdateStatus> {
   const currentVersion = packageJson.version;
   const packageDir = process.env.OMP_WEB_PACKAGE_DIR ?? process.cwd();
-  const method = detectInstallMethod(packageDir);
-  const updateCommand = method === "bun" ? "bun add -g @Splinterjke/ompweb" : "npm install -g @Splinterjke/ompweb";
+  // Bun.isStandaloneExecutable exists only in the compiled release; under Node (tests,
+  // legacy tooling) there is no Bun global at all, so probe it through globalThis.
+  const standalone = (globalThis as unknown as { Bun?: { isStandaloneExecutable?: boolean } }).Bun?.isStandaloneExecutable === true;
+  const installMethod = standalone ? "binary" as const : detectInstallMethod(packageDir);
+  const updateCommand = installMethod === "binary" ? RELEASES_URL : installMethod === "bun" ? "bun add -g @Splinterjke/ompweb" : "npm install -g @Splinterjke/ompweb";
 
   // Opt-out: OMP_WEB_DISABLE_AUTOUPDATE skips the registry round-trip and
   // never reports an available update, even if a stale cache claims one.
@@ -82,6 +88,7 @@ export async function checkNpmUpdate(force = false): Promise<NpmUpdateStatus> {
       currentVersion,
       availableVersion: null,
       updateAvailable: false,
+      installMethod,
       updateCommand,
       updatesDisabled: true,
       startedAt: SERVER_STARTED_AT,
@@ -105,11 +112,12 @@ export async function checkNpmUpdate(force = false): Promise<NpmUpdateStatus> {
       ...base,
       availableVersion,
       updateAvailable: Boolean(availableVersion && isNewerVersion(availableVersion, currentVersion)),
+      installMethod,
     };
     cached = { checkedAt: Date.now(), status };
     return status;
   } catch {
-    return { ...base, availableVersion: null, updateAvailable: false, checkError: true };
+    return { ...base, installMethod, availableVersion: null, updateAvailable: false, checkError: true };
   }
 }
 

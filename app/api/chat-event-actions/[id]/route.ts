@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import {
@@ -13,8 +12,8 @@ import type { ActionSpec, ChatEventType } from "@/lib/chat-event-action-types";
 
 const MAX_REQUEST_BYTES = 8_192;
 
-function notFound(): NextResponse {
-  return NextResponse.json({ error: "Chat event action not found", code: "not_found" }, { status: 404 });
+function notFound(): Response {
+  return Response.json({ error: "Chat event action not found", code: "not_found" }, { status: 404 });
 }
 
 // GET /api/chat-event-actions/[id]  →  { action: ChatEventAction }
@@ -26,7 +25,7 @@ export async function GET(
   if (!isValidActionId(id)) return notFound();
   const action = getChatEventAction(id);
   if (!action) return notFound();
-  return NextResponse.json({ action });
+  return Response.json({ action });
 }
 
 // PATCH /api/chat-event-actions/[id]
@@ -55,12 +54,12 @@ export async function PATCH(
 
     const { file, action } = patchChatEventAction(id, patch);
     saveChatEventActionFile(file);
-    return NextResponse.json({ action });
+    return Response.json({ action });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError || error instanceof ChatEventActionStoreError) {
       const code = error instanceof ChatEventActionStoreError ? error.code : "request_too_large";
       if (code === "not_found") return notFound();
-      return NextResponse.json({ error: String(error), code }, { status: 400 });
+      return Response.json({ error: String(error), code }, { status: 400 });
     }
     return apiErrorResponse(error);
   }
@@ -75,7 +74,7 @@ export async function DELETE(
   if (!isValidActionId(id)) return notFound();
   try {
     saveChatEventActionFile(removeChatEventAction(id));
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     if (error instanceof ChatEventActionStoreError && error.code === "not_found") return notFound();
     return apiErrorResponse(error);

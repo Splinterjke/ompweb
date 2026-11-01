@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
 import { spawn } from "child_process";
 import { getPairingService } from "@/lib/remote-pairing-store";
 
-export const dynamic = "force-dynamic";
 
 const GLOBAL_KEY = "__ompWebTunnelChild__";
 
@@ -23,11 +21,11 @@ export async function POST(request: Request) {
   if (body.action === "stop") {
     g[GLOBAL_KEY]?.kill("SIGTERM");
     delete g[GLOBAL_KEY];
-    return NextResponse.json({ running: false });
+    return Response.json({ running: false });
   }
 
   if (g[GLOBAL_KEY]) {
-    return NextResponse.json({ error: "tunnel already running", code: "tunnel_running" }, { status: 409 });
+    return Response.json({ error: "tunnel already running", code: "tunnel_running" }, { status: 409 });
   }
 
   // The dev server runs on 30178, CLI start on 30177 and the desktop app on
@@ -75,14 +73,14 @@ export async function POST(request: Request) {
   if (!url) {
     child.kill("SIGTERM");
     delete g[GLOBAL_KEY];
-    return NextResponse.json(
+    return Response.json(
       { error: "cloudflared did not report a tunnel URL (is it installed?)", code: "tunnel_failed" },
       { status: 502 },
     );
   }
 
   if (config.publicUrl) {
-    return NextResponse.json({ url: config.publicUrl, manual: true });
+    return Response.json({ url: config.publicUrl, manual: true });
   }
-  return NextResponse.json({ url, manual: false });
+  return Response.json({ url, manual: false });
 }

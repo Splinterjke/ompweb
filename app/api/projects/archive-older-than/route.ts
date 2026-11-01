@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import {
   ARCHIVE_OLDER_THAN_BUCKET_MS,
   isArchiveOlderThanBucket,
@@ -35,7 +34,7 @@ export async function POST(req: Request) {
       olderThan?: unknown;
     };
     if (!isArchiveOlderThanBucket(body.olderThan)) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Unknown olderThan bucket", code: "invalid_older_than" },
         { status: 400 },
       );
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
       normalized = validateProjectPath(typeof body.path === "string" ? body.path : "");
     } catch (error) {
       if (error instanceof ProjectPathError) {
-        return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });
+        return Response.json({ error: error.message, code: error.code }, { status: 400 });
       }
       throw error;
     }
@@ -78,7 +77,7 @@ export async function POST(req: Request) {
       }
     }
     if (archived.length > 0) invalidateSessionListCache();
-    return NextResponse.json({ ok: true, archived, skipped });
+    return Response.json({ ok: true, archived, skipped });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { listMemoryBanks } from "@/lib/memory-reader";
 
@@ -8,7 +7,7 @@ import { listMemoryBanks } from "@/lib/memory-reader";
 // every live database with mode=ro and only counts whitelisted tables.
 export async function GET() {
   try {
-    return NextResponse.json({ banks: await listMemoryBanks() });
+    return Response.json({ banks: await listMemoryBanks() });
   } catch (error) {
     return apiErrorResponse(error);
   }

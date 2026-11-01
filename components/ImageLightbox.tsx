@@ -76,7 +76,6 @@ export function ClickableImage({ src, fullSrc, alt, ...imgProps }: ClickableImag
           }}
           aria-label={alt ? t("imagePreview.openWithAlt", { alt }) : t("imagePreview.open")}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={resolvedSrc} alt={alt ?? ""} loading="lazy" {...imgProps} />
         </button>
       </Tooltip>
@@ -260,7 +259,6 @@ function ImageLightbox({ src, alt, onClose }: { src: ClickableImageProps["src"];
             if (event.target === event.currentTarget) onClose();
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={alt}

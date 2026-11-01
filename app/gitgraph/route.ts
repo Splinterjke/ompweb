@@ -1,5 +1,4 @@
 import path from "path";
-import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { defaultGitGraphViewConfig, DEFAULT_LIGHT_PALETTE } from "@/lib/git-graph/default-config";
 import type * as GG from "@/vendor/vscode-git-graph/types";
@@ -12,9 +11,10 @@ import type * as GG from "@/vendor/vscode-git-graph/types";
 // plus the light-theme palette — the embedding page pushes the live theme
 // right after the iframe reports ready.
 //
-// The document is framed only by this same-origin app, so it needs its own
-// CSP/XFO headers; next.config.ts excludes this exact path from the global
-// rules (config headers would overwrite the route's and block the frame).
+// The document is framed only by this same-origin app, so it answers with its
+// own CSP/X-Frame-Options; finalizeResponse() preserves the framing policy of
+// any response that sets a CSP (server/http.ts), which is what keeps the
+// frame allowed here.
 
 const DEFAULT_GLOBAL_VIEW_STATE: Pick<GG.GitGraphViewGlobalState, "alwaysAcceptCheckoutCommit" | "issueLinkingConfig" | "pushTagSkipRemoteCheck"> = {
   alwaysAcceptCheckoutCommit: false,
@@ -63,8 +63,8 @@ function errorPage(message: string): Response {
   return new Response(html, { status: 400, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-export async function GET(request: NextRequest) {
-  const repo = request.nextUrl.searchParams.get("repo")?.trim() ?? "";
+export async function GET(request: Request) {
+  const repo = new URL(request.url).searchParams.get("repo")?.trim() ?? "";
   if (!repo || (!repo.startsWith("/") && !isWindowsAbsolutePath(repo))) {
     return errorPage("A valid <code>repo</code> query parameter (absolute path) is required.");
   }

@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { providerInitials, providerCollapsePrefs, toggleCollapsedProvider, selectionAfterConfigReload } = await jiti.import("./ModelsConfig.tsx");
+const { providerInitials, providerCollapsePrefs, toggleCollapsedProvider, selectionAfterConfigReload } = await import("./ModelsConfig.tsx");
 
 // Pure mirrors of the state transitions in ModelsConfig — the rename must
 // never produce duplicate provider keys (which would silently drop one

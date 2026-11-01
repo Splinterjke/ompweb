@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "@/lib/dynamic";
+import { useRouter, useSearchParams } from "@/lib/navigation";
 import { useGlobalKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSidebarHistory } from "@/hooks/useSidebarHistory";
 import { useNavigationHistory } from "@/hooks/useNavigationHistory";
@@ -63,6 +63,7 @@ import { openEventStream } from "@/lib/event-stream";
 import type { SettingsTab } from "./SettingsTabs";
 import { SETTINGS_CATEGORIES, getNormalizedActive } from "./SettingsTabs";
 import { SettingsConfig } from "./SettingsConfig";
+
 import { ArchiveBrowser } from "./ArchiveBrowser";
 import { GitGraphModal } from "./GitGraphModal";
 import { UpdateNoticeDialog } from "./UpdateNoticeDialog";
@@ -73,7 +74,6 @@ import { publishSessionsChanged } from "@/lib/session-change-bus";
 import { removeBootSkeleton } from "@/lib/boot-skeleton";
 // The settings shell is part of the app bundle so opening it does not fetch or compile a modal chunk. The file viewer remains on demand.
 const FileViewer = dynamic(() => import("./FileViewer").then((m) => m.FileViewer), {
-  ssr: false,
   loading: () => <PanelLoadingFallback />,
 });
 
@@ -155,9 +155,7 @@ function loadPersistedSettingsTab(): SettingsTab {
   }
   return "general";
 }
-const CommandPalette = dynamic(() => import("./CommandPalette").then((m) => m.CommandPalette), {
-  ssr: false,
-});
+const CommandPalette = dynamic(() => import("./CommandPalette").then((m) => m.CommandPalette));
 
 function PanelLoadingFallback() {
   const { t } = useI18n();
@@ -824,6 +822,7 @@ export function AppShell({ appName }: { appName: string }) {
       .catch(() => {});
     return () => controller.abort();
   }, []);
+
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const topBarRef = useRef<HTMLDivElement>(null);
   // Mobile top-bar slot the session information ring portals into (ChatInput
@@ -1356,7 +1355,7 @@ export function AppShell({ appName }: { appName: string }) {
     setSystemPrompt(null);
     setSystemPromptLoading(false);
     setActiveTopPanel(null);
-    router.replace("/", { scroll: false });
+    router.replace("/");
   }, [router, selectedSession, armCwdSuppression]);
 
   // Client-built transient SessionInfo (new session / fork) lacks the
@@ -1395,10 +1394,9 @@ export function AppShell({ appName }: { appName: string }) {
     // same-project check in handleCwdChange relies on — hydrate it so the
     // comparison cannot misfire and close the chat we just opened.
     hydrateSelectedSession(session.id);
-    // Skip router.replace when restoring from URL — the param is already correct
-    // and calling replace in production Next.js triggers a Suspense remount loop
+    // Skip router.replace when restoring from the URL: the param is already correct.
     if (!isRestore) {
-      router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
+      router.replace(`?session=${encodeURIComponent(session.id)}`);
     }
   }, [router, isMobile, hydrateSelectedSession, armCwdSuppression]);
 
@@ -1447,7 +1445,7 @@ export function AppShell({ appName }: { appName: string }) {
       setSidebarOpen(false);
       requestAnimationFrame(() => chatInputRef.current?.focus());
     }
-    router.replace("/", { scroll: false });
+    router.replace("/");
   }, [router, isMobile]);
 
   // ---- In-app Navigate back / forward over visited chat views ----
@@ -1561,7 +1559,7 @@ export function AppShell({ appName }: { appName: string }) {
     setSelectedSession(session);
     setRefreshKey((k) => k + 1);
     hydrateSelectedSession(session.id);
-    router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
+    router.replace(`?session=${encodeURIComponent(session.id)}`);
   }, [router, hydrateSelectedSession]);
 
   const handleSessionMoved = useCallback((oldId: string, newId: string) => {
@@ -1572,7 +1570,7 @@ export function AppShell({ appName }: { appName: string }) {
     hydrateSelectedSession(newId);
     // This is the same conversation. Preserve ChatWindow's run/edit fences
     // and its mounted composer, including unfinished attachments and audio.
-    router.replace(`?session=${encodeURIComponent(newId)}`, { scroll: false });
+    router.replace(`?session=${encodeURIComponent(newId)}`);
   }, [router, hydrateSelectedSession]);
 
   const handleAgentEnd = useCallback(() => {
@@ -1702,7 +1700,7 @@ export function AppShell({ appName }: { appName: string }) {
       id: newSessionId,
     }));
     hydrateSelectedSession(newSessionId);
-    router.replace(`?session=${encodeURIComponent(newSessionId)}`, { scroll: false });
+    router.replace(`?session=${encodeURIComponent(newSessionId)}`);
   }, [router, hydrateSelectedSession]);
 
   const handleInitialRestoreDone = useCallback(() => {
@@ -1720,7 +1718,7 @@ export function AppShell({ appName }: { appName: string }) {
       setBranchActiveLeafId(null);
       setSystemPrompt(null);
       setActiveTopPanel(null);
-      router.replace("/", { scroll: false });
+      router.replace("/");
     }
   }, [selectedSession, router]);
   const handleArchiveRestored = useCallback(async (sessionId: string) => {
@@ -1746,7 +1744,7 @@ export function AppShell({ appName }: { appName: string }) {
       if (attemptsLeft > 0) {
         setTimeout(() => void selectRestoredSession(attemptsLeft - 1), 300);
       } else {
-        router.replace(`?session=${encodeURIComponent(sessionId)}`, { scroll: false });
+        router.replace(`?session=${encodeURIComponent(sessionId)}`);
       }
     };
 

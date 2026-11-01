@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import {
   queryMemoryBank,
@@ -25,7 +24,7 @@ export async function GET(
     ? tableParam
     : null;
   if (!table) {
-    return NextResponse.json(
+    return Response.json(
       { error: "Unknown memory table", code: "unknown_table" },
       { status: 400 },
     );
@@ -34,10 +33,10 @@ export async function GET(
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(url.searchParams.get("limit")) || DEFAULT_LIMIT));
   const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
   try {
-    return NextResponse.json(await queryMemoryBank(bank, { table, q, limit, offset }));
+    return Response.json(await queryMemoryBank(bank, { table, q, limit, offset }));
   } catch (error) {
     if (error instanceof UnknownMemoryBankError) {
-      return NextResponse.json({ error: error.message, code: error.code }, { status: 404 });
+      return Response.json({ error: error.message, code: error.code }, { status: 404 });
     }
     return apiErrorResponse(error);
   }

@@ -1,34 +1,23 @@
-"use client";
-
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+// The /remote pairing landing page: opened on a phone from the pairing QR /
+// link, it accepts the pairing token and reports the result. Routed by
+// app/client.tsx on the URL pathname; the server serves the SPA shell for
+// /remote without a session (proxy.ts keeps the pairing flow public).
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, LoaderCircle, Smartphone, XCircle } from "lucide-react";
-import { translateForLocale, useI18n } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { removeBootSkeleton } from "@/lib/boot-skeleton";
 
 type PairState = "pairing" | "paired" | "failed" | "network-error";
 
-function RemotePairContent() {
-  const searchParams = useSearchParams();
+export function RemotePairPage() {
   const { t } = useI18n();
   const [state, setState] = useState<PairState>("pairing");
   const [deviceName, setDeviceName] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
   const started = useRef(false);
-
-  // The document's language preference is restored before React hydrates,
-  // while server rendering always starts in English. Keep the first client
-  // render aligned with that server snapshot, then switch to the preferred
-  // locale after mount without rebuilding the route for a text mismatch.
-  const pairText = useCallback(
-    (key: string, vars?: Record<string, string>) =>
-      hydrated ? t(key, vars) : translateForLocale("en", key, vars),
-    [hydrated, t],
-  );
 
   const attemptPair = useCallback(() => {
     setState("pairing");
-    const token = searchParams.get("token");
+    const token = new URLSearchParams(location.search).get("token");
     const isMobile = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
     void fetch("/api/pair/accept", {
       method: "POST",
@@ -45,19 +34,18 @@ function RemotePairContent() {
         setState("paired");
       })
       .catch(() => setState("network-error"));
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
-    // This route renders without AppShell, so the pre-hydration boot
-    // skeleton (app/layout.tsx) would cover the pairing page forever.
+    // /remote renders without AppShell, so the pre-paint boot skeleton the
+    // server stamps into the shell would cover the pairing page forever.
     removeBootSkeleton();
-    setHydrated(true);
     if (started.current) return;
     started.current = true;
     attemptPair();
   }, [attemptPair]);
 
-  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const base = location.origin;
 
   return (
     <main
@@ -76,25 +64,25 @@ function RemotePairContent() {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Smartphone size={28} strokeWidth={1.8} style={{ color: "var(--accent)" }} aria-hidden="true" />
-        <span style={{ fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{pairText("remote.pairingTitle")}</span>
+        <span style={{ fontSize: "calc(18px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("remote.pairingTitle")}</span>
       </div>
 
       {state === "pairing" && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))" }}>
           <LoaderCircle size={18} className="icon-spin" aria-hidden="true" />
-          {pairText("remote.pairingInProgress")}
+          {t("remote.pairingInProgress")}
         </div>
       )}
 
       {state === "paired" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <CheckCircle2 size={40} strokeWidth={1.6} style={{ color: "var(--status-ok, #2e9e5b)" }} aria-hidden="true" />
-          <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 500 }}>{pairText("remote.pairedSuccess", { device: deviceName ?? "?" })}</span>
+          <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", fontWeight: 500 }}>{t("remote.pairedSuccess", { device: deviceName ?? "?" })}</span>
           <a
             href={base}
             style={{ padding: "10px 18px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", textDecoration: "none", fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}
           >
-            {pairText("remote.openApp")}
+            {t("remote.openApp")}
           </a>
         </div>
       )}
@@ -102,26 +90,18 @@ function RemotePairContent() {
       {(state === "failed" || state === "network-error") && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <XCircle size={40} strokeWidth={1.6} style={{ color: "var(--status-error)" }} aria-hidden="true" />
-          <span style={{ fontSize: "calc(14px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5 }}>
-            {state === "network-error" ? pairText("remote.networkError") : pairText("remote.pairingFailed")}
+          <span style={{ fontSize: "calc(15px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)", textAlign: "center", lineHeight: 1.5 }}>
+            {state === "network-error" ? t("remote.networkError") : t("remote.pairingFailed")}
           </span>
           <button
             type="button"
             onClick={attemptPair}
             style={{ padding: "9px 16px", borderRadius: "var(--radius-control)", border: "1px solid var(--border)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer", fontSize: "calc(13px * var(--ui-font-scale-lg, 1))" }}
           >
-            {pairText("remote.retry")}
+            {t("remote.retry")}
           </button>
         </div>
       )}
     </main>
-  );
-}
-
-export default function RemotePairPage() {
-  return (
-    <Suspense>
-      <RemotePairContent />
-    </Suspense>
   );
 }

@@ -2,27 +2,17 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
 import { readFile } from "node:fs/promises";
-
-// React ships `act` only in its development build; force NODE_ENV before any
-// React module loads so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
+import React from "react";
 const { act, cleanup, fireEvent, render } = await import("@testing-library/react/pure.js");
-const { renderToStaticMarkup } = await import("react-dom/server");
-const { createJiti } = await import("jiti");
+import { renderToStaticMarkup } from "react-dom/server";
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
 const messageViewSource = await readFile(new URL("./MessageView.tsx", import.meta.url), "utf8");
-const { MessageView, SafeMarkdownBody, isInterruptedMessage } = await jiti.import("./MessageView.tsx");
-const { CodeBlock } = await jiti.import("./MermaidBlock.tsx");
-const { AgentLinkContext } = await jiti.import("../lib/agent-links.ts");
-const { buildSessionContext } = await jiti.import("../lib/session-reader.ts");
-const { collectToolResults } = await jiti.import("../lib/passive-tool-context.ts");
-const { planTurnSegments } = await jiti.import("../lib/chat-segments.ts");
+const { MessageView, SafeMarkdownBody, isInterruptedMessage } = await import("./MessageView.tsx");
+const { CodeBlock } = await import("./MermaidBlock.tsx");
+const { AgentLinkContext } = await import("../lib/agent-links.ts");
+const { buildSessionContext } = await import("../lib/session-reader.ts");
+const { collectToolResults } = await import("../lib/passive-tool-context.ts");
+const { planTurnSegments } = await import("../lib/chat-segments.ts");
 afterEach(cleanup);
 
 test("large message content avoids the markdown pipeline until requested", () => {

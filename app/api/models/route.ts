@@ -4,8 +4,6 @@ import { disposeUtilityRpc, runUtilityCommand, type OmpModel } from "@/lib/omp/r
 import { getModelsConfigPath } from "@/lib/omp/paths";
 import { readDisabledProviders } from "@/lib/omp/model-roles";
 
-export const dynamic = "force-dynamic";
-
 // The omp model registry (auth + models.yml) is global, not per-cwd, so one
 // cache entry serves every request. The ?cwd= query parameter is still
 // accepted for client compatibility but no longer affects the result.

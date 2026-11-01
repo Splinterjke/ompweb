@@ -1,21 +1,11 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { after, afterEach } from "node:test";
+import React from "react";
+const { act, cleanup, render, screen } = await import("@testing-library/react");
 
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
-const { act, cleanup, render, screen } = await import("@testing-library/react/pure.js");
-const { createJiti } = await import("jiti");
-
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { ChatInput } = await jiti.import("./ChatInput.tsx");
-const { MAX_ATTACHED_IMAGE_BYTES } = await jiti.import("@/lib/image-attachments");
+const { ChatInput } = await import("./ChatInput.tsx");
+const { MAX_ATTACHED_IMAGE_BYTES } = await import("@/lib/image-attachments");
 
 // jsdom implements neither object URLs nor the async Clipboard API, so both are
 // modeled here. The object-URL stub records the composer/blob lifetime the way

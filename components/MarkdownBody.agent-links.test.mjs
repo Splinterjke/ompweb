@@ -2,14 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { MarkdownBody } = await jiti.import("./MarkdownBody.tsx");
-const { AgentLinkContext, agentLinkIds, agentLinkTarget } = await jiti.import("../lib/agent-links.ts");
+const { MarkdownBody } = await import("./MarkdownBody.tsx");
+const { AgentLinkContext, agentLinkIds, agentLinkTarget } = await import("../lib/agent-links.ts");
 
 function renderWithAgentLinks(markdown) {
   return renderToStaticMarkup(

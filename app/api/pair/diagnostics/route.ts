@@ -1,9 +1,7 @@
 import { execFile } from "child_process";
 import { networkInterfaces } from "os";
-import { NextResponse } from "next/server";
 import { isRemoteRequest } from "@/lib/remote-pairing";
 
-export const dynamic = "force-dynamic";
 
 const LOOPBACK_RE = /^127\.|^::1$|^\[::1\]$/;
 const VIRTUAL_IFACE_RE = /vEthernet|VirtualBox|VMware|vboxnet|tap\d|tun\d|docker|tailscale|zerotier|virbr/i;
@@ -43,7 +41,7 @@ function firewallRuleExists(port: string): Promise<boolean> {
 export async function GET(request: Request) {
   const host = request.headers.get("host") ?? "";
   if (isRemoteRequest(host)) {
-    return NextResponse.json({ error: "diagnostics are loopback-only", code: "loopback_only" }, { status: 403 });
+    return Response.json({ error: "diagnostics are loopback-only", code: "loopback_only" }, { status: 403 });
   }
 
   // The launcher injects OMP_WEB_PORT (bin/omp-web.js); next dev/start get
@@ -58,7 +56,7 @@ export async function GET(request: Request) {
   const physicalAddresses = lanAddresses.filter(({ name }) => !VIRTUAL_IFACE_RE.test(name));
   const firewallRule = process.platform === "win32" ? await firewallRuleExists(port) : null;
 
-  return NextResponse.json({
+  return Response.json({
     port,
     hostname,
     serverListening: true, // this handler only runs when the server is up

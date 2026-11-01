@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { clearExitedRpcSession, getExitedRpcSession, getRpcSession } from "@/lib/rpc-manager";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
 import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
@@ -36,11 +35,11 @@ export async function GET(
         const idle = !state?.isStreaming && !state?.isPromptRunning && !state?.isBashRunning && !state?.isCompacting;
         if (idle) {
           const externallyHeld = heldSessionsWithLivePendingTurn().includes(id);
-          return NextResponse.json(externallyHeld
+          return Response.json(externallyHeld
             ? { running: true, external: true, state: null }
             : { running: true, external: false, state });
         }
-        return NextResponse.json({ running: true, state });
+        return Response.json({ running: true, state });
       } catch {
         // RPC unavailable (e.g. the external CLI took over the session) —
         // fall through to file-based mode below.
@@ -62,9 +61,9 @@ export async function GET(
         heldSessionsWithLivePendingTurn().includes(id);
       if (externallyActive) {
         clearExitedRpcSession(id);
-        return NextResponse.json({ running: true, external: true, state: null });
+        return Response.json({ running: true, external: true, state: null });
       }
-      return NextResponse.json({ running: false, exited });
+      return Response.json({ running: false, exited });
     }
 
     const resolved = await resolveSessionHostOr404(id);
@@ -73,7 +72,7 @@ export async function GET(
     // or its activity log, so ask that host's own state probe instead.
     if (resolved.host?.id !== LOCAL_HOST_ID) {
       const result = await resolved.host.sessionOps.readSessionState(id);
-      return result.ok ? NextResponse.json(result.value) : opErrorResponse(result);
+      return result.ok ? Response.json(result.value) : opErrorResponse(result);
     }
     // File activity alone lapses after EXTERNAL_ACTIVITY_WINDOW_MS of silence,
     // but a live external holder goes quiet while the model thinks or a long
@@ -84,7 +83,7 @@ export async function GET(
     const externallyActive =
       (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
       heldSessionsWithLivePendingTurn().includes(id);
-    return NextResponse.json({
+    return Response.json({
       running: externallyActive,
       external: externallyActive,
       state: null,

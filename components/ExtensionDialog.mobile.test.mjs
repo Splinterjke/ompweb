@@ -2,19 +2,12 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import { readFile } from "node:fs/promises";
-
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
-const { renderToStaticMarkup } = await import("react-dom/server");
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 const { act, cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
-const { createJiti } = await import("jiti");
 
-const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
-const { ExtensionDialog, shouldDeferAttachedFocus } = await jiti.import("./ExtensionDialog.tsx");
-const { MOBILE_QUERY } = await jiti.import("@/hooks/useIsMobile");
+const { ExtensionDialog, shouldDeferAttachedFocus } = await import("./ExtensionDialog.tsx");
+const { MOBILE_QUERY } = await import("@/hooks/useIsMobile");
 const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
 const OPTIONS = [

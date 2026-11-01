@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
 import { getPairingService } from "@/lib/remote-pairing-store";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { syncPairingMirror } from "@/lib/remote-pairing-mirror";
 
-export const dynamic = "force-dynamic";
 
 /**
  * Exchange a one-time token for a paired-device cookie. The device is
@@ -19,10 +17,10 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "invalid body", code: "invalid_body" }, { status: 400 });
+    return Response.json({ error: "invalid body", code: "invalid_body" }, { status: 400 });
   }
   if (typeof body.token !== "string" || !body.token) {
-    return NextResponse.json({ error: "token is required", code: "token_required" }, { status: 400 });
+    return Response.json({ error: "token is required", code: "token_required" }, { status: 400 });
   }
   const service = getPairingService();
   const userAgent = request.headers.get("user-agent") ?? "";
@@ -35,27 +33,26 @@ export async function POST(request: Request) {
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
       if (code === "invalid_or_expired_token") {
-        return NextResponse.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
+        return Response.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
       }
       throw error;
     }
   } else {
     device = service.accept(body.token, userAgent, body.mobile === true);
     if (!device) {
-      return NextResponse.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
+      return Response.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
     }
   }
-  const response = NextResponse.json({ device }, { status: 201 });
   // Preserve LAN HTTP pairing while preventing a paired-device credential
   // from ever being replayed over plaintext when the configured remote URL
   // is HTTPS (for example a Cloudflare Tunnel or reverse proxy).
   const secure = new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
-  response.cookies.set(service.getConfig().cookieName, device.id, {
+  const cookie = new Bun.Cookie(service.getConfig().cookieName, device.id, {
     httpOnly: true,
     secure,
     sameSite: "lax",
     path: "/",
     maxAge: 365 * 24 * 60 * 60,
   });
-  return response;
+  return Response.json({ device }, { status: 201, headers: { "set-cookie": cookie.serialize() } });
 }

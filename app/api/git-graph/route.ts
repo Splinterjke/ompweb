@@ -17,7 +17,6 @@
 //   is omitted; the read-cache invalidator plays the watcher's role for the
 //   rest of the app.
 import fs from "fs";
-import { NextRequest, NextResponse } from "next/server";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { invalidateGitReadCache } from "@/lib/git-cache";
 import { getDataSource } from "@/lib/git-graph/engine";
@@ -27,7 +26,6 @@ import { UNABLE_TO_FIND_GIT_MSG, UNCOMMITTED } from "@/lib/git-graph/shims";
 import { BooleanOverride, FileViewType, GitConfigLocation, RepoCommitOrdering } from "@/vendor/vscode-git-graph/types";
 import type { ErrorInfo, GitRepoState, RequestMessage } from "@/vendor/vscode-git-graph/types";
 
-export const dynamic = "force-dynamic";
 
 /** Default per-command budget; network-touching commands get NETWORK_TIMEOUT_MS. */
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -169,25 +167,25 @@ function nonEngineResponse(msg: RequestMessage): Record<string, unknown> {
 }
 
 /** Copy of the status-route allow-list gate, applied to the repo path. */
-async function validateRepoAccess(repo: string): Promise<NextResponse | null> {
+async function validateRepoAccess(repo: string): Promise<Response | null> {
   if (!repo || (!repo.startsWith("/") && !isWindowsAbsolutePath(repo))) {
-    return NextResponse.json({ error: "repo must be an absolute path", code: "repo_must_be_absolute" }, { status: 400 });
+    return Response.json({ error: "repo must be an absolute path", code: "repo_must_be_absolute" }, { status: 400 });
   }
   const allowedRoots = await getAllowedFileRoots();
   if (!isFilePathAllowed(repo, allowedRoots)) {
-    return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+    return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
   }
   let stat: fs.Stats;
   try {
     stat = fs.statSync(repo);
   } catch {
-    return NextResponse.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
+    return Response.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
   }
   if (!stat.isDirectory()) {
-    return NextResponse.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
+    return Response.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
   }
   if (!isExistingFilePathAllowed(repo, allowedRoots)) {
-    return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+    return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
   }
   return null;
 }
@@ -398,22 +396,22 @@ async function respondToMessage(msg: RequestMessage, ds: DataSource): Promise<Re
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   let msg: RequestMessage;
   try {
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null || !("command" in body) || typeof body.command !== "string") {
-      return NextResponse.json({ error: "command is required", code: "command_required" }, { status: 400 });
+      return Response.json({ error: "command is required", code: "command_required" }, { status: 400 });
     }
     msg = body as RequestMessage;
   } catch {
-    return NextResponse.json({ error: "invalid JSON body", code: "invalid_body" }, { status: 400 });
+    return Response.json({ error: "invalid JSON body", code: "invalid_body" }, { status: 400 });
   }
 
   // Bridge-handled, VS Code-only and unknown commands: answer without the
   // engine. These perform no repository I/O, so no allow-list check needed.
   if (!ENGINE_COMMANDS[msg.command]) {
-    return NextResponse.json(nonEngineResponse(msg));
+    return Response.json(nonEngineResponse(msg));
   }
 
   // Repository gate (mirrors app/api/git/status/route.ts) for every
@@ -437,7 +435,7 @@ export async function POST(request: NextRequest) {
   // the upstream check/no-change branches collapse into a direct respond.
   if (msg.command === "loadRepos") {
     const repos = ds !== null && bootRepo !== null ? { [bootRepo]: { ...DEFAULT_REPO_STATE } } : {};
-    return NextResponse.json({
+    return Response.json({
       command: "loadRepos",
       repos,
       lastActiveRepo: ds !== null && bootRepo !== null ? bootRepo : null,
@@ -447,7 +445,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (ds === null) {
-    return NextResponse.json({ command: msg.command, error: UNABLE_TO_FIND_GIT_MSG });
+    return Response.json({ command: msg.command, error: UNABLE_TO_FIND_GIT_MSG });
   }
 
   // Run the dispatcher, racing the per-command timeout. On a timeout the
@@ -474,7 +472,7 @@ export async function POST(request: NextRequest) {
   clearTimeout(timer);
 
   if (raced === null) {
-    return NextResponse.json({ command: msg.command, error: "Git command timed out" });
+    return Response.json({ command: msg.command, error: "Git command timed out" });
   }
-  return NextResponse.json(raced);
+  return Response.json(raced);
 }

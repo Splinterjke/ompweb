@@ -9,6 +9,9 @@ if (!isRuntimeSupported()) {
   process.exit(1);
 }
 
+// `ompweb hash-password` reads the password on stdin and prints the value for
+// OMP_WEB_PASSWORD_HASH. Handled first so it works with no build artifacts, no
+// port, and no agent directory.
 if (process.argv[2] === "hash-password" || process.argv[2] === "hash_password") {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { runHashPasswordCommand } = require("./omp-web-hash-password");
@@ -30,272 +33,528 @@ if (process.argv[2] === "host") {
   require("./omp-web-host.js");
   return;
 }
-
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { spawn } = require("child_process");
+const { spawn } = require("node:child_process");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const path = require("path");
+const path = require("node:path");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const fs = require("fs");
+const fs = require("node:fs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { parseLaunchOptions } = require("./omp-web-options");
+const crypto = require("node:crypto");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { checkLaunchSecurity, parseLaunchOptions } = require("./omp-web-options");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { isPortAvailable } = require("./port-availability");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { wireChildProcessLifecycle } = require("./process-lifecycle");
+const { terminateChildProcess, wireChildProcessLifecycle } = require("./process-lifecycle");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { getAccessibleAddresses, getBrowserUrl, formatAddressBanner, isLoopbackHost } = require("./network-addresses");
+const { getAccessibleAddresses, getBrowserUrl, formatAddressBanner, openInBrowser } = require("./network-addresses");
+// module.require: bin/ files add no new eslint-disable comments (see bin/bun-runtime.js).
+const { resolveBunBinary } = module.require("./bun-runtime");
 
-const pkgDir = path.join(__dirname, "..");
-const nextDir = path.join(pkgDir, ".next");
+const UPDATE_PROTOCOL = 1;
+const UPDATE_MESSAGE = "ompweb:update-control";
+const UPDATE_ACK = "ompweb:update-control-ack";
+const RESTART_ACK_RETRIES = 3;
+const RESTART_ACK_RETRY_MS = 100;
+const RESTART_GATE_START = "ompweb:restart-gate-start";
 
-// Resolve next's CLI entry directly to avoid relying on .bin symlinks (which
-// may not exist when installed via npx).
-let nextBin;
-try {
-  nextBin = require.resolve("next/dist/bin/next", { paths: [pkgDir] });
-} catch {
-  // Fallback: locate next package root and derive the bin path manually.
-  try {
-    const nextPkg = require.resolve("next/package.json", { paths: [pkgDir] });
-    nextBin = path.join(path.dirname(nextPkg), "dist", "bin", "next");
-  } catch {
-    nextBin = path.join(pkgDir, "node_modules", "next", "dist", "bin", "next");
-  }
-}
-
-let pkgVersion = "0.0.0";
-try {
+function runRestartGate(startMessageType) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pkg = require("../package.json");
-  pkgVersion = pkg.version ?? "0.0.0";
-} catch { /* ignore */ }
+  const { spawn: spawnChild } = require("node:child_process");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const os = require("node:os");
+  let child;
+  let forceTimer;
+  let finished = false;
+  let stopping = false;
+
+  const exitCode = (code, signal) => {
+    const signalNumber = signal ? os.constants.signals[signal] : undefined;
+    return code ?? (typeof signalNumber === "number" ? 128 + signalNumber : 1);
+  };
+  const finish = (code, signal) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(forceTimer);
+    process.exitCode = exitCode(code, signal);
+    if (process.connected) process.disconnect();
+  };
+  const killTree = (signal) => {
+    if (!child) return finish(undefined, signal);
+    if (process.platform === "win32") {
+      const reaper = spawnChild("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+      const fallback = () => {
+        try { child.kill(signal); } catch {}
+      };
+      reaper.once("error", fallback);
+      reaper.once("exit", (code) => {
+        if (code !== 0) fallback();
+      });
+      reaper.unref();
+      return;
+    }
+    try { process.kill(-process.pid, signal); }
+    catch {
+      try { child.kill(signal); } catch {}
+    }
+  };
+  const stop = (signal = "SIGTERM") => {
+    if (finished || stopping) return;
+    stopping = true;
+    if (!child) return finish(undefined, signal);
+    killTree(signal);
+    forceTimer = setTimeout(() => killTree("SIGKILL"), 4_000);
+    forceTimer.unref();
+  };
+
+  process.on("SIGINT", () => stop("SIGINT"));
+  process.on("SIGTERM", () => stop("SIGTERM"));
+  process.once("disconnect", () => stop());
+  process.on("message", (message) => {
+    if (!child) {
+      if (message?.type !== startMessageType || !Array.isArray(message.args) || message.args.length === 0) return;
+      child = spawnChild(message.args[0], message.args.slice(1), {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: ["inherit", "pipe", "inherit", "ipc"],
+      });
+      child.stdout.pipe(process.stdout, { end: false });
+      child.on("message", (childMessage) => {
+        if (!process.connected) return;
+        try { process.send(childMessage, () => {}); } catch {}
+      });
+      child.once("error", () => finish(1));
+      child.once("close", finish);
+      return;
+    }
+    if (!child.connected) return;
+    try { child.send(message, () => {}); } catch {}
+  });
+}
+const pkgDir = path.join(__dirname, "..");
 
 const launchOptions = parseLaunchOptions();
 if (launchOptions.help || launchOptions.version) {
   process.exit(0);
 }
+if (launchOptions.error) {
+  console.error(launchOptions.error);
+  process.exit(2);
+}
+
 const port = launchOptions.port;
 const hostname = launchOptions.hostname;
 const openBrowser = launchOptions.openBrowser;
-let passwordHash = launchOptions.passwordHash;
-if (launchOptions.legacyPasswordSource === "env" && !passwordHash) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { hashPassword } = require("./omp-web-password-hash");
-  passwordHash = hashPassword(process.env.OMP_WEB_PASSWORD);
-  process.env.OMP_WEB_PASSWORD_HASH = passwordHash;
-  delete process.env.OMP_WEB_PASSWORD;
-  console.warn([
-    "Warning: OMP_WEB_PASSWORD holds a plaintext password. This option has been deprecated and is marked for removal.",
-    "",
-    "Every omp session inherits omp-web's environment, so an agent could print",
-    "the password into its transcript. ompweb hashed it and kept it out of the",
-    "server's environment, but agents can still read it from this launcher",
-    "process, and a new hash is made on every start, which signs every browser",
-    "out on each restart.",
-    "",
-    "Remove OMP_WEB_PASSWORD and set this instead:",
-    "",
-    `  OMP_WEB_PASSWORD_HASH='${passwordHash}'`,
-  ].join("\n"));
-} else if (launchOptions.legacyPasswordSource === "env") {
-  console.error("OMP_WEB_PASSWORD_HASH and the plaintext OMP_WEB_PASSWORD are both set. Remove OMP_WEB_PASSWORD.");
-  process.exit(1);
-} else if (launchOptions.legacyPassword !== undefined) {
-  console.error([
-    "ompweb no longer accepts a plaintext password: the --password flag was removed.",
-    "Every omp session inherits this process's environment, so an agent could",
-    "print the password into its transcript.",
-    "",
-    "Create a hash and use that instead:",
-    "",
-    "  ompweb hash-password",
-    "  OMP_WEB_PASSWORD_HASH='scrypt$...' ompweb",
-  ].join("\n"));
-  process.exit(1);
-}
-if (passwordHash !== undefined) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { isPasswordHash } = require("./omp-web-password-hash");
-  if (!isPasswordHash(passwordHash)) {
-    console.error(`OMP_WEB_PASSWORD_HASH is not a valid password hash.\n\nGenerate one with: ompweb hash-password`);
-    process.exit(1);
-  }
-}
-const passwordEnabled = passwordHash !== undefined;
-if (!fs.existsSync(nextDir)) {
-  console.error("Build artifacts not found. Please report this issue.");
-  process.exit(1);
-}
+const passwordEnabled = checkLaunchSecurity(launchOptions) !== undefined;
 
-if (!isLoopbackHost(hostname)) {
-  if (!passwordEnabled) {
-    console.error(`Refusing to listen on ${hostname} without a password hash. Run: ompweb hash-password, then set OMP_WEB_PASSWORD_HASH. Or bind to 127.0.0.1.`);
-    process.exit(1);
-  }
-  console.warn(`Warning: ompweb is listening on ${hostname} over HTTP. Use HTTPS or a trusted VPN to protect the password and session cookie in transit.`);
+// Resolved at every spawn, so a restart after an update finds the updated Bun.
+function serverCommand() {
+  return [resolveBunBinary(pkgDir), path.join(pkgDir, "server", "main.ts"), "-p", String(port), "-H", String(hostname)];
 }
-
-const nextArgs = ["start", "-p", port];
-nextArgs.push("-H", hostname);
-
-// Always run next's JS entry with node directly — avoids .bin symlink issues
-// and path-with-spaces problems on Windows when shell: true is used.
+const restartDescriptor = JSON.stringify({
+  launcherPath: path.join(pkgDir, "bin", "omp-web.js"),
+  hostname: String(hostname),
+  port: String(port),
+});
 const browserUrl = getBrowserUrl(hostname, port);
+let browserOpened = false;
+let currentChild = null;
+let currentGeneration = 0;
+let updateControl = null;
+let waitingForRestart = false;
 
-/** Quick health probe: true when the port answers as a healthy ompweb. */
-async function probeOmpWeb(probePort) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const http = require("http");
-  return new Promise((resolve) => {
-    const req = http.get({ host: "127.0.0.1", port: probePort, path: "/api/health", timeout: 1500 }, (res) => {
-      let body = "";
-      res.on("data", (c) => { body += c; if (body.length > 500) req.destroy(); });
-      res.on("end", () => {
-        try {
-          const parsed = JSON.parse(body);
-          resolve(parsed && parsed.ok === true);
-        } catch { resolve(false); }
-      });
-      res.on("error", () => resolve(false));
-    });
-    req.on("timeout", () => { req.destroy(); resolve(false); });
-    req.on("error", () => resolve(false));
+function updatePath(control, suffix) {
+  return path.join(control.root, `${control.attemptId}.${suffix}`);
+}
+
+function ownedByCurrentUser(info) {
+  return process.platform === "win32" || typeof process.getuid !== "function" || info.uid === process.getuid();
+}
+
+function secureDirectory(directory) {
+  const info = fs.lstatSync(directory);
+  if (!info.isDirectory() || info.isSymbolicLink() || !ownedByCurrentUser(info)) throw new Error("unsafe update control directory");
+  return info;
+}
+
+function secureRegularFile(file) {
+  let info;
+  try { info = fs.lstatSync(file); }
+  catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+  if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || !ownedByCurrentUser(info)) {
+    throw new Error("unsafe update control file");
+  }
+  return info;
+}
+
+function atomicWrite(file, value) {
+  secureDirectory(path.dirname(file));
+  secureRegularFile(file);
+  const temporary = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  fs.writeFileSync(temporary, value, { encoding: "utf8", mode: 0o600, flag: "wx" });
+  try {
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    fs.rmSync(temporary, { force: true });
+    throw error;
+  }
+}
+
+function readControlJson(file) {
+  if (!secureRegularFile(file)) return null;
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch { return null; }
+}
+
+function removeSecureFile(file) {
+  if (!secureRegularFile(file)) return true;
+  fs.rmSync(file);
+  return true;
+}
+
+function readPackageVersion() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8")).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function isExternalControlRoot(root) {
+  if (typeof root !== "string" || !path.isAbsolute(root)) return false;
+  try {
+    const packageRoot = fs.realpathSync(pkgDir);
+    const controlRoot = fs.realpathSync(root);
+    secureDirectory(controlRoot);
+    const relative = path.relative(packageRoot, controlRoot);
+    return path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`);
+  } catch {
+    return false;
+  }
+}
+
+function acknowledgeArm(child, message, error) {
+  if (!child.connected) return;
+  child.send({
+    type: UPDATE_ACK,
+    protocol: UPDATE_PROTOCOL,
+    attemptId: message.attemptId,
+    ok: !error,
+    ...(error ? { error } : {}),
   });
 }
 
-async function main() {
-  // Cross-instance inheritance: if an ompweb instance is already running on
-  // this machine (our own port, the desktop app's 30179, or another dev CLI
-  // on 30177/30178), adopt it instead of starting a second server that would
-  // compete for ~/.omp session locks and trigger session-split errors.
-  //
-  // Loopback-only: adopting a sibling is right for the CLI/dev/desktop flow
-  // (127.0.0.1 on 30177/30178/30179), where a second loopback server is pure
-  // duplication. A non-loopback launch (e.g. the container main instance
-  // "ompweb --hostname 0.0.0.0 --port 6768") is a *network* service that must
-  // bind its own port. Adopting a loopback sibling there would make it exit
-  // without serving, and a restart loop (entrypoint "while true") that
-  // relaunches it would keep adopting the dev server and never bring its own
-  // port up — so a non-loopback launch skips sibling adoption entirely.
-  const SIBLING_PORTS = [30177, 30178, 30179];
-  const ownPortInUse = !await isPortAvailable(port, hostname);
-  const loopback = isLoopbackHost(hostname);
-  let adoptedUrl = null;
-  if (ownPortInUse) {
-    // Our exact port is taken: probe it — if it answers as ompweb, adopt.
-    if (await probeOmpWeb(port)) {
-      adoptedUrl = getBrowserUrl(hostname, port);
-    }
-  } else if (loopback) {
-    // Our port is free but a sibling (desktop app on 30179, dev on 30178,
-    // other CLI on 30177) may already be running. Adopt the first healthy one
-    // so "ompweb" while the desktop app is open just focuses the app.
-    for (const sibling of SIBLING_PORTS) {
-      if (sibling === port) continue;
-      if (await probeOmpWeb(sibling)) { adoptedUrl = getBrowserUrl("127.0.0.1", sibling); break; }
-    }
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
   }
-  if (adoptedUrl) {
-    console.log(`An ompweb instance is already running at ${adoptedUrl} — opening it instead of starting a duplicate.`);
-    if (openBrowser) {
-      const isWindows = process.platform === "win32";
-      const isMac = process.platform === "darwin";
-      const openCmd = isWindows ? "explorer.exe" : isMac ? "open" : "xdg-open";
-      const opener = spawn(openCmd, [adoptedUrl], { stdio: "ignore", detached: true });
-      opener.on("error", () => {});
-      opener.unref();
+}
+
+function hasLivePreparedOwnership(control) {
+  const status = readControlJson(path.join(control.root, "status.json"));
+  const lease = readControlJson(path.join(control.root, "lease.json"));
+  return status?.attemptId === control.attemptId
+    && (status.state === "prepared" || status.state === "running")
+    && status.stage === "stopping"
+    && isProcessAlive(status.workerPid)
+    && lease?.attemptId === control.attemptId
+    && Number.isFinite(lease.expiresAt)
+    && lease.expiresAt > Date.now()
+    && !secureRegularFile(updatePath(control, "abort.json"))
+    && !secureRegularFile(updatePath(control, "go"));
+}
+
+function watchUpdateCompletion(control) {
+  const poll = () => {
+    if (updateControl !== control) return;
+    let completion;
+    try { completion = readControlJson(updatePath(control, "complete.json")); }
+    catch {
+      setTimeout(poll, 100).unref?.();
+      return;
+    }
+    if (completion) {
+      if (completion.protocol !== UPDATE_PROTOCOL || completion.attemptId !== control.attemptId) {
+        setTimeout(poll, 100).unref?.();
+        return;
+      }
+      try {
+        atomicWrite(updatePath(control, "complete-ack.json"), JSON.stringify({
+          protocol: UPDATE_PROTOCOL,
+          attemptId: control.attemptId,
+        }));
+      } catch {
+        setTimeout(poll, 100).unref?.();
+        return;
+      }
+      updateControl = null;
+      waitingForRestart = false;
+      if (!currentChild) process.exit(1);
+      return;
+    }
+    setTimeout(poll, 100).unref?.();
+  };
+  poll();
+}
+
+function handleUpdateArm(child, message) {
+  if (!message || message.type !== UPDATE_MESSAGE || message.protocol !== UPDATE_PROTOCOL) return;
+  if (!/^[0-9a-f-]{36}$/i.test(message.attemptId ?? "") || !isExternalControlRoot(message.root)) {
+    acknowledgeArm(child, message, "invalid update control");
+    return;
+  }
+  try {
+    const control = { attemptId: message.attemptId, root: fs.realpathSync(message.root) };
+    if (updateControl
+      && (updateControl.attemptId !== control.attemptId || updateControl.root !== control.root)) {
+      acknowledgeArm(child, message, "another update is active");
+      return;
+    }
+    if (!hasLivePreparedOwnership(control)) {
+      acknowledgeArm(child, message, "update attempt is no longer active");
+      return;
+    }
+    if (!updateControl) {
+      process.chdir(control.root);
+      atomicWrite(updatePath(control, "armed.json"), JSON.stringify({
+        protocol: UPDATE_PROTOCOL,
+        attemptId: control.attemptId,
+        launcherPid: process.pid,
+      }));
+      currentGeneration = 0;
+      updateControl = control;
+      watchUpdateCompletion(control);
     } else {
-      console.log(`Open ${adoptedUrl} in your browser.`);
+      atomicWrite(updatePath(updateControl, "armed.json"), JSON.stringify({
+        protocol: UPDATE_PROTOCOL,
+        attemptId: updateControl.attemptId,
+        launcherPid: process.pid,
+      }));
     }
+  } catch {
+    acknowledgeArm(child, message, "update control could not be armed");
     return;
   }
-  if (ownPortInUse) {
-    console.error(`Port ${port} on ${hostname} is already in use by a non-ompweb process.`);
-    console.error(`Run: ompweb --port ${Number(port) + 1}`);
-    process.exitCode = 1;
-    return;
-  }
+  acknowledgeArm(child, message);
+}
 
-  // npm/global-install fallback: the published package cannot ship cargo
-  // output. If no host is resolvable via OMPWEB_HOST_BIN or the package's own
-  // vendor dir, reuse the desktop app's bundled ompweb-host (same machine /
-  // architecture) so "ompweb" works out of the box on installs that also have
-  // the OmpWeb desktop app.
-  if (!process.env.OMPWEB_HOST_BIN) {
-    const candidates = [path.join(pkgDir, "vendor", "ompweb-host", `${process.platform}-${process.arch}`, process.platform === "win32" ? "ompweb-host.exe" : "ompweb-host")];
-    if (process.platform === "win32") {
-      if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, "Programs", "OmpWeb", "resources", "bin", "ompweb-host.exe"));
-      if (process.env.ProgramFiles) candidates.push(path.join(process.env.ProgramFiles, "OmpWeb", "resources", "bin", "ompweb-host.exe"));
-      candidates.push("D:\\OPMWEB\\OmpWeb\\resources\\bin\\ompweb-host.exe");
-    } else if (process.platform === "darwin") {
-      candidates.push("/Applications/OmpWeb.app/Contents/Resources/bin/ompweb-host");
-      const home = process.env.HOME || "";
-      if (home) candidates.push(path.join(home, "Applications", "OmpWeb.app", "Contents", "Resources", "bin", "ompweb-host"));
-    }
-    const found = candidates.find((c) => fs.existsSync(c));
-    if (found) {
-      process.env.OMPWEB_HOST_BIN = found;
-      console.log("Using ompweb-host: " + found);
-    }
-  }
-
-  const child = spawn(process.execPath, ["--require", path.join(__dirname, "request-peer-preload.js"), nextBin, ...nextArgs], {
-    cwd: pkgDir,
-    stdio: ["inherit", "pipe", "inherit"],
-    env: {
-      ...process.env,
-      OMP_WEB_PACKAGE_DIR: pkgDir,
-      OMP_WEB_LAUNCHER_PID: String(process.pid),
-      OMP_WEB_PORT: port,
-      OMP_WEB_HOSTNAME: hostname,
-    },
-  });
-  wireChildProcessLifecycle(child);
-
+function attachOutput(child) {
   let bannerPrinted = false;
-  let browserOpened = false;
   let readyBuffer = "";
   child.stdout.on("data", (chunk) => {
     const text = chunk.toString();
     process.stdout.write(text);
     readyBuffer += text;
     if (readyBuffer.length > 500) readyBuffer = readyBuffer.slice(-500);
-    if (readyBuffer.includes("Ready")) {
-      if (!bannerPrinted) {
-        bannerPrinted = true;
-        const { entries, hint } = getAccessibleAddresses({ hostname, port });
-        const banner = formatAddressBanner({
-          version: pkgVersion,
-          entries,
-          hint,
-          passwordEnabled,
-          isTTY: process.stdout.isTTY,
-        });
-        process.stdout.write(banner);
-      }
-      if (openBrowser && !browserOpened) {
-        browserOpened = true;
-        const isWindows = process.platform === "win32";
-        const isMac = process.platform === "darwin";
-        const openCmd = isWindows ? "explorer.exe" : isMac ? "open" : "xdg-open";
-        const opener = spawn(openCmd, [browserUrl], {
-          stdio: "ignore",
-          detached: true,
-        });
-
-        opener.on("error", (error) => {
-          console.warn(`Could not open browser automatically: ${error.message}`);
-        });
-
-        opener.unref();
-      }
+    if (!readyBuffer.includes("Ready")) return;
+    if (!bannerPrinted) {
+      bannerPrinted = true;
+      const { entries, hint } = getAccessibleAddresses({ hostname, port });
+      process.stdout.write(formatAddressBanner({
+        version: readPackageVersion(),
+        entries,
+        hint,
+        passwordEnabled,
+        isTTY: process.stdout.isTTY,
+      }));
+    }
+    if (openBrowser && !browserOpened) {
+      browserOpened = true;
+      openInBrowser(browserUrl);
     }
   });
 }
 
-main().catch((error) => {
-  console.error(`Could not check whether ${browserUrl} is available: ${error.message}`);
-  process.exit(1);
-});
+function serverEnvironment() {
+  return {
+    ...process.env,
+    OMP_WEB_PACKAGE_DIR: pkgDir,
+    OMP_WEB_LAUNCHER_PID: String(process.pid),
+    OMP_WEB_NODE_BIN: process.execPath,
+    OMP_WEB_PORT: port,
+    OMP_WEB_HOSTNAME: hostname,
+    OMP_WEB_RESTART_DESCRIPTOR: restartDescriptor,
+  };
+}
+
+function trackServer(child) {
+  currentChild = child;
+  child.on("message", (message) => handleUpdateArm(child, message));
+  child.once("error", (error) => {
+    console.error(`Could not start ompweb: ${error.message}`);
+    if (Number.isInteger(child.pid) && child.pid > 0) return;
+    if (currentChild === child) currentChild = null;
+    if (updateControl) {
+      waitForRestartRequest(updateControl).catch((restartError) => {
+        console.error(`Could not complete update restart: ${restartError.message}`);
+      });
+    }
+  });
+  attachOutput(child);
+  wireChildProcessLifecycle(child, process, undefined, () => {
+    if (!updateControl) return false;
+    if (currentChild === child) currentChild = null;
+    waitForRestartRequest(updateControl).catch((error) => {
+      console.error(`Could not complete update restart: ${error.message}`);
+    });
+    return true;
+  });
+  return child;
+}
+
+function spawnServer(command) {
+  return trackServer(spawn(command[0], command.slice(1), {
+    cwd: pkgDir,
+    stdio: ["inherit", "pipe", "inherit", "ipc"],
+    env: serverEnvironment(),
+  }));
+}
+
+function spawnRestartGate() {
+  return spawn(process.execPath, [
+    "-e",
+    `(${runRestartGate.toString()})(${JSON.stringify(RESTART_GATE_START)})`,
+  ], {
+    cwd: pkgDir,
+    detached: process.platform !== "win32",
+    stdio: ["inherit", "pipe", "inherit", "ipc"],
+    env: serverEnvironment(),
+  });
+}
+
+function startRestartGate(child, args) {
+  return new Promise((resolve, reject) => {
+    if (!child.connected) return reject(new Error("restart gate IPC is unavailable"));
+    child.send({ type: RESTART_GATE_START, args }, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function acknowledgeRestartRequest(control, request, child) {
+  if (!Number.isInteger(child.pid) || child.pid <= 0) {
+    if (currentChild === child) currentChild = null;
+    return false;
+  }
+  const acknowledgement = JSON.stringify({
+    protocol: UPDATE_PROTOCOL,
+    attemptId: control.attemptId,
+    generation: request.generation,
+    pid: child.pid,
+  });
+  while (true) {
+    for (let attempt = 1; attempt <= RESTART_ACK_RETRIES; attempt += 1) {
+      try {
+        atomicWrite(updatePath(control, "restart-ack.json"), acknowledgement);
+        currentGeneration = request.generation;
+        try { removeSecureFile(updatePath(control, "restart-request.json")); }
+        catch { /* the durable acknowledgement makes the retained request harmless */ }
+        return true;
+      } catch {
+        if (attempt < RESTART_ACK_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, RESTART_ACK_RETRY_MS));
+        }
+      }
+    }
+
+    if (await terminateChildProcess(child)) {
+      if (currentChild === child) currentChild = null;
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, RESTART_ACK_RETRY_MS));
+  }
+}
+
+async function acknowledgeAndStartRestart(control, request, child, args) {
+  if (!await acknowledgeRestartRequest(control, request, child)) return false;
+  await startRestartGate(child, args);
+  return true;
+}
+
+async function waitForRestartRequest(control) {
+  if (waitingForRestart || updateControl !== control) return;
+  waitingForRestart = true;
+  const requestFile = updatePath(control, "restart-request.json");
+  try {
+    while (updateControl === control && !currentChild) {
+      let request;
+      try { request = readControlJson(requestFile); } catch {}
+      if (request?.attemptId === control.attemptId
+        && request.protocol === UPDATE_PROTOCOL
+        && request.action === "start"
+        && Number.isInteger(request.generation)
+        && request.generation === currentGeneration + 1) {
+        let command;
+        try {
+          command = serverCommand();
+        } catch (error) {
+          // Retried while the update is active; one line per attempt, not a spin.
+          console.error(`Could not start the updated server: ${error.message}`);
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+          continue;
+        }
+        const child = trackServer(spawnRestartGate());
+        if (await acknowledgeAndStartRestart(control, request, child, command)) return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  } finally {
+    waitingForRestart = false;
+    if (updateControl === control && !currentChild) {
+      setTimeout(() => {
+        waitForRestartRequest(control).catch((error) => {
+          console.error(`Could not complete update restart: ${error.message}`);
+        });
+      }, 0);
+    }
+  }
+}
+
+async function main() {
+  if (!fs.existsSync(path.join(pkgDir, "dist", "index.html")) || !fs.existsSync(path.join(pkgDir, "server", "main.ts"))) {
+    console.error("Build artifacts not found. Please report this issue.");
+    process.exit(1);
+  }
+  if (!await isPortAvailable(port, hostname)) {
+    console.error(`Port ${port} on ${hostname} is already in use.`);
+    console.error(`If ompweb is already running, open ${browserUrl}. Otherwise, stop the process using it or run: ompweb --port ${Number(port) + 1}`);
+    process.exitCode = 1;
+    return;
+  }
+  let command;
+  try {
+    command = serverCommand();
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+  spawnServer(command);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`Could not start ${browserUrl}: ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  acknowledgeAndStartRestart,
+  acknowledgeRestartRequest,
+  handleUpdateArm,
+  spawnRestartGate,
+  startRestartGate,
+};
 }

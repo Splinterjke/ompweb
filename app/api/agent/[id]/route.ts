@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse, hostOfflineResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
 import { startRpcSession, getRpcSession, getExitedRpcSession, WebRpcError } from "@/lib/rpc-manager";
 import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
@@ -41,20 +40,20 @@ const LIVE_SESSION_ONLY = new Set(["get_skill_diagnostics", "set_skill_startup_d
  * errors stay opaque English text. */
 function commandErrorResponse(error: unknown) {
   if (error instanceof RequestBodyTooLargeError) {
-    return NextResponse.json({ error: "Agent command is too large", code: "request_too_large" }, { status: 413 });
+    return Response.json({ error: "Agent command is too large", code: "request_too_large" }, { status: 413 });
   }
   if (error instanceof SyntaxError) {
-    return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
   // host_offline falls through to apiErrorResponse: 503 {hostOffline: true}.
   if (error instanceof WebRpcError && error.code !== "host_offline") {
-    return NextResponse.json(
+    return Response.json(
       { error: error.message, code: error.code, ...(error.data !== undefined ? { data: error.data } : {}) },
       { status: 400 },
     );
   }
   if (error instanceof RpcCommandError) {
-    return NextResponse.json({ error: error.message, code: error.code ?? "rpc_command_failed" }, { status: 400 });
+    return Response.json({ error: error.message, code: error.code ?? "rpc_command_failed" }, { status: 400 });
   }
   return apiErrorResponse(error);
 }
@@ -69,7 +68,7 @@ export async function POST(
   try {
     const body = await parseJsonWithinLimit<{ type?: unknown; [key: string]: unknown }>(req, MAX_AGENT_COMMAND_REQUEST_BYTES);
     if (typeof body.type !== "string" || !body.type.trim()) {
-      return NextResponse.json({ error: "command type is required", code: "command_type_required" }, { status: 400 });
+      return Response.json({ error: "command type is required", code: "command_type_required" }, { status: 400 });
     }
 
     // The explicit query updates the durable per-session choice; requests
@@ -96,16 +95,16 @@ export async function POST(
     if (existing?.isAlive()) {
       if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning() || existing.isEditingHistory()) {
         const result = await existing.send(command);
-        return NextResponse.json({ success: true, data: result });
+        return Response.json({ success: true, data: result });
       }
       // Disposing a child behind a down link would wait for the link to return.
       const offline = hostOfflineResponse(existing.host);
       if (offline) return offline;
       await existing.destroyAndWait();
     }
-    if (noSpawnKey) return NextResponse.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
+    if (noSpawnKey) return Response.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
     if (liveOnly) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Skill diagnostics require a running session", code: "skill_diagnostics_unavailable" },
         { status: 409 },
       );
@@ -117,7 +116,7 @@ export async function POST(
     const offline = hostOfflineResponse(host);
     if (offline) return offline;
     const target = await sessionSpawnTarget(id, host);
-    if (!target) return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+    if (!target) return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
 
     const { session } = await startRpcSession(id, target.sessionFile, target.cwd, undefined, advisor, target.recordedCwd, startup, host);
     if (startup?.modelOverride && command.type === "set_model") {
@@ -138,20 +137,20 @@ export async function POST(
       // still surfaces through commandErrorResponse.
       try {
         const result = await session.send(command);
-        return NextResponse.json({ success: true, data: result });
+        return Response.json({ success: true, data: result });
       } catch (error) {
         const state = (await session.send({ type: "get_state" })) as {
           model?: { id?: unknown; provider?: unknown };
         } | null;
         if (state?.model?.provider === command.provider && state?.model?.id === command.modelId) {
-          return NextResponse.json({ success: true, data: { id: command.modelId, provider: command.provider } });
+          return Response.json({ success: true, data: { id: command.modelId, provider: command.provider } });
         }
         throw error;
       }
     }
     const result = await session.send(command);
 
-    return NextResponse.json({ success: true, data: result });
+    return Response.json({ success: true, data: result });
   } catch (error) {
     return commandErrorResponse(error);
   }
@@ -174,14 +173,14 @@ export async function GET(
         // the turn, so report it as externally running. Mirrors /state.
         const idle = !state?.isStreaming && !state?.isPromptRunning && !state?.isBashRunning && !state?.isCompacting;
         if (idle && heldSessionsWithPendingTurn().includes(id)) {
-          return NextResponse.json({ running: true, external: true, state: null });
+          return Response.json({ running: true, external: true, state: null });
         }
-        return NextResponse.json({ running: true, ...(idle ? { external: false } : {}), state });
+        return Response.json({ running: true, ...(idle ? { external: false } : {}), state });
       } catch (error) {
         // A wedged child is recycled by the wrapper. Treat state inspection as
         // recoverably idle so browser reconciliation can unlock the composer.
         if (error instanceof WebRpcError && error.code === "session_unresponsive") {
-          return NextResponse.json({ running: false, recovered: true });
+          return Response.json({ running: false, recovered: true });
         }
         throw error;
       }
@@ -196,20 +195,20 @@ export async function GET(
       const externallyActive =
         (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
         heldSessionsWithPendingTurn().includes(id);
-      if (externallyActive) return NextResponse.json({ running: true, external: true, state: null });
-      return NextResponse.json({ running: false, exited });
+      if (externallyActive) return Response.json({ running: true, external: true, state: null });
+      return Response.json({ running: false, exited });
     }
     const resolved = await resolveSessionHostOr404(id);
-    if ("response" in resolved) return NextResponse.json({ running: false });
+    if ("response" in resolved) return Response.json({ running: false });
     // The watcher below sees this machine's files only: an omp on another host
     // is invisible here, so a remote session can never look externally held.
-    if (resolved.host?.id !== LOCAL_HOST_ID) return NextResponse.json({ running: false, external: false, state: null });
+    if (resolved.host?.id !== LOCAL_HOST_ID) return Response.json({ running: false, external: false, state: null });
     // Same detection as /state: a live external holder (long thinking/tool
     // gap) keeps the session running even after the activity window lapses.
     const externallyActive =
       (await isExternallyActive(id, EXTERNAL_ACTIVITY_WINDOW_MS)) ||
       heldSessionsWithPendingTurn().includes(id);
-    return NextResponse.json({
+    return Response.json({
       running: externallyActive,
       external: externallyActive,
       state: null,

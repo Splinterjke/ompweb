@@ -1,10 +1,8 @@
-import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { aggregateFromStatsDb } from "@/lib/stats-aggregate";
 
-export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
 const STATS_CACHE_TTL_MS = 2_000;
@@ -108,7 +106,7 @@ async function fetchStatsData(): Promise<Record<string, unknown>> {
 export async function GET() {
   const now = Date.now();
   if (cachedStats && cachedStats.expiresAt > now) {
-    return NextResponse.json(cachedStats.data);
+    return Response.json(cachedStats.data);
   }
 
   if (!inFlightPromise) {
@@ -127,10 +125,10 @@ export async function GET() {
 
   try {
     const data = await inFlightPromise;
-    return NextResponse.json(data);
+    return Response.json(data);
   } catch (error) {
     console.error("Failed to retrieve usage stats:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );

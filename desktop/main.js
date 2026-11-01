@@ -3,7 +3,7 @@
 /**
  * OmpWeb native desktop app (Electron).
  *
- * Hosts the omp-web Next standalone server on an internal port and presents
+ * Hosts the omp-web Bun server on an internal port and presents
  * it in a real native window: Dock icon, application menu, tray icon,
  * external links open in the system browser. Quitting the app stops the
  * server. The `ompweb` CLI (browser launch) and `ompweb-desktop` (hidden
@@ -17,6 +17,7 @@ const fs = require("fs");
 const { pathToFileURL } = require("url");
 const { StartupTracker, createHealthProbe } = require("./startup");
 const { isLoopbackHost } = require("../bin/network-addresses");
+const { resolveBunBinary } = require("../bin/bun-runtime");
 
 // Internal port for the hosted server (dev 30178 / cli 30177 stay free).
 const APP_PORT = Number(process.env.OMP_WEB_APP_PORT || 30179);
@@ -277,32 +278,24 @@ function stopServerTree() {
   });
 }
 
-/** Locate a real node binary so the hosted server never shows up as a
- *  second app instance in the Dock (spawning the Electron binary, even with
- *  ELECTRON_RUN_AS_NODE, makes macOS treat it as another OmpWeb). */
-function resolveNodeBin() {
-  const isWin = process.platform === "win32";
-  const candidates = [
-    process.env.OMP_WEB_NODE_BIN,
-    // Windows: standard install dirs + nvm-windows
-    ...(isWin ? [
-      process.env.ProgramFiles ? `${process.env.ProgramFiles}/nodejs/node.exe` : null,
-      process.env["ProgramFiles(x86)"] ? `${process.env["ProgramFiles(x86)"]}/nodejs/node.exe` : null,
-      process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}/Programs/nodejs/node.exe` : null,
-      process.env.APPDATA ? `${process.env.APPDATA}/nvm/current/node.exe` : null,
-    ] : [
-      "/usr/local/bin/node",
-      "/opt/homebrew/bin/node",
-      "/usr/bin/node",
-      process.env.HOME ? `${process.env.HOME}/.bun/bin/node` : null,
-      process.env.HOME ? `${process.env.HOME}/.nvm/current/bin/node` : null,
-      process.env.HOME ? `${process.env.HOME}/.npm-global/bin/node` : null,
-    ]),
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    try { if (fs.existsSync(candidate)) return candidate; } catch { /* keep looking */ }
+/**
+ * Locate the Bun runtime that runs the hosted server — the same resolver the
+ * CLI launcher uses (bundled `bun` package, its platform packages, then PATH).
+ * A binary resolved inside app.asar cannot be exec'd; electron-builder's
+ * asarUnpack keeps those packages on disk at app.asar.unpacked. Spawning a
+ * resolved binary (never the Electron binary) also keeps the server from
+ * showing up as a second app instance in the macOS Dock.
+ */
+function resolveServerRuntime() {
+  let bin;
+  try {
+    bin = resolveBunBinary(pkgDir);
+  } catch (error) {
+    failStartup("bun-runtime-missing", error instanceof Error ? error.message : String(error));
+    throw error;
   }
-  return process.execPath;
+  if (app.isPackaged && bin.includes("app.asar")) bin = bin.replace("app.asar", "app.asar.unpacked");
+  return bin;
 }
 
 function resolveOmpBin() {
@@ -317,7 +310,7 @@ function resolveOmpBin() {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
-/** Start the Next standalone server (self-contained server.js + node_modules). */
+/** Start the Bun server (server/main.ts run by the resolved Bun runtime). */
 async function startServer() {
   // Multiple startup surfaces (splash, retry, tray restoration) can race on
   // a slow Windows machine. Reusing the live hosted server avoids duplicate
@@ -339,13 +332,17 @@ async function startServerImpl() {
     );
     return;
   }
+  // Bun-era layout: the packaged app stages the server tree at
+  // <Resources>/standalone (dist/, server/, lib/, app/, public/ — the
+  // electron-builder extraResources); a dev run serves straight from the
+  // checkout, which has the same layout at its root.
   const standaloneDir = app.isPackaged
     ? path.join(process.resourcesPath, "standalone")
-    : path.join(pkgDir, ".next", "standalone");
-  const serverJs = path.join(standaloneDir, "server.js");
-  if (!fs.existsSync(serverJs)) {
-    appLog("standalone server.js missing at " + serverJs);
-    console.error("Standalone build missing at", serverJs);
+    : pkgDir;
+  const serverEntry = path.join(standaloneDir, "server", "main.ts");
+  if (!fs.existsSync(serverEntry)) {
+    appLog("server entry missing at " + serverEntry + " — did the client build run?");
+    console.error("omp-web server tree missing at", serverEntry);
     return;
   }
   // Port pre-check: reclaim any stale zombie process on APP_PORT from a
@@ -374,14 +371,14 @@ async function startServerImpl() {
       return;
     }
   }
-  const nodeBin = resolveNodeBin();
-  const nodeIsElectron = nodeBin === process.execPath;
+  const bunBin = resolveServerRuntime();
   const ompBin = resolveOmpBin();
   // Route 3 (doc 16): packaged apps ship the Rust host at
   // <Resources>/bin/ompweb-host (electron-builder extraResources from
   // build-resources/host). Point the standalone server at it explicitly — the
-  // server runs under a system node whose execPath cannot derive the bundle
-  // layout. Dev runs omit the env var and resolve the workspace build.
+  // server runs from the extracted Resources tree whose layout the packaged
+  // host does not sit beside. Dev runs omit the env var and resolve the
+  // workspace build.
   const packagedHostBin = app.isPackaged
     ? path.join(process.resourcesPath, "bin", process.platform === "win32" ? "ompweb-host.exe" : "ompweb-host")
     : null;
@@ -399,7 +396,6 @@ async function startServerImpl() {
   const spawnEnv = { ...process.env };
   if (packagedHostBin) spawnEnv.OMPWEB_HOST_BIN = packagedHostBin;
   else if (app.isPackaged) delete spawnEnv.OMPWEB_HOST_BIN;
-  if (nodeIsElectron) spawnEnv.ELECTRON_RUN_AS_NODE = "1";
   spawnEnv.PORT = String(APP_PORT);
   spawnEnv.OMP_WEB_PORT = String(APP_PORT);
   spawnEnv.OMP_WEB_APP_PORT = String(APP_PORT);
@@ -407,13 +403,13 @@ async function startServerImpl() {
   spawnEnv.OMP_WEB_PACKAGE_DIR = pkgDir;
   spawnEnv.PATH = runtimePath;
   if (ompBin) spawnEnv.OMP_WEB_OMP_BIN = ompBin;
-  // System Node cannot read app.asar. The build copies this preload beside
-  // the external standalone server so both Node and Electron can require it.
-  serverProcess = spawn(nodeBin, ["--require", path.join(standaloneDir, "bin", "request-peer-preload.js"), serverJs], {
+  // The Bun server stamps the socket peer at its own HTTP boundary
+  // (server.requestIP), so no preload/monkey-patch is needed here.
+  serverProcess = spawn(bunBin, [serverEntry, "-p", String(APP_PORT), "-H", HOST], {
     cwd: standaloneDir,
     // POSIX needs an isolated group for recursive shutdown. Windows uses
     // taskkill /T instead; detaching there creates a separate visible console
-    // for the otherwise background Next service.
+    // for the otherwise background service.
     detached: process.platform !== "win32",
     // The hosted server is an implementation detail of the GUI app, never a
     // user-facing terminal. This also applies on each restart after a crash.

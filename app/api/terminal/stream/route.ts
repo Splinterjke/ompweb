@@ -2,13 +2,12 @@ import * as nodeManager from "@/lib/terminal-session-manager";
 import * as hostManager from "@/lib/terminal-host-session";
 import { rustBackendActive } from "@/lib/omp/host-client";
 
-export const dynamic = "force-dynamic";
 
 // Doc 16 route 8: the SSE contract stays byte-identical regardless of which
 // backend owns the PTY; only the session registry differs.
 const manager = () => (rustBackendActive() ? hostManager : nodeManager);
 
-export async function GET(req: Request) {
+export async function GET(req: Request, { disableIdleTimeout }: { disableIdleTimeout: () => void }) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
@@ -20,6 +19,8 @@ export async function GET(req: Request) {
   if (!session) {
     return new Response("Session not found or expired", { status: 404 });
   }
+  // Bun's idle timeout would cut this long-lived SSE between keep-alive frames.
+  disableIdleTimeout();
 
   const encoder = new TextEncoder();
   let unsubscribe: (() => void) | null = null;

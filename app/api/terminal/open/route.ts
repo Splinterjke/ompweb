@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
 import { spawn } from "child_process";
 import fs from "fs";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 
-export const dynamic = "force-dynamic";
 
 /**
  * POST /api/terminal/open  body: { cwd? }
@@ -22,7 +20,7 @@ export async function POST(req: Request) {
     }
     const allowedRoots = await getAllowedFileRoots();
     if (!isExistingFilePathAllowed(targetDir, allowedRoots)) {
-      return NextResponse.json({ error: "Path not allowed", code: "path_not_allowed" }, { status: 403 });
+      return Response.json({ error: "Path not allowed", code: "path_not_allowed" }, { status: 403 });
     }
     const realTargetDir = fs.realpathSync(targetDir);
 
@@ -61,9 +59,9 @@ export async function POST(req: Request) {
       tryNext(0);
     }
 
-    return NextResponse.json({ ok: true, cwd: realTargetDir, terminal: terminalName });
+    return Response.json({ ok: true, cwd: realTargetDir, terminal: terminalName });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to open terminal";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

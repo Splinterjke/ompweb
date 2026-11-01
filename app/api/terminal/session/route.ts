@@ -1,10 +1,8 @@
-import { NextResponse } from "next/server";
 import * as nodeManager from "@/lib/terminal-session-manager";
 import * as hostManager from "@/lib/terminal-host-session";
 import { rustBackendActive } from "@/lib/omp/host-client";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 
-export const dynamic = "force-dynamic";
 
 // Doc 16 route 8: in Rust mode the host owns the PTY (terminal-host-session);
 // the legacy Node manager is the explicit OMPWEB_BACKEND=node rollback.
@@ -25,10 +23,10 @@ export async function POST(req: Request) {
     }
 
     const { id, cwd: resolvedCwd } = await manager().createTerminalSession(cwd);
-    return NextResponse.json({ ok: true, sessionId: id, cwd: resolvedCwd });
+    return Response.json({ ok: true, sessionId: id, cwd: resolvedCwd });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to create terminal session";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }
 
@@ -37,12 +35,12 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+      return Response.json({ error: "Missing sessionId" }, { status: 400 });
     }
     const closed = manager().closeTerminalSession(id);
-    return NextResponse.json({ ok: closed });
+    return Response.json({ ok: closed });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to close terminal session";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

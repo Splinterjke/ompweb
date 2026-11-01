@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
 import { join } from "path";
 import { homedir } from "os";
 import { existsSync } from "fs";
 
-export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -16,7 +14,7 @@ export async function GET(request: Request) {
 
   const dbPath = join(homedir(), ".omp", "stats.db");
   if (!existsSync(dbPath)) {
-    return NextResponse.json({ total: 0, logs: [] });
+    return Response.json({ total: 0, logs: [] });
   }
 
   try {
@@ -67,12 +65,12 @@ export async function GET(request: Request) {
       const dataStmt = db.prepare(dataQuery);
       const logs = dataStmt.all(...params, limit, offset);
 
-      return NextResponse.json({ total, logs });
+      return Response.json({ total, logs });
     } finally {
       try { db.close(); } catch { /* ignore */ }
     }
   } catch (error) {
     console.error("Failed to query stats.db:", error);
-    return NextResponse.json({ total: 0, logs: [], error: String(error) }, { status: 500 });
+    return Response.json({ total: 0, logs: [], error: String(error) }, { status: 500 });
   }
 }

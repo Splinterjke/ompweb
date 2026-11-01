@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
 
 const MAX_BROWSER_PREVIEW_BYTES = 2 * 1024 * 1024;
 
@@ -39,7 +37,7 @@ function validTarget(raw: string): URL | null {
 
 // Errors render as a styled HTML page (never raw JSON) so a sandboxed iframe
 // shows something readable instead of a JSON blob.
-function htmlErrorPage(message: string, status: number): NextResponse {
+function htmlErrorPage(message: string, status: number): Response {
   const safeMsg = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const html = `<!DOCTYPE html>
 <html>
@@ -61,7 +59,7 @@ function htmlErrorPage(message: string, status: number): NextResponse {
 </div>
 </body>
 </html>`;
-  return new NextResponse(html, {
+  return new Response(html, {
     status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -96,7 +94,7 @@ export async function GET(request: Request) {
     // Non-HTML payloads (PDF, images, …) pass through with their own content
     // type so the browser's native viewers handle them.
     if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
-      return new NextResponse(bytes, {
+      return new Response(bytes, {
         status: response.status,
         headers: {
           "Content-Type": contentType || "application/octet-stream",
@@ -116,7 +114,7 @@ export async function GET(request: Request) {
       ? html.replace(/<head([^>]*)>/i, `<head$1><base href="${escapedBase}">`)
       : `<!doctype html><html><head><base href="${escapedBase}"></head><body>${html}</body></html>`;
 
-    return new NextResponse(html, {
+    return new Response(html, {
       status: response.status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { ChatEventActionStoreError, createChatEventAction, listChatEventActions, saveChatEventActionFile } from "@/lib/chat-event-action-store";
@@ -9,7 +8,7 @@ const MAX_REQUEST_BYTES = 8_192;
 // GET /api/chat-event-actions  →  { actions: ChatEventAction[] }
 export async function GET() {
   try {
-    return NextResponse.json({ actions: listChatEventActions() });
+    return Response.json({ actions: listChatEventActions() });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -36,11 +35,11 @@ export async function POST(req: Request) {
       enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
     });
     saveChatEventActionFile(file);
-    return NextResponse.json({ action }, { status: 201 });
+    return Response.json({ action }, { status: 201 });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError || error instanceof ChatEventActionStoreError) {
       const code = error instanceof ChatEventActionStoreError ? error.code : "request_too_large";
-      return NextResponse.json({ error: String(error), code }, { status: 400 });
+      return Response.json({ error: String(error), code }, { status: 400 });
     }
     return apiErrorResponse(error);
   }

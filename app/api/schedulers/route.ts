@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { ensureSchedulerEngine, getEngineStartedAt, listSchedulersWithState } from "@/lib/scheduler-engine";
@@ -14,7 +13,7 @@ const MAX_REQUEST_BYTES = 8_192;
 export async function GET() {
   try {
     ensureSchedulerEngine();
-    return NextResponse.json({ schedulers: listSchedulersWithState(), engineStartedAt: getEngineStartedAt() });
+    return Response.json({ schedulers: listSchedulersWithState(), engineStartedAt: getEngineStartedAt() });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -54,7 +53,7 @@ export async function POST(req: Request) {
     if (kind === "script") {
       const scriptCheck = validateScriptPath(typeof body.script === "string" ? body.script : "");
       if (!scriptCheck.ok) {
-        return NextResponse.json({ error: scriptCheck.error, code: scriptCheck.error }, { status: 400 });
+        return Response.json({ error: scriptCheck.error, code: scriptCheck.error }, { status: 400 });
       }
       scriptPath = scriptCheck.path;
     }
@@ -64,7 +63,7 @@ export async function POST(req: Request) {
       schedule = validateSchedule(body.schedule);
     } catch (err) {
       if (err instanceof ScheduleValidationError) {
-        return NextResponse.json({ error: err.code, code: err.code }, { status: 400 });
+        return Response.json({ error: err.code, code: err.code }, { status: 400 });
       }
       throw err;
     }
@@ -73,7 +72,7 @@ export async function POST(req: Request) {
     // directory — the engine starts the omp session there.
     const workspaceCheck = validateWorkspacePath(body.cwd);
     if (!workspaceCheck.ok) {
-      return NextResponse.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
+      return Response.json({ error: workspaceCheck.error, code: workspaceCheck.error }, { status: 400 });
     }
     const workspaceCwd = kind === "prompt" ? workspaceCheck.path : undefined;
 
@@ -97,11 +96,11 @@ export async function POST(req: Request) {
     });
     saveSchedulerFile(file);
     ensureSchedulerEngine();
-    return NextResponse.json({ scheduler: entry }, { status: 201 });
+    return Response.json({ scheduler: entry }, { status: 201 });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError || error instanceof SchedulerStoreError) {
       const code = error instanceof SchedulerStoreError ? error.code : "request_too_large";
-      return NextResponse.json({ error: String(error), code }, { status: 400 });
+      return Response.json({ error: String(error), code }, { status: 400 });
     }
     return apiErrorResponse(error);
   }

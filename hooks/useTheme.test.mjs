@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { tsconfigPaths: true });
-const { nextThemePreference, resolveTheme } = await jiti.import("./useTheme.ts");
+const { nextThemePreference, resolveTheme } = await import("./useTheme.ts");
 
 test("cycles explicit and system theme preferences", () => {
   assert.equal(nextThemePreference("light"), "dark");

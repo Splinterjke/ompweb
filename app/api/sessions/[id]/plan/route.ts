@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { openSync, readSync, statSync, closeSync } from "fs";
 import { dirname } from "path";
 import { StringDecoder } from "string_decoder";
@@ -6,7 +5,6 @@ import { resolveSessionPathOr404, apiErrorResponse } from "@/lib/api-utils";
 import { resolvePlanArtifact } from "@/lib/plan-reader";
 import { allowFileRoot } from "@/lib/file-access";
 
-export const dynamic = "force-dynamic";
 
 const MAX_PLAN_BYTES = 256 * 1024;
 
@@ -49,7 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       planModeActive: artifact.planModeActive,
       plan,
       planFile: artifact.planPath,

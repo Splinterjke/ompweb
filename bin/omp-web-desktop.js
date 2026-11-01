@@ -2,7 +2,7 @@
 "use strict";
 
 /**
- * Desktop launcher for omp-web: starts the Next server with a hidden console
+ * Desktop launcher for omp-web: starts the Bun server with a hidden console
  * (Windows: windowsHide on the child; macOS: no Terminal banner, designed to
  * be launched from a double-clickable .command that hides its terminal) and
  * opens the browser. The plain `ompweb` CLI remains the primary entry point;
@@ -32,14 +32,19 @@ const { wireChildProcessLifecycle } = require("./process-lifecycle");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getBrowserUrl, isLoopbackHost } = require("./network-addresses");
 
-const pkgDir = path.join(__dirname, "..");
-const nextDir = path.join(pkgDir, ".next");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { resolveBunBinary } = require("./bun-runtime");
 
-let nextBin;
+const pkgDir = path.join(__dirname, "..");
+if (!fs.existsSync(path.join(pkgDir, "dist", "index.html"))) {
+  console.error("Build artifacts not found. Run `npm run build` once, or use `ompweb` for the dev flow.");
+  process.exit(1);
+}
+let bunBin;
 try {
-  nextBin = require.resolve("next/dist/bin/next", { paths: [pkgDir] });
+  bunBin = resolveBunBinary(pkgDir);
 } catch {
-  console.error("Could not resolve next. Is ompweb installed correctly?");
+  console.error("Could not resolve the Bun runtime. Is ompweb installed correctly?");
   process.exit(1);
 }
 
@@ -102,11 +107,6 @@ if (passwordHash !== undefined) {
 }
 const passwordEnabled = passwordHash !== undefined;
 
-if (!fs.existsSync(nextDir)) {
-  console.error("Build artifacts not found. Run `npm run build` once, or use `ompweb` for the dev flow.");
-  process.exit(1);
-}
-
 if (!isLoopbackHost(hostname) && !passwordEnabled) {
   console.error(`Refusing to listen on ${hostname} without a password hash. Run: ompweb hash-password, then set OMP_WEB_PASSWORD_HASH. Or bind to 127.0.0.1.`);
   process.exit(1);
@@ -122,10 +122,11 @@ async function main() {
     process.exit(0);
   }
 
-  const nextArgs = ["start", "-p", port, "-H", hostname];
   // windowsHide keeps the console window off the screen on Windows; detached +
   // stdio ignore turns the launcher into a fire-and-forget app start on macOS.
-  const child = spawn(process.execPath, ["--require", path.join(__dirname, "request-peer-preload.js"), nextBin, ...nextArgs], {
+  // The Bun server stamps the socket peer itself (server.requestIP); no
+  // preload is needed.
+  const child = spawn(bunBin, [path.join(pkgDir, "server", "main.ts"), "-p", port, "-H", hostname], {
     cwd: pkgDir,
     detached: process.platform !== "win32",
     windowsHide: true,

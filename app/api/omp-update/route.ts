@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { execFileSync } from "node:child_process";
 import { checkOmpUpdate, runOmpUpdateNow, runOmpUpdateStream } from "@/lib/omp/updates";
 import { invalidateOmpCliCache } from "@/lib/omp/omp-cli";
@@ -6,20 +5,22 @@ import { clearRpcFailures, restartAllRpcSessions } from "@/lib/rpc-manager";
 import { hostClient } from "@/lib/omp/host-client";
 import { isUpdateDisabled } from "@/lib/update-policy";
 
-export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+export async function POST(request: Request, { disableIdleTimeout }: { disableIdleTimeout: () => void }) {
   try {
     const body = await request.json() as { action?: unknown; stream?: unknown; port?: unknown };
-    if (body.action === "check") return NextResponse.json(await checkOmpUpdate());
+    if (body.action === "check") return Response.json(await checkOmpUpdate());
     if (body.action === "update" && isUpdateDisabled()) {
-      return NextResponse.json(
+      return Response.json(
         { error: "Updates are disabled (OMP_WEB_DISABLE_AUTOUPDATE)", code: "updates_disabled" },
         { status: 403 },
       );
     }
     if (body.action === "update") {
       if (body.stream === true) {
+        // The handler returns while the update still runs: Bun's idle timeout
+        // would cut the stream through silent npm stretches.
+        disableIdleTimeout();
         const stream = new ReadableStream<string>({
           async start(controller) {
             const done = () => { try { controller.close(); } catch { /* already closed */ } };
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
             }
           },
         });
-        return new NextResponse(stream, {
+        return new Response(stream, {
           headers: {
             "Content-Type": "application/x-ndjson; charset=utf-8",
             "Cache-Control": "no-cache, no-transform",
@@ -55,14 +56,14 @@ export async function POST(request: Request) {
       const output = await runOmpUpdateNow();
       const sessionsRestarted = await restartAllRpcSessions();
       invalidateOmpCliCache();
-      return NextResponse.json({ success: true, output: output.slice(-2000), sessionsRestarted });
+      return Response.json({ success: true, output: output.slice(-2000), sessionsRestarted });
     }
     if (body.action === "restart") {
       const repair = hostClient.host.repair();
       const stoppedInstances = await stopOtherOmpWebInstances();
       const sessionsRestarted = await restartAllRpcSessions();
       clearRpcFailures();
-      return NextResponse.json({
+      return Response.json({
         success: true,
         sessionsRestarted,
         stoppedOrphanHosts: repair.stoppedOrphanHosts,
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
       // 不会打断正在进行的对话。
       const repair = hostClient.host.repair();
       clearRpcFailures();
-      return NextResponse.json({
+      return Response.json({
         success: true,
         stoppedOrphanHosts: repair.stoppedOrphanHosts,
         orphanHostPids: repair.orphanHostPids,
@@ -89,17 +90,17 @@ export async function POST(request: Request) {
       // 消除会话锁冲突。只允许关闭非自身端口。
       const port = Number(body.port);
       if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-        return NextResponse.json({ error: "invalid port", code: "invalid_port" }, { status: 400 });
+        return Response.json({ error: "invalid port", code: "invalid_port" }, { status: 400 });
       }
       const selfPort = Number(
         process.env.OMP_WEB_PORT ?? process.env.OMP_WEB_APP_PORT ?? process.env.PORT ?? (process.env.NODE_ENV === "production" ? "30177" : "30178"),
       );
       if (port === selfPort) {
-        return NextResponse.json({ error: "refusing to stop self", code: "stop_self" }, { status: 400 });
+        return Response.json({ error: "refusing to stop self", code: "stop_self" }, { status: 400 });
       }
       const pid = pidOnPort(port);
       if (pid === null) {
-        return NextResponse.json({ success: true, stopped: false, reason: "nothing listening" });
+        return Response.json({ success: true, stopped: false, reason: "nothing listening" });
       }
       try {
         process.kill(pid, "SIGTERM");
@@ -112,16 +113,16 @@ export async function POST(request: Request) {
           process.kill(pid, "SIGKILL");
         } catch { /* already gone */ }
       } catch {
-        return NextResponse.json({ error: `failed to stop pid ${pid}`, code: "stop_failed" }, { status: 500 });
+        return Response.json({ error: `failed to stop pid ${pid}`, code: "stop_failed" }, { status: 500 });
       }
-      return NextResponse.json({ success: true, stopped: true, pid });
+      return Response.json({ success: true, stopped: true, pid });
     }
-    return NextResponse.json(
+    return Response.json(
       { error: "action must be check, restart or stop-instance", code: "invalid_action" },
       { status: 400 },
     );
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
 

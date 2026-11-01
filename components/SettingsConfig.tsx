@@ -4,7 +4,7 @@ import { ToggleSwitch } from "./ui/field";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition, cloneElement, isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { getSubmitDuringRunBehavior, getWordCompletionMode, setSubmitDuringRunBehavior, setWordCompletionMode, type SubmitDuringRunBehavior, type WordCompletionMode } from "@/lib/composer-prefs";
-import dynamic from "next/dynamic";
+import dynamic from "@/lib/dynamic";
 import { Copy, ExternalLink, PanelLeftClose, PanelLeftOpen, RefreshCw, RotateCcw, Search, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { formatAgentEnvText, parseAgentEnvText, type AgentEnvErrorLabels } from "@/lib/omp/agent-env-policy";
 import { isRecord } from "@/lib/type-guards";
@@ -37,20 +37,20 @@ const SettingsTabLoading = () => {
   const { t } = useI18n();
   return <div role="status" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("settingsConfig.loadingSettings")}</div>;
 };
-const ModelsConfig = dynamic(() => import("./ModelsConfig").then((module) => module.ModelsConfig), { loading: SettingsTabLoading, ssr: false });
-const SkillsConfig = dynamic(() => import("./SkillsConfig").then((module) => module.SkillsConfig), { loading: SettingsTabLoading, ssr: false });
-const PluginsConfig = dynamic(() => import("./PluginsConfig").then((module) => module.PluginsConfig), { loading: SettingsTabLoading, ssr: false });
-const McpConfig = dynamic(() => import("./McpConfig").then((module) => module.McpConfig), { loading: SettingsTabLoading, ssr: false });
-const AgentsConfig = dynamic(() => import("./AgentsConfig").then((module) => module.AgentsConfig), { loading: SettingsTabLoading, ssr: false });
-const NativeSettingsPanel = dynamic(() => import("./NativeSettingsPanel").then((module) => module.NativeSettingsPanel), { loading: SettingsTabLoading, ssr: false });
-const RemoteAccessSetting = dynamic(() => import("./RemoteAccessSetting").then((module) => module.RemoteAccessSetting), { loading: SettingsTabLoading, ssr: false });
-const SkillHubPanel = dynamic(() => import("./skill-hub").then((module) => module.SkillHubPanel), { loading: SettingsTabLoading, ssr: false });
+const ModelsConfig = dynamic(() => import("./ModelsConfig").then((module) => module.ModelsConfig), { loading: SettingsTabLoading });
+const SkillsConfig = dynamic(() => import("./SkillsConfig").then((module) => module.SkillsConfig), { loading: SettingsTabLoading });
+const PluginsConfig = dynamic(() => import("./PluginsConfig").then((module) => module.PluginsConfig), { loading: SettingsTabLoading });
+const McpConfig = dynamic(() => import("./McpConfig").then((module) => module.McpConfig), { loading: SettingsTabLoading });
+const AgentsConfig = dynamic(() => import("./AgentsConfig").then((module) => module.AgentsConfig), { loading: SettingsTabLoading });
+const NativeSettingsPanel = dynamic(() => import("./NativeSettingsPanel").then((module) => module.NativeSettingsPanel), { loading: SettingsTabLoading });
+const RemoteAccessSetting = dynamic(() => import("./RemoteAccessSetting").then((module) => module.RemoteAccessSetting), { loading: SettingsTabLoading });
+const SkillHubPanel = dynamic(() => import("./skill-hub").then((module) => module.SkillHubPanel), { loading: SettingsTabLoading });
 import { skillHubApi } from "./skill-hub";
 import { NetworkProxyConfig } from "./NetworkProxyConfig";
 import { SplashAnimationSetting } from "./SplashAnimationSetting";
 import { NativeExtrasSetting } from "./NativeExtrasSetting";
 import { isUpdateNoticeEnabled, setUpdateNoticeEnabled } from "@/lib/update-notice";
-const HostsConfig = dynamic(() => import("./HostsConfig").then((module) => module.HostsConfig), { loading: SettingsTabLoading, ssr: false });
+const HostsConfig = dynamic(() => import("./HostsConfig").then((module) => module.HostsConfig), { loading: SettingsTabLoading });
 
 type UpdateState = {
   currentVersion: string | null;
@@ -2302,6 +2302,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <AgentToolsSetting />
 
                 <AgentEnvSetting />
+
 
                 {/* OMP runtime update card */}
                 <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 10 }}>

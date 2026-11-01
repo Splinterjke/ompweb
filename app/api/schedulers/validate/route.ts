@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { validateScriptPath } from "@/lib/scheduler-store";
 
@@ -15,13 +14,13 @@ export async function POST(req: Request) {
     const body = await parseJsonWithinLimit<{ script?: unknown }>(req, MAX_REQUEST_BYTES);
     const check = validateScriptPath(typeof body.script === "string" ? body.script : "");
     if (!check.ok) {
-      return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
+      return Response.json({ ok: false, error: check.error }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, path: check.path, shell: check.shell });
+    return Response.json({ ok: true, path: check.path, shell: check.shell });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
-      return NextResponse.json({ ok: false, error: "request_too_large" }, { status: 400 });
+      return Response.json({ ok: false, error: "request_too_large" }, { status: 400 });
     }
-    return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 });
+    return Response.json({ ok: false, error: "invalid_request" }, { status: 400 });
   }
 }

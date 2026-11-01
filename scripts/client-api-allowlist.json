@@ -1,7 +1,7 @@
 {
   "comment": "Legacy direct /api fetch + EventSource call sites (5.0 doc 01 Slice 1). Counts are enforced against the live tree by lib/api-inventory.test.mjs — regenerate with: node scripts/audit-client-api.mjs --update-allowlist. Files leave this list only by migrating to lib/client adapters.",
   "files": {
-    "app/remote/page.tsx": 1,
+    "app/remote-client.tsx": 1,
     "components/AgentsConfig.tsx": 5,
     "components/AppShell.tsx": 16,
     "components/ArchiveBrowser.tsx": 2,

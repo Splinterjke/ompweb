@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { basename } from "path";
 import { allowFileRoot, getAllowedFileRoots, isExistingFilePathAllowed, isPathWithinRoots } from "@/lib/file-access";
 import { deleteMcpServer, deleteUserMcpServer, getBuiltinMcpPresets, parseMcpListOutput, readDiscoveredMcpServers, readMcpConfig, readUserMcpConfig, type McpServer, type McpLiveServer, validateMcpServer, writeMcpServer, writeUserMcpServer } from "@/lib/omp/mcp-config";
@@ -12,12 +11,11 @@ import { redactMcpServer } from "@/lib/omp/mcp-config";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import { existingDiscoveredProjectPaths, loadProjectRegistry, mergeProjects } from "@/lib/project-registry";
 
-export const dynamic = "force-dynamic";
 const MAX_MCP_REQUEST_BYTES = 1024 * 1024;
 
 function mcpErrorResponse(error: unknown) {
   const status = error instanceof RequestBodyTooLargeError ? 413 : 400;
-  return NextResponse.json({ error: error instanceof RequestBodyTooLargeError ? "MCP request is too large" : error instanceof Error ? error.message : String(error) }, { status });
+  return Response.json({ error: error instanceof RequestBodyTooLargeError ? "MCP request is too large" : error instanceof Error ? error.message : String(error) }, { status });
 }
 
 function mergeMcpServers(primary: McpLiveServer[], secondary: McpLiveServer[]): McpLiveServer[] {
@@ -170,7 +168,7 @@ export async function GET(request: Request) {
         liveError = error instanceof Error ? error.message : String(error);
       }
     }
-    return NextResponse.json({
+    return Response.json({
       user: safeUser,
       userServers,
       workspaces: workspaceEntries.map(({ cwd: wCwd, name, path, exists, servers }) => ({ cwd: wCwd, name, path, exists, servers })),
@@ -190,10 +188,10 @@ export async function POST(request: Request) {
     validateMcpServer(body.name, body.server);
     if (body.previousName !== undefined && typeof body.previousName !== "string") throw new Error("previousName must be a string");
     if (body.scope === "user" || !body.cwd) {
-      return NextResponse.json({ success: true, ...writeUserMcpServer(body.name as string, body.server, body.previousName) });
+      return Response.json({ success: true, ...writeUserMcpServer(body.name as string, body.server, body.previousName) });
     }
     const cwd = await allowedCwd(body.cwd);
-    return NextResponse.json({ success: true, ...writeMcpServer(cwd, body.name as string, body.server, body.previousName) });
+    return Response.json({ success: true, ...writeMcpServer(cwd, body.name as string, body.server, body.previousName) });
   } catch (error) {
     return mcpErrorResponse(error);
   }
@@ -203,7 +201,7 @@ export async function PUT(request: Request) {
   try {
     const body = await parseJsonWithinLimit<{ name?: unknown; server?: unknown }>(request, MAX_MCP_REQUEST_BYTES);
     validateMcpServer(body.name, body.server);
-    return NextResponse.json({ success: true, message: "MCP server configuration is valid" });
+    return Response.json({ success: true, message: "MCP server configuration is valid" });
   } catch (error) {
     return mcpErrorResponse(error);
   }
@@ -214,10 +212,10 @@ export async function DELETE(request: Request) {
     const body = await parseJsonWithinLimit<{ cwd?: unknown; scope?: unknown; name?: unknown }>(request, MAX_MCP_REQUEST_BYTES);
     if (typeof body.name !== "string") throw new Error("name is required");
     if (body.scope === "user" || !body.cwd) {
-      return NextResponse.json({ success: true, ...deleteUserMcpServer(body.name as string) });
+      return Response.json({ success: true, ...deleteUserMcpServer(body.name as string) });
     }
     const cwd = await allowedCwd(body.cwd);
-    return NextResponse.json({ success: true, ...deleteMcpServer(cwd, body.name as string) });
+    return Response.json({ success: true, ...deleteMcpServer(cwd, body.name as string) });
   } catch (error) {
     return mcpErrorResponse(error);
   }
@@ -239,11 +237,11 @@ export async function PATCH(request: Request) {
       if (!target) throw new Error("Session not found");
       ({ session } = await startRpcSession(body.sessionId, target.sessionFile, target.cwd, undefined, undefined, target.recordedCwd, undefined, host));
     }
-    if (session.isRunning()) return NextResponse.json({ error: "Wait for the current run to finish before changing MCP servers." }, { status: 409 });
+    if (session.isRunning()) return Response.json({ error: "Wait for the current run to finish before changing MCP servers." }, { status: 409 });
     await session.changeMcp(body.action, typeof body.name === "string" ? body.name : undefined);
-    return NextResponse.json({ success: true });
+    return Response.json({ success: true });
   } catch (error) {
     const message = error instanceof WebRpcError ? error.message : (console.error("[api/mcp] patch failed:", error), "MCP change failed");
-    return NextResponse.json({ error: message }, { status: error instanceof WebRpcError && error.code === "session_busy" ? 409 : 400 });
+    return Response.json({ error: message }, { status: error instanceof WebRpcError && error.code === "session_busy" ? 409 : 400 });
   }
 }

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { humanizeSchedule, nextRunAfter, ScheduleValidationError, validateSchedule } from "@/lib/schedule";
@@ -16,20 +15,20 @@ export async function POST(req: Request) {
     try {
       const schedule = validateSchedule(body.schedule);
       const next = nextRunAfter(schedule, new Date());
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         human: humanizeSchedule(schedule),
         nextRunAt: next ? next.toISOString() : null,
       });
     } catch (err) {
       if (err instanceof ScheduleValidationError) {
-        return NextResponse.json({ ok: false, error: err.code }, { status: 400 });
+        return Response.json({ ok: false, error: err.code }, { status: 400 });
       }
       throw err;
     }
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
-      return NextResponse.json({ ok: false, error: "request_too_large" }, { status: 400 });
+      return Response.json({ ok: false, error: "request_too_large" }, { status: 400 });
     }
     return apiErrorResponse(error);
   }

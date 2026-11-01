@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { loadSessionFile } from "@/lib/omp/session-files";
 import { buildSessionContext, resolveSessionPath } from "@/lib/session-reader";
 import { getLeafEntryId } from "@/lib/omp/session-files";
@@ -31,7 +30,7 @@ export async function GET(
     const live = getRpcSession(id);
     if (live?.isAlive() && !(await live.host.sessionFileExists(live.sessionFile))) {
       const context = buildSessionContext([], null, { deferThinking, deferToolResultImages, includePreCompaction });
-      return NextResponse.json({ context, leafId: null });
+      return Response.json({ context, leafId: null });
     }
 
     // Another host owns the file: the host facade reads it there and answers
@@ -45,12 +44,12 @@ export async function GET(
         includePreCompaction,
       });
       if (!result.ok) return opErrorResponse(result);
-      return NextResponse.json({ context: (result.value as { context?: unknown }).context, leafId: leafId ?? null });
+      return Response.json({ context: (result.value as { context?: unknown }).context, leafId: leafId ?? null });
     }
 
     const filePath = await resolveSessionPath(id);
     if (!filePath) {
-      return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+      return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
     }
 
     const { header, entries, error: loadError } = loadSessionFile(filePath, {
@@ -58,13 +57,13 @@ export async function GET(
       skipToolResultImages: deferToolResultImages,
     });
     if (loadError === "too_large") {
-      return NextResponse.json(
+      return Response.json(
         { error: "Session file is too large to open in omp-web", code: "session_file_too_large" },
         { status: 413 },
       );
     }
     if (!header) {
-      return NextResponse.json({ error: "Session file is missing or malformed", code: "session_file_malformed" }, { status: 404 });
+      return Response.json({ error: "Session file is missing or malformed", code: "session_file_malformed" }, { status: 404 });
     }
     const context = buildSessionContext(entries, leafId, {
       deferThinking,
@@ -79,7 +78,7 @@ export async function GET(
     const resolvedLeafId =
       leafId && entries.some((e) => e.id === leafId) ? leafId : getLeafEntryId(entries);
 
-    return NextResponse.json({ context, leafId: resolvedLeafId });
+    return Response.json({ context, leafId: resolvedLeafId });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api-utils";
 import { parseJsonWithinLimit, RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import {
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
       spec = validateActionSpec(body.action);
     } catch (err) {
       if (err instanceof ChatEventActionStoreError) {
-        return NextResponse.json({ error: String(err), code: err.code }, { status: 400 });
+        return Response.json({ error: String(err), code: err.code }, { status: 400 });
       }
       throw err;
     }
@@ -67,7 +66,7 @@ export async function POST(req: Request) {
       // real values arrive only for live events).
       executeChatAction(action, { sessionId: "test", sessionName: "Test", lastAssistantReply: "Test reply", eventName: translateEventName("conversation_completed") });
       const run = await waitForRun(action.id);
-      return NextResponse.json({ ok: run.ok, ...(run.detail ? { detail: run.detail } : {}) });
+      return Response.json({ ok: run.ok, ...(run.detail ? { detail: run.detail } : {}) });
     } finally {
       // Always remove the throwaway entry, even on failure/timeout.
       const cur = getChatEventAction(action.id);
@@ -75,7 +74,7 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
-      return NextResponse.json({ error: String(error), code: "request_too_large" }, { status: 400 });
+      return Response.json({ error: String(error), code: "request_too_large" }, { status: 400 });
     }
     return apiErrorResponse(error);
   }

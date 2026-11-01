@@ -3,7 +3,13 @@
 ## Quick Start
 
 ```bash
-npm run dev   # port 30178
+npm run dev     # Bun server with hot reload (HMR for the SPA), port 30178
+npm run build   # bundle the SPA into dist/ (scripts/build-client.ts)
+npm start       # serve dist/ + the API, port 30177
+npm test        # bun test --parallel (Bun runs the node:test API too)
+npm run smoke   # start the built server and `ompweb host` (or a packed install: -- --package <dir>; a binary: -- --binary <path>) and check them
+npm run build:binary [-- --target bun-<os>-<arch>]   # build, then compile release/ompweb-<os>-<arch>/ and its .tar.gz/.zip (scripts/build-binary.ts)
+npm run typecheck && npm run lint
 ```
 
 **Optional graphify graph** (upstream #358): the repo tracks `graphify-out/graph.json`
@@ -14,13 +20,15 @@ is pathspec-scoped `git add -- … && git commit -m … -- …`. Bypass with `GR
 
 Typecheck: `node_modules/.bin/tsc --noEmit`  
 Lint: `npm run lint`  
-**Dev and build use separate distDirs** — `next dev` writes to `.next-dev/`
-(`distDir: isDev ? ".next-dev" : undefined` in `next.config.ts`), so `next build`
-and the dev server can run concurrently in the same repo. Older setups shared
-`.next/`, where a live dev server rewriting `.next/dev/types/` during the build's
-typecheck step caused TS1128 failures. `scripts/clean-dev-types.mjs` still sweeps
-dev type dirs before builds as a safety net.
-
+The server (dev/start/build/smoke) runs on **Bun** (`bun` is a dependency; the npm package
+brings its own), and `npm test` is upstream's **`bun test --parallel`** — Bun implements the
+`node:test` API, so both the fork's node-style suites and the DOM-harness tests
+(`tests/setup-dom.mjs`, extensionless `.tsx` imports) run under it; the `.tsx`-importing
+suites do NOT run under bare `node --experimental-strip-types --test`. When running
+individual Node-compatible test files that way anyway, clear the ambient deploy env first —
+`env -u OMPWEB_HOST_BIN -u OMP_WEB_PACKAGE_DIR NODE_ENV=test node --experimental-strip-types --test <files>`
+— a leaked `OMPWEB_HOST_BIN`/`OMP_WEB_PACKAGE_DIR` (from a dev-server launch) makes
+`resolveHostBin` fall through to old vendor binaries and fails the host-bin route tests.
 The dev server needs the `omp` binary installed (on `PATH`, or set `OMP_WEB_OMP_BIN`).
 All live-agent features go through it; session browsing works without it.
 
@@ -184,12 +192,12 @@ Rules:
 
 ## Architecture
 
-omp-web never imports `@oh-my-pi/*` or `@earendil-works/*` packages (they are
-Bun-only and cannot run inside Node/Next). See `DESIGN.md` for the full porting
-contract.
+omp-web never imports `@oh-my-pi/*` or `@earendil-works/*` packages, even
+though the server now runs on Bun: live work goes through the installed `omp`
+child. See `DESIGN.md` for the full porting contract.
 
 ```
-Browser                Next.js Server                local `ompweb host` daemon      omp child process
+Browser                Bun server (server/app.ts)        local `ompweb host` daemon      omp child process
   │                        │                                  │                            │
   ├─ GET /api/sessions ────▶ reads ~/.omp/agent/sessions/     │                            │
   ├─ GET /api/sessions/[id] reads .jsonl file directly        │                            │
@@ -204,6 +212,14 @@ Browser                Next.js Server                local `ompweb host` daemon 
   │                        │   (via the shared /api/events socket)             │            │
   │◀── event: s<n> data: {...} ──│                                  hello/adoption ──▶│     │
 ```
+
+The launcher (`bin/omp-web.js`) and the host daemon (`bin/omp-web-host.js`)
+and tray run on Node. The launcher spawns `bun server/main.ts` (Bun resolved by
+`bin/bun-runtime.js`: the npm `@oven/bun-*` binary, else `bun` on `PATH`), which
+serves the SPA from `dist/`, the API routes and the password gate in one
+process. Nothing in the daemon or tray may use a Bun API. The compiled binary
+(`server/binary.ts`) is the exception: one Bun program that runs the server in
+its own process (no launcher), `ompweb host` and `ompweb hash-password`.
 
 **Session browsing** (read-only): pure-Node parsing of omp session `.jsonl`
 files via `lib/session-reader.ts` — no child process involved.  
@@ -235,6 +251,18 @@ Shared foundations in `lib/omp/`:
 ## File Map
 
 ```
+server/
+  main.ts             production entry: sets NODE_ENV, then `startProduction` (app.ts); prints the `Ready on` line the launcher waits for
+  binary.ts           the compiled `ompweb` (scripts/build-binary.ts): the launcher's checks (`checkLaunchSecurity`) and `startProduction` in-process, `host` (lib/hosts/host-cli.ts), `hash-password`; refuses tray/service commands
+  dev.ts              dev entry (`bun --hot`): serves the HTML import with HMR; re-runs itself once with OMP_WEB_PUBLIC_* set so `bunfig.toml` can inline them
+  app.ts              `startServer`: `Bun.serve` + route table + gate + SPA fallback; `startProduction` (listen, `register()`, Ready line); `parseListenArgs`
+  routes.ts           the API route table (see "Adding an API route"); `routePattern`, `dispatch`
+  http.ts             `finalizeResponse` (security headers, gzip for pages and static files, never `/api/`), `serveFile` (dist/, public/, KaTeX), `renderIndex`
+  client-env.ts       build-time constants for the browser bundle (app version, event-stream worker hash)
+app/
+  index.html          the SPA shell, the bundler entry; #root holds static copies of RouteLoadingFallback and (swapped in on /login by an inline script) LoginForm's first render, painted before the bundle runs
+  client.tsx          browser entry: renders `LoginForm` on `/login`, else `AppShell` (a path check, no router)
+  boot.ts             runs first in client.tsx: installs the sidebar history bridge before AppShell registers popstate listeners
 app/api/
   sessions/route.ts               GET  list all sessions
   sessions/search/route.ts        GET ?q= — NDJSON { scores } batches (titles + transcripts); closing the request stops the scan
@@ -245,7 +273,7 @@ app/api/
   agent/[id]/route.ts             GET state | POST any RPC command
   events/route.ts                 GET multiplexed SSE | POST subscribe/unsubscribe channels (running/notifications/host-tools/session/file)
   hosts/route.ts                  GET hosts (this machine first) | POST { label } → token once + login command | PATCH { id, label?, allowAgentStart? } (`local`: label only, empty resets to "This machine") | DELETE ?id= revoke (registry first, then close the link); 503 if hosts.json is unreadable
-  hosts/link/route.ts             GET downlink (NDJSON stream) | POST uplink (NDJSON batch) — the `ompweb host` daemon; bearer-token auth, skipped by `proxy.ts`
+  hosts/link/route.ts             GET downlink (NDJSON stream) | POST uplink (NDJSON batch) — the `ompweb host` daemon; bearer-token auth, skipped by the `proxy.ts` gate
   hosts/link/blob/[reqId]/route.ts  POST raw bytes for a large op result (daemon → main)
   notifications/devices/route.ts  GET VAPID key + subscribed | PUT { deviceId, prefs, subscription? }
   notifications/presence/route.ts POST { clientId, deviceId, visible, sessionId, seq }
@@ -277,8 +305,10 @@ app/api/
   worktrees/route.ts              GET/POST/DELETE git worktrees
 
 lib/
+  dynamic.tsx          `dynamic()` over `React.lazy` + `Suspense`
+  navigation.ts        `useRouter`/`useSearchParams` over the History API
   omp/                 shared omp foundations (paths, CLI probe, RpcProcess)
-  hosts/               hosts and the local daemon (see "Remote hosts"); none of the daemon-loaded files may import `next/*` or `@/`
+  hosts/               hosts and the local daemon (see "Remote hosts"); none of the daemon-loaded files may import `@/` (the daemon runs on Node through `jiti`)
     host.ts            `Host` interface, `HostStatus`, `isLinkUp`
     local-host.ts      `localHost`, the daemon's side: spawn + file checks on the daemon's machine; `resolveSpawnCwdResult`; `SESSION_EDIT_EXTENSION_PATH` (from the module's own location: the daemon runs in HOME). Never imported by main, nor is `daemon.ts` (`no-direct-local.test.mjs`)
     local-bootstrap.ts web server side of the local link: `localLinkUrl`, `ensureLocalHostLink` (the `local` record + `host.json`)
@@ -387,16 +417,55 @@ hooks/
   useTheme.ts              theme state (localStorage key "omp-theme")
 
 bin/
-  omp-web-host.js     `ompweb host [login]`: daemon CLI; token read from stdin, never argv. `omp-web.js host` requires it in-process (no child) so SIGTERM/SIGINT reach the daemon's stop
+  bun-runtime.js      resolves the Bun binary (npm `@oven/bun-*`, else PATH, minimum version check); used by the launcher, scripts and nix
+  omp-web-host.js     `ompweb host [login]`: loads lib/hosts/host-cli.ts through jiti; token read from stdin, never argv. `omp-web.js host` requires it in-process (no child) so SIGTERM/SIGINT reach the daemon's stop
+
+scripts/
+  build-client.ts     `npm run build`: bundles app/index.html into dist/ (Bun.build + tailwind-plugin.ts; fonts emitted as /assets files)
+  tailwind-plugin.ts  bun-plugin-tailwind minus Tailwind's color-mix() polyfill (Bun 1.4.4 drops repeated @supports rules); build and dev
+  smoke.ts            `npm run smoke`: starts the built server (or `--binary <path>`) and `ompweb host` with a throwaway HOME; checks the SPA, an asset, the API, a session listed through the daemon and SSE
+  build-binary.ts     `npm run build:binary`: compiles server/binary.ts (NODE_ENV define, no .env/bunfig autoload) into release/ompweb-<os>-<arch>/ beside dist/, public/, the KaTeX files, the session-edit extension and the licenses; archives it
+  licenses.ts         the release's `licenses/`: license files of every npm package the server and client bundles hold (Bun.build metafiles; build-client.ts writes build/client-packages.json) and `bun-LICENSE-<version>.md`, the vendored license of the embedded Bun runtime. Bumping Bun: vendor its LICENSE.md for the new version, or build-binary.ts stops
+
+dist/                 build output (git-ignored, shipped in the package); the production server reads index.html and assets from here
+bunfig.toml           Bun dev-server bundling: tailwind plugin and the OMP_WEB_PUBLIC_* inlining
 ```
 
 ---
 
 ## Key Design Decisions & Traps
 
+### Adding an API route
+1. Create `app/api/<path>/route.ts` exporting `GET`/`POST`/`PUT`/`PATCH`/`DELETE` handlers (plain `Request` → `Response`; dynamic segments `[id]`, catch-all `[...path]`).
+2. Add one `import * as x from "@/app/api/<path>/route"` and one entry to `ROUTE_MODULES` in `server/routes.ts`; the key is the directory under `app/api` (`"sessions/[id]"`).
+3. `server/routes.test.ts` fails when the table and the files on disk differ, and when a route module exports anything but method handlers.
+
+The table is static imports, not a runtime glob, so `bun build --compile` (`scripts/build-binary.ts`) bundles every handler. `dispatch` answers HEAD from `GET`, OPTIONS and a missing method (405 with `allow`), passes `params` as a promise (plus `disableIdleTimeout`, below), and turns a throw into a 500 JSON body.
+
+### Bun server (`server/`)
+- Bun's 10 s `idleTimeout` stays on: it reaps sockets that stall before or during a request, and it also cuts a handler still working after 10 s. So `handle` (`server/app.ts`) calls `server.timeout(request, 0)` for an `/api/` request that `proxy()` reports as `"authenticated"` (never `"public"`) and puts the 10 s back once the handler returns or throws: the setting outlives the response on a keep-alive socket. A handler whose response stays open without traffic (SSE `/api/events`, the login SSE, the clone/search/bash-output/file streams) calls `disableIdleTimeout` from the route context (`dispatch`, `server/routes.ts`) to keep it off until that stream ends or is cancelled; a new stream must do the same, or it is cut after 10 s idle. The host link is gate-exempt (`"public"`), and `lib/hosts/hub.ts` calls `disableIdleTimeout` only once the bearer token checks out. `maxRequestBodySize` is left at Bun's 128 MiB default, above the 101 MB upload cap and the 64 MB link legs; do not lower it.
+- Bun's router matches the **raw** path, while `request.url` is normalized (`..` and `%2e%2e` resolved). The gate and handlers read `request.url`, so each route re-matches the normalized path against its own `URLPattern` after the gate and answers 404 if it no longer matches. Never serve a gated route under an ungated path.
+- Redirects carry a relative `Location` (`request.url` is always `http://` under Bun, so an absolute URL would leave https behind a TLS proxy).
+- `Response.redirect()` headers are immutable; `finalizeResponse` (`server/http.ts`) copies every answer into a fresh `Response` to set the security headers and gzip. Do not mutate a handler's response headers elsewhere.
+- `globalThis` state survives `bun --hot` re-evaluation, and `register()` (`instrumentation.node.ts`) runs once per process behind a `globalThis` guard in `server/dev.ts`. New server singletons use the `globalThis` registry pattern of `rpc-manager.ts`.
+- Dev (`npm run dev`) serves the SPA from the HTML import with HMR, bundled in memory, and re-runs itself once with `OMP_WEB_PUBLIC_*` set because `bunfig.toml` inlines them from the environment Bun started with. Dev pages carry `script-src blob:` in their CSP (HMR updates run as blob scripts); production does not.
+- `OMP_WEB_PACKAGE_DIR` (set by the launcher) is the root for `dist/`, `public/` and KaTeX; `process.cwd()` is the fallback for dev and tests. The compiled binary sets it to its own directory (unless set) before any server module loads, so every runtime file must come from that root: a module's `import.meta.url` in the binary is Bun's virtual `/$bunfs/`, which no other process can read. A new file the server or daemon reads at runtime also goes into `scripts/build-binary.ts`'s copy list.
+- The binary needs `process.env.NODE_ENV` defined as `"production"` at build time (`scripts/build-binary.ts`): a plain `bun build --compile` inlines `"development"`, and the server then never writes the daemon's link. `npm run smoke -- --binary` catches that (no session lists).
+- `Bun.serve` turns on `SO_REUSEPORT` when `development` is false, so a second omp-web would share the port instead of failing; `startServer` passes `reusePort: false`, and `startProduction` (`server/app.ts`) reports an `EADDRINUSE` in one line.
+- The in-app update worker runs on Node (`OMP_WEB_NODE_BIN`, the launcher's `process.execPath`), not Bun. The compiled binary has no in-app update: `Bun.isStandaloneExecutable` turns it off (`lib/self-update.ts`) and `/api/app-update` names the release page (`installMethod: "binary"`).
+- Bun's `fs.watch` drops an event that follows the previous one within ~2 ms, so the file channel (`openFileChannel`, `lib/event-stream-hub.ts`) re-stats the file ~50 ms after every event.
+- `bun:sqlite` `.get()` returns `null` for no row (not `undefined`).
+- `bun:sqlite` `close()` keeps the database file open while prepared statements are alive (until GC), so Windows cannot remove or replace it: the stores close with `close(true)`, which finalizes them (`closeNotificationStore`, `closeUsageDatabase`).
+- `readSttConfig` lives in server-only `lib/stt-jobs.ts`; the browser bundle must never import it.
+- Browser code must not import `next/*`: use `lib/dynamic.tsx` and `lib/navigation.ts`.
+
+### Tests (`bun test`)
+- DOM tests import `tests/setup-dom.mjs` first and then import Testing Library dynamically, so its queries bind to that document. `bun test --parallel` gives every file a fresh global; nothing is torn down.
+- A module under test that must see a fake builtin is imported with a fresh query (`?fresh=N`) after `mockBuiltin(t, name, overrides)` (`tests/mock-builtin.mjs`, built on `mock.module`; Bun's `mock.restore()` does not undo `mock.module`, so the helper restores by hand).
+
 ### RPC session lifecycle (`lib/rpc-manager.ts`)
 - One wrapper per session id, keyed in a `globalThis` registry.
-- `globalThis` survives Next.js hot-reload; plain module-level Map does not.
+- `globalThis` survives `bun --hot` re-evaluation; a plain module-level Map does not.
 - Idle sessions are disposed after a timeout; concurrent `startRpcSession()`
   calls must share a single start promise.
 - **Prompt images and the host IPC frame cap**: user-prompt images stay
@@ -491,8 +560,8 @@ bin/
   project state key on `hostProjectKey` (bare path on this machine, `<hostId>:<path>`).
 - **Link = two HTTP legs, both dialled by the daemon** (`/api/hosts/link`):
   `GET` is the downlink (long-lived NDJSON, main → daemon), `POST` the uplink
-  (batched NDJSON, daemon → main). No WebSocket: `next start` route handlers
-  cannot accept upgrades and there is no custom server (and no `ws`). Every
+  (batched NDJSON, daemon → main). No WebSocket yet: the route handlers are
+  plain `Request` → `Response` functions with no upgrade path (and no `ws`). Every
   line except `hello`/`welcome`/`ping`/`pong` has a per-direction `seq`;
   `ack` rides the hello and every POST (the `x-omp-web-ack` header on an
   uplink POST). The hello is a POST body, never a header (proxy header
@@ -557,8 +626,10 @@ bin/
   hello) and is then destroyed; no replacement spawns beside it.
   `restartAllRpcSessions` (omp update) restarts local sessions only.
   Remote-only transport members (`onResync`, `lost`) are optional on
-  `RpcTransport` and duck-typed: route bundles and instrumentation load
-  separate `hub.ts` module instances, so never `instanceof RemoteRpcTransport`.
+  `RpcTransport` and duck-typed. There is one module graph, but live objects on
+  `globalThis` outlive a `bun --hot` re-evaluation, which may re-create the
+  `RemoteRpcTransport` class (not verified); duck typing holds either way, so
+  never `instanceof RemoteRpcTransport`.
 - **Live-link recycle rule.** A prompt, history-edit or MCP command that times
   out normally recycles the child. On a remote host it does so only if the host
   sent uplink traffic after the command was dispatched (`lastUplinkAt`,
@@ -577,10 +648,9 @@ bin/
   the `get_state` reconcile. With `autoResumeSessions` on, an interrupted
   session resumes after its host's hello (`resumeOnHostLink`,
   `lib/session-resume.ts`), once, after the orphan's exit.
-- **Proxy exclusion.** `proxy.ts` does not run for `/api/hosts/link` and its
-  subpaths (its matcher excludes exactly those). Next buffers a proxied request
-  body and silently truncates it past 10 MB, below the link's 16 MB uplink and
-  64 MB blob limits. The hub verifies the `Authorization: Bearer <host token>`
+- **Proxy exclusion.** The `proxy.ts` gate lets `/api/hosts/link` and its
+  subpaths through (the `UNGATED` pattern names exactly those): the daemon has
+  no session cookie, so it authenticates with its bearer token instead. The hub verifies the `Authorization: Bearer <host token>`
   header before reading any body (401 unknown token, 503 unreadable
   `hosts.json`). Keep `/api/hosts` itself behind the proxy.
 - **Remote paths never reach `allowFileRoot`** or any other main-side
@@ -591,9 +661,9 @@ bin/
   in `hub.ts`, and `sessionFileExists`/`spawn` accept only paths under the
   daemon's sessions directory. A remote session export is always served as an
   attachment: inline, its HTML would run on main's origin.
-- **Daemon-loaded modules must not import `next/*` or `@/`.** `bin/omp-web-host.js`
-  loads `lib/hosts/daemon.ts` through plain `jiti`, which does not resolve the
-  `@/` alias and has no Next runtime. That covers everything the daemon pulls in
+- **Daemon-loaded modules must not import `@/` or use Bun APIs.** `bin/omp-web-host.js`
+  loads `lib/hosts/daemon.ts` through plain `jiti` on the Node runtime, which does
+  not resolve the `@/` alias and has no `Bun` global (the tray modules likewise). That covers everything the daemon pulls in
   (`daemon.ts`, `link-protocol.ts`, `local-host.ts`, `session-ops.ts`,
   `host.ts`, and their `lib/` imports). Use relative imports there.
 - **Registry.** `<agent dir>/omp-web/hosts.json` (0600, atomic write) stores
@@ -845,8 +915,9 @@ wait for that commit:
   route serves the copy until the blob has the copy's size. A daily sweep (run
   on the next media write) deletes copies omp now holds and files older than
   30 days.
-- `ToolCallBlock` shows `?thumb=1` (480px WebP made once with `sharp` and cached
-  next to the copies; full image if sharp is unavailable) and opens the full
+- `ToolCallBlock` shows `?thumb=1` (480px WebP made once with `Bun.Image`, which
+  applies EXIF orientation, and cached next to the copies; full image if the
+  bytes do not decode) and opens the full
   image in the lightbox. The route serves only PNG/JPEG/GIF/WebP by magic bytes.
 
 ### Event protocol differences vs pi
@@ -949,7 +1020,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   EventSource and multiplexes every tab's subscriptions: frames arrive as
   `event: <subId>`, control frames as `event: mux` (`hello`/`open`/`end`/`ping`).
   Subscriptions are attached with `POST /api/events`. Its URL carries a
-  content hash (`next.config.ts`) so a changed worker never serves stale tabs.
+  content hash (`server/client-env.ts`) so a changed worker never serves stale tabs.
 - Tabs use `openEventStream(channel)` (`lib/event-stream.ts`), which keeps
   EventSource semantics: `onerror` + CONNECTING = reconnecting on its own,
   CLOSED = fatal (e.g. 409 for a wrapper-less session; the chat hook then
@@ -1346,6 +1417,18 @@ stored `omp-web:submit-during-run` choice overrides it.
   treatment, and the active project's worktree selector renders directly
   below its row.
 
+### Clone a repository as a new workspace (`/api/projects/clone`)
+- The Add-workspace `DirectoryPicker` takes an optional Git URL; "Clone here"
+  clones into `<selected dir>/<repo name>`, then registers that directory
+  through the normal `POST /api/projects` path.
+- Only `https://`, `ssh://` and scp-like `user@host:path` URLs are accepted
+  (`cloneDirectoryName`); git also runs with `GIT_ALLOW_PROTOCOL=https:ssh`
+  and `GIT_TERMINAL_PROMPT=0`, so credentials must come from helpers/agents.
+- The POST streams NDJSON (`output` chunks, then one of `done` / `cancelled` /
+  `error`). Cancel is `DELETE { id }`: the POST stream stays open until the
+  partial clone is deleted, so the UI can confirm the cleanup. A client
+  disconnect cancels and cleans up too. An existing target is refused (409).
+
 ### Navigate back / forward (`lib/navigation-history.ts`, `hooks/useNavigationHistory.ts`)
 - Browser-style back/forward over visited chat views (sessions + the new-chat
   composer), in-memory per page load. It is **omp-web's own stack**, never the
@@ -1384,8 +1467,9 @@ stored `omp-web:submit-during-run` choice overrides it.
   actually visible instead of landing behind the panel.
 
 ### File access allow-list
-- `/api/files` is intentionally not a general filesystem browser. Allowed roots come from session cwds, their resolved project roots, `~/omp-cwd-*`, and roots explicitly added with `allowFileRoot()`.
+- `/api/files` is intentionally not a general filesystem browser. Allowed roots come from this machine's session cwds and their resolved project roots (as its daemon lists them: `hostSessions("local")`, the last list while the daemon is offline), `~/omp-cwd-*`, and roots explicitly added with `allowFileRoot()`. Other hosts' paths never reach it.
 - `/api/cwd/validate`, `/api/default-cwd`, and `/api/worktrees` call `allowFileRoot()` when they make a new location browsable.
+- The session-id → file path cache (`cacheSessionPath`, `lib/session-reader.ts`) on main is filled by main's own scans and by wrappers on the local host; it only serves the readers listed under "Session list caching".
 
 ### Paged text preview reads (`lib/file-read-page.ts`, `?type=read&offset=`, FileViewer Load more)
 - Text previews are NOT capped at 256 KiB anymore: `?type=read` serves
@@ -1415,9 +1499,8 @@ stored `omp-web:submit-during-run` choice overrides it.
   the `b += c` HTTP-client trap in test harnesses.
 
 ### Session list caching — new sessions must appear immediately
-- `listAllSessions()` (sidebar, command palette) is cached twice: a 30s TTL
-  list cache in `lib/session-reader.ts` plus an mtime-keyed directory walk in
-  `lib/omp/session-files.ts` (`listSessionFiles`).
+- The sidebar and command palette list sessions per host: `listSessionsAllHosts()` (`lib/hosts/session-index.ts`) calls each host's `listSessions` op and caches it 30 s per host (`LIST_TTL_MS`, the daemon's own TTL). **This machine's list is its daemon's**; a host that fails or is offline keeps its last list. Nothing on main parses session files to build it.
+- The daemon's `listSessions` is `listAllSessions()` (`lib/session-reader.ts`): a 30 s TTL list cache plus an mtime-keyed directory walk in `lib/omp/session-files.ts` (`listSessionFiles`), both in the daemon process.
 - The walk cache keys on the **sessions root** mtime. On Windows/NTFS a new
   `.jsonl` inside an existing project subdirectory does NOT bump the root
   mtime, so the walk stays stale indefinitely.
@@ -1425,6 +1508,8 @@ stored `omp-web:submit-during-run` choice overrides it.
   compaction, renames) must therefore ALSO clear the walk cache via
   `invalidateSessionFileListCache()` — never add a session-mutation path that
   forgets this. Regression test: `session-reader.test.mjs`.
+- A mutation that main triggers calls `invalidateLocalSessionLists()`: it clears main's per-host entry and sends the daemon `invalidateSessionLists` (the daemon runs the invalidation above). A route that changes this machine's session files and does not call it leaves the sidebar stale for up to 30 s.
+- **Still read on main, from this machine's own files** (main and the daemon share a machine, so these see the same sessions): transcript search (`session-content-search.ts`, `/api/sessions/search`), the session file watcher (`session-watcher.ts`), archive list/restore (`/api/sessions/archive`), import (`/api/sessions/import`), usage (`usage-db.ts`), and the bash-output, subagent-history and file-reference readers (`session-file-references.ts`, `subagent-history.ts`). They use main's own copies of `session-reader` and its caches, so they are invalidated separately (`invalidateSessionListCache()`); a new reader of session files on main for a session that may be remote is a bug.
 
 ### Copilot-style diff viewer (`lib/diff-model.ts`, `components/diff/DiffViewer.tsx`)
 - All three diff surfaces (the Git Graph panel's diff pane, the right panel's
@@ -2014,13 +2099,3 @@ the whole travel. `createSwipeTracker` cancels a swipe the finger turned back
 converted into the `pointercancel` base-ui treats as "snap back".
 Icons come from `lucide-react` — do not add new inline SVGs. The command
 palette (`components/CommandPalette.tsx`, ⌘K/Ctrl+K) is built on `cmdk`.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->

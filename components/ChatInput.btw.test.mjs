@@ -1,18 +1,11 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { after, afterEach, beforeEach } from "node:test";
+import React, { act } from "react";
+const { cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
 
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
-const { act, cleanup, fireEvent, render, screen } = await import("@testing-library/react/pure.js");
-const { createJiti } = await import("jiti");
-
-const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
-const { ChatInput } = await jiti.import("./ChatInput.tsx");
-const { clearDraft, getDraft } = await jiti.import("@/lib/draft-store");
+const { ChatInput } = await import("./ChatInput.tsx");
+const { clearDraft, getDraft } = await import("@/lib/draft-store");
 
 // jsdom ships neither matchMedia nor object URLs, and Node no FileReader; the
 // composer touches all three when a draft or an image attachment is edited.

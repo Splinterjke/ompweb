@@ -3,7 +3,6 @@ import { clearBackendErrors, recordBackendError, recentBackendErrors } from "./b
 import { validateAgentImages } from "./image-attachments";
 import { invalidateModelsCache } from "./models-cache";
 import { RpcCommandError, RpcCommandTimeoutError, RpcProcess, type RpcFrame } from "./omp/rpc-process";
-import { type RpcProcessLike } from "./omp/rust-rpc-process";
 import type { RpcTransport } from "./omp/rpc-transport";
 import { editSessionHistory, isSessionEditReply, SESSION_EDIT_COMMAND, SessionEditAgentInvocationError, type SessionEditResult } from "./omp/session-edit";
 import { scanSessionInfo } from "./omp/session-files";
@@ -490,10 +489,10 @@ export class AgentSessionWrapper {
    *  as the display title for a running session whose JSONL file does not
    *  exist yet, instead of a bare session-id fragment. */
   firstPrompt = "";
-  private proc: RpcProcessLike;
+  private proc: RpcProcess;
   /** Process whose exit is expected because reload/restart is deliberately
    *  disposing it — its exit must not be recorded as a crash. */
-  private expectedExitProc: RpcProcessLike | null = null;
+  private expectedExitProc: RpcProcess | null = null;
   /** A reload gave up waiting for the old child behind a dropped link; it may still run, so commands answer host_offline until it exits. */
   private oldChildExiting = false;
   readonly cwd: string;
@@ -520,7 +519,7 @@ export class AgentSessionWrapper {
   // Plain field assignments (not TS parameter properties) keep this module
   // runnable under Node's strip-only TypeScript mode for probes/tests.
   constructor(
-    proc: RpcProcessLike,
+    proc: RpcProcess,
     cwd: string,
     recordedCwd?: string | null,
     advisorSpawned = false,
@@ -691,8 +690,8 @@ export class AgentSessionWrapper {
   }
 
   /** A remote link that dropped this child's buffered output asks for a reconcile.
-   * Duck-typed: route bundles and instrumentation load separate hub modules. */
-  private watchResync(proc: RpcProcessLike): void {
+   * Duck-typed: a `bun --hot` re-evaluation can leave live transports on an older class. */
+  private watchResync(proc: RpcProcess): void {
     proc.transport?.onResync?.(() => {
       if (this.proc === proc) void this.reconcileAfterGap();
     });
@@ -1016,7 +1015,7 @@ export class AgentSessionWrapper {
 
   handleProcessExit(
     { code, signal, stderrTail }: { code: number | null; signal: NodeJS.Signals | null; stderrTail: string },
-    sourceProc: RpcProcessLike = this.proc,
+    sourceProc: RpcProcess = this.proc,
   ): void {
     // A restart disposes the old child on purpose — not a crash.
     if (!this._alive || sourceProc === this.expectedExitProc) return;
@@ -3352,7 +3351,7 @@ export async function restartAllRpcSessions(): Promise<number> {
 // Pushes the current set of running session ids to subscribers whenever any
 // session's running state may have changed. This lets the sidebar receive live
 // updates over SSE instead of polling. Listeners live on globalThis so they
-// survive Next.js hot-reload.
+// survive a `bun --hot` re-evaluation.
 // ----------------------------------------------------------------------------
 
 function getRunningListeners(): Set<(update: RunningSessionUpdate) => void> {

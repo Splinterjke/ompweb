@@ -1,0 +1,29 @@
+import "./boot";
+import { StrictMode, Suspense } from "react";
+import { createRoot } from "react-dom/client";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { AppShell } from "@/components/AppShell";
+import { IosFocusZoomGuard } from "@/components/IosFocusZoomGuard";
+import { LoginForm } from "@/components/LoginForm";
+import { RemotePairPage } from "@/app/remote-client";
+import { RouteLoadingFallback } from "@/components/RouteLoadingFallback";
+
+// createRoot (not hydrateRoot) replaces the static skeleton or sign-in form that app/index.html puts in #root; a
+// password typed into the static form carries over.
+const typedPassword = document.querySelector<HTMLInputElement>("#root #web-password")?.value;
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <AppErrorBoundary>
+      <IosFocusZoomGuard />
+      {location.pathname === "/login" ? (
+        <LoginForm initialPassword={typedPassword} />
+      ) : location.pathname === "/remote" || location.pathname.startsWith("/remote/") ? (
+        <RemotePairPage />
+      ) : (
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <AppShell appName={document.title} />
+        </Suspense>
+      )}
+    </AppErrorBoundary>
+  </StrictMode>,
+);

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { closeSync, openSync, readFileSync, readdirSync, readSync, statSync } from "fs";
 import * as fsRuntime from "fs";
 import { dirname, join } from "path";
@@ -45,15 +44,15 @@ function rustAuthorityError(kind: string, error: unknown): Error {
 /** Stable, client-safe error body for the catch-all handlers: a WebRpcError
  *  fence (e.g. a live history edit holding the session) keeps its 409; every
  *  other error goes through the generic stable-body mapper. */
-function sessionsErrorResponse(error: unknown): NextResponse {
+function sessionsErrorResponse(error: unknown): Response {
   if (error instanceof WebRpcError && error.code === "session_busy") {
-    return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
+    return Response.json({ error: error.message, code: error.code }, { status: 409 });
   }
   if (error instanceof RequestBodyTooLargeError) {
-    return NextResponse.json({ error: "Request body is too large", code: "request_too_large" }, { status: 413 });
+    return Response.json({ error: "Request body is too large", code: "request_too_large" }, { status: 413 });
   }
   if (error instanceof SyntaxError) {
-    return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
   // A host link failure keeps its status: 503 offline, 504 timeout.
   if (error instanceof HostOpError) return apiErrorResponse(error);
@@ -97,7 +96,7 @@ export async function GET(
             // Leave agent unset; the session payload is still valid without it.
           }
         }
-        return NextResponse.json({
+        return Response.json({
           sessionId: id,
           filePath: "",
           info: {
@@ -136,7 +135,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       sessionId: id,
       ...read.value,
       ...(agent ? { agent } : {}),
@@ -155,7 +154,7 @@ export async function PATCH(
   try {
     const { name } = await req.json() as { name?: string };
     if (typeof name !== "string" || !name.trim()) {
-      return NextResponse.json({ error: "name is required", code: "session_name_required" }, { status: 400 });
+      return Response.json({ error: "name is required", code: "session_name_required" }, { status: 400 });
     }
     // Update the in-memory title in the live omp process so the next file
     // flush cannot clobber the on-disk rename. omp does not create the session
@@ -203,12 +202,12 @@ export async function PATCH(
       }
     }
     if (!rpcRenamed && !diskWritten) {
-      return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+      return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
     }
     invalidateSessionListCache();
     // A linked host caches its own list on main; its title just changed there.
     if (host) invalidateHostSessionList(host.id);
-    return NextResponse.json({ ok: true });
+    return Response.json({ ok: true });
   } catch (error) {
     return sessionsErrorResponse(error);
   }
@@ -232,7 +231,7 @@ export async function DELETE(
     if (resolved.host?.id === LOCAL_HOST_ID) {
       const localPath = await resolveSessionPath(id);
       if (!localPath) {
-        return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+        return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
       }
       filePath = localPath;
 
@@ -367,7 +366,7 @@ export async function DELETE(
       clearExitedRpcSession(id);
       invalidateSessionPathCache(id);
       invalidateSessionListCache();
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         ...(skippedChildren.length > 0 ? { skippedChildren } : {}),
       });
@@ -381,7 +380,7 @@ export async function DELETE(
     if (!result.ok) return opErrorResponse(result);
     invalidateHostSessionList(resolved.host.id);
     clearExitedRpcSession(id);
-    return NextResponse.json({ ok: true, ...result.value });
+    return Response.json({ ok: true, ...result.value });
   } catch (error) {
     return sessionsErrorResponse(error);
   }

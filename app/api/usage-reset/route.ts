@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
-import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
-export const runtime = "nodejs";
 
 const CLI_TIMEOUT_MS = 60_000;
 
@@ -74,11 +72,11 @@ export async function GET() {
     const { code, stdout, stderr } = await runOmp(["usage", "reset", "--json"]);
     const parsed = parseAccounts(stdout);
     if (!parsed) {
-      return NextResponse.json({ error: stderr.trim() || stdout.trim() || "omp returned no reset data", code: "usage_reset_parse_failed", exitCode: code }, { status: 502 });
+      return Response.json({ error: stderr.trim() || stdout.trim() || "omp returned no reset data", code: "usage_reset_parse_failed", exitCode: code }, { status: 502 });
     }
-    return NextResponse.json(parsed);
+    return Response.json(parsed);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code: "usage_reset_failed" }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : String(error), code: "usage_reset_failed" }, { status: 500 });
   }
 }
 
@@ -90,20 +88,20 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body", code: "invalid_body" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON body", code: "invalid_body" }, { status: 400 });
   }
   const target = typeof body.target === "string" ? body.target.trim() : "";
   if (!TARGET_PATTERN.test(target)) {
-    return NextResponse.json({ error: "target must be '<provider>/<credentialId>' from the reset list", code: "invalid_target" }, { status: 400 });
+    return Response.json({ error: "target must be '<provider>/<credentialId>' from the reset list", code: "invalid_target" }, { status: 400 });
   }
   try {
     const { code, stdout, stderr } = await runOmp(["usage", "reset", target]);
     const output = (stdout || stderr).trim().split("\n").slice(-6).join("\n");
     if (code !== 0) {
-      return NextResponse.json({ error: output || `omp usage reset exited with ${code}`, code: "usage_reset_spend_failed", exitCode: code }, { status: 502 });
+      return Response.json({ error: output || `omp usage reset exited with ${code}`, code: "usage_reset_spend_failed", exitCode: code }, { status: 502 });
     }
-    return NextResponse.json({ ok: true, output });
+    return Response.json({ ok: true, output });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error), code: "usage_reset_failed" }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : String(error), code: "usage_reset_failed" }, { status: 500 });
   }
 }

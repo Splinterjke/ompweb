@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { deriveSessionTitleFromFirstMessage, sanitizeSessionTitle } from "@/lib/session-title";
 import { getRpcSession, notifyRunningChange, startRpcSession, WebRpcError } from "@/lib/rpc-manager";
 import { invalidateHostSessionList, sessionSpawnTarget } from "@/lib/hosts/session-index";
@@ -50,7 +49,7 @@ export async function POST(
         // A busy/restarting session reports a typed error the UI can show; any
         // other failure degrades to the fallback below.
         if (error instanceof WebRpcError) {
-          return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
+          return Response.json({ error: error.message, code: error.code }, { status: 409 });
         }
       }
       if (generated) {
@@ -59,14 +58,14 @@ export async function POST(
         // omp persisted the title on its own machine: drop that host's cached
         // list on main so the sidebar shows the new name now.
         invalidateHostSessionList(rpc.host.id);
-        return NextResponse.json({ title: generated, generated: true, usage: null });
+        return Response.json({ title: generated, generated: true, usage: null });
       }
       // generateTitle declined because a run is in flight (`/rename` is a
       // prompt, omp cannot run it beside a turn). Say so — falling through to
       // the stored title would show the misleading "generator returned
       // nothing" toast for what is only a timing problem.
       if (rpc.isRunning()) {
-        return NextResponse.json(
+        return Response.json(
           { error: "Wait for the current run to finish", code: "session_busy" },
           { status: 409 },
         );
@@ -81,7 +80,7 @@ export async function POST(
     // generator ran or the list cache aged. Never fall back to a title write —
     // or a stale-title answer — while Edit owns the history.
     if (getRpcSession(id)?.isEditingHistory?.()) {
-      return NextResponse.json({ error: "Wait for the history edit to finish", code: "session_busy" }, { status: 409 });
+      return Response.json({ error: "Wait for the history edit to finish", code: "session_busy" }, { status: 409 });
     }
 
     // This machine's scan reads the file itself: the 30s session-list cache can
@@ -106,12 +105,12 @@ export async function POST(
       // every sidebar so the list converges on this title now.
       invalidateSessionListCache();
       notifyRunningChange({ refreshSessionList: true });
-      return NextResponse.json({ title: storedTitle, generated: false, usage: null });
+      return Response.json({ title: storedTitle, generated: false, usage: null });
     }
 
     const derived = deriveSessionTitleFromFirstMessage(firstMessage);
     if (!derived) {
-      return NextResponse.json(
+      return Response.json(
         { error: "The session has no user messages to name", code: "session_no_messages_to_name" },
         { status: 409 },
       );
@@ -119,7 +118,7 @@ export async function POST(
 
     // Title generation/title scan yielded; Edit may now own this session.
     if (getRpcSession(id)?.isEditingHistory?.()) {
-      return NextResponse.json({ error: "Wait for the history edit to finish", code: "session_busy" }, { status: 409 });
+      return Response.json({ error: "Wait for the history edit to finish", code: "session_busy" }, { status: 409 });
     }
 
     // A live process owns the file; save through it so its next flush keeps the
@@ -143,10 +142,10 @@ export async function POST(
     invalidateSessionListCache();
     // A linked host's list is cached on main; its title just changed there.
     invalidateHostSessionList(resolved.host.id);
-    return NextResponse.json({ title: derived, generated: false, usage: null });
+    return Response.json({ title: derived, generated: false, usage: null });
   } catch (error) {
     if (error instanceof HostOpError) return apiErrorResponse(error);
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 },
     );

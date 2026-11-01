@@ -1,9 +1,7 @@
-import { NextResponse } from "next/server";
 import { getPairingService } from "@/lib/remote-pairing-store";
 import { pairingBase } from "@/lib/remote-pairing";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
-export const dynamic = "force-dynamic";
 
 /**
  * Issue (or refresh) a one-time pairing token. Any previous token is
@@ -21,7 +19,7 @@ export async function POST(request: Request) {
     ? await hostClient.device.issue()
     : (() => { const { token, expiresAt } = service.issue(); return { token, expiresAt }; })();
   const base = pairingBase(request, service.getConfig().publicUrl);
-  return NextResponse.json({
+  return Response.json({
     token: issued.token,
     expiresAt: issued.expiresAt,
     qrData: `${base}/remote?token=${issued.token}`,

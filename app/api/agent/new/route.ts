@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { apiErrorResponse, opErrorResponse, resolveHostOrError } from "@/lib/api-utils";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
@@ -10,14 +9,14 @@ import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 
 function newSessionErrorResponse(error: unknown) {
   if (error instanceof RequestBodyTooLargeError) {
-    return NextResponse.json({ error: "New session request is too large", code: "request_too_large" }, { status: 413 });
+    return Response.json({ error: "New session request is too large", code: "request_too_large" }, { status: 413 });
   }
   if (error instanceof SyntaxError) {
-    return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
   // host_offline falls through to apiErrorResponse: 503 {hostOffline: true}.
   if ((error instanceof WebRpcError && error.code !== "host_offline") || error instanceof RpcCommandError) {
-    return NextResponse.json(
+    return Response.json(
       { error: error.message, code: error instanceof WebRpcError ? error.code : (error.code ?? "rpc_command_failed") },
       { status: 400 },
     );
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
     const { host } = target;
 
     if (!requestedCwd || typeof requestedCwd !== "string") {
-      return NextResponse.json({ error: "cwd is required", code: "cwd_required" }, { status: 400 });
+      return Response.json({ error: "cwd is required", code: "cwd_required" }, { status: 400 });
     }
 
     // Enforce workspace authorization before spawning: a caller may only start
@@ -57,7 +56,7 @@ export async function POST(req: Request) {
     if (host.id === LOCAL_HOST_ID) {
       const allowedRoots = await getAllowedFileRoots();
       if (!isExistingFilePathAllowed(requestedCwd, allowedRoots)) {
-        return NextResponse.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
+        return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
       }
     }
     const { provider, modelId, toolNames, thinkingLevel, advisor, ...promptCommand } = command as { provider?: string; modelId?: string; toolNames?: string[]; thinkingLevel?: string; advisor?: boolean; [key: string]: unknown };
@@ -66,7 +65,7 @@ export async function POST(req: Request) {
     // session after a reconnect.
     delete promptCommand.sessionId;
     if (typeof promptCommand.type !== "string" || !promptCommand.type.trim()) {
-      return NextResponse.json({ error: "command type is required", code: "command_type_required" }, { status: 400 });
+      return Response.json({ error: "command type is required", code: "command_type_required" }, { status: 400 });
     }
 
     // The cwd is checked on its host (which also keeps the files-route
@@ -89,18 +88,18 @@ export async function POST(req: Request) {
     }
 
     if (promptCommand.type === "ensure_session") {
-      return NextResponse.json({ success: true, sessionId: realSessionId, data: null });
+      return Response.json({ success: true, sessionId: realSessionId, data: null });
     }
 
     const result = await session.send(promptCommand);
 
-    return NextResponse.json({ success: true, sessionId: realSessionId, data: result });
+    return Response.json({ success: true, sessionId: realSessionId, data: result });
   } catch (error) {
     // The link dropped: the first command may be running there, so the wrapper
     // stays for the reconnect (and disposing it would wait for the link). Its
     // id lets the client open it instead of starting a second session.
     if (error instanceof WebRpcError && error.code === "host_offline") {
-      return NextResponse.json(
+      return Response.json(
         { error: error.message, code: error.code, hostOffline: true, delivery: error.delivery, ...(spawnedSessionId ? { sessionId: spawnedSessionId } : {}) },
         { status: 503 },
       );

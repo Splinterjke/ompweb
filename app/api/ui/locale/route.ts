@@ -1,7 +1,5 @@
-import { NextResponse } from "next/server";
 import { getUiLocale, isUiLocale, persistUiLocale, setUiLocale, UI_LOCALES } from "@/lib/ui-locale";
 
-export const dynamic = "force-dynamic";
 
 // GET/PUT /api/ui/locale — the UI language chosen via "Switch language to".
 // The client (LanguageSwitcher) syncs it here on load and on every change so
@@ -13,7 +11,7 @@ export const dynamic = "force-dynamic";
 // restarts (the in-process mirror alone would reset to "en").
 
 export function GET() {
-  return NextResponse.json({ locale: getUiLocale() });
+  return Response.json({ locale: getUiLocale() });
 }
 
 export async function PUT(req: Request) {
@@ -21,16 +19,16 @@ export async function PUT(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
+    return Response.json({ error: "Invalid JSON request body", code: "invalid_json" }, { status: 400 });
   }
   const locale = (body as { locale?: unknown } | null)?.locale;
   if (!isUiLocale(locale)) {
-    return NextResponse.json(
+    return Response.json(
       { error: `locale must be one of: ${UI_LOCALES.join(", ")}`, code: "invalid_locale" },
       { status: 400 },
     );
   }
   setUiLocale(locale);
   persistUiLocale(locale);
-  return NextResponse.json({ locale });
+  return Response.json({ locale });
 }

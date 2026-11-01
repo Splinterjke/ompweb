@@ -2,15 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createJiti } from "jiti";
 import { JSDOM } from "jsdom";
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { ChatInput, ModelErrorBanner, filterModelOptions } = await jiti.import("./ChatInput.tsx");
-const { setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+const { ChatInput, ModelErrorBanner, filterModelOptions } = await import("./ChatInput.tsx");
+const { setDraft, clearDraft } = await import("@/lib/draft-store");
 
 test("keeps Stop as the primary action while streaming, even with typed text", () => {
   const draftKey = "chat-input-queue-action-test";

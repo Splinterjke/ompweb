@@ -1,11 +1,9 @@
-import { NextResponse } from "next/server";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { createChildProcessEnvironment } from "@/lib/project-command-env";
 
-export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
 
@@ -74,10 +72,10 @@ export async function GET() {
     const path = rustBackendActive()
       ? await hostClient.settings.path().catch(() => null)
       : await ompConfigPath().catch(() => null);
-    return NextResponse.json({ settings, path });
+    return Response.json({ settings, path });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
+    return Response.json(
       { error: message, remediation: "Install omp or set OMP_WEB_OMP_BIN, then retry." },
       { status: 500 },
     );
@@ -89,7 +87,7 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json() as { key?: unknown; value?: unknown };
     if (typeof body.key !== "string" || !body.key.trim() || !/^[A-Za-z0-9._-]+$/.test(body.key)) {
-      return NextResponse.json({ error: "Invalid setting key", code: "invalid_key" }, { status: 400 });
+      return Response.json({ error: "Invalid setting key", code: "invalid_key" }, { status: 400 });
     }
     // Strings arrive as-is; booleans/numbers/arrays serialize to their JSON
     // literal (omp config set accepts JSON-encoded values for typed keys).
@@ -101,13 +99,13 @@ export async function PUT(request: Request) {
         : JSON.stringify(value);
     if (rustBackendActive()) {
       const result = await hostClient.settings.set(body.key, serialized);
-      return NextResponse.json({ ok: true, output: result.output });
+      return Response.json({ ok: true, output: result.output });
     }
     const stdout = await runOmp(["config", "set", body.key, serialized]);
-    return NextResponse.json({ ok: true, output: stdout.trim() });
+    return Response.json({ ok: true, output: stdout.trim() });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message, code: "native_settings_write_failed" }, { status: 500 });
+    return Response.json({ error: message, code: "native_settings_write_failed" }, { status: 500 });
   }
 }
 
@@ -116,17 +114,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as { key?: unknown };
     if (typeof body.key !== "string" || !body.key.trim() || !/^[A-Za-z0-9._-]+$/.test(body.key)) {
-      return NextResponse.json({ error: "Invalid setting key", code: "invalid_key" }, { status: 400 });
+      return Response.json({ error: "Invalid setting key", code: "invalid_key" }, { status: 400 });
     }
     if (rustBackendActive()) {
       const result = await hostClient.settings.reset(body.key);
-      return NextResponse.json({ ok: true, output: result.output });
+      return Response.json({ ok: true, output: result.output });
     }
     const stdout = await runOmp(["config", "reset", body.key]);
-    return NextResponse.json({ ok: true, output: stdout.trim() });
+    return Response.json({ ok: true, output: stdout.trim() });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message, code: "native_settings_reset_failed" }, { status: 500 });
+    return Response.json({ error: message, code: "native_settings_reset_failed" }, { status: 500 });
   }
 }
 

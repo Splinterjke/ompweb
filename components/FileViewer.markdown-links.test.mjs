@@ -1,17 +1,10 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
-
-// React only ships `act` in its development build; force NODE_ENV before any
-// React module is loaded so these tests work regardless of the environment's
-// default (production builds throw "act(...) is not supported").
-process.env.NODE_ENV = "test";
-const React = (await import("react")).default;
+import React from "react";
 const { cleanup, fireEvent, render, waitFor } = await import("@testing-library/react/pure.js");
-const { createJiti } = await import("jiti");
 
-const jiti = createJiti(import.meta.url, { jsx: { runtime: "automatic" }, tsconfigPaths: true });
-const { FileViewer } = await jiti.import("./FileViewer.tsx");
+const { FileViewer } = await import("./FileViewer.tsx");
 
 const originalFetch = globalThis.fetch;
 const originalWorker = globalThis.Worker;

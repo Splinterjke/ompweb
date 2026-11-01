@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
 import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { broadcastRefresh, markUiUpdated } from "@/lib/ui-refresh-bus";
 
-export const dynamic = "force-dynamic";
 
 // POST /api/ui/refresh — rebuild-driven page refresh.
 //
@@ -36,7 +34,7 @@ export async function POST(request: Request) {
     }
   }
   const delivered = broadcastRefresh();
-  return NextResponse.json({
+  return Response.json({
     ok: true,
     delivered,
     ...(hostSeq !== null ? { seq: hostSeq } : {}),

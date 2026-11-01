@@ -4,7 +4,6 @@ import { mkdirSync, readFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 import { promisify } from "util";
-import { NextResponse } from "next/server";
 import { resolveOmpBin, wrapWindowsScript } from "@/lib/omp/omp-cli";
 import { inlineExportVendorScripts } from "@/lib/omp/export-vendor";
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
@@ -12,8 +11,6 @@ import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { resolveSessionPath } from "@/lib/session-reader";
 
 const execFileAsync = promisify(execFile);
-
-export const runtime = "nodejs";
 
 function encodeHeaderValue(value: string): string {
   return encodeURIComponent(value).replace(/[!'()*]/g, (ch) =>
@@ -46,6 +43,7 @@ async function exportSession(filePath: string, outputPath: string): Promise<void
   });
 }
 
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -61,7 +59,7 @@ export async function GET(
       // post-processed to inline the vendored scripts, and the omp shim needs
       // wrapWindowsScript — neither happens in the host facade.
       const filePath = await resolveSessionPath(id);
-      if (!filePath) return NextResponse.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
+      if (!filePath) return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
 
       const tempDir = join(tmpdir(), "omp-web-export");
       mkdirSync(tempDir, { recursive: true });
@@ -101,7 +99,7 @@ export async function GET(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("omp binary not found")) {
-      return NextResponse.json({ error: message, code: "omp_not_found" }, { status: 500 });
+      return Response.json({ error: message, code: "omp_not_found" }, { status: 500 });
     }
     return apiErrorResponse(error);
   }

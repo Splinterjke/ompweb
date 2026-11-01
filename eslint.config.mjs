@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import coreWebVitals from "eslint-config-next/core-web-vitals";
-import typescript from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
 
 // 5.0 plan W0 gate (docs/refactor/ompweb-5.0/01 Slice 1): new UI code must go
 // through lib/client adapters instead of calling /api routes or opening
@@ -72,15 +72,16 @@ const noDirectClientApi = {
 const eslintConfig = [
   {
     ignores: [
-      ".next/**",
-      ".next-dev/**",
+      "dist/**",
+      "release/**",
       "dist-desktop/**",
       "**/standalone/**",
       "**/app.asar.unpacked/**",
+      "vendor/vscode-git-graph/**",
     ],
   },
-  ...coreWebVitals,
-  ...typescript,
+  ...tseslint.configs.recommended,
+  reactHooks.configs.flat.recommended,
   {
     rules: {
       "react-hooks/immutability": "off",
