@@ -4467,6 +4467,10 @@ export const SessionItem = memo(function SessionItem({
  }
  }, [session.id, onDeleted, t]);
 
+  // The Archived Sessions browser lists this machine's archive only, so a remote archive could not be restored.
+  const archiveBlocked = hasChildren || remoteHostId(session.hostId) !== undefined;
+  const archiveTitle = hasChildren ? t("sessionSidebar.archiveLeafOnly") : archiveBlocked ? t("hosts.notAvailableRemote") : t("sessionSidebar.archive");
+
   const handleDelete = useCallback(async () => {
     setConfirmDelete(false);
     setDeleting(true);
@@ -4622,8 +4626,8 @@ export const SessionItem = memo(function SessionItem({
                 </Tooltip>
                 <SidebarPortalMenu anchor={menuButtonRef} open={actionMenuOpen} onClose={() => setActionMenuOpen(false)} placement="above" minWidth={128}>
                   {canOpenInNewWindow && <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { void handleOpenInNewWindow(event); }} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><PanelsTopLeft size={12} strokeWidth={1.9} aria-hidden="true" />{t("sessionSidebar.openInNewWindow")}</button>}
- <Tooltip content={hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive")}>
-   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={hasChildren} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: hasChildren ? "var(--text-dim)" : "var(--text-muted)", cursor: hasChildren ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: hasChildren ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
+ <Tooltip content={archiveTitle}>
+   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); setConfirmArchive(true); }} disabled={archiveBlocked} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: archiveBlocked ? "var(--text-dim)" : "var(--text-muted)", cursor: archiveBlocked ? "not-allowed" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: archiveBlocked ? 0.55 : 1 }}>{t("sessionSidebar.archive")}</button>
  </Tooltip>
                   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { startRename(event); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{t("sessionSidebar.rename")}</button>
                   <button type="button" role="menuitem" className="sidebar-menu-item" onClick={(event) => { event.stopPropagation(); setActionMenuOpen(false); void handleCopyTranscript(); }} disabled={copyingTranscript} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text-muted)", cursor: copyingTranscript ? "default" : "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", opacity: copyingTranscript ? 0.55 : 1 }}>{t("sessionSidebar.copyTranscript")}</button>
