@@ -29,6 +29,7 @@ import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
 import { looksLikeRunningTurn } from "@/lib/chat-segments";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
+import { displayMessage } from "@/lib/message-delta";
 import { getToolNamesForPreset, type ToolPreset } from "@/lib/tool-presets";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
 import { expandWebSlashCommand } from "@/lib/web-slash-commands";
@@ -1000,6 +1001,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const lastShownExitRef = useRef<string | null>(null);
   const eventCoalescerRef = useRef<MessageUpdateCoalescer | null>(null);
   if (eventCoalescerRef.current === null) {
+    // No onMissingBase: the wrapper rebuilds omp's deltas before forwarding
+    // (lib/rpc-manager.ts emit), so a tab only ever sees whole messages and a
+    // delta without its base cannot arrive here.
     eventCoalescerRef.current = createMessageUpdateCoalescer((event) => {
       handleAgentEventRef.current?.(event as AgentEvent);
     });
@@ -3186,6 +3190,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [addNotice, applyGoal, applySkillDiagnosticsSnapshot, beginAuthoritativeModelSync, clearLiveToolResults, connectEvents, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, reloadActiveSessionHistory, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
   handleAgentEventRef.current = handleAgentEvent;
+
 
   const handleSend = useCallback(async (message: string, images?: AttachedImage[]): Promise<PromptSubmissionResult> => {
     const trimmedMessage = message.trim();

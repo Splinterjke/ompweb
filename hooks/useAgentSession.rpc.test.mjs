@@ -1,7 +1,7 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 
@@ -2201,4 +2201,62 @@ test("the hosts channel decides the offline banner; a frame only speaks before i
   const offlineChannel = await mount("offline");
   assert.ok(offlineChannel.queryByText(bannerText), "a chat opened during an outage shows the banner from the channel");
   offlineChannel.unmount();
+});
+
+// omp's delta message updates (lib/message-delta.ts, lib/message-update-coalescer.ts).
+const recordedFrames = readFileSync(new URL("../tests/fixtures/omp-delta-stream.ndjson", import.meta.url), "utf8")
+  .trim().split("\n").map((line) => JSON.parse(line)).filter((frame) => frame.type !== "response");
+
+/** What omp's full mode sends for the same run, at each block end: the message as streamed so far. */
+function fullFramesOf(frames) {
+  const open = new Map();
+  const out = [];
+  for (const frame of frames) {
+    if (frame.type === "message_start") open.set(frame.messageId, structuredClone(frame.message));
+    if (frame.type !== "message_update") {
+      out.push(frame);
+      continue;
+    }
+    const message = open.get(frame.messageId);
+    const event = frame.assistantMessageEvent;
+    if (event.type === "text_end") message.content[event.contentIndex] = { ...event.block, text: event.content };
+    else if (event.type === "thinking_end") message.content[event.contentIndex] = { ...event.block, thinking: event.content };
+    else if (event.type === "toolcall_end") message.content[event.contentIndex] = event.toolCall;
+    else continue;
+    out.push({ type: "message_update", messageId: frame.messageId, message: structuredClone(message), assistantMessageEvent: { ...event, partial: message } });
+  }
+  return out;
+}
+
+async function streamRecorded(frames) {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  const { w, es } = await startRun("s1", recordedFrames[0].message.content[0].text);
+  await act(async () => { es.emit({ type: "agent_start" }); });
+  const shown = [];
+  let toolArguments;
+  for (const frame of frames) {
+    if (frame.type === "message_end" && frame.message.role === "assistant") {
+      await settle(90);
+      shown.push(structuredClone(w.latest.streamState.streamingMessage?.content));
+    }
+    await act(async () => { es.emit(frame); await Promise.resolve(); });
+    if (frame.assistantMessageEvent?.type === "toolcall_delta" && toolArguments === undefined) {
+      await settle(90);
+      toolArguments = structuredClone(w.latest.streamState.streamingMessage?.content[2]);
+    }
+  }
+  await settle(90);
+  return { shown, toolArguments, messages: structuredClone(w.latest.messages) };
+}
+
+test("a run streamed as omp's delta updates renders exactly what its full updates render", async () => {
+  const deltas = await streamRecorded(recordedFrames);
+  const full = await streamRecorded(fullFramesOf(recordedFrames));
+  assert.equal(deltas.shown.length, 2);
+  assert.deepEqual(deltas.shown, full.shown, "each reply as it stood before message_end");
+  assert.deepEqual(deltas.messages, full.messages, "the committed transcript");
+  assert.deepEqual(deltas.shown[0].map((block) => block.type), ["thinking", "text", "toolCall"]);
+  assert.equal(deltas.toolArguments.toolName, "read", "a streaming tool call shows its name from its first delta");
+  assert.deepEqual(deltas.toolArguments.input, { path: "note.txt" }, "and the arguments streamed so far");
 });
