@@ -439,7 +439,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, f
               })}
             </div>
           )}
- {content && <div data-message-text ref={bodyRef}><SafeMarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{content}</SafeMarkdownBody></div>}
+          {content && <div data-message-text data-entry-id={entryId} ref={bodyRef}><SafeMarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>{content}</SafeMarkdownBody></div>}
         </div>
         {/* Expanding removes the cap, so the bubble stops overflowing; keep the toggle to collapse it again.
             Collapsing restores the cap: assume overflow until the next measurement so the focused toggle stays mounted. */}
@@ -874,7 +874,7 @@ function AssistantMessageView({
 
 function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; thinkingAutoFollow?: boolean; settled?: boolean }) {
   if (block.type === "text") {
-    return <div data-message-text><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
+    return <div data-message-text data-entry-id={entryId}><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
   }
   if (block.type === "thinking") {
     return <ThinkingBlock block={block as ThinkingContent} duration={streamingDuration} sessionId={sessionId} entryId={entryId} blockIndex={blockIndex} isStreaming={isStreaming} isLatestBlock={isLatestBlock} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} />;

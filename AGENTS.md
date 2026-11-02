@@ -247,6 +247,7 @@ app/api/
   sessions/search/route.ts        GET ?q= — NDJSON { scores } batches (titles + transcripts); closing the request stops the scan
   sessions/[id]/route.ts          GET/PATCH/DELETE session
   sessions/[id]/context/route.ts  GET ?leafId= — context for a specific leaf
+  sessions/[id]/matches/route.ts  GET ?q=&limit= — best `limit` search hits in the active conversation (best match, then newest); Load more asks for a longer prefix
   sessions/[id]/export/route.ts   GET exported HTML for a session
   agent/new/route.ts              POST { cwd, message, toolNames?, provider?, modelId? }
   agent/[id]/route.ts             GET state | POST any RPC command
@@ -340,6 +341,8 @@ lib/
   session-reader.ts    session .jsonl parsing + path cache + buildSessionContext
   session-search.ts    shared fuzzy/phrase query scorer for sidebar search (title weights ≫ transcript)
   session-content-search.ts  server: per-file transcript text cache (size+mtime) + searchSessions()
+  session-search-matches.ts  shared types/constants of the sidebar's per-session search hits
+  session-match-listing.ts   server: lists a session's search hits counted per rendered text node (remark parse)
   session-resume.ts    mid-run session tracker (on-disk list) + resume prompt; resume orchestration lives in rpc-manager
   transport-metrics.ts transport samples → `<agent dir>/omp-web/transport-metrics.jsonl` (renamed to `.jsonl.1` above 20 MiB)
   skills-service.ts    skill listing via `omp skill list --json`; pure-Node replica scan as fallback
@@ -361,6 +364,7 @@ components/
   ChatInput.tsx       input bar + model/thinking/tools/compact controls
   ComposerPanels.tsx  composer hub bars: /btw side question, git changes, todo plan, subagents (stack or row layout, per-bar visibility)
   BtwPanel.tsx        /btw side-question panel (stream, cancel, copy, follow-up) + history dialog
+  SessionSearchMatches.tsx  a search result's hits under its sidebar row (10 at a time + "Load more…")
   TodoList.tsx        todo phase grid with preview/show-all (used by ComposerPanels)
   SubagentTranscriptDialog.tsx  task + final output summary dialog (wide, screen-adaptive)
   MessageView.tsx     renders one message (user/assistant/toolCall/toolResult)
@@ -398,6 +402,7 @@ hooks/
   useTouchTargets.ts       touch-target density pref (localStorage "omp-touch-targets" → html[data-touch-targets], no Settings UI yet — set via layout boot script)
   useNavigationHistory.ts  in-app back/forward stack (record/peek/commit/drop) for visited chat views
   useWordPrediction.ts     debounced omp predict_word ghost text + feedback
+  useChatSearchHighlights.ts  find-in-page for the sidebar search: CSS Custom Highlight API paint + jump to a picked hit
   usePrefersReducedMotion.ts OS reduce-motion preference (SMIL-safe)
   useTheme.ts              theme state (localStorage key "omp-theme")
 
@@ -1644,6 +1649,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   partial clone is deleted, so the UI can confirm the cleanup. A client
   disconnect cancels and cleans up too. An existing target is refused (409).
 
+
 ### Navigate back / forward (`lib/navigation-history.ts`, `hooks/useNavigationHistory.ts`)
 - Browser-style back/forward over visited chat views (sessions + the new-chat
   composer), in-memory per page load. It is **omp-web's own stack**, never the
@@ -1814,6 +1820,39 @@ stored `omp-web:submit-during-run` choice overrides it.
 - Programmatic smooth scrolling must respect `prefers-reduced-motion`
   (`usePrefersReducedMotion` in `hooks/usePrefersReducedMotion.ts` — also the
   only way to stop SVG SMIL animations, which CSS cannot).
+- A jump to a sidebar search hit calls `holdScrollPosition()` (`useAgentSession`):
+  it marks the initial scroll done and stops following, as a manual scroll-up
+  would, so the next frame does not pull the reader back to the bottom.
+
+### Search hits in the chat (`/api/sessions/[id]/matches`, `hooks/useChatSearchHighlights.ts`)
+- While the sidebar search has a query, each session row's chevron lists its
+  hits (`SessionSearchMatches`, 10 at a time). The server ranks hits of the
+  active conversation's user text and assistant text blocks (quality, then
+  newest message) and builds snippets for the returned hits only. "Load more"
+  asks for a longer prefix (`limit`), never an offset: a running session
+  re-ranks between requests, so offsets would repeat or skip hits.
+- A hit is addressed as `(entryId, ordinal)`: its index among that message's
+  hits, counted per rendered text node in rendered order on both sides. The
+  server (`lib/session-match-listing.ts`) parses each body that has a hit in its
+  source (a user message's text blocks joined with `\n`, each assistant text
+  block separately) with the chat's remark parser and counts in text, inline
+  code and code nodes; link targets, image alt text, raw HTML and math render
+  no searchable text, and footnote definitions come last in reference order.
+  The chat counts in the rendered `[data-message-text][data-entry-id]` text,
+  skipping code-block headers, buttons, line numbers, KaTeX, Mermaid notes,
+  table charts and generated footnote labels (`NOT_MESSAGE_TEXT`). New chrome
+  inside message text must be excluded there too, and new markdown syntax
+  that renders text must be counted in `renderedTextNodes`, or later ordinals
+  shift. Known gaps: a phrase across syntax-highlighting tokens or a linked
+  `#123`/`agent://` ref, and block-level raw HTML; the jump then lands near it.
+- Painting uses the CSS Custom Highlight API (`omp-search`,
+  `omp-search-current` in `globals.css`), repainted on DOM mutations; browsers
+  without it still jump. A jump widens the lazy render window
+  (`revealMessage`) first. Each click is a new target object used once:
+  `onSearchTargetHandled` drops it in AppShell, so reopening the session later
+  does not jump again. AppShell also drops a pending target when the query
+  changes or another session opens, and the hook drops one whose entry the
+  loaded branch lacks. An empty query clears the highlights and the target.
 
 ### MCP configuration (`lib/omp/mcp-config.ts`, `/api/mcp`, `components/McpConfig.tsx`)
 - Project MCP config resolution order: `.omp/mcp.json`, `.omp/.mcp.json`,

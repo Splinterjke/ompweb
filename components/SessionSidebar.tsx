@@ -24,6 +24,7 @@ import { isLinkUp, type HostStatus } from "@/lib/hosts/host";
 import { useHostRows } from "@/hooks/useHostRows";
 import { HOST_STATUS_COLOR, hostName, hostStatusText } from "./host-status";
 import { comparableProjectPath } from "@/lib/comparable-path";
+import { SessionSearchMatches, type SearchMatchTarget } from "./SessionSearchMatches";
 import { compileSearchQuery, FIRST_MESSAGE_WEIGHT, scoreSearchFields, searchField, TITLE_WEIGHT } from "@/lib/session-search";
 import { AlertTriangle, Archive, ArrowDownUp, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, Loader2, MoreHorizontal, PanelsTopLeft, Pin, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { openEventStream } from "@/lib/event-stream";
@@ -142,6 +143,10 @@ interface Props {
   onBrandClick?: () => void;
   /** Mobile full-screen drawer only: shows a top-left close control. */
   onClose?: () => void;
+  /** The trimmed search query ("" while no search runs): the chat highlights its hits. */
+  onSearchQueryChange?: (query: string) => void;
+  /** A hit picked from a session's match list; the session is opened too. */
+  onOpenSearchMatch?: (target: SearchMatchTarget) => void;
 }
 
 interface WorktreeEntry {
@@ -717,7 +722,7 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, optimisticRename, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, selectedHostId: selectedHostIdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, addProjectHostId = LOCAL_HOST_ID, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, optimisticRename, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, selectedHostId: selectedHostIdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, addProjectHostId = LOCAL_HOST_ID, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose, onSearchQueryChange, onOpenSearchMatch }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1744,6 +1749,9 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     };
   }, [trimmedSearchQuery]);
   const currentTranscriptSearch = transcriptSearch?.query === trimmedSearchQuery ? transcriptSearch : null;
+  useEffect(() => {
+    onSearchQueryChange?.(trimmedSearchQuery);
+  }, [trimmedSearchQuery, onSearchQueryChange]);
   const visibleProjectEntries = useMemo(() => {
     const query = compileSearchQuery(trimmedSearchQuery);
     const serverScores = currentTranscriptSearch?.scores;
@@ -2193,6 +2201,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     expandProject(workspaceKeyOf(s), hostOf(s));
     onSelectSession(s);
   }, [onSelectSession, expandProject, hostUnavailableReason]);
+  const handleOpenSearchMatch = useCallback((s: SessionInfo, target: SearchMatchTarget) => {
+    handleSelectSessionFromList(s);
+    // An unreachable host refused the selection (with a toast): leave no pending jump behind.
+    if (!hostUnavailableReason(hostOf(s))) onOpenSearchMatch?.(target);
+  }, [handleSelectSessionFromList, onOpenSearchMatch, hostUnavailableReason]);
 
   // Automation (prompt) runs link back to the session they created.
   const handleOpenSessionById = useCallback((id: string) => {
@@ -2762,6 +2775,8 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                   isDragTarget={draggedProject !== null && hostOf(draggedProject) === hostOf(project) && hostProjectKey(draggedProject.hostId, draggedProject.path) !== projectKey && (!pinsActive || project.pinOrder !== undefined)}
                   removeBusy={removeProjectKey === projectKey}
                   onSelectSession={handleSelectSessionFromList}
+                  searchQuery={trimmedSearchQuery || undefined}
+                  onOpenSearchMatch={onOpenSearchMatch ? handleOpenSearchMatch : undefined}
                   onRenamed={loadSessions}
                   onOptimisticRename={handleOptimisticRename}
                   onSessionDeleted={handleSessionDeleted}
@@ -3167,6 +3182,9 @@ interface ProjectRowProps {
   onRenamed?: () => void;
   onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
+  /** The active search query; each session row can then list its hits. */
+  searchQuery?: string;
+  onOpenSearchMatch?: (session: SessionInfo, target: SearchMatchTarget) => void;
   /** Bulk "Archive older than" finished; the ids were archived server-side. */
   onBulkArchived?: (ids: string[]) => void;
   activeWorktreeSwitcher?: ReactNode;
@@ -3219,6 +3237,8 @@ function ProjectRow({
   onRenamed,
   onOptimisticRename,
   onSessionDeleted,
+  searchQuery,
+  onOpenSearchMatch,
   onBulkArchived,
   activeWorktreeSwitcher,
   worktreeBranch,
@@ -3798,6 +3818,8 @@ function ProjectRow({
                   onRenamed={onRenamed}
                   onOptimisticRename={onOptimisticRename}
                   onSessionDeleted={onSessionDeleted}
+                  searchQuery={searchQuery}
+                  onOpenSearchMatch={onOpenSearchMatch}
                   depth={0}
                 />
               ))}
@@ -4134,6 +4156,8 @@ const SessionTreeItem = memo(function SessionTreeItem({
   onRenamed,
   onOptimisticRename,
   onSessionDeleted,
+  searchQuery,
+  onOpenSearchMatch,
   depth,
 }: {
   node: SessionTreeNode;
@@ -4147,9 +4171,13 @@ const SessionTreeItem = memo(function SessionTreeItem({
   onRenamed?: () => void;
   onOptimisticRename?: (id: string, name: string | null) => void;
   onSessionDeleted?: (id: string) => void;
+  searchQuery?: string;
+  onOpenSearchMatch?: (session: SessionInfo, target: SearchMatchTarget) => void;
   depth: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [matchesOpen, setMatchesOpen] = useState(false);
+  if (matchesOpen && !searchQuery) setMatchesOpen(false);
   const hasChildren = node.children.length > 0;
   const sessionId = node.session.id;
 
@@ -4171,6 +4199,12 @@ const SessionTreeItem = memo(function SessionTreeItem({
   const handleToggleCollapse = useCallback(() => {
     setCollapsed((v) => !v);
   }, []);
+  const handleToggleMatches = useCallback(() => {
+    setMatchesOpen((v) => !v);
+  }, []);
+  const handleOpenMatch = useCallback((target: SearchMatchTarget) => {
+    onOpenSearchMatch?.(node.session, target);
+  }, [onOpenSearchMatch, node.session]);
 
   return (
     <div>
@@ -4202,8 +4236,13 @@ const SessionTreeItem = memo(function SessionTreeItem({
           hasChildren={hasChildren}
           collapsed={collapsed}
           onToggleCollapse={handleToggleCollapse}
+          matchesExpanded={matchesOpen}
+          onToggleMatches={searchQuery && onOpenSearchMatch ? handleToggleMatches : undefined}
         />
       </div>
+      {matchesOpen && searchQuery && onOpenSearchMatch && (
+        <SessionSearchMatches key={searchQuery} sessionId={sessionId} query={searchQuery} depth={depth} onOpen={handleOpenMatch} />
+      )}
       {hasChildren && !collapsed && (
         <div>
           {node.children.map((child) => (
@@ -4220,6 +4259,8 @@ const SessionTreeItem = memo(function SessionTreeItem({
               onRenamed={onRenamed}
               onOptimisticRename={onOptimisticRename}
               onSessionDeleted={onSessionDeleted}
+              searchQuery={searchQuery}
+              onOpenSearchMatch={onOpenSearchMatch}
               depth={depth + 1}
             />
           ))}
@@ -4255,7 +4296,9 @@ const SessionTreeItem = memo(function SessionTreeItem({
   if (prev.onSelectSession !== next.onSelectSession
     || prev.onRenamed !== next.onRenamed
     || prev.onOptimisticRename !== next.onOptimisticRename
-    || prev.onSessionDeleted !== next.onSessionDeleted) return false;
+    || prev.onSessionDeleted !== next.onSessionDeleted
+    || prev.searchQuery !== next.searchQuery
+    || prev.onOpenSearchMatch !== next.onOpenSearchMatch) return false;
   return true;
 });
 function ExitedSessionIndicator({ title, size = 14 }: { title: string; size?: number }) {
@@ -4375,6 +4418,8 @@ export const SessionItem = memo(function SessionItem({
   collapsed = false,
   relativeTimeNow,
   onToggleCollapse,
+  matchesExpanded = false,
+  onToggleMatches,
 }: {
   session: SessionInfo;
   isSelected: boolean;
@@ -4391,6 +4436,9 @@ export const SessionItem = memo(function SessionItem({
   relativeTimeNow: number;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Present while a search is active: shows the session's hits below the row. */
+  matchesExpanded?: boolean;
+  onToggleMatches?: () => void;
 }) {
   const { t, locale } = useI18n();
   const [hovered, setHovered] = useState(false);
@@ -4568,6 +4616,19 @@ export const SessionItem = memo(function SessionItem({
             pointerEvents: "none",
           }}
         />
+      )}
+      {onToggleMatches && !renaming && (
+        <button
+          type="button"
+          className="session-item-icon-button"
+          onClick={(event) => { event.stopPropagation(); onToggleMatches(); }}
+          title={matchesExpanded ? t("sessionSidebar.hideMatches") : t("sessionSidebar.showMatches")}
+          aria-label={matchesExpanded ? t("sessionSidebar.hideMatches") : t("sessionSidebar.showMatches")}
+          aria-expanded={matchesExpanded}
+          style={{ position: "absolute", left: depth * 14, top: 3, display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 24, padding: 0, border: "none", background: "none", color: "var(--text-dim)", cursor: "pointer" }}
+        >
+          <ChevronRight size={12} strokeWidth={1.8} aria-hidden="true" style={{ transform: matchesExpanded ? "rotate(90deg)" : "none", transition: "transform var(--dur-fast) var(--ease-out-warm)" }} />
+        </button>
       )}
       {confirming ? (
         <>

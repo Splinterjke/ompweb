@@ -27,6 +27,8 @@ import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import { EmptyChatHero } from "./EmptyChatHero";
 import { useAgentSession, type AgentPhase, type ModelEntry, type NoticeItem, type SubagentInfo } from "@/hooks/useAgentSession";
 import { useAudio } from "@/hooks/useAudio";
+import { useChatSearchHighlights } from "@/hooks/useChatSearchHighlights";
+import type { SearchMatchTarget } from "./SessionSearchMatches";
 import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type { SessionStatsInfo, GenerationSpeedInfo } from "@/lib/pi-types";
@@ -119,6 +121,12 @@ interface Props {
    *  Called with the latest roster array reference on every change and with
    *  null when this session view unmounts (session switch). */
   onSubagentsChange?: (roster: SubagentInfo[] | null) => void;
+  /** The sidebar search query: its hits are highlighted ("" for none). */
+  searchQuery?: string;
+  /** A hit picked in the sidebar for this session: scrolled to and marked current. */
+  searchTarget?: SearchMatchTarget | null;
+  /** The target was used; the owner drops it so a later remount does not jump again. */
+  onSearchTargetHandled?: () => void;
 }
 
 function phaseLabel(phase: AgentPhase): string {
@@ -683,7 +691,8 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
+
 
 
   const { t, tn } = useI18n();
@@ -744,7 +753,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,
     goal, sendGoalCommand, trackGoal,
     isNew, hostStatus: frameHostStatus,
-    sessionIdRef, messagesEndRef, scrollContainerRef,
+    sessionIdRef, messagesEndRef, scrollContainerRef, holdScrollPosition,
     handleSend, handleAbort, handleFork, handleEdit, handleModelChange, retrySession, scrollToBottom,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
     toolPreset, handleToolPresetChange,
@@ -960,6 +969,32 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
   // scroller mounts after the first send without a remount or a load — the
   // effects below must re-attach when that flag flips, not just on load.
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !sessionBusy;
+  // Widen the virtual group window until it includes the message's transcript
+  // row: the fork's window follows scrollTop, so revealing scrolls the
+  // scroller to the group's offset and reports pending until the re-derived
+  // window (a new revealMessage identity) renders it.
+  const revealMessage = useCallback((messageIndex: number) => {
+    const groupIdx = groups.findIndex((g) => messageIndex >= g.startIdx && messageIndex < g.endIdx);
+    if (groupIdx < 0) return true;
+    if (groupIdx >= win.startGroup && groupIdx < win.endGroup) return true;
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    // Land near the group's middle so the overscan covers the row either way.
+    const top = Math.max(0, Math.min(layout.offsetOf(groupIdx) + layout.height(groupIdx) / 2 - viewportHeight / 2, layout.totalHeight));
+    el.scrollTo({ top, behavior: "instant" as ScrollBehavior });
+    setScrollTop(top);
+    return false;
+  }, [groups, win.startGroup, win.endGroup, layout, viewportHeight, scrollContainerRef]);
+  useChatSearchHighlights({
+    container: scrollContainerRef,
+    query: searchQuery,
+    target: searchTarget,
+    ready: !loading && !isEmptyNew,
+    entryIds,
+    revealMessage,
+    holdScrollPosition,
+    onTargetHandled: onSearchTargetHandled,
+  });
   // `onScroll` is not guaranteed to fire when the first session render sets
   // scrollTop programmatically. Seed the viewport dimensions immediately and
   // keep them in sync with the chat column so the virtual window can detect

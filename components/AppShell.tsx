@@ -10,6 +10,7 @@ import { isMacPlatform, navigateShortcutHint, NAVIGATION_HISTORY_MAX_ENTRIES } f
 import { useMobileSidebarGestures } from "@/hooks/useMobileSidebarGestures";
 import { ConfirmDialog } from "./ui/field";
 import { SessionSidebar } from "./SessionSidebar";
+import type { SearchMatchTarget } from "./SessionSearchMatches";
 import { BackendHealthBanner } from "./BackendDiagnostics";
 import { Tooltip, TooltipProvider } from "./ui/primitives";
 import { ToastProvider } from "./ui/toast";
@@ -2004,6 +2005,21 @@ export function AppShell({ appName }: { appName: string }) {
     return () => observer.disconnect();
   }, [windowTitle]);
 
+  // The sidebar search drives the chat's find-in-page highlights.
+  const [chatSearchQuery, setChatSearchQuery] = useState("");
+  // One jump per click: dropped once the chat used it, so reopening that session later starts at the bottom.
+  const [searchMatchTarget, setSearchMatchTarget] = useState<SearchMatchTarget | null>(null);
+  const clearSearchMatchTarget = useCallback(() => setSearchMatchTarget(null), []);
+  // The sidebar reports only changes: a pending target belongs to the query it was picked under.
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setChatSearchQuery(query);
+    setSearchMatchTarget(null);
+  }, []);
+  // A target still pending when another session opens must not jump when its own session reopens.
+  useEffect(() => {
+    setSearchMatchTarget((target) => (target && target.sessionId !== selectedSession?.id ? null : target));
+  }, [selectedSession?.id]);
+
   // The sidebar's SSE (SessionSidebar) reports a server restart under us via
   // onServerRestarted (boot-epoch mismatch). Memoized so its identity is stable
   // across renders: the sidebar lists it as an effect dependency, so a fresh
@@ -2108,6 +2124,8 @@ export function AppShell({ appName }: { appName: string }) {
         gitStatsPlacement={gitStatsPlacement}
         onBrandClick={() => setSidebarOpen(false)}
         onClose={isMobile ? handleSidebarToggle : undefined}
+        onSearchQueryChange={handleSearchQueryChange}
+        onOpenSearchMatch={setSearchMatchTarget}
       />
     </>
   );
@@ -2988,6 +3006,9 @@ export function AppShell({ appName }: { appName: string }) {
               composerAccentBg={composerAccentBg}
               onOpenPlan={() => selectedSession && handleOpenPlan(selectedSession.id)}
               onSelectSubagent={handleSubagentSelect}
+              searchQuery={chatSearchQuery}
+              searchTarget={searchMatchTarget && searchMatchTarget.sessionId === selectedSession?.id ? searchMatchTarget : null}
+              onSearchTargetHandled={clearSearchMatchTarget}
             />
           ) : initialCwdStatus === "validating" ? (
             <WorkspaceState
