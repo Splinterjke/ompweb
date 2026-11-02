@@ -46,7 +46,7 @@ export const SETTINGS_CATEGORIES: TabItem[] = [
   { id: "native", label: "OMP Native Settings", description: "Schema-driven full omp config (all settings, via omp CLI)", Icon: ListTree },
   { id: "notifications", label: "Notifications", description: "Desktop and mobile notifications for your sessions", Icon: Bell },
   { id: "system", label: "System & Updates", description: "App updates, runtime version, and active session restart", Icon: RefreshCw },
-  { id: "diagnostics", label: "Diagnostics & Recovery", description: "Service health, session locks, Rust host and repair actions", Icon: Activity },
+  { id: "diagnostics", label: "Diagnostics & Recovery", description: "Service health, session locks and repair actions", Icon: Activity },
   { id: "remote", label: "Remote Access", description: "Pair phones/PCs over LAN or a public tunnel", Icon: Smartphone },
 ];
 

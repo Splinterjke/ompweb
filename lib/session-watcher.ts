@@ -1,6 +1,5 @@
 import { closeSync, openSync, readSync, readdirSync, readFileSync, readlinkSync, statSync, watch, type FSWatcher } from "fs";
 import { basename, isAbsolute, join, resolve } from "path";
-import { getWebOwnedHostPids } from "./omp/rust-rpc-process";
 import { isOmpSessionFileName } from "./omp/session-files";
 import {
   getAgentDir,
@@ -697,19 +696,19 @@ export function heldSessionsWithLivePendingTurn(): string[] {
 }
 
 /**
- * True when the omp process with this pid was spawned by this server: a
- * direct child of this Node process (node backend) or of the Rust host
- * daemon (default backend). A terminal run or a child orphaned by a server
- * restart has a different parent.
+ * True when the omp process with this pid was spawned by this server as a
+ * direct child. The local daemon's children are NOT covered here: they are
+ * adopted as live web wrappers, and the holder consumers (external-session
+ * scan, pre-spawn gate) only act on sessions that have no wrapper — so an
+ * adopted daemon child never reads as an external holder. A terminal run or
+ * a child orphaned by a server restart has a different parent.
  */
 function isWebOwnedOmp(pid: string): boolean {
   try {
     const status = readFileSync(`/proc/${pid}/status`, "utf8");
     const match = /(^|\n)PPid:\s*(\d+)/.exec(status);
     if (!match) return false;
-    const ppid = Number(match[2]);
-    if (ppid === process.pid) return true;
-    return getWebOwnedHostPids().has(ppid);
+    return Number(match[2]) === process.pid;
   } catch {
     return false;
   }
@@ -807,13 +806,17 @@ export function findSessionFileHolders(sessionFile: string): SessionFileHolder[]
     }
     if (!holds) continue;
     const parentPid = ppidOf(pid);
-    let parentArgv0 = "";
+    let parentArgv: string[] = [];
     try {
-      parentArgv0 = readFileSync(`/proc/${parentPid}/cmdline`, "utf8").split("\0")[0] ?? "";
+      parentArgv = readFileSync(`/proc/${parentPid}/cmdline`, "utf8").split("\0").filter(Boolean);
     } catch {
-      parentArgv0 = "";
+      parentArgv = [];
     }
-    const parentIsHost = basename(parentArgv0) === "ompweb-host";
+    // The daemon is either the (retired) `ompweb-host` binary or the JS
+    // `ompweb host` daemon (`bun …/bin/omp-web-host.js`).
+    const parentIsHost =
+      basename(parentArgv[0] ?? "") === "ompweb-host" ||
+      basename(parentArgv[1] ?? "") === "omp-web-host.js";
     holders.push({
       pid: Number(pid),
       parentPid,

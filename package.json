@@ -30,9 +30,7 @@
     "scripts",
     "proxy.ts",
     "instrumentation.node.ts",
-    "backend-ownership.yaml",
     "templates",
-    "vendor/ompweb-host",
     "tsconfig.json",
     "package.json"
   ],
@@ -46,17 +44,14 @@
     "test": "node scripts/audit-client-api.mjs --check && bun test --parallel --timeout 30000",
     "git-graph:build": "node scripts/build-git-graph.mjs",
     "bench:session": "node scripts/perf-session-bench.mjs",
-    "host:build": "node scripts/build-host.mjs",
-    "host:stage": "node scripts/stage-host.mjs",
-    "host:stage:vendor": "node scripts/stage-host.mjs --vendor",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "prepack": "node scripts/verify-host-package.mjs && npm run build",
+    "prepack": "npm run build",
     "release:check": "npm run typecheck && npm run lint && npm test && npm run build && bun scripts/smoke.ts",
     "desktop:start": "electron .",
-    "desktop:build": "npm run build && npm run host:build && npm run host:stage && electron-builder --mac",
-    "desktop:build:win": "npm run build && npm run host:build && npm run host:stage && electron-builder --win",
-    "desktop:build:all": "npm run build && npm run host:build && npm run host:stage && electron-builder -mwl"
+    "desktop:build": "npm run build && electron-builder --mac",
+    "desktop:build:win": "npm run build && electron-builder --win",
+    "desktop:build:all": "npm run build && electron-builder -mwl"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -185,10 +180,6 @@
       {
         "from": "templates/desktop/splash.mp4",
         "to": "splash.mp4"
-      },
-      {
-        "from": "build-resources/host",
-        "to": "bin"
       }
     ],
     "publish": [

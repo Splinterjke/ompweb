@@ -373,15 +373,6 @@ async function startServerImpl() {
   }
   const bunBin = resolveServerRuntime();
   const ompBin = resolveOmpBin();
-  // Route 3 (doc 16): packaged apps ship the Rust host at
-  // <Resources>/bin/ompweb-host (electron-builder extraResources from
-  // build-resources/host). Point the standalone server at it explicitly — the
-  // server runs from the extracted Resources tree whose layout the packaged
-  // host does not sit beside. Dev runs omit the env var and resolve the
-  // workspace build.
-  const packagedHostBin = app.isPackaged
-    ? path.join(process.resourcesPath, "bin", process.platform === "win32" ? "ompweb-host.exe" : "ompweb-host")
-    : null;
   const runtimePath = [
     process.env.PATH,
     process.env.HOME ? `${process.env.HOME}/.bun/bin` : null,
@@ -389,13 +380,7 @@ async function startServerImpl() {
     "/opt/homebrew/bin",
     "/usr/local/bin",
   ].filter(Boolean).join(path.delimiter);
-  // Route 3 (doc 16): packaged builds own host resolution deterministically —
-  // always point at Resources/bin (missing file = fail-closed
-  // RuntimeUnavailable with remediation) and NEVER inherit an ambient
-  // OMPWEB_HOST_BIN from the launch environment.
   const spawnEnv = { ...process.env };
-  if (packagedHostBin) spawnEnv.OMPWEB_HOST_BIN = packagedHostBin;
-  else if (app.isPackaged) delete spawnEnv.OMPWEB_HOST_BIN;
   spawnEnv.PORT = String(APP_PORT);
   spawnEnv.OMP_WEB_PORT = String(APP_PORT);
   spawnEnv.OMP_WEB_APP_PORT = String(APP_PORT);

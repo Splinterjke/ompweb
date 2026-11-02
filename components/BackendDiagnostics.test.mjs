@@ -35,21 +35,12 @@ test("healthOf: auto proxy without an effective endpoint warns", () => {
   assert.equal(healthOf({ ...base, proxy: { config: { mode: "auto" }, effective: null } }), "warn");
 });
 
-test("healthOf: unavailable rust host binary in rust mode reports error", () => {
-  assert.equal(healthOf({ ...base, rustHost: { mode: "workspace", path: "/missing/ompweb-host", available: false } }), "error");
-  // Explicit node rollback mode has no rust host — that must not read as error.
-  assert.equal(healthOf({ ...base, rustHost: { mode: "node", path: "", available: false } }), "ok");
-  // Older payload without the field stays ok.
-  assert.equal(healthOf({ ...base }), "ok");
-});
-
-test("healthOf: host unavailable/crash in the backend error ring reports error", () => {
+test("healthOf: host unavailable in the backend error ring reports error", () => {
   assert.equal(healthOf({ ...base, backendErrors: [{ at: 1, kind: "host_unavailable", detail: "x" }] }), "error");
-  assert.equal(healthOf({ ...base, backendErrors: [{ at: 1, kind: "host_crash", detail: "x" }] }), "error");
 });
 
 test("healthOf: session-domain failures warn once and error from two", () => {
-  const scan = { at: 1, kind: "session_scan_failed", detail: "x" };
+  const scan = { at: 1, kind: "rpc_failure", detail: "x" };
   assert.equal(healthOf({ ...base, backendErrors: [scan] }), "warn");
   assert.equal(healthOf({ ...base, backendErrors: [scan, scan] }), "error");
 });

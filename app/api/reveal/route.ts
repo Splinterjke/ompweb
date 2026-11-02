@@ -4,7 +4,6 @@ import { getAllowedFileRoots, isExistingFilePathAllowed, normalizeSlashes } from
 import { buildRevealSpawn } from "@/lib/reveal-command";
 import { getConfigRoot, getAgentDir, getSessionsDir } from "@/lib/omp/paths";
 import { resolveOmpBin } from "@/lib/omp/omp-cli";
-import { hostClient } from "@/lib/omp/host-client";
 import path from "path";
 
 
@@ -35,11 +34,8 @@ export async function POST(req: Request) {
     }
 
     const ompBin = resolveOmpBin();
-    const rustHost = hostClient.host.status();
     const normalizedTarget = path.resolve(target);
-    const isSpecialAllowed =
-      (ompBin && normalizedTarget === path.resolve(ompBin)) ||
-      (rustHost?.path && normalizedTarget === path.resolve(rustHost.path));
+    const isSpecialAllowed = ompBin && normalizedTarget === path.resolve(ompBin);
 
     if (!isSpecialAllowed && !isExistingFilePathAllowed(target, allowedRoots)) {
       return Response.json({ error: "Path not allowed", code: "path_not_allowed" }, { status: 403 });

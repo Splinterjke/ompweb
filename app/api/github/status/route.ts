@@ -3,8 +3,6 @@ import { resolveGitHubRepo } from "@/lib/git-remote";
 import { getRepoStatus } from "@/lib/github";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
 import { getGitStatus } from "@/lib/git-changes";
-import { recordBackendError } from "@/lib/backend-errors";
-import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 
 
 // Short-TTL cache so the sidebar can poll without hammering GitHub's quota.
@@ -48,16 +46,9 @@ export async function GET(req: Request) {
       getCache().set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
       return Response.json(data);
     }
-    // Doc 16 route 10: local git status runs on the host in Rust mode (the
-    // GitHub API half — getRepoStatus — stays Node: it is HTTP over the
-    // proxy, not git). Failure is a structured error, never a Node re-run.
-    const gitPromise = rustBackendActive()
-      ? hostClient.git.status([...allowedRoots], project.projectRoot).catch((error) => {
-          recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
-          throw error;
-        })
-      : getGitStatus(project.projectRoot);
-    const [gitStatus, status] = await Promise.all([gitPromise, getRepoStatus(ref.owner, ref.repo)]);
+    // The local git half runs in Node; the GitHub API half (getRepoStatus)
+    // is HTTP over the proxy, not git.
+    const [gitStatus, status] = await Promise.all([getGitStatus(project.projectRoot), getRepoStatus(ref.owner, ref.repo)]);
     const data = { repo: status, pulls: status.pulls, git: { branch: gitStatus.branch, upstream: gitStatus.upstream, ahead: gitStatus.ahead ?? 0, behind: gitStatus.behind ?? 0, files: gitStatus.files } };
     getCache().set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
     return Response.json(data);

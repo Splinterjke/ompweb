@@ -1,6 +1,4 @@
 import { apiErrorResponse } from "@/lib/api-utils";
-import { recordBackendError } from "@/lib/backend-errors";
-import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import fs from "fs";
 import path from "path";
 import { getAllowedFileRoots, isFilePathAllowed } from "@/lib/file-access";
@@ -42,26 +40,7 @@ function parseFileRequestType(value: string): FileRequestType | null {
   return FILE_REQUEST_TYPE_SET.has(value) ? (value as FileRequestType) : null;
 }
 
-/** Map a host `files.*` IpcError code to the HTTP status the Node path used. */
-function mapFilesHostErrorStatus(error: unknown): number {
-  const code = (error as { code?: unknown } | null)?.code;
-  switch (code) {
-    case "access_denied": return 403;
-    case "file_not_found": return 404;
-    case "not_a_file":
-    case "not_a_directory": return 400;
-    case "file_too_large_preview": return 413;
-    default: return 500;
-  }
-}
 
-/** Record a Rust files-domain failure and return a structured error response
- * (No Hidden Fallback, doc 16 route 9): in Rust mode the host is the files
- * authority — a failed read/list/meta never degrades to a Node re-read. */
-function filesAuthorityErrorResponse(kind: "files_list_failed" | "files_read_failed" | "files_meta_failed", error: unknown): Response {
-  recordBackendError(kind, error instanceof Error ? error.message : String(error));
-  return apiErrorResponse(error, mapFilesHostErrorStatus(error));
-}
 
 async function getUploadDirectory(segments: string[]): Promise<
   { directory: string } | { response: Response }
@@ -436,7 +415,7 @@ export async function GET(
     if (!access.ok) {
       return Response.json({ error: access.error, code: access.code }, { status: access.status });
     }
-    const { filePath, stat, allowedByRoot, allowedRoots } = access;
+    const { filePath, stat, allowedRoots } = access;
     // A paused media element stops reading its stream, which Bun's idle timeout would cut. Lifted once the stream exists.
     const stream = (contentType: string, asDownload = false) => {
       const response = streamFile(filePath, stat, contentType, request.headers.get("range"), asDownload);
@@ -472,23 +451,12 @@ export async function GET(
       // starting at `offset` (default TEXT_PREVIEW_MAX_BYTES, clamped to
       // TEXT_PREVIEW_MAX_PAGE_BYTES), snapped to UTF-8 boundaries;
       // `nextOffset`/`truncated` let the viewer chain pages.
-      // Doc 16 route 9: text-JSON reads run on the Rust host when the path is
-      // root-authorized. The omp-image / session-reference read exemptions are
-      // narrow Node-only escapes and keep the Node reader. Binary streaming
-      // (image/audio/video/document) also stays Node for this slice.
       const readWindow = parseReadWindow(
         searchParams.get("offset"),
         searchParams.get("limit"),
         TEXT_PREVIEW_MAX_BYTES,
         TEXT_PREVIEW_MAX_PAGE_BYTES,
       );
-      if (rustBackendActive() && allowedByRoot) {
-        try {
-          return Response.json(await hostClient.files.read([...allowedRoots], filePath, readWindow.offset, readWindow.limit));
-        } catch (error) {
-          return filesAuthorityErrorResponse("files_read_failed", error);
-        }
-      }
       const page = readTextFilePage(filePath, stat.size, readWindow.offset, readWindow.limit);
       const language = getLanguage(filePath);
       return Response.json({ ...page, language, size: stat.size });
@@ -510,15 +478,6 @@ export async function GET(
       const audioMime = getAudioMime(filePath);
       const videoMime = getVideoMime(filePath);
       const documentMime = getDocumentMime(filePath);
-      // Doc 16 route 9: meta runs on the Rust host when root-authorized;
-      // the session-reference exemption keeps the Node path.
-      if (rustBackendActive() && allowedByRoot) {
-        try {
-          return Response.json(await hostClient.files.meta([...allowedRoots], filePath));
-        } catch (error) {
-          return filesAuthorityErrorResponse("files_meta_failed", error);
-        }
-      }
       return Response.json({
         size: stat.size,
         language: getLanguage(filePath),
@@ -564,17 +523,8 @@ export async function GET(
     }
 
     // `?all=1` disables the ignore filter ("show ignored files" in the file
-    // explorer). Doc 16 route 9: listing runs on the Rust host in Rust mode
-    // (the list auth path is root-only, so every authorized list reaches the
-    // host).
+    // explorer).
     const listAll = searchParams.get("all") === "1";
-    if (rustBackendActive()) {
-      try {
-        return Response.json(await hostClient.files.list([...allowedRoots], filePath, listAll));
-      } catch (error) {
-        return filesAuthorityErrorResponse("files_list_failed", error);
-      }
-    }
 
     // Avoid per-entry stat calls for normal files and directories. Symlinks and
     // filesystems without directory type information use the stat fallback.

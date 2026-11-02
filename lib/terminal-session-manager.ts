@@ -6,10 +6,8 @@ import { resolveTerminalShell } from "./terminal-shell";
 import { proxyEnv } from "./proxy-config";
 import { getAllowedFileRoots } from "./file-access";
 import { createChildProcessEnvironment } from "./project-command-env";
-import { hostClient, rustBackendActive } from "./omp/host-client";
 
-/** Unified process surface shared by the Rust host PTY (doc 16 route 8) and
- *  node-pty (explicit OMPWEB_BACKEND=node rollback). */
+/** Process surface of one terminal session. */
 export interface TerminalProcessLike {
   id?: string;
   write(data: string): void | Promise<void>;

@@ -8,8 +8,7 @@
  * never starts or ends inside a multi-byte character (partial sequences are
  * trimmed off the end and re-delivered with the next page).
  *
- * The Rust mirror lives in crates/ompweb-host/src/file_service.rs
- * (`read_ungated`); lib/files-parity.test.mjs pins the two against each other.
+ * lib/file-read-page.test.mjs pins the boundary and paging invariants.
  */
 import fs from "fs";
 

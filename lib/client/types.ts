@@ -92,7 +92,7 @@ export interface GitHubStatusPayload {
   reason?: "workspace_not_allowed" | "not_github";
 }
 
-/** Git domain (doc 16 route 1 surface; route 10 swaps the backing to Rust). */
+/** Git domain client surface. */
 export interface GitClient {
   /** GET /api/github/status?cwd=&refresh= — workspace repo/branch state. */
   status(cwd: string, options?: { refresh?: boolean }): Promise<GitHubStatusPayload>;

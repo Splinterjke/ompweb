@@ -2,7 +2,6 @@ import fs from "fs";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { recordBackendError } from "@/lib/backend-errors";
 import { isNonRepositoryError } from "@/lib/git-nonrepo";
-import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
 import { getGitStatus } from "@/lib/git-changes";
 import { withGitReadCache } from "@/lib/git-cache";
 import { applyPerFileStats } from "@/lib/git-numstat";
@@ -37,17 +36,12 @@ export async function GET(request: Request) {
       return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
     }
 
-    // Doc 16 route 10: in Rust mode the host owns local git (status parity
-    // against the Node implementation is frozen by lib/git-parity.test.mjs);
-    // the Node path exists only for the explicit OMPWEB_BACKEND=node rollback.
     // ?refresh=1 bypasses the cache (manual refresh / right after a commit).
     const refresh = new URL(request.url).searchParams.get("refresh") === "1";
-    // Per-file +/- stats are augmented on top of whichever backend answered
-    // (the frozen Node↔Rust parity shapes must not grow the fields) and
-    // inside the cache window, so the extra `git diff --numstat` collapses
-    // with the pollers like the status call itself.
-    const loadStatus = () =>
-      (rustBackendActive() ? hostClient.git.status([...allowedRoots], cwd) : getGitStatus(cwd)).then(applyPerFileStats);
+    // Per-file +/- stats are augmented inside the cache window, so the extra
+    // `git diff --numstat` collapses with the pollers like the status call
+    // itself.
+    const loadStatus = () => getGitStatus(cwd).then(applyPerFileStats);
     const status = refresh
       ? await loadStatus()
       : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, loadStatus);

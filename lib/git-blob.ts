@@ -2,10 +2,8 @@
 // behind a diff let the client materialize hidden context lines instantly
 // (`N hidden lines` expansion) without re-diffing per click.
 //
-// Local git only. The Rust host daemon exposes just the working-tree diff
-// (doc 16 route 10, parity frozen by lib/git-parity.test.mjs); every
-// contents-enabled request answers from the local git binary, exactly like
-// the commit-file and ref-compare diff modes already do.
+// Local git binary: contents-enabled diff requests answer from the real
+// repository, exactly like the commit-file and ref-compare diff modes.
 import { execFile } from "child_process";
 import fs from "fs";
 import path from "path";

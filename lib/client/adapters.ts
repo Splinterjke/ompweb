@@ -9,9 +9,8 @@
  *   remote       — RemoteProtocol WS (routes 14/20; not landed → unavailable)
  *
  * Unlanded kinds fail deterministically (client_runtime_unavailable, naming
- * the pending route) instead of pretending to work — the same fail-closed
- * rule the Rust host uses. The factory is the single construction point for
- * production clients.
+ * the missing endpoint) instead of pretending to work. The factory is the
+ * single construction point for production clients.
  */
 import { createHttpSseClient } from "./http-sse-adapter";
 import type { OmpwebClient } from "./types";

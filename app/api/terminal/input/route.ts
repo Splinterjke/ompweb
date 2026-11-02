@@ -1,10 +1,4 @@
-import * as nodeManager from "@/lib/terminal-session-manager";
-import * as hostManager from "@/lib/terminal-host-session";
-import { rustBackendActive } from "@/lib/omp/host-client";
-
-
-// Doc 16 route 8: backend-selected like the sibling terminal routes.
-const manager = () => (rustBackendActive() ? hostManager : nodeManager);
+import * as manager from "@/lib/terminal-session-manager";
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +9,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Invalid request payload" }, { status: 400 });
     }
 
-    const written = manager().writeToTerminal(id, data);
+    const written = manager.writeToTerminal(id, data);
     return Response.json({ ok: written });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to write input";

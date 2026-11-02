@@ -3,8 +3,7 @@
 //   node scripts/perf-session-bench.mjs [--runs 12] [--out docs/.../perf-baseline.json]
 //
 // Builds the doc-12 fixtures (Sessions-L 1k sessions + Chat-S/L/XL) in a temp
-// agent dir, then measures the read-side hot paths that the Rust Host (doc 06)
-// must later match: listAllSessions (cold + warm), per-session context load,
+// agent dir, then measures the read-side hot paths: listAllSessions (cold + warm), per-session context load,
 // and raw JSONL parse throughput. Reports p50/p95/mean ms; results are the
 // machine-tagged baseline evidence for the freeze in ADR-007.
 

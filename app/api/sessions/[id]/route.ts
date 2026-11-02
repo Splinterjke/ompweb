@@ -18,28 +18,13 @@ import {
   resolveSessionPath,
 } from "@/lib/session-reader";
 import { apiErrorResponse, hostOfflineResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { recordBackendError } from "@/lib/backend-errors";
 import { sessionPathKey } from "@/lib/paths";
-import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
-import { getAgentDir } from "@/lib/omp/paths";
 import { HostOpError } from "@/lib/hosts/link-protocol";
 import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { getHost } from "@/lib/hosts/hub";
 import { hostForSessionId, invalidateHostSessionList } from "@/lib/hosts/session-index";
 import { RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { clearExitedRpcSession, getLiveRpcSessionIds, getRpcSession, WebRpcError } from "@/lib/rpc-manager";
-
-/** Rethrow a Rust-domain failure as a structured error, preserving the source
- * code (e.g. `runtime_unavailable`) when present. Phase 1 "No Hidden
- * Fallback": in Rust mode the host is the session-domain authority — a failed
- * mutation is an error response, never a silent Node-authority write. */
-function rustAuthorityError(kind: string, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  const sourceCode = (error as { code?: unknown } | null)?.code;
-  return Object.assign(new Error(`Rust session service unavailable: ${message}`), {
-    code: typeof sourceCode === "string" ? sourceCode : kind,
-  });
-}
 
 /** Stable, client-safe error body for the catch-all handlers: a WebRpcError
  *  fence (e.g. a live history edit holding the session) keeps its 409; every
@@ -58,8 +43,8 @@ function sessionsErrorResponse(error: unknown): Response {
   if (error instanceof HostOpError) return apiErrorResponse(error);
   console.error("[api/sessions]", error);
   // Every other typed error keeps its own stable code through the generic
-  // mapper (e.g. the Rust session service's `runtime_unavailable`), so clients
-  // branch on the failure class instead of parsing the message.
+  // mapper, so clients branch on the failure class instead of parsing the
+  // message.
   return apiErrorResponse(error);
 }
 
@@ -189,17 +174,7 @@ export async function PATCH(
       if (!result.ok) return opErrorResponse(result);
       diskWritten = true;
     } else if (filePath) {
-      if (rustBackendActive()) {
-        try {
-          await hostClient.sessions.rename(join(getAgentDir(), "sessions"), filePath, name.trim());
-          diskWritten = true;
-        } catch (error) {
-          recordBackendError("session_rename_failed", `Rust session.rename failed: ${error instanceof Error ? error.message : String(error)}`);
-          throw rustAuthorityError("session_rename_failed", error);
-        }
-      } else {
-        diskWritten = setSessionTitle(filePath, name.trim(), "user");
-      }
+      diskWritten = setSessionTitle(filePath, name.trim(), "user");
     }
     if (!rpcRenamed && !diskWritten) {
       return Response.json({ error: "Session not found", code: "session_not_found" }, { status: 404 });
@@ -223,9 +198,8 @@ export async function DELETE(
     const resolved = await resolveSessionHostOr404(id);
     if ("response" in resolved) return resolved.response;
     // A session on another host is re-parented and deleted there (the host
-    // facade call below). This machine's files keep the local cascade: in Rust
-    // mode the session service owns the delete, and children have to be
-    // re-attached before the file goes away.
+    // facade call below). This machine's files keep the local cascade: live
+    // children are re-attached before the file goes away.
     let filePath = "";
     const skippedChildren: Array<{ id: string; reason: string }> = [];
     if (resolved.host?.id === LOCAL_HOST_ID) {
@@ -351,18 +325,7 @@ export async function DELETE(
     if (offline) return offline;
     await getRpcSession(id)?.destroyAndWait?.();
     if (resolved.host?.id === LOCAL_HOST_ID) {
-      if (rustBackendActive()) {
-        try {
-          await hostClient.sessions.delete(join(getAgentDir(), "sessions"), filePath);
-        } catch (error) {
-          // No Hidden Fallback (Phase 1): the Node file deletion exists only in
-          // the explicit OMPWEB_BACKEND=node rollback mode.
-          recordBackendError("session_delete_failed", `Rust session.delete failed: ${error instanceof Error ? error.message : String(error)}`);
-          throw rustAuthorityError("session_delete_failed", error);
-        }
-      } else {
-        deleteSessionFileWithArtifacts(filePath);
-      }
+      deleteSessionFileWithArtifacts(filePath);
       clearExitedRpcSession(id);
       invalidateSessionPathCache(id);
       invalidateSessionListCache();

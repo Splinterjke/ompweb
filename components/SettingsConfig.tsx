@@ -2397,7 +2397,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <div>
                   <h3 style={{ fontSize: "calc(16px * var(--ui-font-scale-lg, 1))", fontWeight: 700, margin: 0, color: "var(--text)" }}>System Diagnostics & Recovery Center</h3>
                   <p style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "calc(12.5px * var(--ui-font-scale-lg, 1))", lineHeight: 1.5 }}>
-                    Monitor the OMP engine, Rust Host daemon, session storage, network proxy, and system resources in one place, with one-click recovery and quick path location.
+                    Monitor the OMP engine, session storage, network proxy, and system resources in one place, with one-click recovery and quick path location.
                   </p>
                 </div>
                 <BackendDiagnosticsBody variant="full" />

@@ -1021,12 +1021,6 @@ export class AgentSessionWrapper {
     if (!this._alive || sourceProc === this.expectedExitProc) return;
     const detail = (stderrTail.trim().split("\n").pop() ?? "").slice(-500);
     const status = signal ? `signal ${signal}` : `code ${code ?? "null"}`;
-    // RustRpcProcess synthesizes this tail when the ompweb-host process itself
-    // died (vs the supervised omp child): record the specific kind so the
-    // diagnostics panel can name "host crash" instead of a generic RPC failure.
-    if (stderrTail.includes("ompweb-host disconnected")) {
-      recordBackendError("host_crash", `ompweb-host exited${detail ? `: ${detail}` : ""}`);
-    }
     recordRpcFailure(`omp process exited unexpectedly (${status})${detail ? `: ${detail}` : ""}`);
     // Spec Rules → Reattach: a run whose child vanished while its host link was
     // down starts again on that host, like a local run after a restart.

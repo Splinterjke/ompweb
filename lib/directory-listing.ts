@@ -3,10 +3,9 @@ import path from "path";
 import { resolveDirentIsDirectory } from "./file-dirent";
 
 /**
- * Pure directory-listing semantics shared by the /api/files route and the
- * Rust-parity test: ignore lists, symlink dir resolution, dirs-first order.
- * Extracted from app/api/files/[...path]/route.ts so the Rust `files.list`
- * (crates/ompweb-host/src/file_service.rs) can be tested 1:1 against it.
+ * Pure directory-listing semantics for the /api/files route: ignore lists,
+ * symlink dir resolution, dirs-first order. Extracted from
+ * app/api/files/[...path]/route.ts so the listing can be unit-tested.
  */
 
 export const IGNORED_NAMES = new Set([

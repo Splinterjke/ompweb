@@ -2,28 +2,20 @@
 // Backend 错误环（bounded error ring）
 // ============================================================================
 // 有界、按时间窗衰减的后端故障记录，供 /api/diagnostics 与顶栏健康横幅使用。
-// Phase 1（doc 16 路线 3/R10 收口）：Rust 失败不再静默降级 Node 权威，而是记入
-// 本环并向上抛结构化错误，让「host 不可用 / host 崩溃 / session 扫描失败」成为
-// App 级可见错误。rpc-manager 的 RPC 失败环收编为其中一种 kind。
+// 后端故障不静默降级：记入本环并向上抛结构化错误，让「服务不可用 / 进程崩溃 /
+// session 扫描失败」成为 App 级可见错误。rpc-manager 的 RPC 失败环收编为其中
+// 一种 kind。
 
 export type BackendErrorKind =
   | "rpc_failure"
   | "host_unavailable"
-  | "host_crash"
-  | "session_scan_failed"
-  | "session_rename_failed"
-  | "session_delete_failed"
-  | "files_list_failed"
-  | "files_read_failed"
-  | "files_meta_failed"
   | "git_status_failed"
   | "git_branches_failed"
   | "git_checkout_failed"
   | "git_clone_failed"
   | "git_commit_failed"
   | "git_push_failed"
-  | "git_diff_failed"
-  | "commands_run_failed";
+  | "git_diff_failed";
 
 export interface BackendErrorEntry {
   at: number;

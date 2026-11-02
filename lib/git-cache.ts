@@ -3,7 +3,7 @@
  *
  * The git tab, the composer git bar, the sidebar project badges and the
  * git-graph modal all poll /api/git/status for the same repository, and each
- * miss spawns a fresh `git` process (via the Rust host in Rust mode). The
+ * miss spawns a fresh `git` process. The
  * cache collapses concurrent calls into one in-flight git run and serves
  * repeat calls within the TTL without touching git at all.
  *

@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { checkOmpUpdate, runOmpUpdateNow, runOmpUpdateStream } from "@/lib/omp/updates";
 import { invalidateOmpCliCache } from "@/lib/omp/omp-cli";
 import { clearRpcFailures, restartAllRpcSessions } from "@/lib/rpc-manager";
-import { hostClient } from "@/lib/omp/host-client";
 import { isUpdateDisabled } from "@/lib/update-policy";
 
 
@@ -59,29 +58,23 @@ export async function POST(request: Request, { disableIdleTimeout }: { disableId
       return Response.json({ success: true, output: output.slice(-2000), sessionsRestarted });
     }
     if (body.action === "restart") {
-      const repair = hostClient.host.repair();
       const stoppedInstances = await stopOtherOmpWebInstances();
       const sessionsRestarted = await restartAllRpcSessions();
       clearRpcFailures();
       return Response.json({
         success: true,
         sessionsRestarted,
-        stoppedOrphanHosts: repair.stoppedOrphanHosts,
-        orphanHostPids: repair.orphanHostPids,
         stoppedInstances,
         reconnectRequired: true,
       });
     }
     if (body.action === "repair") {
-      // 无损恢复动作（供自动静默修复与诊断面板「修复」按钮使用）：只清孤儿
-      // Rust host + 清错误环，绝不重启用户 RPC 会话或 stop 其他实例，因此
-      // 不会打断正在进行的对话。
-      const repair = hostClient.host.repair();
+      // 无损恢复动作（供自动静默修复与诊断面板「修复」按钮使用）：只清错误
+      // 环，绝不重启用户 RPC 会话或 stop 其他实例，因此不会打断正在进行的
+      // 对话。
       clearRpcFailures();
       return Response.json({
         success: true,
-        stoppedOrphanHosts: repair.stoppedOrphanHosts,
-        orphanHostPids: repair.orphanHostPids,
         reconnectRequired: false,
       });
     }

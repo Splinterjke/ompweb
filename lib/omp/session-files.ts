@@ -1087,39 +1087,6 @@ function scanSessionInfoCached(filePath: string): OmpSessionInfo | undefined {
  */
 export async function listAllSessionInfos(): Promise<OmpSessionInfo[]> {
   const sessionsRoot = getSessionsDir();
-  // R10 read path: the Rust host is the session-projection authority when the
-  // Rust backend is active (default). Phase 1 "No Hidden Fallback": a failed
-  // scan is a recorded, structured error — the Node scanner only runs in the
-  // explicit OMPWEB_BACKEND=node rollback mode, never as a silent fallback.
-  if (process.env.OMPWEB_BACKEND !== "node") {
-    try {
-      // Route 2 (doc 16): the host is reachable only through the typed
-      // HostClient boundary (host-client.ts).
-      const { hostClient } = await import("./host-client");
-      const projections = await hostClient.sessions.scan(sessionsRoot);
-      const sessions: OmpSessionInfo[] = projections.map((p) => ({
-        path: p.path,
-        id: p.id,
-        cwd: p.cwd,
-        title: p.title || undefined,
-        parentSessionPath: p.parentSession || undefined,
-        created: p.created ? new Date(p.created) : new Date(p.mtime_ms),
-        modified: new Date(p.mtime_ms),
-        messageCount: p.messages,
-        size: p.bytes,
-        firstMessage: p.firstMessage,
-      }));
-      sessions.sort((a, b) => b.modified.getTime() - a.modified.getTime());
-      return sessions;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      recordBackendError("session_scan_failed", `Rust session scan failed: ${message}`);
-      const sourceCode = (error as { code?: unknown } | null)?.code;
-      throw Object.assign(new Error(`Rust session service unavailable: ${message}`), {
-        code: typeof sourceCode === "string" ? sourceCode : "session_scan_failed",
-      });
-    }
-  }
   const files = await listSessionFiles(sessionsRoot);
 
   const sessions: OmpSessionInfo[] = [];

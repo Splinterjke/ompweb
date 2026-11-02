@@ -1,12 +1,5 @@
-import * as nodeManager from "@/lib/terminal-session-manager";
-import * as hostManager from "@/lib/terminal-host-session";
-import { rustBackendActive } from "@/lib/omp/host-client";
+import * as manager from "@/lib/terminal-session-manager";
 import { getAllowedFileRoots, isExistingFilePathAllowed } from "@/lib/file-access";
-
-
-// Doc 16 route 8: in Rust mode the host owns the PTY (terminal-host-session);
-// the legacy Node manager is the explicit OMPWEB_BACKEND=node rollback.
-const manager = () => (rustBackendActive() ? hostManager : nodeManager);
 
 export async function POST(req: Request) {
   try {
@@ -22,7 +15,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { id, cwd: resolvedCwd } = await manager().createTerminalSession(cwd);
+    const { id, cwd: resolvedCwd } = await manager.createTerminalSession(cwd);
     return Response.json({ ok: true, sessionId: id, cwd: resolvedCwd });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to create terminal session";
@@ -37,7 +30,7 @@ export async function DELETE(req: Request) {
     if (!id) {
       return Response.json({ error: "Missing sessionId" }, { status: 400 });
     }
-    const closed = manager().closeTerminalSession(id);
+    const closed = manager.closeTerminalSession(id);
     return Response.json({ ok: closed });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to close terminal session";

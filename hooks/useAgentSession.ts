@@ -3346,10 +3346,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // keeps the draft, so nothing may be re-inserted here.
         return { status: "rejected", recoveryKey };
       }
-      // A split resume is recoverable when the competing process is an
-      // orphaned OmpWeb Rust host. Repair only those exact orphan hosts, then
-      // recreate the wrapper and retry this prompt once. Terminal omp
-      // processes are intentionally never touched by the repair endpoint.
+      // A split resume is recoverable when the competing holder is another
+      // (stale) OmpWeb instance rather than a live terminal run — the restart
+      // action stops other local instances and re-wraps sessions, never a
+      // terminal omp process. Recreate the wrapper and retry this prompt once.
       if (errorCode === "session_split" && sentSessionId) {
         try {
           const repair = await fetch("/api/omp-update", {

@@ -1,7 +1,6 @@
 /**
- * File → language detection shared by the /api/files route and the Rust
- * `files.read`/`files.meta` parity (crates/ompweb-host/src/file_service.rs).
- * Extracted from app/api/files/[...path]/route.ts without behavior change.
+ * File → language detection for the /api/files route. Extracted from
+ * app/api/files/[...path]/route.ts without behavior change.
  */
 
 export const EXT_TO_LANGUAGE: Record<string, string> = {

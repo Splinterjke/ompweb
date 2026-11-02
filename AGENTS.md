@@ -24,11 +24,7 @@ The server (dev/start/build/smoke) runs on **Bun** (`bun` is a dependency; the n
 brings its own), and `npm test` is upstream's **`bun test --parallel`** — Bun implements the
 `node:test` API, so both the fork's node-style suites and the DOM-harness tests
 (`tests/setup-dom.mjs`, extensionless `.tsx` imports) run under it; the `.tsx`-importing
-suites do NOT run under bare `node --experimental-strip-types --test`. When running
-individual Node-compatible test files that way anyway, clear the ambient deploy env first —
-`env -u OMPWEB_HOST_BIN -u OMP_WEB_PACKAGE_DIR NODE_ENV=test node --experimental-strip-types --test <files>`
-— a leaked `OMPWEB_HOST_BIN`/`OMP_WEB_PACKAGE_DIR` (from a dev-server launch) makes
-`resolveHostBin` fall through to old vendor binaries and fails the host-bin route tests.
+suites do NOT run under bare `node --experimental-strip-types --test`.
 The dev server needs the `omp` binary installed (on `PATH`, or set `OMP_WEB_OMP_BIN`).
 All live-agent features go through it; session browsing works without it.
 
@@ -104,55 +100,32 @@ client cannot forge a "loopback" header. This means:
 - The preload is what makes `isLoopbackConnection()` trustworthy; without it
   (a bare `next dev` without the `--require`), loopback detection fails closed.
 
-### Rust host daemon (`OMPWEB_HOST_BIN`)
+### Host daemons (JS only)
 
-The diagnostics panel's "Rust Host Daemon" card reflects
-`hostClient.host.status()`, which checks **binary existence** at the resolved
-path, **not** process liveness. The host boots **lazily** — on the first
-`hostClient.*` call (e.g. `POST /api/ui/refresh`, or a session start). It will
-not boot until something pokes it.
-
-Resolution order (`lib/omp/host-bin.ts`):
-1. `OMPWEB_HOST_BIN` (explicit; authoritative — a missing path is an error, no
-   fallback).
-2. Packaged desktop geometry `<exec>/../Resources/bin/ompweb-host`.
-3. `vendor/ompweb-host/<plat>-<arch>/ompweb-host` under the package root / cwd /
-   module dir.
-4. `crates/target/debug/ompweb-host` (dev/CI).
-
-For a dev-server smoke test, set `OMPWEB_HOST_BIN` to the prebuilt debug binary
-(`crates/target/debug/ompweb-host`) so the host boots and the KPI shows
-"运行中/Available". If cargo isn't installed, that binary may be absent — the
-host then won't boot and the card shows "未就绪/Unavailable" (binary missing,
-**not** the process being dead).
-- The host daemon is **per Node process**: each ompweb server instance spawns
-  its own `ompweb-host` child. Rebuilding the binary (`cargo build`) does NOT
-  affect an already-running daemon — it keeps the old code in memory until it
-  exits (30 s idle teardown) or is killed. To test a freshly built binary,
-  start a **new** server instance (it will spawn a new daemon from the updated
-  path) or use `OMPWEB_BACKEND=node` to bypass the Rust host entirely.
-- **The Rust host no longer spawns omp sessions.** Since the local-daemon pick
-  (#342) every session spawn goes through the JS `ompweb host` daemon link
-  (see "Local daemon"); the Rust host serves the session scan / git / file
-  services and the diagnostics KPI only, and is scheduled for retirement.
+There is no Rust host any more. The only host this machine runs through is the
+JS `ompweb host` daemon (`bin/omp-web-host.js`, see "Local daemon"): it owns
+every omp child and every machine-local file/git/session op, reached over the
+link (`getHost("local")`). Without a linked daemon the server still browses and
+reads sessions, but sending a message fails with the host offline, and in
+production the local row of Settings → Hosts shows offline (with the banner
+telling you to start `ompweb host`).
 
 ### Quick checklist before testing a dev instance
 
 1. Confirm the port (dev = `30178`, `npm run start` = `30177`).
 2. Check whether the server has `OMP_WEB_PASSWORD_HASH` set (gate on/off). If on,
    log in via `/api/web-auth/session` and keep the cookie jar.
-3. For Rust-host features, confirm `OMPWEB_HOST_BIN` points at an existing
-   binary, or that `crates/target/debug/ompweb-host` exists.
+3. For live-session testing you need a linked daemon for THAT server. Dev mode
+   skips `ensureLocalHostLink`, so the dev server never points the daemon at
+   itself (and the production `host.json` keeps the daemon on the deployed
+   server). To smoke-test locally, run a production-mode server on a throwaway
+   port with `OMP_WEB_PORT` set and start `bun bin/omp-web-host.js` (see the
+   "Local daemon" section; NEVER aim a throwaway daemon at the deployed
+   instance's agent dir/token).
 4. Remember the loopback exemption only works from the server's own machine.
-5. The diagnostics route (`/api/diagnostics`) is where the Rust Host Daemon KPI
-   and backend-error alerts are driven from — if it 500s, the whole panel shows
-   a fallback even when the host is fine.
-6. **Test env-var contamination**: `OMPWEB_HOST_BIN` and `OMP_WEB_PACKAGE_DIR`
-   in the ambient shell (e.g. leaked from a dev-server launch) cause
-   `host-bin.test.mjs` route-3 tests to fail because `resolveHostBin` falls
-   through to `process.env` when a test doesn't inject an explicit `env`.
-   Run the suite with `env -u OMPWEB_HOST_BIN -u OMP_WEB_PACKAGE_DIR node
-   --experimental-strip-types --test …` for a clean result.
+5. The diagnostics route (`/api/diagnostics`) drives the health KPIs and the
+   backend-error list — if it 500s, the whole panel shows a fallback even when
+   everything else is fine.
 
 ---
 
@@ -467,35 +440,25 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
 - `globalThis` survives `bun --hot` re-evaluation; a plain module-level Map does not.
 - Idle sessions are disposed after a timeout; concurrent `startRpcSession()`
   calls must share a single start promise.
-- **Prompt images and the host IPC frame cap**: user-prompt images stay
-  inline base64 in the `prompt` command, and that command is ONE NDJSON line
-  on every hop to the Rust host — `MAX_IPC_FRAME_BYTES` (`rpc-frame.ts`,
-  shared) must match `MAX_FRAME_BYTES` (`ipc_server.rs`, 16 MiB). The routes
-  accept an 8 MiB body with ≤5 MiB decoded images (≈7 MiB of base64 → one
-  line), which the 1 MiB-era cap rejected exactly after acceptance: the host
-  answers `frame_too_large` and closes while the client is still writing, the
-  RST discards that answer, and Node reports a bare `read ECONNRESET` — the
-  "Failed to send message: Error: read ECONNRESET" toast when attaching big
-  clipboard images. `RustHostManager.send` preflights the EXACT escaped line
-  size and refuses with `ipc_frame_too_large` before touching the socket
-  (the JSON-string-inside-JSON escaping can double a body-sized payload, so
-  no cap alone makes the pre-flight redundant). Chunking is NOT an escape
-  hatch for the child-stdin direction: protocol v2 `rpc_chunk` reassembly
-  exists only in the child's OUTBOUND direction — verified against omp
-  18.13.3, a child answers inbound `rpc_chunk` records with "Unknown command"
-  even after a successful `negotiate_protocol`, while a multi-MB single stdin
-  line is accepted (prompt acked, run streams normally). Both writers —
-  `Supervisor::send` and Node-mode `RpcProcess.writeFrame` — therefore always
-  write ONE complete line (`encodeRpcFrames` is the pinned mirror of omp's
-  outbound format + decoder-test fixture only; never use it for stdin).
-  Frames FROM omp children legitimately exceed the line cap (user-message
-  image echoes): omp chunks them into `rpc_chunk` lines and the supervisor
-  reassembles (`MAX_RPC_REASSEMBLED_BYTES`) — the supervisor's 1 MiB
-  per-line READ cap is a transport framing bound, not payload budget.
-  Regression: `lib/omp/rust-rpc-frame-limit.test.mjs`,
-  `supervisor::large_frames_reach_stdin_as_one_physical_line`,
-  `oversized_frames_are_rejected_before_touching_stdin`, the oversized-frame
-  test in `ipc_server.rs`.
+- **Prompt images and the child-stdin frame cap**: user-prompt images stay
+  inline base64 in the `prompt` command, and that command is ONE complete NDJSON
+  line on the child's stdin. omp parses stdin records as WHOLE lines and
+  protocol-v2 `rpc_chunk` reassembly exists only in the child's OUTBOUND
+  direction — verified against omp 18.13.3: a 6.18 MB single-line prompt is
+  accepted, while inbound `rpc_chunk` records are rejected as "Unknown command"
+  even after a successful `negotiate_protocol`. So `RpcProcess.writeFrame` (the
+  one stdin writer, running inside the daemon) preflights the EXACT escaped
+  line size against `MAX_IPC_FRAME_BYTES` (`rpc-frame.ts`, 16 MiB) and refuses
+  with a plain "Prompt payload is too large…" error before touching the pipe —
+  the routes' 8 MiB-body / 5 MiB-image gates alone are NOT sufficient, because
+  JSON-string-inside-JSON escaping can double a body-sized payload. Frames
+  FROM omp children legitimately exceed the per-line READ cap (user-message
+  image echoes): omp chunks them into `rpc_chunk` lines and `RpcProcess`
+  reassembles (`MAX_RPC_REASSEMBLED_BYTES`) — the per-line read cap is a
+  transport framing bound, not a payload budget.
+  Regression: `lib/omp/rpc-frame.test.mjs`,
+  `RpcProcess refuses an over-cap command without writing anything to stdin`
+  (`lib/omp/rpc-process-runtime.test.mjs`).
 - Two cleanup backstops, both unref'd so they never hold the event loop:
   `IDLE_DESTROY_MS` (10 min) and `DISCONNECT_DESTROY_MS`
   (`OMP_WEB_DISCONNECT_DESTROY_MS`, 2 min, `0` disables). The shorter one only
@@ -793,9 +756,9 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
   a `WebRpcError` `session_model_unavailable` with `data.model` — never a
   dead child. `invalidateModelAvailability()` must run whenever credentials
   change (wired into the logout route; login's own models-cache sweep
-  bounds the staleness to the TTL). The Rust host loses the child's stderr,
-  so the pre-flight is the primary detector there; Node mode classifies the
-  spawn error message as the backstop (`classifyStartupFailure`). A failed
+  bounds the staleness to the TTL). The pre-flight is the primary detector;
+  the daemon additionally classifies a child's startup stderr as the backstop
+  (`classifyStartupFailure`). A failed
   availability read SKIPS the check (never blocks a start on a guess).
 - **Recovery UX**: `POST /api/agent/[id]` accepts a web-only `startup` field
   (`{modelOverride}` or `{forceModelCheck}` — stripped before the command
@@ -1007,16 +970,12 @@ stored `omp-web:submit-during-run` choice overrides it.
   user-style bubble showing the `"User: "` trailer. The branch sits AFTER the
   `display === false` check, so a hidden skill-prompt stays hidden.
 - Session-list `firstMessage` recovery: `extractSkillPromptUser` in
-  `lib/omp/session-files.ts` and `extract_skill_prompt_user` in
-  `crates/ompweb-host/src/session_scan.rs` (Rust is the default scan path — keep
-  the two in parity). Rules: no `"User: "` marker → no first message (NEVER
+  `lib/omp/session-files.ts`. Rules: no `"User: "` marker → no first message (NEVER
   fall back to the whole skill body); a leading web-slash-command wrapper line
   (`"Prefix:"` + blank line, e.g. `/goal`'s "Work toward this goal for the rest
   of the session:") is stripped so the session reads as the task itself.
 - First-message discovery streams lines when the 4 KiB prefix has none — no
-  fixed window cap (`scanFirstUserMessage` in `lib/omp/session-files.ts`,
-  `scan_first_user_message` in `crates/ompweb-host/src/session_scan.rs`, keep
-  the two in parity). Files past the load ceiling (1 GiB) skip the scan: the
+  fixed window cap (`scanFirstUserMessage` in `lib/omp/session-files.ts`). Files past the load ceiling (1 GiB) skip the scan: the
   oversized session stays listed without a first message, and its open route
   answers 413 (`session_file_too_large`) instead of 404.
 
@@ -1501,9 +1460,8 @@ stored `omp-web:submit-during-run` choice overrides it.
   response carries `{ size (TOTAL), offset, truncated, nextOffset }`.
   `file_too_large_preview` is only emitted for an out-of-range `offset`
   (413); normal reads past 256 KiB simply page.
-- One shared reader on each side, byte-identical semantics
-  (`lib/file-read-page.ts` `readTextPage` ↔ `file_service.rs` paging, pinned
-  by `lib/files-parity.test.mjs`): pages start at server-returned
+- One shared reader (`lib/file-read-page.ts` `readTextPage`, pinned by
+  `lib/file-read-page.test.mjs`): pages start at server-returned
   `nextOffset`s only, and the server snaps both page ends to UTF-8
   character boundaries (a page never splits a multi-byte character;
   invalid bytes pass through as-is at the tail).
@@ -1514,12 +1472,6 @@ stored `omp-web:submit-during-run` choice overrides it.
   not advance ends paging instead of looping. Past one page rendering
   switches to `PlainSourceRenderer` (no syntax tokenization — highlighting
   megabytes freezes the tab, which is what the old cap protected against).
-- The Rust control/IPC socket decoders (`lib/omp/rust-rpc-process.ts`) MUST
-  use a stateful `StringDecoder` per stream: paged reads move hundreds of
-  KB of raw UTF-8 per JSON line and TCP chunks split mid-character — a
-  per-chunk `chunk.toString()` silently writes U+FFFD into parsed results
-  (regression test: `lib/omp/rust-rpc-transport.test.mjs`). Same rule as
-  the `b += c` HTTP-client trap in test harnesses.
 
 ### Session list caching — new sessions must appear immediately
 - The sidebar and command palette list sessions per host: `listSessionsAllHosts()` (`lib/hosts/session-index.ts`) calls each host's `listSessions` op and caches it 30 s per host (`LIST_TTL_MS`, the daemon's own TTL). **This machine's list is its daemon's**; a host that fails or is offline keeps its last list. Nothing on main parses session files to build it.
@@ -1545,8 +1497,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   hidden content.
 - The model parses a unified diff into hunks plus gap regions; gaps materialize
   from the real file versions fetched once per file through
-  `/api/git/diff?...&contents=1` (Node-only route branch — the Rust host cannot
-  serve file contents; without contents the bars stay inert). Split rows are
+  `/api/git/diff?...&contents=1` (without contents the bars stay inert). Split rows are
   built once per row with left+right cells sharing the row index, so the panes
   align line-for-line; a rows block's grid rows are offset by `renderFile`'s
   cursor so a hunk separated from the previous block by a bar cannot overlap it
@@ -1555,7 +1506,7 @@ stored `omp-web:submit-during-run` choice overrides it.
   to the deepest existing ancestor (`isPathWithinRootsAllowingMissing`), and
   the patch comes from `git diff HEAD` with the old side from HEAD
   (`getDeletedFileDiff`) — the no-contents default stays `supported:false`
-  for deletions (frozen by the Rust parity tests).
+  for deletions (frozen by `lib/git-changes.test.mjs`).
 - rsh appends a trailing `"\n"` to every processed line inside the deepest token
   span; `stripTrailingNewline` must recurse into nested children — a shallow pop
   leaves it and renders every row two lines tall.
@@ -1598,9 +1549,9 @@ stored `omp-web:submit-during-run` choice overrides it.
 - The pollers' `git diff/status` children refresh the index stat-cache and briefly hold `.git/index.lock`, so index-writing commands (`git commit`, `reset`, `add`, `read-tree`) can fail transiently with "index.lock: File exists" while a dev server is serving this repo. It is NOT a stale lock: retry (a short sequence rarely collides twice), and never delete the lock while a live git child exists (the pollers appear under the next-server pid). A `set -e` multi-step git sequence stops mid-sequence on a collision with the next step's tree already staged — inspect `git log`/`git status`/`git write-tree` and finish only the remaining commits, never re-run the whole script.
 - The raw backend-error ring keeps git read entries (the diagnostics report is a support artifact where git noise is informative) — do not "clean" them out of the ring.
 - The routes skip `recordBackendError` for non-repo workspaces (`isNonRepositoryError`, `not_a_git_repository` code / "Not a Git repository" message) so a plain folder can never land an entry in the ring.
-- Single-file diff (`/api/git/diff`, Rust `diff_inner` / Node `getGitFileDiff`) classifies the file with a **scoped** `git status --porcelain=v1 -z --untracked-files=all -- ':(literal)<path>'` (~250 ms) instead of a full-tree status scan (2.6–13 s on a 3 GB repo), which made every file click in the Git tab feel like the diff would never load. The scoped result is authoritative except for index status `A` (staged new file) — only a full scan can pair a rename target with its original path — so both implementations fall back to the full scan in that one case. Keep both in sync; `lib/git-parity.test.mjs` (staged rename case) pins the parity.
+- Single-file diff (`/api/git/diff`, `getGitFileDiff`) classifies the file with a **scoped** `git status --porcelain=v1 -z --untracked-files=all -- ':(literal)<path>'` (~250 ms) instead of a full-tree status scan (2.6–13 s on a 3 GB repo), which made every file click in the Git tab feel like the diff would never load. The scoped result is authoritative except for index status `A` (staged new file) — only a full scan can pair a rename target with its original path — so the classifier falls back to the full scan in that one case (`lib/git-changes.test.mjs` pins the staged-rename case).
 - Client git pollers (`useGitStatus`, `useGitStats`, `GitChangesPanel`) carry an in-flight guard: never stack a new poll round while the previous one is still running — a slow repository outlives the 5 s interval and stacked rounds saturate the host and turn every git call into a timeout.
-- Host side: the Rust `git.status` handler runs its four post-status calls (branch/upstream/counts/diff) concurrently (each on its own `thread::spawn`, joined via a `join_git` helper in `git_service.rs`), and `rust-rpc-process.ts` routes every `git.*` method over an isolated IPC connection (not just `git.push`) so a slow git call can never block the shared control channel. `ipc_server.rs` `MAX_CONNECTIONS` must stay ≥ shared control + one per in-flight git.* request (the UI polls up to 13 cwds).
+- Server side: `getGitStatus` runs its four post-status calls (branch/upstream/counts/shortstat) concurrently (`Promise.all` in `lib/git-changes.ts`), and every git call runs in its own short-lived `git` child process with a timeout, so a slow repository call cannot block other routes.
 
 ### Chat scroll-follow
 - `useAgentSession` follows the conversation: the effect depends on both
@@ -2076,10 +2027,9 @@ Location: `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
   (`SkillPromptView` in `components/MessageView.tsx`), so the session opens
   with the user's prompt instead of a wall of skill instructions.
 - Session-list first messages for such sessions are recovered from that
-  `User: ` trailer (`extractSkillPromptUser` in `lib/omp/session-files.ts`,
-  mirrored by `extract_skill_prompt_user` in `crates/ompweb-host/src/
-  session_scan.rs` — keep the two in sync). Both strip a web slash-command
-  wrapper prefix ("/goal"/"/plan" send "Prefix:\n\n\<task>") and return
+  `User: ` trailer (`extractSkillPromptUser` in `lib/omp/session-files.ts`).
+  It strips a web slash-command
+  wrapper prefix ("/goal"/"/plan" send "Prefix:\n\n\<task>") and returns
   nothing when the trailer is missing (never the whole skill body, which
   would name the session after the skill).
 

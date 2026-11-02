@@ -2,13 +2,9 @@ import { resolveOmpBin, getOmpVersion } from "@/lib/omp/omp-cli";
 import { readProxyConfig, resolveEffectiveProxy } from "@/lib/proxy-config";
 import { recentRpcFailures } from "@/lib/rpc-manager";
 import { clearBackendErrors, recentBackendErrors } from "@/lib/backend-errors";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
-import { hostClient } from "@/lib/omp/host-client";
 import { getConfigRoot, getAgentDir, getSessionsDir, getSettingsPath, getModelsConfigPath } from "@/lib/omp/paths";
-import YAML from "yaml";
 
 
 /**
@@ -29,7 +25,6 @@ export async function GET() {
   // RPC 健康信号：最近 60s 内的 omp 子进程异常退出 / 会话分裂——这些直接
   // 导致"消息发不出去"，必须纳入健康判断（仅看 omp 是否安装是不够的）。
   const recentFailures = recentRpcFailures(60_000);
-  const orphanRustHostPids = hostClient.host.orphans();
 
   // 其他 ompweb 实例探测：旧实例（残留的开发服务/旧 app）会持有会话锁、
   // 扰乱 --resume，是"服务异常但健康显示正常"的主要来源。扫描本机常见端口。
@@ -73,11 +68,9 @@ export async function GET() {
     rpc: {
       activeSessions: activeRpc,
       recentFailures: recentFailures.map((f) => f.detail),
-      orphanRustHosts: orphanRustHostPids.length,
     },
-    // Phase 1 (doc 16): Rust-domain failures (host unavailable / host crash /
-    // session scan-rename-delete failures) recorded by lib/backend-errors.ts —
-    // the App-level visible error feed for the banner and diagnostics panel.
+    // Backend failures recorded by lib/backend-errors.ts — the App-level
+    // visible error feed for the banner and diagnostics panel.
     backendErrors: recentBackendErrors().map((e) => ({ at: e.at, kind: e.kind, detail: e.detail })),
     instances: {
       selfPort,
@@ -98,20 +91,12 @@ export async function GET() {
     },
     paths: {
       ompBin: ompBin ?? null,
-      rustHostBin: hostClient.host.status().path || null,
       configRoot: getConfigRoot(),
       agentDir: getAgentDir(),
       sessionsDir: getSessionsDir(),
       settingsPath: getSettingsPath(),
       modelsPath: getModelsConfigPath(),
     },
-    // Backend Ownership dashboard (doc 15 / v4 P40): per-domain authority so
-    // development/testing can see at a glance what has migrated to Rust.
-    backendOwnership: getBackendOwnership(),
-    // Rust host runtime resolution (doc 16 route 3): production binary
-    // location mode + availability. Absent = Runtime unavailable (agent
-    // commands fail closed; no silent Node fallback).
-    rustHost: hostClient.host.status(),
   });
 }
 
@@ -158,27 +143,6 @@ function hasTool(name: string): boolean {
     return true;
   } catch {
     return false;
-  }
-}
-
-function getBackendOwnership(): Record<string, string> {
-  try {
-    const raw = readFileSync(join(process.cwd(), "backend-ownership.yaml"), "utf8");
-    const doc = YAML.parse(raw);
-    const domains: Record<string, string> = {};
-    if (doc && typeof doc === "object" && "domains" in doc && doc.domains && typeof doc.domains === "object") {
-      for (const [name, entry] of Object.entries(doc.domains)) {
-        if (entry && typeof entry === "object" && "authority" in entry) {
-          const authority = entry.authority;
-          domains[name] = typeof authority === "string" ? authority : "unknown";
-        } else {
-          domains[name] = "unknown";
-        }
-      }
-    }
-    return domains;
-  } catch {
-    return {};
   }
 }
 

@@ -1,16 +1,12 @@
 import { getPairingService } from "@/lib/remote-pairing-store";
-import { hostClient, rustBackendActive } from "@/lib/omp/host-client";
-import { syncPairingMirror } from "@/lib/remote-pairing-mirror";
 
 
 /**
  * Exchange a one-time token for a paired-device cookie. The device is
  * registered with the User-Agent-derived name; the cookie is HttpOnly and
- * SameSite=Lax so gated /api requests from LAN/public hosts pass.
- *
- * Doc 16 route 13: enrollment runs on the Rust device registry; the cookie
- * stays as the HTTP adapter credential and the JSON mirror keeps the
- * proxy.ts pairing gate working.
+ * SameSite=Lax so gated /api requests from LAN/public hosts pass. The
+ * PairingService persists the registry in the JSON file proxy.ts's pairing
+ * gate reads.
  */
 export async function POST(request: Request) {
   let body: { token?: unknown; mobile?: unknown };
@@ -24,24 +20,9 @@ export async function POST(request: Request) {
   }
   const service = getPairingService();
   const userAgent = request.headers.get("user-agent") ?? "";
-  let device;
-  if (rustBackendActive()) {
-    try {
-      const { id } = await hostClient.device.enroll(body.token, userAgent, body.mobile === true, 4);
-      device = { id };
-      await syncPairingMirror();
-    } catch (error) {
-      const code = (error as { code?: unknown } | null)?.code;
-      if (code === "invalid_or_expired_token") {
-        return Response.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
-      }
-      throw error;
-    }
-  } else {
-    device = service.accept(body.token, userAgent, body.mobile === true);
-    if (!device) {
-      return Response.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
-    }
+  const device = service.accept(body.token, userAgent, body.mobile === true);
+  if (!device) {
+    return Response.json({ error: "invalid or expired token", code: "invalid_or_expired_token" }, { status: 403 });
   }
   // Preserve LAN HTTP pairing while preventing a paired-device credential
   // from ever being replayed over plaintext when the configured remote URL

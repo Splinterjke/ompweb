@@ -161,7 +161,7 @@ export class HostConnection {
   private async completeHandshake(requestId?: string): Promise<void> {
     const welcome: WelcomePayload = {
       protocolVersion: PROTOCOL_VERSION,
-      serverVersion: this.options.serverVersion ?? "ompweb-host-dev",
+      serverVersion: this.options.serverVersion ?? "ompweb-dev",
       hostEpoch: this.options.journal.hostEpoch,
       features: [...this.negotiatedFeatures],
       limits: { maxMessageBytes: this.limits.maxMessageBytes },

@@ -1,10 +1,9 @@
 // Event Continuity semantic model (5.0 doc 02 / ADR-003) — TypeScript oracle.
 //
 // This module defines the wire-level event envelope and the resume state
-// machine. The oracle exists to pin the semantics with conformance fixtures
-// BEFORE a persistent implementation (Rust host, doc 06) exists; it must never
-// be wired to production traffic. Purity rules: no I/O, no clocks other than
-// the injected one, no randomness.
+// machine. The oracle exists to pin the semantics with conformance fixtures;
+// it must never be wired to production traffic.
+// Purity rules: no I/O, no clocks other than the injected one, no randomness.
 
 /** v1 cursor: per-stream monotonic seq inside a host identity generation. */
 export interface EventCursor {

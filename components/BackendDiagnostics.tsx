@@ -10,12 +10,10 @@ import {
   Check,
   Clock,
   Copy,
-  Cpu,
   Eraser,
   ExternalLink,
   FileCode,
   FolderOpen,
-  Layers,
   Network,
   RefreshCw,
   RotateCcw,
@@ -36,7 +34,6 @@ export interface DiagnosticsData {
   };
   paths?: {
     ompBin: string | null;
-    rustHostBin: string | null;
     configRoot: string;
     agentDir: string;
     sessionsDir: string;
@@ -45,14 +42,10 @@ export interface DiagnosticsData {
   };
   omp: { installed: boolean; path: string | null; version: string | null };
   proxy: { config: { mode: string; url?: string }; effective: string | null };
-  rpc: { activeSessions: number; recentFailures?: string[]; orphanRustHosts?: number };
+  rpc: { activeSessions: number; recentFailures?: string[] };
   instances?: { selfPort: number; others: number[] };
   web: { port: string; url: string };
-  /** Per-domain authority from backend-ownership.yaml (doc 15 / v4 P40). */
-  backendOwnership?: Record<string, string>;
-  /** Rust host binary resolution (doc 16 route 3). */
-  rustHost?: { mode: string; path: string; available: boolean };
-  /** Rust-domain failures recorded by lib/backend-errors.ts (Phase 1). */
+  /** Backend failures recorded by lib/backend-errors.ts. */
   backendErrors?: Array<{ at: number; kind: string; detail: string }>;
 }
 
@@ -111,8 +104,8 @@ function ensureHealthPolling(): void {
 }
 
 // ── 自动静默修复 ─────────────────────────────────────────────────────────
-// 健康转异常时自动跑一次与「重启 OMP 会话」按钮相同的修复动作
-// （host repair 清孤儿 + 重启 RPC 会话 + 清错误环），成功后横幅自行消失；
+// 健康转异常时自动跑一次与「修复」按钮相同的动作（repair 仅清除后端错误环
+// 记录并重新探测，不重启任何 RPC 会话），成功后横幅自行消失；
 // 5 分钟冷却防止抖动循环。手动点击修复按钮同样重置冷却。
 const AUTO_FIX_COOLDOWN_MS = 5 * 60_000;
 let lastAutoFixAt = 0;
@@ -132,19 +125,14 @@ function maybeAutoFix(): void {
   if (!shouldAutoFix(lastAutoFixAt, Date.now())) return;
   const data = healthSnapshot.diagnostics;
   if (!data) return;
-  // 只在「host 级故障」时自动修复，且修复动作仅清孤儿 host —— 绝不重启用户
-  // 的 RPC 会话（避免代理暂断/普通 warn 时误杀正在进行的对话）。
-  const hostDead = data.rustHost && data.rustHost.mode !== "node" && !data.rustHost.available;
-  const hostCrash = (data.backendErrors ?? []).some((e) => e.kind === "host_crash" || e.kind === "host_unavailable");
-  const orphanHost = (data.rpc.orphanRustHosts ?? 0) > 0;
-  // Orphaned supervisors are safe to clean automatically: they are
-  // reparented to launchd/init and are explicitly excluded from the current
-  // host manager. Leaving them around is what makes every fresh instance
-  // report a warning even though its own host is healthy.
-  if (!hostDead && !hostCrash && !orphanHost) return;
+  // 只在「host 级故障」（错误环中的 host_unavailable）时自动修复，
+  // 且修复动作仅清除错误环记录 —— 绝不重启用户的 RPC 会话（避免代理暂断/普通
+  // warn 时误杀正在进行的对话）。
+  const hostDown = (data.backendErrors ?? []).some((e) => e.kind === "host_unavailable");
+  if (!hostDown) return;
   autoFixInFlight = true;
   lastAutoFixAt = Date.now();
-  // 「repair」= 无损：只清孤儿 host + 清错误环，不重启用户会话。
+  // 「repair」= 无损：仅清除后端错误环记录并重新探测，不重启用户会话。
   void fetch("/api/omp-update", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -166,9 +154,6 @@ function maybeAutoFix(): void {
     });
 }
 
-// Display order for the ownership coverage badges (doc 16 nine domains).
-const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "settings", "commands", "remote"] as const;
-
 // Benign git entries are excluded from the health math so a non-git or
 // merely slow repository can never flip the banner to Degraded — even stale
 // ones recorded before the routes learned to skip them. Read-only git ops
@@ -177,23 +162,20 @@ const DOMAIN_ORDER = ["agent", "event", "session", "pty", "files", "git", "setti
 // push) are explicit user actions and still degrade.
 
 /**
- * Overall health. Beyond omp installation: a missing Rust host binary (rust
- * mode) is a hard failure — every agent/session mutation fails closed; host
- * unavailable/crash and session-domain failures recorded in the backend error
- * ring surface here; recent RPC failures mean messages cannot actually be
- * sent. Without these the UI lies ("服务正常" while the backend is down).
+ * Overall health. Beyond omp installation: host unavailable/crash failures
+ * recorded in the backend error ring surface here; recent RPC failures mean
+ * messages cannot actually be sent. Without these the UI lies ("服务正常"
+ * while the backend is down).
  */
 export function healthOf(d: DiagnosticsData): BackendHealth {
   if (!d.omp.installed) return "error";
-  if (d.rustHost && d.rustHost.mode !== "node" && !d.rustHost.available) return "error";
   const backendErrors = filterBenignGitEntries(d.backendErrors ?? []);
-  if (backendErrors.some((e) => e.kind === "host_unavailable" || e.kind === "host_crash")) return "error";
+  if (backendErrors.some((e) => e.kind === "host_unavailable")) return "error";
   const failures = d.rpc.recentFailures?.length ?? 0;
   if (failures >= 2) return "error";
   if (backendErrors.length >= 2) return "error";
   if (failures >= 1) return "warn";
   if (backendErrors.length >= 1) return "warn";
-  if ((d.rpc.orphanRustHosts ?? 0) > 0) return "warn";
   // A development server and the packaged desktop app intentionally run
   // side-by-side during local verification (30178/30179). Presence of another
   // healthy loopback instance is informational; only its own RPC/host errors
@@ -282,18 +264,6 @@ function formatBytes(bytes?: number): string {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
-
-const DOMAIN_INFO: Record<string, { labelZh: string; labelEn: string; descZh: string; descEn: string }> = {
-  agent: { labelZh: "代理调度", labelEn: "Agent", descZh: "OMP 代理子进程生命周期调度与交互", descEn: "Agent process lifecycle & RPC" },
-  event: { labelZh: "实时事件", labelEn: "Events", descZh: "SSE 流式事件多路复用与心跳保证", descEn: "SSE stream multiplexing & frames" },
-  session: { labelZh: "会话历史", labelEn: "Sessions", descZh: "会话树形历史解析与快照索引", descEn: "Session JSONL tree & snapshot index" },
-  pty: { labelZh: "终端仿真", labelEn: "Terminal PTY", descZh: "原生伪终端 Shell 会话与输入输出流", descEn: "Native pseudo-terminal PTY session" },
-  files: { labelZh: "安全文件", labelEn: "Files", descZh: "沙箱路径受限的文件树与文件访问", descEn: "Sandboxed workspace file explorer" },
-  git: { labelZh: "Git 仓库", labelEn: "Git VCS", descZh: "工作区状态、分支管理与提交推送", descEn: "Git status, branches, commit & push" },
-  settings: { labelZh: "配置管理", labelEn: "Settings", descZh: "原生 config.yml 与 models.yml 管理", descEn: "Native YAML settings & models" },
-  commands: { labelZh: "快捷命令", labelEn: "Commands", descZh: "注册脚本与安全快速指令执行", descEn: "Quick scripts & command execution" },
-  remote: { labelZh: "远程接入", labelEn: "Remote", descZh: "移动端与跨设备安全访问配对运行时", descEn: "Device pairing & remote gateway" },
-};
 
 function RevealButton({ path, label = "Reveal" }: { path?: string | null; label?: string }) {
   const [busy, setBusy] = useState(false);
@@ -433,7 +403,7 @@ function BackendDiagnosticsPopoverView() {
         setError(data.error ?? "repair failed");
       } else {
         markManualFix();
-        setSuccess(t("diagnostics.repairSuccess"));
+        setSuccess(t("diagnostics.errorsCleared"));
         refreshDetails();
         window.setTimeout(() => refreshDetails(), 500);
       }
@@ -451,11 +421,9 @@ function BackendDiagnosticsPopoverView() {
       `ompweb diagnostics @ ${new Date().toISOString()}`,
       `health: ${healthOf(diag)}`,
       `omp: ${diag.omp.installed ? `${diag.omp.version ?? "?"} @ ${diag.omp.path ?? ""}` : "missing"}`,
-      `rust host: ${diag.rustHost ? `${diag.rustHost.mode} available=${diag.rustHost.available} ${diag.rustHost.path}` : "n/a"}`,
       `proxy: ${diag.proxy.effective ?? "off"} (mode ${diag.proxy.config.mode})`,
-      `rpc: ${diag.rpc.activeSessions} active, ${diag.rpc.recentFailures?.length ?? 0} recent failures, ${diag.rpc.orphanRustHosts ?? 0} orphan hosts`,
+      `rpc: ${diag.rpc.activeSessions} active, ${diag.rpc.recentFailures?.length ?? 0} recent failures`,
       `web: ${diag.web.url}`,
-      `ownership: ${Object.entries(diag.backendOwnership ?? {}).map(([domain, authority]) => `${domain}=${authority}`).join(" ")}`,
       ...backendErrors.map((e) => `[${e.kind}] ${e.detail}`),
     ];
     void navigator.clipboard.writeText(lines.join("\n")).then(() => {
@@ -492,18 +460,13 @@ function BackendDiagnosticsPopoverView() {
       {diag && (
         <>
           {(() => {
-            const hostDown = Boolean(diag.rustHost && diag.rustHost.mode !== "node" && !diag.rustHost.available);
-            const hostCrash = backendErrors.some((entry) => entry.kind === "host_crash" || entry.kind === "host_unavailable");
             const rpcFailed = (diag.rpc.recentFailures?.length ?? 0) > 0;
-            const orphan = (diag.rpc.orphanRustHosts ?? 0) > 0;
             const proxyMissing = !diag.proxy.effective && diag.proxy.config.mode === "auto";
             const missingOmp = !diag.omp.installed;
             const issues = [
               missingOmp ? { key: "omp", title: "OMP not installed", detail: "Install omp, then try again.", action: undefined } : null,
-              hostDown || hostCrash ? { key: "host", title: "Rust host unavailable", detail: "Clear orphan hosts and re-probe; running sessions are not restarted.", action: <ActionButton onClick={() => void repairHost()} disabled={actionBusy} icon={<Activity size={11} />} label={t("diagnostics.repair")} /> } : null,
-              orphan ? { key: "orphan", title: "Orphan host detected", detail: "Orphan processes may hold locks or a PTY.", action: <ActionButton onClick={() => void repairHost()} disabled={actionBusy} icon={<Activity size={11} />} label={t("diagnostics.repair")} /> } : null,
               rpcFailed ? { key: "rpc", title: "RPC session failure", detail: `${diag.rpc.recentFailures?.length ?? 0} recent failures; restart only affects the active RPC session.`, action: <ActionButton onClick={() => void restartRpc()} disabled={restarting || actionBusy} icon={<RotateCcw size={11} />} label={t("diagnostics.restartRpc")} tone="quiet" /> } : null,
-              backendErrors.length > 0 && !hostCrash ? { key: "errors", title: "Backend error log", detail: `${backendErrors.length} errors remain in the error ring.`, action: <ActionButton onClick={() => void clearErrors()} disabled={actionBusy} icon={<Eraser size={11} />} label={t("diagnostics.clearErrors")} tone="quiet" /> } : null,
+              backendErrors.length > 0 ? { key: "errors", title: "Backend error log", detail: `${backendErrors.length} errors remain in the error ring; clearing them re-probes backend health.`, action: <ActionButton onClick={() => void clearErrors()} disabled={actionBusy} icon={<Eraser size={11} />} label={t("diagnostics.clearErrors")} tone="quiet" /> } : null,
               proxyMissing ? { key: "proxy", title: "Proxy not active", detail: "Auto proxy mode is on but no endpoint is available; check your proxy client or switch to manual config.", action: <ActionButton onClick={() => refreshDetails()} disabled={refreshing} icon={<RefreshCw size={11} />} label={t("diagnostics.refresh")} tone="quiet" /> } : null,
             ].filter(Boolean) as Array<{ key: string; title: string; detail: string; action?: ReactNode }>;
             if (!issues.length) return null;
@@ -514,12 +477,6 @@ function BackendDiagnosticsPopoverView() {
             ok={diag.omp.installed}
             detail={diag.omp.installed ? `${diag.omp.version ?? "?"} · ${diag.omp.path ?? ""}` : t("diagnostics.ompMissing")}
             action={diag.omp.path ? <CopyButton text={diag.omp.path} title={t("diagnostics.copy")} /> : undefined}
-          />
-          <Row
-            label={t("diagnostics.rustHost")}
-            ok={!diag.rustHost || diag.rustHost.available || diag.rustHost.mode === "node"}
-            detail={diag.rustHost ? (diag.rustHost.available ? `${diag.rustHost.mode} · ${diag.rustHost.path}` : `${diag.rustHost.mode} · ${t("diagnostics.rustHostUnavailable")}`) : "—"}
-            action={diag.rustHost?.path ? <CopyButton text={diag.rustHost.path} title={t("diagnostics.copy")} /> : undefined}
           />
           <Row label={t("diagnostics.proxy")} ok={Boolean(diag.proxy.effective)} detail={diag.proxy.effective ?? t("diagnostics.proxyOff")} />
           <Row label={t("diagnostics.rpc")} ok={(diag.rpc.recentFailures?.length ?? 0) === 0} detail={diag.rpc.recentFailures?.length ? `${diag.rpc.recentFailures.length} ${t("diagnostics.recentFailures")}` : `${diag.rpc.activeSessions} ${t("diagnostics.sessions")}`} />
@@ -579,34 +536,6 @@ function BackendDiagnosticsPopoverView() {
                 </>
               }
             />
-          )}
-          {diag.backendOwnership && Object.keys(diag.backendOwnership).length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "2px 4px" }}>
-              <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("diagnostics.coverage")}</span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {DOMAIN_ORDER.filter((domain) => diag.backendOwnership![domain] !== undefined).map((domain) => {
-                  const authority = diag.backendOwnership![domain];
-                  const isRust = authority === "rust";
-                  return (
-                    <Tooltip key={domain} content={`${domain}: ${authority}`}>
-                      <span
-                     
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 4,
-                        padding: "2px 7px", borderRadius: 999,
-                        fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)",
-                        border: `1px solid ${isRust ? "color-mix(in srgb, var(--status-success) 35%, var(--border))" : "var(--border)"}`,
-                        background: isRust ? "color-mix(in srgb, var(--status-success) 10%, var(--bg))" : "var(--bg-subtle)",
-                        color: isRust ? "var(--status-success)" : "var(--text-dim)",
-                      }}
-                    >
-                      {domain} · {authority}
-                    </span>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            </div>
           )}
           {backendErrors.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "2px 4px" }}>
@@ -747,18 +676,18 @@ function BackendDiagnosticsFullView() {
       if (!res.ok || !(data.success ?? data.ok)) {
         const msg = data.error ?? "repair failed";
         setError(msg);
-        toast.error("Self-heal repair failed", msg);
+        toast.error("Repair failed", msg);
       } else {
         markManualFix();
-        setSuccess(t("diagnostics.repairSuccess"));
-        toast.success(t("diagnostics.repairSuccess"));
+        setSuccess(t("diagnostics.errorsCleared"));
+        toast.success(t("diagnostics.errorsCleared"));
         refreshDetails();
         window.setTimeout(() => refreshDetails(), 500);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
-      toast.error("Self-heal repair failed", msg);
+      toast.error("Repair failed", msg);
     } finally {
       setActionBusy(false);
     }
@@ -771,12 +700,10 @@ function BackendDiagnosticsFullView() {
       `=== ompweb System Diagnostic Report (${new Date().toISOString()}) ===`,
       `Overall health: ${healthOf(diag)}`,
       `OMP Engine: ${diag.omp.installed ? `${diag.omp.version ?? "?"} (${diag.omp.path ?? ""})` : "not installed"}`,
-      `Rust Host: ${diag.rustHost ? `${diag.rustHost.mode} (available: ${diag.rustHost.available}) ${diag.rustHost.path}` : "not ready"}`,
       `Network proxy: ${diag.proxy.effective ?? "direct (not enabled)"} (mode: ${diag.proxy.config.mode})`,
-      `Session status: ${diag.rpc.activeSessions} active sessions, ${diag.rpc.recentFailures?.length ?? 0} recent failures, ${diag.rpc.orphanRustHosts ?? 0} orphan Host processes`,
+      `Session status: ${diag.rpc.activeSessions} active sessions, ${diag.rpc.recentFailures?.length ?? 0} recent failures`,
       `System env: ${diag.server.platform}/${diag.server.arch} (Node ${diag.server.node}, uptime: ${diag.server.uptimeSeconds}s)`,
       `Web port: ${diag.web.url}`,
-      `9-domain authority: ${Object.entries(diag.backendOwnership ?? {}).map(([d, a]) => `${d}=${a}`).join(", ")}`,
       ...(backendErrors.length ? [`--- Backend error records (${backendErrors.length}) ---`, ...backendErrors.map((e) => `[${new Date(e.at).toLocaleTimeString()}] [${e.kind}] ${e.detail}`)] : []),
     ];
     void navigator.clipboard.writeText(lines.join("\n")).then(() => {
@@ -914,7 +841,7 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <Activity size={13} className={actionBusy ? "animate-spin" : undefined} aria-hidden="true" />
-            {isZh ? "一键无损修复" : "Repair Host"}
+            {isZh ? "清除错误并重检" : "Clear Errors & Re-probe"}
           </button>
 
           <button
@@ -1032,17 +959,12 @@ function BackendDiagnosticsFullView() {
 
       {/* RECOVERY QUEUE */}
       {diag && (() => {
-        const hostDown = Boolean(diag.rustHost && diag.rustHost.mode !== "node" && !diag.rustHost.available);
-        const hostCrash = backendErrors.some((entry) => entry.kind === "host_crash" || entry.kind === "host_unavailable");
         const rpcFailed = (diag.rpc.recentFailures?.length ?? 0) > 0;
-        const orphan = (diag.rpc.orphanRustHosts ?? 0) > 0;
         const otherInstances = diag.instances?.others ?? [];
         const missingOmp = !diag.omp.installed;
 
         const issues = [
           missingOmp ? { key: "omp", title: "OMP engine missing", detail: "No omp executable found on the system path; agent core functionality is limited.", action: undefined } : null,
-          hostDown || hostCrash ? { key: "host", title: "Rust Host daemon abnormal", detail: "Host is not ready or has crashed; repair will clean up orphan processes and restart.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.repair")}</button> } : null,
-          orphan ? { key: "orphan", title: `${diag.rpc.orphanRustHosts} orphan Host processes detected`, detail: "Orphan processes may hold session locks or PTYs.", action: <button type="button" onClick={() => void repairHost()} disabled={actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>Clean up orphans</button> } : null,
           rpcFailed ? { key: "rpc", title: `${diag.rpc.recentFailures?.length} recent RPC session failures`, detail: "May be caused by abnormal termination of model child processes; restarting RPC restores all dropped channels.", action: <button type="button" onClick={() => void restartRpc()} disabled={restarting || actionBusy} style={{ padding: "5px 12px", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", border: "1px solid var(--border)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, cursor: "pointer" }}>{t("diagnostics.restartRpc")}</button> } : null,
           ...otherInstances.map((port) => ({
             key: `instance-${port}`,
@@ -1097,7 +1019,7 @@ function BackendDiagnosticsFullView() {
         );
       })()}
 
-      {/* 4 HERO KPI CARDS */}
+      {/* HERO KPI CARDS */}
       <div
         style={{
           display: "grid",
@@ -1204,60 +1126,7 @@ function BackendDiagnosticsFullView() {
           </div>
         </div>
 
-        {/* KPI 3: Rust Host Daemon */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            padding: "16px",
-            background: "var(--bg-panel)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-card)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Cpu size={14} aria-hidden="true" />
-              {isZh ? "Rust Host 守护进程" : "Rust Host IPC"}
-            </span>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: diag?.rustHost?.available ? "var(--status-success)" : "var(--status-warning)",
-              }}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: "calc(22px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
-              {diag?.rustHost?.available ? (isZh ? "运行中" : "Available") : (isZh ? "未就绪" : "Unavailable")}
-            </div>
-            <div style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>
-              {diag?.rustHost?.mode ? `${isZh ? "运行模式" : "Mode"}: ${diag.rustHost.mode}` : "—"}
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", borderTop: "1px solid var(--border)", paddingTop: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "var(--text-muted)" }}>IPC protocol:</span>
-              <code style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>TCP 127.0.0.1</code>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "var(--text-muted)" }}>Orphan processes:</span>
-              <span style={{ color: (diag?.rpc.orphanRustHosts ?? 0) > 0 ? "var(--status-warning)" : "var(--text-dim)" }}>
-                {diag?.rpc.orphanRustHosts ?? 0} {isZh ? "个孤儿 host" : "orphans"}
-              </span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "var(--text-muted)" }}>Daemon status:</span>
-              <span style={{ color: "var(--status-success)", fontWeight: 500 }}>Supervisor Active</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 4: RPC Sessions & Ports */}
+        {/* KPI 3: RPC Sessions & Ports */}
         <div
           style={{
             display: "flex",
@@ -1388,41 +1257,10 @@ function BackendDiagnosticsFullView() {
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
             <ArrowRight size={14} aria-hidden="true" />
-            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>Local TCP</span>
-          </div>
-
-          {/* Node 3: Rust Host */}
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: "var(--radius-control)",
-              background: "var(--bg-subtle)",
-              border: "1px solid var(--border)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 3,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Rust Host Daemon</span>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: diag?.rustHost?.available ? "var(--status-success)" : "var(--status-warning)",
-                }}
-              />
-            </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>ompweb-host supervisor</span>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
-            <ArrowRight size={14} aria-hidden="true" />
             <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>NDJSON stdio</span>
           </div>
 
-          {/* Node 4: OMP Engine */}
+          {/* Node 3: OMP Engine */}
           <div
             style={{
               padding: "10px 12px",
@@ -1479,11 +1317,6 @@ function BackendDiagnosticsFullView() {
               label: isZh ? "OMP 核心可执行文件" : "OMP Binary",
               path: diag?.paths?.ompBin ?? diag?.omp.path,
               desc: isZh ? "omp CLI 二进制程序入口" : "OMP executable binary",
-            },
-            {
-              label: isZh ? "Rust Host 宿主程序" : "Rust Host Binary",
-              path: diag?.paths?.rustHostBin ?? diag?.rustHost?.path,
-              desc: isZh ? "ompweb-host 宿主守护进程程序" : "ompweb-host supervisor binary",
             },
             {
               label: isZh ? "会话历史存储目录" : "Sessions Directory",
@@ -1553,83 +1386,6 @@ function BackendDiagnosticsFullView() {
                 </div>
               </div>
             ))}
-        </div>
-      </div>
-
-      {/* 9-DOMAIN BACKEND OWNERSHIP */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          padding: "16px 20px",
-          background: "var(--bg-panel)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-card)",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 700, color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Layers size={15} aria-hidden="true" />
-            <span>{isZh ? "9 域后端权威与迁移状态 (Backend Authority Matrix)" : "Backend Authority Matrix"}</span>
-          </div>
-          <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)" }}>
-            backend-ownership.yaml (doc 15 / doc 16)
-          </span>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 8,
-          }}
-        >
-          {DOMAIN_ORDER.map((domain) => {
-            const authority = diag?.backendOwnership?.[domain] ?? "node";
-            const isRust = authority === "rust";
-            const info = DOMAIN_INFO[domain];
-            return (
-              <div
-                key={domain}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  padding: "8px 12px",
-                  borderRadius: "var(--radius-control)",
-                  background: isRust ? "color-mix(in srgb, var(--status-success) 5%, var(--bg-subtle))" : "var(--bg-subtle)",
-                  border: `1px solid ${isRust ? "color-mix(in srgb, var(--status-success) 35%, var(--border))" : "var(--border)"}`,
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <code style={{ fontSize: "calc(11.5px * var(--ui-font-scale-sm, 1))", fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text)" }}>{domain}</code>
-                    <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>({isZh ? info?.labelZh : info?.labelEn})</span>
-                  </div>
-                  <div style={{ fontSize: "calc(10.5px * var(--ui-font-scale-sm, 1))", color: "var(--text-dim)", marginTop: 2 }}>{isZh ? info?.descZh : info?.descEn}</div>
-                </div>
-
-                <span
-                  style={{
-                    fontSize: "calc(10px * var(--ui-font-scale-sm, 1))",
-                    fontWeight: 700,
-                    fontFamily: "var(--font-mono)",
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    background: isRust ? "color-mix(in srgb, var(--status-success) 15%, var(--bg))" : "var(--bg)",
-                    border: `1px solid ${isRust ? "var(--status-success)" : "var(--border)"}`,
-                    color: isRust ? "var(--status-success)" : "var(--text-dim)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {isRust ? "RUST HOST" : "NODE.JS"}
-                </span>
-              </div>
-            );
-          })}
         </div>
       </div>
 
