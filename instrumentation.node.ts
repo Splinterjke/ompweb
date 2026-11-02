@@ -11,6 +11,20 @@ export async function register(): Promise<void> {
     process.on(signal, () => process.exit(code));
   }
 
+  // Resolve the configured proxy (settings file / env) once at boot so the
+  // consumers that honor OMP_WEB_PROXY_URL (github, npm update checks, the
+  // omp children's env, terminal sessions) see it before their first request.
+  // Bun's own fetch already honors HTTP(S)_PROXY/NO_PROXY directly.
+  void (async () => {
+    try {
+      const { resolveEffectiveProxy } = await import("@/lib/proxy-config");
+      const url = await resolveEffectiveProxy();
+      if (url) process.env.OMP_WEB_PROXY_URL = url;
+    } catch {
+      // Best-effort; lib/proxy-config consumers resolve on demand too.
+    }
+  })();
+
   // Startup diagnostics: agent dir. Kept to one line so it greps cleanly;
   // failures here must never block boot.
   try {
@@ -34,6 +48,16 @@ export async function register(): Promise<void> {
       console.warn(`[omp-web] password configuration check failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   })();
+
+  // Seed the automation-task store on first boot (the repo's rebuild script as
+  // a "Manual launch" scheduler). Idempotent: a pre-existing entry is never
+  // duplicated, and a packaged install without the script skips it.
+  try {
+    const { ensureSeedSchedulers } = await import("@/lib/scheduler-store");
+    ensureSeedSchedulers();
+  } catch (error) {
+    console.warn(`[omp-web] scheduler seed skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   // Warm the shared utility omp process so the first models/auth request does
   // not pay the multi-second cold spawn (measured 1.2-4s on a real install).
