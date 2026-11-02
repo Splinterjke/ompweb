@@ -121,6 +121,9 @@ async function downloadOmpBinaryViaProxy(proxyUrl: string | null, onLine?: (line
     onLine?.("[omp-web] curl download complete: " + Math.round(downloaded.length / 1024 / 1024) + " MB");
   } else {
     onLine?.("[omp-web] Falling back to undici ProxyAgent download…");
+    // Lazy import: the host-update fixtures import this module from disposable
+    // releases that carry no node_modules; the proxy download is not their path.
+    const { ProxyAgent, request } = await import("undici");
     const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
     let assetUrlFinal = assetUrl;
     let response = await request(assetUrlFinal, { dispatcher, headersTimeout: 30_000 });

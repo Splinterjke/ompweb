@@ -3,7 +3,10 @@ import packageJson from "../package.json";
 import { homedir } from "os";
 import { join, normalize, sep } from "path";
 import { isUpdateDisabled } from "./update-policy";
-import { ProxyAgent, fetch as undiciFetch } from "undici";
+// Type-only: the ProxyAgent itself is imported lazily (below) so this module
+// stays importable from the host-update fixtures' disposable releases, which
+// carry no node_modules.
+import type { ProxyAgent } from "undici";
 
 const NPM_PACKAGE = "@Splinterjke/ompweb";
 const RELEASES_URL = "https://github.com/Splinterjke/ompweb/releases/latest";
@@ -12,15 +15,17 @@ const CHECK_TTL_MS = 60 * 60 * 1000;
 // The registry check must honor the app's resolved proxy (warm-up in
 // instrumentation.ts): on hosts where the registry is only reachable through
 // a local proxy, Node's plain fetch cannot connect and the update card would
-// always show a failed check. Same pattern as lib/github.ts.
-let cachedProxyAgent: ProxyAgent | null | undefined = undefined;
-function proxyDispatcher(): ProxyAgent | undefined {
+// always show a failed check. Same pattern as lib/github.ts. Without a proxy
+// the plain global fetch is used, and the undici agent loads lazily so the
+// module graph never requires undici where no proxy is configured.
+let cachedProxyAgent: Promise<ProxyAgent | null> | undefined;
+async function proxyDispatcher(): Promise<ProxyAgent | undefined> {
   const url = process.env.OMP_WEB_PROXY_URL;
   if (!url) return undefined;
-  if (cachedProxyAgent === undefined) {
-    cachedProxyAgent = new ProxyAgent(url);
-  }
-  return cachedProxyAgent ?? undefined;
+  cachedProxyAgent ??= import("undici")
+    .then(({ ProxyAgent }) => new ProxyAgent(url))
+    .catch(() => null);
+  return (await cachedProxyAgent) ?? undefined;
 }
 
 export interface NpmUpdateStatus {
@@ -100,8 +105,8 @@ export async function checkNpmUpdate(force = false): Promise<NpmUpdateStatus> {
 
   const base = { currentVersion, updateCommand, startedAt: SERVER_STARTED_AT, justStarted: true };
   try {
-    const dispatcher = proxyDispatcher();
-    const response = await undiciFetch(`https://registry.npmjs.org/${encodeURIComponent(NPM_PACKAGE)}/latest`, {
+    const dispatcher = await proxyDispatcher();
+    const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(NPM_PACKAGE)}/latest`, {
       cache: "no-store",
       signal: AbortSignal.timeout(8_000),
       ...(dispatcher ? { dispatcher } : {}),

@@ -42,10 +42,10 @@ export const SETTINGS_CATEGORIES: TabItem[] = [
   { id: "agents", label: "Agents", description: "Task agents, model settings, and tool policy", Icon: Bot },
   { id: "skill-hub", label: "Skill Hub", description: "Skill catalogs, sources, marketplaces, and organization", Icon: Blocks },
   { id: "mcp", label: "Extensions & Tools", description: "MCP servers, managed skills, and OMP plugins", Icon: Cable },
-  { id: "hosts", label: "Hosts", description: "Link other machines to run sessions there", Icon: Network },
+  { id: "hosts", label: "Hosts", description: "Linked machines, host software versions, and updates", Icon: Network },
   { id: "native", label: "OMP Native Settings", description: "Schema-driven full omp config (all settings, via omp CLI)", Icon: ListTree },
   { id: "notifications", label: "Notifications", description: "Desktop and mobile notifications for your sessions", Icon: Bell },
-  { id: "system", label: "System & Updates", description: "App updates, runtime version, and active session restart", Icon: RefreshCw },
+  { id: "system", label: "System", description: "Web server updates, agent settings, and service controls", Icon: RefreshCw },
   { id: "diagnostics", label: "Diagnostics & Recovery", description: "Service health, session locks and repair actions", Icon: Activity },
   { id: "remote", label: "Remote Access", description: "Pair phones/PCs over LAN or a public tunnel", Icon: Smartphone },
 ];

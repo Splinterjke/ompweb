@@ -54,6 +54,7 @@ import { useHostRows } from "@/hooks/useHostRows";
 import { LocalDaemonBanner } from "./LocalDaemonBanner";
 import { hostName, hostStatusText } from "./host-status";
 import { useNotifications } from "@/hooks/useNotifications";
+
 import type { CrossSessionHostToolCall, ManagedProject, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ChatInputHandle } from "./ChatInput";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -189,9 +190,9 @@ function UpdateToast({ currentVersion, availableVersion, command, onOpenSettings
   );
 }
 
-function UpdateToastTitle({ product }: { product: "app" | "omp" }) {
+function UpdateToastTitle() {
   const { t } = useI18n();
-  return t(product === "app" ? "appShell.appUpdateAvailable" : "appShell.ompUpdateAvailable");
+  return t("appShell.appUpdateAvailable");
 }
 
 
@@ -723,7 +724,6 @@ export function AppShell({ appName }: { appName: string }) {
     }
   }, [sidebarWidth, sidebarResizing]);
   const [appUpdateAvailable, setAppUpdateAvailable] = useState(false);
-  const [ompUpdateAvailable, setOmpUpdateAvailable] = useState(false);
   const [ompMissing, setOmpMissing] = useState(false);
   const [ompMissingDismissed, setOmpMissingDismissed] = useState(false);
   const [ompSetupOpen, setOmpSetupOpen] = useState(false);
@@ -732,17 +732,6 @@ export function AppShell({ appName }: { appName: string }) {
   // True when the current server boot was a rebuild (new bundle deployed + restarted),
   // so the start notice shows "OmpWeb updated" with a Refresh button.
   const [startedNoticeIsUpdate, setStartedNoticeIsUpdate] = useState(false);
-  // Id of the "OMP update available" toast, so the update flow can dismiss it
-  // automatically once the runtime update succeeds.
-  const ompUpdateToastIdRef = useRef<string | null>(null);
-  // Close the "OMP update available" notification once the runtime update
-  // succeeds, if the user hasn't dismissed it in the meantime.
-  const closeOmpUpdateToast = useCallback(() => {
-    if (ompUpdateToastIdRef.current) {
-      toast.close(ompUpdateToastIdRef.current);
-      ompUpdateToastIdRef.current = null;
-    }
-  }, []);
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
@@ -774,33 +763,6 @@ export function AppShell({ appName }: { appName: string }) {
       active.blur();
     }
   }, [sidebarOpen, mobileSidebarReady]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch("/api/omp-update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "check" }),
-      signal: controller.signal,
-    })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data: { currentVersion?: string | null; availableVersion?: string | null; updateAvailable?: boolean; updateCommand?: string } | null) => {
-        setOmpUpdateAvailable(Boolean(data?.updateAvailable));
-        if (!data?.updateAvailable || !data.availableVersion) return;
-        const cmd = data.updateCommand || "omp update";
-        let toastId: string | null = null;
-        toastId = toast.info(
-          <UpdateToastTitle product="omp" />,
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
-          // Version in the id (upstream a3da8812): re-announcing the same
-          // version keeps its notification-center read state; a newer version
-          // is a new notice.
-          { variant: "update", id: `omp-update:${data.availableVersion}` },
-        );
-        ompUpdateToastIdRef.current = toastId;
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
   // Detect a missing omp runtime once at startup so the UI can prompt the
   // install command instead of failing on the first AI request.
   useEffect(() => {
@@ -837,7 +799,7 @@ export function AppShell({ appName }: { appName: string }) {
         const cmd = data.updateCommand || "npm install -g @Splinterjke/ompweb";
         let toastId: string | null = null;
         toastId = toast.info(
-          <UpdateToastTitle product="app" />,
+          <UpdateToastTitle />,
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}><UpdateToast currentVersion={data.currentVersion} availableVersion={data.availableVersion} command={cmd} onOpenSettings={() => { setSettingsTab("system"); if (toastId) toast.close(toastId); }} /></div>,
           { variant: "update", id: `app-update:${data.availableVersion}` },
         );
@@ -2141,7 +2103,7 @@ export function AppShell({ appName }: { appName: string }) {
         onOpenRemote={() => setSettingsTab("remote")}
         onOpenArchive={() => setArchiveBrowserOpen(true)}
         navigation={sidebarNavigation}
-        updateAvailable={appUpdateAvailable || ompUpdateAvailable}
+        updateAvailable={appUpdateAvailable}
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}
         onBrandClick={() => setSidebarOpen(false)}
@@ -3300,8 +3262,6 @@ export function AppShell({ appName }: { appName: string }) {
         sessionId={selectedSession?.id ?? null}
         onModelsSaved={() => setModelsRefreshKey((k) => k + 1)}
         onPluginsReloaded={() => setSessionKey((k) => k + 1)}
-        onOmpUpdateAvailabilityChange={setOmpUpdateAvailable}
-        onOmpUpdateSucceeded={closeOmpUpdateToast}
         onSelectTab={setSettingsTab}
         onClose={() => setSettingsTab(null)}
       />

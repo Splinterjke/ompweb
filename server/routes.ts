@@ -36,6 +36,7 @@ import * as health from "@/app/api/health/route";
 import * as home from "@/app/api/home/route";
 import * as hosts from "@/app/api/hosts/route";
 import * as hostsLink from "@/app/api/hosts/link/route";
+import * as hostsIdUpdates from "@/app/api/hosts/[id]/updates/route";
 import * as manifest from "@/app/api/manifest/route";
 import * as mcp from "@/app/api/mcp/route";
 import * as mediaHash from "@/app/api/media/[hash]/route";
@@ -175,6 +176,7 @@ export const ROUTE_MODULES: Record<string, RouteModule> = {
   "home": home,
   "hosts": hosts,
   "hosts/link": hostsLink,
+  "hosts/[id]/updates": hostsIdUpdates,
   "manifest": manifest,
   "mcp": mcp,
   "media/[hash]": mediaHash,

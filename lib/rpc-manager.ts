@@ -1579,7 +1579,7 @@ export class AgentSessionWrapper {
               result: {
                 content: [{
                   type: "text",
-                  text: "Agent tools are disabled. Enable \"Agent tools\" in omp-web Settings (System & Updates) first.",
+                  text: "Agent tools are disabled. Enable \"Agent tools\" in omp-web Settings (System) first.",
                 }],
               },
             });

@@ -6,17 +6,19 @@ import { createRoot } from "react-dom/client";
 import { SettingsConfig } from "./SettingsConfig";
 
 const noop = () => {};
-const NO_OMP_UPDATE = { currentVersion: "1.0.0", availableVersion: null, updateAvailable: false, updateCommand: "omp update" };
 
 /**
- * Settings → System, with `ompCheck` as the answer to the omp update check.
+ * Render the real System panel and record its HTTP boundary. Per-host
+ * software updates live in Settings → Hosts (upstream #370); System keeps
+ * only web-server settings, so it must never check or update the runtime.
  * The settings dialog portals itself to document.body (base-ui Portal), so
  * the search root is the body itself and the test removes the portal nodes
  * the dialog left behind.
  */
-async function renderSystemTab(t, { ompCheck = NO_OMP_UPDATE }) {
+async function renderSystemTab(t) {
+  const requests = [];
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => Response.json(String(url) === "/api/omp-update" ? ompCheck : {});
+  globalThis.fetch = async (url) => { requests.push(String(url)); return Response.json({}); };
   const existing = new Set(document.body.children);
   const container = document.createElement("div");
   document.body.append(container);
@@ -31,38 +33,22 @@ async function renderSystemTab(t, { ompCheck = NO_OMP_UPDATE }) {
     root.render(createElement(SettingsConfig, {
       activeTab: "system",
       toolCallsDefaultCollapsed: false, onToolCallsDefaultCollapsedChange: noop,
-      hideToolActivity: false, onHideToolActivityChange: noop,
-      expandThinkingByDefault: false, onExpandThinkingByDefaultChange: noop, onHideThinkingBlockChange: noop,
-      providerUsageVisible: false, onProviderUsageVisibleChange: noop,
-      scopeNativeSelectAll: false, onScopeNativeSelectAllChange: noop,
-      openUrlAutomatically: false, onOpenUrlAutomaticallyChange: noop,
       cwd: null, remoteHost: false, sessionId: null,
       onModelsSaved: noop, onPluginsReloaded: noop,
-      onOmpUpdateAvailabilityChange: noop,
       onSelectTab: noop, onClose: noop,
     }));
   });
-  // The omp update check answers after the first render.
   await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
-  return document.body;
+  return { container: document.body, requests };
 }
 
 const buttonLabels = (root) => [...root.querySelectorAll("button")].map((button) => button.textContent.trim());
-const codes = (root) => [...root.querySelectorAll("code")].map((code) => code.textContent);
 
-// The fork has no self-update: updating omp-web itself is manual (npm
-// command), but `omp update` runs ON this server — the route streams it — so
-// the card shows both the copyable command and the in-app Update-now button
-// exactly when an update is available.
-test("the omp card shows the update command and the in-app Update now when one is available", async (t) => {
-  const update = { currentVersion: "1.0.0", availableVersion: "1.1.0", updateAvailable: true, updateCommand: "omp update" };
-  const binary = await renderSystemTab(t, { ompCheck: update });
-  assert.ok(codes(binary).includes("omp update"), "the omp update command is gone");
-  assert.ok(buttonLabels(binary).includes("Update now"), buttonLabels(binary).join(" | "));
-});
-
-test("an up-to-date omp shows no command block and no Update now", async (t) => {
-  const current = await renderSystemTab(t, { ompCheck: NO_OMP_UPDATE });
-  assert.ok(!buttonLabels(current).includes("Update now"), buttonLabels(current).join(" | "));
-  assert.ok(!codes(current).includes("omp update"), "the command block shows without an update");
+test("System keeps web-server settings but never checks or updates the host runtime", async (t) => {
+  const { container, requests } = await renderSystemTab(t);
+  assert.ok(!buttonLabels(container).includes("Update now"), buttonLabels(container).join(" | "));
+  assert.ok(!buttonLabels(container).includes("Restart OMP sessions"), buttonLabels(container).join(" | "));
+  assert.ok(!container.textContent.includes("OMP runtime"), "the removed OMP runtime card is back");
+  assert.ok(container.textContent.includes("Resume running sessions after a restart"), "the web-server settings vanished");
+  assert.ok(!requests.some((url) => url.startsWith("/api/omp-update")), requests.join(", "));
 });

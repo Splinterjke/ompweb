@@ -53,15 +53,6 @@ import { NativeExtrasSetting } from "./NativeExtrasSetting";
 import { isUpdateNoticeEnabled, setUpdateNoticeEnabled } from "@/lib/update-notice";
 const HostsConfig = dynamic(() => import("./HostsConfig").then((module) => module.HostsConfig), { loading: SettingsTabLoading });
 
-type UpdateState = {
-  currentVersion: string | null;
-  availableVersion: string | null;
-  updateAvailable: boolean;
-  updatesDisabled?: boolean;
-  updateCommand?: string;
-  checkError?: boolean;
-};
-
 type NativeSettings = {
   defaultThinkingLevel?: "auto" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   providers?: { cacheWarming?: "off" | "streaming" | "idle"; autoThinkingSource?: "classifier" | "vendor"; tinyModelDevice?: "default" | "gpu" | "cpu" | "mlx" | "metal" | "webgpu" | "cuda" | "dml" | "coreml" | "auto" | "wasm" | "webnn" | "webnn-gpu" | "webnn-cpu" | "webnn-npu"; tinyModelDtype?: "default" | "q4" | "q4f16" | "q8" | "fp16" | "fp32" | "int8" | "uint8" | "bnb4" | "q2" | "q2f16" | "q1" | "q1f16" | "auto" };
@@ -367,9 +358,9 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "render-mcp-markdown", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.renderMcpMarkdown", descKey: "settingsConfig.renderMcpMarkdownDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "Render MCP Markdown", fallbackDesc: "Render non-JSON MCP results as Markdown in transcript.", scope: "Native OMP" },
   { id: "mcp-resource-updates", tab: "mcp", sectionKey: "settingsConfig.extensionsTools", labelKey: "settingsConfig.mcpResourceUpdates", descKey: "settingsConfig.mcpResourceUpdatesDesc", fallbackSection: "Extensions & Tools", fallbackLabel: "MCP Resource Updates", fallbackDesc: "Inject server resource updates into conversation.", scope: "Native OMP" },
   // System & Updates
-  { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System & Updates", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
-  { id: "agent-tools-cross-session", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentTools", descKey: "settingsConfig.agentToolsDesc", fallbackSection: "System & Updates", fallbackLabel: "Agent tools (cross-session)", fallbackDesc: "Allow agents to call list_sessions, new_session and send_to_session to reach other omp-web sessions, even with no browser tab open. Delivered messages are prefixed with the sending session's ID." },
-  { id: "agent-env", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentEnv", descKey: "settingsConfig.agentEnvDesc", fallbackSection: "System & Updates", fallbackLabel: "Agent environment variables", fallbackDesc: "Extra environment variables passed to the omp process, one KEY=VALUE per line. Applied to sessions started after saving.", scope: "UI" },
+  { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
+  { id: "agent-tools-cross-session", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentTools", descKey: "settingsConfig.agentToolsDesc", fallbackSection: "System", fallbackLabel: "Agent tools (cross-session)", fallbackDesc: "Allow agents to call list_sessions, new_session and send_to_session to reach other omp-web sessions, even with no browser tab open. Delivered messages are prefixed with the sending session's ID." },
+  { id: "agent-env", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentEnv", descKey: "settingsConfig.agentEnvDesc", fallbackSection: "System", fallbackLabel: "Agent environment variables", fallbackDesc: "Extra environment variables passed to the omp process, one KEY=VALUE per line. Applied to sessions started after saving.", scope: "UI" },
   // Notifications
   { id: "notifications-enable", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.enable", descKey: "notifications.enableDesc", fallbackSection: "Notifications", fallbackLabel: "Enable notifications", fallbackDesc: "Asks the browser for permission to show notifications.", scope: "UI" },
   { id: "notifications-completed", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.typeCompleted", descKey: "notifications.typeCompletedDesc", fallbackSection: "Notifications", fallbackLabel: "Task finished", fallbackDesc: "A prompt and the background work it started are done. Subagents never notify.", scope: "UI" },
@@ -970,7 +961,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -1048,9 +1039,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   sessionId: string | null;
   onModelsSaved: () => void;
   onPluginsReloaded: () => void;
-  onOmpUpdateAvailabilityChange: (available: boolean) => void;
-  /** Fired once the OMP runtime update succeeds (Settings System & Updates card). */
-  onOmpUpdateSucceeded?: () => void;
   onSelectTab: (tab: SettingsTab) => void;
   onClose: () => void;
 }) {
@@ -1137,10 +1125,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     }
   });
   const { motionPrefs, setMotionPrefs } = useMotionPrefs();
-  const [update, setUpdate] = useState<UpdateState | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [hasCheckedUpdates, setHasCheckedUpdates] = useState(false);
-  const [restarting, setRestarting] = useState(false);
   const [nativeSettings, setNativeSettings] = useState<NativeSettings | null>(null);
   const [nativeSettingsError, setNativeSettingsError] = useState<string | null>(null);
   const [nativeSettingsLoading, setNativeSettingsLoading] = useState(true);
@@ -1209,10 +1193,6 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     void saveNativeSettings({ ...base, tools: { ...tools, approval: { ...(tools.approval ?? {}), ...patch } } });
   }, [nativeSettings, saveNativeSettings]);
 
-  const [updatingOmp, setUpdatingOmp] = useState(false);
-  const [ompUpdateOutput, setOmpUpdateOutput] = useState<string | null>(null);
-  const [ompUpdated, setOmpUpdated] = useState(false);
-
   // Desktop app: trigger a quiet update check on mount so the global
   // DesktopUpdateBanner reflects reality without user interaction. The
   // banner subscribes to status events independently.
@@ -1222,99 +1202,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
     desktop.updateCheck?.().catch(() => undefined);
   }, []);
 
-  const runOmpUpdate = useCallback(async () => {
-    setUpdatingOmp(true);
-    setOmpUpdateOutput(null);
-    setOmpUpdated(false);
-    try {
-      const response = await fetch("/api/omp-update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", stream: true }) });
-      if (!response.ok || !response.body) throw new Error("HTTP " + response.status);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let output = "";
-      let exitCode = -1;
-      let failedMessage = null as string | null;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        for (const line of text.split("\n")) {
-          if (!line.trim()) continue;
-          let event: { type?: string; text?: string; exitCode?: number; message?: string } | null = null;
-          try { event = JSON.parse(line) as { type?: string; text?: string; exitCode?: number; message?: string }; } catch { /* plain output tail */ }
-          if (event && event.type === "out" && typeof event.text === "string") {
-            output = (output + event.text + "\n").slice(-4000);
-            setOmpUpdateOutput(output);
-          } else if (event && event.type === "done") {
-            exitCode = event.exitCode ?? 0;
-          } else if (event && event.type === "error") {
-            failedMessage = event.message ?? "omp update failed";
-            break;
-          } else if (!event) {
-            output = (output + line + "\n").slice(-4000);
-            setOmpUpdateOutput(output);
-          }
-        }
-        if (failedMessage) break;
-      }
-      if (failedMessage) throw new Error(failedMessage);
-      if (exitCode !== 0) throw new Error(output.trim().slice(-500) || "omp update exit " + String(exitCode));
-      setOmpUpdated(true);
-      setOmpUpdateOutput(output);
-      onOmpUpdateAvailabilityChange(false);
-      onOmpUpdateSucceeded?.();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setUpdatingOmp(false);
-    }
-  }, [onOmpUpdateAvailabilityChange, onOmpUpdateSucceeded]);
-
-  const ompUpdateDisabled = Boolean(update?.updatesDisabled);
-
-  const checkForUpdate = useCallback(async () => {
-    if (ompUpdateDisabled) return;
-    setChecking(true);
-    try {
-      const response = await fetch("/api/omp-update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "check" }) });
-      const data = (await response.json()) as UpdateState & { error?: string };
-      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
-      setUpdate(data);
-      onOmpUpdateAvailabilityChange(data.updateAvailable);
-    } catch (error) {
-      // Same as the app card: a failed check must be visible in the card,
-      // not silently rendered as "version unavailable".
-      setUpdate((prev) => prev ?? { currentVersion: null, availableVersion: null, updateAvailable: false, checkError: true });
-      toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setChecking(false);
-    }
-  }, [ompUpdateDisabled, onOmpUpdateAvailabilityChange]);
-
-
-  const restartSessions = useCallback(async () => {
-    setRestarting(true);
-    try {
-      const response = await fetch("/api/omp-update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restart" }) });
-      const data = (await response.json()) as { error?: string; sessionsRestarted?: number };
-      if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
-      toast.success(t("settingsConfig.restartSuccess", { count: data.sessionsRestarted ?? 0 }));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-    } finally {
-      setRestarting(false);
-    }
-  }, [t]);
-
   const currentTab = activeTab === "skills" ? activeTab : getNormalizedActive(activeTab);
 
   const nativeSettingsRequired = currentTab === "general" || currentTab === "safety" || currentTab === "models" || currentTab === "intelligence" || currentTab === "mcp" || currentTab === "native";
 
-  useEffect(() => {
-    if (currentTab !== "system" || hasCheckedUpdates || ompUpdateDisabled) return;
-    setHasCheckedUpdates(true);
-    void checkForUpdate();
-  }, [currentTab, hasCheckedUpdates, ompUpdateDisabled, checkForUpdate]);
 
   const [noticeEnabled, setNoticeEnabled] = useState(isUpdateNoticeEnabled());
 
@@ -2364,7 +2255,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
               </div>
             )}
 
-            {/* SYSTEM & UPDATES TAB */}
+            {/* SYSTEM TAB */}
             {currentTab === "system" && (
               <div className="settings-panel-inner" role="tabpanel" id="settings-panel-system" aria-labelledby="settings-tab-system" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18 }}>
                 <div>
@@ -2380,79 +2271,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <AgentEnvSetting />
 
 
-                {/* OMP runtime update card */}
-                <section style={{ padding: 14, border: "1px solid var(--border)", borderRadius: "var(--radius-card)", background: "var(--bg-panel)", display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: "calc(13px * var(--ui-font-scale-lg, 1))", fontWeight: 600 }}>{t("settingsConfig.ompLabel")}</div>
-                      <div style={{ marginTop: 4, color: update?.updateAvailable ? "var(--accent)" : "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>
-                        {update?.updatesDisabled ? t("settingsConfig.updatesDisabled") : checking ? t("settingsConfig.checkingUpdates") : update?.updateAvailable ? t("appShell.updateVersion", { current: update.currentVersion ?? "?", available: update.availableVersion ?? "?" }) : update?.currentVersion ? t("settingsConfig.upToDate", { version: update.currentVersion }) : t("settingsConfig.versionUnavailable")}
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => void checkForUpdate()} disabled={checking || ompUpdateDisabled} aria-label={t("settingsConfig.checkOmpUpdates")} style={{ padding: "6px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text)", cursor: checking ? "wait" : ompUpdateDisabled ? "not-allowed" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <RefreshCw size={13} aria-hidden="true" /> {t("settingsConfig.refresh")}
-                    </button>
-                  </div>
-                  {update?.updateAvailable && (
-                    <div style={{ marginTop: 6, padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg)", display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--text-muted)" }}>{t("settingsConfig.runOmpUpdateCommand")}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <code style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--accent)", wordBreak: "break-all" }}>{update.updateCommand || "omp update"}</code>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void copyText(update.updateCommand || "omp update")
-                              .then(() => toast.success(t("appShell.commandCopied")))
-                              .catch(() => toast.error(t("appShell.commandCopyFailed")));
-                          }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}
-                        >
-                          <Copy size={12} aria-hidden="true" /> {t("appShell.copyCommand")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void runOmpUpdate()}
-                          disabled={updatingOmp}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", background: "var(--accent)", color: "var(--bg)", cursor: updatingOmp ? "wait" : "pointer", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 600 }}
-                        >
-                          <RefreshCw size={12} aria-hidden="true" className={updatingOmp ? "icon-spin" : undefined} /> {updatingOmp ? t("settingsConfig.updating") : t("settingsConfig.updateNow")}
-                        </button>
-                      </div>
-                      {ompUpdateOutput && (
-                        <pre style={{ margin: 0, padding: "6px 8px", background: "var(--bg-subtle)", borderRadius: 6, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflow: "auto", fontFamily: "var(--font-mono)" }}>{ompUpdateOutput}</pre>
-                      )}
-                      {ompUpdated && (
-                        <div style={{ fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-ok, #2e9e5b)" }} role="status">{t("settingsConfig.ompUpdateComplete")}</div>
-                      )}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => void restartSessions()}
-                      disabled={restarting}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-subtle)", color: "var(--text)", cursor: restarting ? "wait" : "pointer", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
-                    >
-                      <RotateCcw size={13} aria-hidden="true" /> {restarting ? t("settingsConfig.restarting") : t("settingsConfig.restartSessions")}
-                    </button>
-                    <a
-                      href="https://github.com/can1357/oh-my-pi/releases"
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--text-muted)", textDecoration: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
-                    >
-                      <ExternalLink size={13} aria-hidden="true" /> {t("settingsConfig.changelog")}
-                    </a>
-                    <a
-                      href="https://github.com/can1357/oh-my-pi/releases/latest"
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", border: "1px solid var(--accent)", borderRadius: "var(--radius-control)", color: "var(--accent)", textDecoration: "none", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}
-                    >
-                      <ExternalLink size={13} aria-hidden="true" /> {t("settingsConfig.manualDownloadOmp")}
-                    </a>
-                  </div>
-                </section>
+
               </div>
             )}
 

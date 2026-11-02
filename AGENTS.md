@@ -305,6 +305,9 @@ lib/
     pending-requests.ts daemon side: `PendingRequests`, a channel's still-open blocking requests and current session id for the hello
     registry.ts        `<agent dir>/omp-web/hosts.json`: create/update/revoke, token hashing and lookup; the `local` record (`rotateLocalHostToken`, `customLocalLabel`)
     session-index.ts   sessions and projects across hosts, cached per host; `hostForSessionId`, `sessionSpawnTarget`, `invalidateLocalSessionLists`
+    update-types.ts    shared per-host software status and operation contract
+    updates.ts         daemon-side version checks, compatibility gate and durable update state
+    update-worker.ts   host-only install/restart helper; never starts or stops the web-server service
   provider-accounts.ts distinct omp accounts per provider from `omp usage` reports (Models → provider detail)
   agent-client.ts      agent commands from the tab: POST /api/agent/[id], or the worker's browser link in the `ws` transport; records each command's `action` sample
   agent-command.ts     `runAgentCommand`: the one command path behind POST /api/agent/[id] and a browser link's `cmd`
@@ -383,6 +386,7 @@ components/
   ModelsConfig.tsx    modal for models/auth configuration
   McpConfig.tsx       project MCP server editor (Settings → MCP tab)
   HostsConfig.tsx     linked hosts: add (token shown once), rename, revoke, allowAgentStart (Settings → Hosts tab)
+  HostUpdates.tsx     per-host ompweb/OMP versions, update checks, blocked reasons and update actions
   LocalDaemonBanner.tsx  production-only hint with the install command while no local daemon has linked (90 s grace)
   host-status.ts      host name, status text and dot colour shared by Settings → Hosts and the sidebar
   PluginsConfig.tsx   modal for installed plugins
@@ -447,7 +451,7 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
 - `OMP_WEB_PACKAGE_DIR` (set by the launcher) is the root for `dist/`, `public/` and KaTeX; `process.cwd()` is the fallback for dev and tests. The compiled binary sets it to its own directory (unless set) before any server module loads, so every runtime file must come from that root: a module's `import.meta.url` in the binary is Bun's virtual `/$bunfs/`, which no other process can read. A new file the server or daemon reads at runtime also goes into `scripts/build-binary.ts`'s copy list.
 - The binary needs `process.env.NODE_ENV` defined as `"production"` at build time (`scripts/build-binary.ts`): a plain `bun build --compile` inlines `"development"`, and the server then never writes the daemon's link. `npm run smoke -- --binary` catches that (no session lists).
 - `Bun.serve` turns on `SO_REUSEPORT` when `development` is false, so a second omp-web would share the port instead of failing; `startServer` passes `reusePort: false`, and `startProduction` (`server/app.ts`) reports an `EADDRINUSE` in one line.
-- The in-app update worker runs on Node (`OMP_WEB_NODE_BIN`, the launcher's `process.execPath`), not Bun. The compiled binary has no in-app update: `Bun.isStandaloneExecutable` turns it off (`lib/self-update.ts`) and `/api/app-update` names the release page (`installMethod: "binary"`).
+- The web-server in-app update worker runs on Node (`OMP_WEB_NODE_BIN`, the launcher's `process.execPath`), not Bun. The compiled web server updates by download (`lib/self-update.ts`). Host-daemon updates use their own helper in `lib/hosts/update-worker.ts`, including for binary hosts; never reuse the web-server worker to restart a host.
 - Bun's `fs.watch` drops an event that follows the previous one within ~2 ms, so the file channel (`openFileChannel`, `lib/event-stream-hub.ts`) re-stats the file ~50 ms after every event.
 - `bun:sqlite` `.get()` returns `null` for no row (not `undefined`).
 - `bun:sqlite` `close()` keeps the database file open while prepared statements are alive (until GC), so Windows cannot remove or replace it: the stores close with `close(true)`, which finalizes them (`closeNotificationStore`, `closeUsageDatabase`).
@@ -1942,14 +1946,14 @@ stored `omp-web:submit-during-run` choice overrides it.
 - Only user-owned skills are togglable: `getSkillToggleRoots()` (allowed file roots — workspaces the user opened — plus replica scan roots) is the single allowlist for both PATCH and the `togglable` flag GET returns; it is the pre-CLI allowlist, unchanged. Skills omp lists from anywhere else (the plugin cache, registry installs, custom directories outside a workspace) render a disabled toggle — their files belong to an installer and an update would discard the edit. Never widen PATCH to whatever omp lists.
 - `/api/skills/install` shells through `npx skills add ... --agent universal`, which installs into the ecosystem-standard `.agents/skills` dirs omp reads; project installs run with the selected cwd.
 
-### Update notifications (`/api/omp-update`, `/api/app-update`)
-- Automatic in-app self-updating has been removed in favor of explicit user notifications and manual terminal commands.
-- `GET /api/app-update` queries the npm registry for `@Splinterjke/ompweb` updates, detects the install manager (`bun` vs `npm` via `detectInstallMethod`), and returns `updateAvailable` plus the exact terminal command (e.g. `npm install -g @Splinterjke/ompweb` or `bun add -g @Splinterjke/ompweb`).
-- `POST /api/omp-update` (`action: "check"`) runs `omp update --check` and returns `updateAvailable` plus `updateCommand: "omp update"`.
-- `POST /api/omp-update` (`action: "update", stream: true`) runs the real `omp update` as an NDJSON stream (`{type:"out"}` frames + a final `{type:"done", exitCode}`). The stream **must** always terminate with the `done` frame AND `controller.close()` in the route's `finally`/success path — the client's reader loop in `SettingsConfig.runOmpUpdate` exits only on stream close, which is what releases the "Updating" button (`setUpdatingOmp(false)` in `finally`). A stream that never closes leaves the button spinning forever (regression: the close was missing, so the button stuck).
-- The "OMP update available" toast in `AppShell` (id tracked in `ompUpdateToastIdRef`) auto-closes via `closeOmpUpdateToast` when the update flow succeeds: `SettingsConfig` receives the `onOmpUpdateSucceeded` prop (wired in `AppShell`) and fires it in the `runOmpUpdate` success branch alongside `onOmpUpdateAvailabilityChange(false)`.
-- `POST /api/omp-update` (`action: "restart"`) restarts active OMP sessions after a manual CLI update.
-- Notifications in `AppShell` and settings cards in `SettingsConfig` present the update notification alongside copyable terminal update commands.
+### Updates: web server versus host software
+- Automatic in-app self-updating of the web server has been removed in favor of explicit user notifications and manual terminal commands. **Settings → System** owns the web server's own application update and settings only.
+- `GET /api/app-update` queries the npm registry for `@Splinterjke/ompweb` updates, detects the install manager (`bun` vs `npm` via `detectInstallMethod`), and returns `updateAvailable` plus the exact terminal command (e.g. `npm install -g @Splinterjke/ompweb` or `bun add -g @Splinterjke/ompweb`). A binary install links the release download page instead.
+- **Settings → Hosts** owns each machine's ompweb daemon and OMP runtime, including **This machine** (`components/HostUpdates.tsx`). `GET /api/hosts/[id]/updates` checks on that daemon; `POST {target, version}` starts its update. Offline hosts and older daemons return explicit failures, never fall back to checking or updating the web server.
+- The hub supplies its supported protocol range to the `checkUpdates`/`updateSoftware` host ops (`lib/hosts/updates.ts`, `lib/hosts/update-types.ts`). Both the hub and the daemon (`lib/hosts/update-worker.ts` is the host-side install/restart helper) reject an unknown or incompatible candidate protocol before installing ompweb; the update stays visible with a blocked reason. OMP runtime updates do not change the link protocol.
+- A daemon update is refused while it owns session processes (subagents included); the daemon also refuses new spawns while an update is running. Check completion through the durable operation state after reconnect, not the POST's acceptance alone. An OMP update leaves already-running sessions on their loaded runtime.
+- `POST /api/omp-update` (`action: "check" | "update" | "restart"`) remains an explicit server-side maintenance API for existing callers; the `update` stream still ends with the `{type:"done", exitCode}` frame and `controller.close()`. The settings UI and AppShell no longer use it as a global update control, and AppShell no longer announces an "OMP update available" toast.
+- Notifications in `AppShell` and the settings cards present the web-server update notification alongside the copyable terminal update command.
 
 ### Auth and model config
 - Auth flows go through RPC commands (`get_login_providers`, `login`) against the omp child process; credentials live in omp's `agent.db` (SQLite) which omp-web never touches directly.
