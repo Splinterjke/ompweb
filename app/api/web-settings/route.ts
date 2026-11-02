@@ -1,6 +1,15 @@
+import { broadcastBrowserTransport } from "@/lib/event-stream-hub";
+import { BROWSER_TRANSPORTS } from "@/lib/event-stream-protocol";
 import { syncInterruptibleSessions } from "@/lib/rpc-manager";
 import { parseAgentEnvText, sanitizeAgentEnvValues, type AgentEnvParseResult } from "@/lib/omp/agent-env";
-import { loadWebServerSettings, saveWebServerSettings, type WebServerSettings } from "@/lib/web-settings";
+import {
+  BROWSER_TRANSPORT_RANGES,
+  browserTransportState,
+  inBrowserTransportRange,
+  loadWebServerSettings,
+  saveWebServerSettings,
+  type WebServerSettings,
+} from "@/lib/web-settings";
 import { isRecord } from "@/lib/type-guards";
 
 /** GET/PUT /api/web-settings - omp-web's own server-side settings. */
@@ -24,7 +33,7 @@ export async function PUT(req: Request) {
   if (!isRecord(body)) {
     return Response.json({ error: "Request body must be a settings object", code: "invalid_settings" }, { status: 400 });
   }
-  const payload = body as { autoResumeSessions?: unknown; agentToolsEnabled?: unknown; autoGenerateSessionTitles?: unknown; agentEnv?: unknown };
+  const payload = body as Partial<Record<keyof WebServerSettings, unknown>>;
   const patch: Partial<WebServerSettings> = {};
 
   // Both keys are optional so a caller can update one without reading the other;
@@ -51,6 +60,24 @@ export async function PUT(req: Request) {
     patch.agentToolsEnabled = payload.agentToolsEnabled;
   }
 
+  if (payload.browserTransport !== undefined) {
+    const transport = BROWSER_TRANSPORTS.find((value) => value === payload.browserTransport);
+    if (!transport) {
+      return Response.json({ error: `browserTransport must be one of ${BROWSER_TRANSPORTS.map((value) => `"${value}"`).join(", ")}`, code: "invalid_settings" }, { status: 400 });
+    }
+    patch.browserTransport = transport;
+  }
+
+  for (const key of ["browserTransportPerSocket", "browserTransportMaxSockets"] as const) {
+    const value = payload[key];
+    if (value === undefined) continue;
+    if (!inBrowserTransportRange(key, value)) {
+      const [min, max] = BROWSER_TRANSPORT_RANGES[key];
+      return Response.json({ error: `${key} must be an integer from ${min} to ${max}`, code: "invalid_settings" }, { status: 400 });
+    }
+    patch[key] = value;
+  }
+
   if (payload.agentEnv !== undefined) {
     // Either raw KEY=VALUE text (what the settings textarea holds) or a record.
     let parsed: AgentEnvParseResult;
@@ -73,11 +100,13 @@ export async function PUT(req: Request) {
     patch.agentEnv = parsed.values;
   }
 
-  saveWebServerSettings(patch);
+  const previousTransport = JSON.stringify(browserTransportState());
+  const settings = saveWebServerSettings(patch);
   // Apply to sessions that are already running, not only the next run. Only when the
   // flag was part of this save — an agentEnv-only write must not touch live sessions.
   if (resumeProvided) syncInterruptibleSessions();
-  // readSettings() re-reads the just-saved cache entry, so the response reports the
-  // same deny-listed agentEnv a GET would.
-  return Response.json(readSettings());
+  // Every open browser converges on the new state; an unchanged one is not sent (the worker ignores it anyway).
+  const transport = browserTransportState(settings);
+  if (JSON.stringify(transport) !== previousTransport) broadcastBrowserTransport(transport);
+  return Response.json({ ...settings, agentEnv: sanitizeAgentEnvValues(settings.agentEnv).values });
 }

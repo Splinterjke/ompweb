@@ -15,7 +15,7 @@ import type {
 } from "@/lib/types";
 import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
-import { HostOfflineError, sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
+import { HostOfflineError, TransportLostError, sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
 import type { HostStatus } from "@/lib/hosts/host";
 import { newChatDraftKey, remoteHostId } from "@/lib/project-ordering";
 import { parseSkillDiagnosticsSnapshot, type SkillDiagnosticsSnapshot } from "@/lib/skill-diagnostics";
@@ -686,9 +686,16 @@ function toSlashCommandInfo(command: RpcAvailableSlashCommand): SlashCommandInfo
   return { name: command.name, description: command.description, source, ...(command.input?.hint ? { argumentHint: command.input.hint } : {}) };
 }
 
-/** Toast a send its host's link stopped. True when the link dropped after the
- *  send left, so it may still run there: the composer must not offer it again. */
-function toastHostOffline(error: HostOfflineError): boolean {
+/** Toast a send its connection stopped: the host's link (HostOfflineError) or
+ *  this browser's session socket (TransportLostError). True when it may have
+ *  left and still run, so the composer must not offer it again; null for any
+ *  other error, which the caller reports itself. */
+function toastStoppedSend(error: unknown): boolean | null {
+  if (error instanceof TransportLostError) {
+    toast.info(translate("agentSession.transportLostMaybeSent"));
+    return true;
+  }
+  if (!(error instanceof HostOfflineError)) return null;
   if (error.mayHaveRun) toast.info(translate("agentSession.hostOfflineMaybeSent", { detail: error.message }));
   else toast.error(translate("agentSession.hostOfflineSend", { detail: error.message }));
   return error.mayHaveRun;
@@ -3378,11 +3385,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           console.error("Automatic OMP repair failed:", repairError);
         }
       }
-      // A send whose host's link stopped is toasted, not written into the chat:
-      // the failure says nothing about the model, and the composer still holds
-      // the text unless the link may have carried the send through.
-      const mayHaveRun = e instanceof HostOfflineError && toastHostOffline(e);
-      if (!(e instanceof HostOfflineError)) {
+      // A send whose connection stopped (the host's link or this browser's
+      // session socket) is toasted, not written into the chat: the failure
+      // says nothing about the model, and the composer still holds the text
+      // unless the send may have left before the connection stopped.
+      const mayHaveRun = toastStoppedSend(e);
+      if (mayHaveRun === null) {
         // Keep the prompt and add an assistant error row, matching ompcli.
         // Removing the optimistic user bubble made failed turns look as if the
         // app had silently ignored them and left no retry context.
@@ -4279,10 +4287,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // optimistic chat bubble here would duplicate the queue panel and turn into
   // a ghost message if the queue is recalled.
   const toPiImages = (images?: AttachedImage[]) => images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
-  /** A refused steer/follow-up: an unreachable host toasts (the composer keeps the text), anything else is a chat notice.
-   *  True when the link dropped after the send left: it may still run, so the composer drops the text. */
+  /** A refused steer/follow-up: a stopped connection toasts (the composer keeps the text), anything else is a chat notice.
+   *  True when the send may have left before the connection stopped: it may still run, so the composer drops the text. */
   const reportQueueFailure = useCallback((e: unknown): boolean => {
-    if (e instanceof HostOfflineError) return toastHostOffline(e);
+    const mayHaveRun = toastStoppedSend(e);
+    if (mayHaveRun !== null) return mayHaveRun;
     addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
     return false;
   }, [addNotice]);
