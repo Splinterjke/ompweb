@@ -29,6 +29,8 @@ export type FlushScheduler = (flush: () => void) => () => void;
 
 export interface MessageUpdateCoalescer {
   push(event: CoalescableEvent): void;
+  /** Commit pending live output before applying a selectively newer snapshot. */
+  flush(): void;
   /** Drop any pending update and cancel the scheduled flush (stream replaced or unmounted). */
   reset(): void;
   /**
@@ -175,6 +177,10 @@ export function createMessageUpdateCoalescer(
         for (const toolEvent of toolEvents) dispatch(toolEvent);
       }
       dispatch(event);
+    },
+    flush() {
+      cancel();
+      flush();
     },
     reset() {
       pending = null;

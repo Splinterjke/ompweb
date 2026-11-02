@@ -2,8 +2,6 @@ import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
 import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { createJiti } from "jiti";
 
 // React ships `act` only in its development build; force NODE_ENV before any
 // React module loads so these tests work regardless of the environment's
@@ -44,24 +42,23 @@ const React = (await import("react")).default;
 // pinned by hooks/useAgentSession-commands.test.mjs), btw/fork/catch-up
 // suites (mechanisms absent or ported differently here).
 
-const jiti = createJiti(import.meta.url, {
-  jsx: { runtime: "automatic" },
-  tsconfigPaths: true,
-});
-const { useAgentSession, runHostTool } = await jiti.import("./useAgentSession.ts");
+// Native `import()` throughout (bun's module registry): the hook loads natively, and jiti keeps its own cache, so
+// anything imported through jiti lands on a SECOND copy of every module — the wrapped `toast`, the draft store and
+// i18n the harness reads would be different objects than the ones the hook mutates (the identity checks below prove it).
+const { useAgentSession, runHostTool } = await import("./useAgentSession.ts");
 // The real notification history mirror: recording is server-side now (`publishNotification`), so
 // the browser-side notify host tool must never touch it; no alias stub, same instance as the hook's import.
-const { notificationHistory } = await jiti.import("@/lib/notification-history");
-const { MessageView } = await jiti.import("@/components/MessageView");
-const { ChatWindow } = await jiti.import("@/components/ChatWindow");
-const { translate } = await jiti.import("@/lib/i18n");
-const { AgentSessionWrapper } = await jiti.import("@/lib/rpc-manager");
-const { SESSION_EDIT_COMMAND, SESSION_EDIT_RESPONSE_PREFIX } = await jiti.import("@/lib/omp/session-edit-extension.mjs");
+const { notificationHistory } = await import("@/lib/notification-history");
+const { MessageView } = await import("@/components/MessageView");
+const { ChatWindow } = await import("@/components/ChatWindow");
+const { translate } = await import("@/lib/i18n");
+const { AgentSessionWrapper } = await import("@/lib/rpc-manager");
+const { SESSION_EDIT_COMMAND, SESSION_EDIT_RESPONSE_PREFIX } = await import("@/lib/omp/session-edit-extension.mjs");
 
 // The remote-host blocks below assert on toasts. Upstream spies through bun's
 // `mock.module`, which this harness has no equivalent of, so the real `toast`
 // object the hook imports is wrapped in place; calls land as [kind, title].
-const { toast } = await jiti.import("@/components/ui/toast");
+const { toast } = await import("@/components/ui/toast");
 const toastCalls = [];
 for (const kind of ["success", "error", "info"]) {
   toast[kind] = (title) => { toastCalls.push([kind, title]); };
@@ -90,10 +87,21 @@ class FakeStream {
     if (this.closedByCaller) return;
     this.readyState = FakeStream.OPEN;
     this.deliver({ type: "open" });
-    this.deliver({ type: "message", data: JSON.stringify({ type: "connected" }) });
+    // Like the server's session channel, the `connected` frame carries the stream cursor this stream continues.
+    const sid = this.channel?.sessionId;
+    const web = sid ? world.streamWeb.get(sid) ?? { streamId: `stream-${sid}`, sequence: 0 } : undefined;
+    this.deliver({ type: "message", data: JSON.stringify({ type: "connected", ...(web ? { web } : {}) }) });
   }
   emit(event) {
     if (this.closedByCaller) return;
+    // The session channel stamps every frame with its transport sequence (lib/event-stream-hub.ts): the
+    // coalescer orders deltas against it, so the fake stream must stamp exactly like the hub does.
+    const sid = this.channel?.sessionId;
+    if (sid) {
+      const previous = world.streamWeb.get(sid) ?? { streamId: `stream-${sid}`, sequence: 0 };
+      event = { ...event, web: event.web ?? { ...previous, sequence: previous.sequence + 1 } };
+      world.streamWeb.set(sid, event.web);
+    }
     this.deliver({ type: "message", data: JSON.stringify(event) });
   }
   failFatal() {
@@ -107,14 +115,22 @@ class FakeStream {
 /** The port of the worker the tab's transport started; tests flip its transport. */
 let workerPort = null;
 
-/** Speaks the tab<->worker protocol of public/event-stream-worker.js. */
+/** Speaks the tab<->worker protocol of lib/event-stream-worker.ts. */
 class FakeSharedWorker {
   constructor() {
     const streams = new Map();
+    let announced = false;
     this.port = {
       onmessage: null,
       start() {},
       postMessage: (message) => {
+        // The default transport is the browser link: answer the tab's first word (its `wake("init")`) with the
+        // transport the worker's hello carries, so commands ride the worker like they do with a live link.
+        // A command in SSE mode would come back { cmd, http: true } and the tab would POST it itself.
+        if (!announced) {
+          announced = true;
+          this.port.onmessage?.({ data: { transport: "ws" } });
+        }
         if (message.op === "open") {
           streams.set(message.id, new FakeStream(this.port, message.id, message.channel));
         } else if (message.op === "close") {
@@ -164,6 +180,7 @@ const world = {
   nativeHistories: new Map(), // sid -> isolated, parent-linked native history fixture
   wrappers: new Map(), // sid -> live AgentSessionWrapper attached by a test
   streams: new Map(), // sid -> last wrapper event bridged onto that session's observers
+  streamWeb: new Map(), // sid -> the fake stream's last web cursor { streamId, sequence } (hub-style stamping)
   btwHistory: new Map(), // sid -> BtwRecord[] served by get_btw_history
 };
 
@@ -225,7 +242,10 @@ async function fetchStub(url, init = {}) {
       return jsonResponse(200, { running: a.running, state: a.state });
     }
     if (method === "POST") {
-      if (!world.agents.has(sid)) {
+      // Faithful to the real route: an id with neither a live wrapper nor an
+      // on-disk session file 404s; an id whose file exists cold-spawns a
+      // wrapper, which the canned acknowledgement stands in for.
+      if (!world.agents.has(sid) && !world.sessions.has(sid)) {
         return jsonResponse(404, { error: "Session not found", code: "session_not_found" });
       }
       // A mounted native-history fixture answers Edit and prompts itself, so
@@ -366,6 +386,7 @@ function resetWorld() {
   world.nativeHistories.clear();
   world.wrappers.clear();
   world.streams.clear();
+  world.streamWeb.clear();
   world.btwHistory.clear();
   world.abortRestoreQueue = null;
   sessionStorage.clear();
@@ -746,7 +767,7 @@ test("a prompt queued behind a running shell command drops the phantom turn and 
 // withdrew it and omp ran it as a new turn after the abort. omp's atomic Esc
 // takes back everything it holds, listed here or not.
 test("Stop takes queued input back through omp in one step, including a steer the snapshot missed", async () => {
-  const { getDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+  const { getDraft, clearDraft } = await import("@/lib/draft-store");
   resetWorld();
   clearDraft("abort-atomic");
   primeSession("abort-atomic", [userMsg("u0", "loaded question")]);
@@ -774,7 +795,7 @@ test("Stop takes queued input back through omp in one step, including a steer th
 const isAtomicStop = (method, _url, body) => method === "POST" && body?.type === "abort_and_restore_queue";
 
 test("a failed atomic Stop is retried once and restores what omp still held", async () => {
-  const { getDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+  const { getDraft, clearDraft } = await import("@/lib/draft-store");
   resetWorld();
   clearDraft("abort-atomic-retry");
   primeSession("abort-atomic-retry", [userMsg("u0", "loaded question")]);
@@ -835,7 +856,7 @@ test("a failed atomic Stop never retries into a run started after the click", as
 });
 
 test("overlapping Stops share one atomic withdrawal; an image-only entry does not come back as text", async () => {
-  const { getDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+  const { getDraft, clearDraft } = await import("@/lib/draft-store");
   resetWorld();
   clearDraft("abort-atomic-twice");
   primeSession("abort-atomic-twice", [userMsg("u0", "loaded question")]);
@@ -1695,7 +1716,7 @@ async function mountMovableChat(initialId) {
 }
 
 async function mountEditableSession(sid, options = {}) {
-  const { getDraft, setDraft } = await jiti.import("@/lib/draft-store");
+  const { getDraft, setDraft } = await import("@/lib/draft-store");
   const session = sessionInfo(sid);
   const chatInputRef = options.chatInputRef ?? React.createRef();
   let latest;
@@ -1741,7 +1762,7 @@ async function mountEditableSession(sid, options = {}) {
 
 test("Edit rewinds and resends in the same persisted session while retaining the old branch", async (t) => {
   resetWorld();
-  const { clearDraft } = await jiti.import("@/lib/draft-store");
+  const { clearDraft } = await import("@/lib/draft-store");
   const sid = "edit-same-session";
   clearDraft(sid);
   t.after(() => clearDraft(sid));
@@ -1827,7 +1848,7 @@ test("Edit rewinds and resends in the same persisted session while retaining the
 
 
 test("cancelled and failed Edits preserve history selection and draft, then release the guard", async (t) => {
-  const { getDraft, setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
   for (const outcome of ["cancelled", "error"]) {
     await t.test(outcome, async (t) => {
       resetWorld();
@@ -1873,7 +1894,7 @@ test("cancelled and failed Edits preserve history selection and draft, then rele
 for (const order of ["identity/history before HTTP", "HTTP before history delivery"]) {
   test(`native Edit relocation keeps the prefix, composer and resend (${order})`, async (t) => {
     resetWorld();
-    const { getDraft, setDraft, clearDraft } = await jiti.import("@/lib/draft-store");
+    const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
     const sid = `edit-move-${order.startsWith("identity") ? "early" : "late"}`;
     const target = `${sid}-owned`;
     for (const id of [sid, target]) clearDraft(id);
@@ -2129,7 +2150,7 @@ const SOCKET_LOST = { error: "The connection to omp-web dropped before the answe
 async function inWebSocketMode(run) {
   const { openEventStream } = await import("@/lib/event-stream");
   openEventStream({ kind: "running" }).close(); // the tab's transport exists before the hook mounts
-  workerPort.onmessage({ data: { transport: "ws-session" } });
+  workerPort.onmessage({ data: { transport: "ws" } });
   try {
     await run();
   } finally {
@@ -2143,6 +2164,7 @@ test("a prompt whose session socket dropped before the answer toasts that it may
     resetWorld();
     toastCalls.length = 0;
     world.socketAnswer = (command) => command.type === "prompt" ? { status: 503, body: SOCKET_LOST } : null;
+    primeSession("socket-lost", [userMsg("u0", "q")]); // the viewed conversation exists on disk: the cold get_state may spawn
     const w = await mountSession("socket-lost");
     let receipt;
     await act(async () => { receipt = w.latest.handleSend("maybe sent"); await sleep(30); });
@@ -2153,6 +2175,36 @@ test("a prompt whose session socket dropped before the answer toasts that it may
     assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
     assert.equal(w.latest.notices.length, 0);
     assert.equal(callsTo("POST", "/api/agent/socket-lost").some((call) => call.body?.type === "prompt"), false, "the prompt went over the socket");
+  });
+});
+
+test("a `!` command whose session socket dropped before the answer toasts that it may have run and stays out of the composer", async () => {
+  await inWebSocketMode(async () => {
+    resetWorld();
+    toastCalls.length = 0;
+    primeSession("socket-lost-bash", [userMsg("u0", "q")]);
+    const offered = [];
+    const w = await mountSession("socket-lost-bash", undefined, { chatInputRef: { current: { insertIfEmpty: (text) => offered.push(text) } } });
+    world.socketAnswer = (command) => command.type === "bash" ? { status: 503, body: SOCKET_LOST } : null;
+    await act(async () => { await w.latest.handleSend("!touch /tmp/once"); await sleep(30); });
+    assert.deepEqual(offered, [], "the composer must not bring the command back: it may run twice");
+    assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
+    assert.equal(w.latest.notices.length, 0);
+  });
+});
+
+test("a `!` command the route refused is offered back to the composer with an error notice", async () => {
+  await inWebSocketMode(async () => {
+    resetWorld();
+    toastCalls.length = 0;
+    primeSession("socket-refused-bash", [userMsg("u0", "q")]);
+    const offered = [];
+    const w = await mountSession("socket-refused-bash", undefined, { chatInputRef: { current: { insertIfEmpty: (text) => offered.push(text) } } });
+    world.socketAnswer = (command) => command.type === "bash" ? { status: 400, body: { error: "Shell is busy" } } : null;
+    await act(async () => { await w.latest.handleSend("!touch /tmp/once"); await sleep(30); });
+    assert.deepEqual(offered, ["!touch /tmp/once"], "it never ran, so the composer gets it back");
+    assert.deepEqual(toastCalls, []);
+    assert.deepEqual(w.latest.notices.map((notice) => notice.type), ["error"]);
   });
 });
 
@@ -2168,6 +2220,42 @@ test("a steer whose session socket dropped before the answer is reported as take
     assert.equal(accepted, true, "the composer drops the text: it may run");
     assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
     assert.equal(w.latest.notices.length, 0);
+  });
+});
+
+test("a get_state whose reply was lost before the prompt went out gives the draft back: no prompt ran", async () => {
+  await inWebSocketMode(async () => {
+    resetWorld();
+    toastCalls.length = 0;
+    primeSession("socket-lost-state", [userMsg("u0", "q")]);
+    const w = await mountSession("socket-lost-state");
+    world.socketAnswer = (command) => command.type === "get_state" ? { status: 503, body: SOCKET_LOST } : null;
+    let receipt;
+    await act(async () => { receipt = await w.latest.handleSend("never sent"); await sleep(30); });
+    assert.deepEqual(receipt, { status: "rejected", recoveryKey: "socket-lost-state" });
+    assert.deepEqual(toastCalls, [], "no prompt was sent, so nothing may have been delivered");
+    assert.deepEqual(w.latest.notices.map((notice) => notice.type), ["error"]);
+    assert.equal(w.latest.agentRunning, false);
+    assert.equal(callsTo("POST", "/api/agent/socket-lost-state").some((call) => call.body?.type === "prompt"), false);
+  });
+});
+
+test("an interrupt-and-reply whose abort_and_prompt reply was lost is reported as taken and the text is not offered again", async () => {
+  await inWebSocketMode(async () => {
+    resetWorld();
+    toastCalls.length = 0;
+    primeSession("socket-lost-interrupt", [userMsg("u0", "q")]);
+    const offered = [];
+    const { w, es } = await startRun("socket-lost-interrupt", "q1", false, { chatInputRef: { current: { insertIfEmpty: (text) => offered.push(text) } } });
+    await act(async () => { es.emit({ type: "agent_start" }); await Promise.resolve(); });
+    world.socketAnswer = (command) => command.type === "abort_and_prompt" ? { status: 503, body: SOCKET_LOST } : null;
+    let interrupt;
+    await act(async () => { interrupt = w.latest.handleInterruptAndReply("replacement"); await sleep(30); });
+    let accepted;
+    await act(async () => { lastEs().open(); accepted = await interrupt; });
+    assert.equal(accepted, true, "the replacement may be running: the composer drops the text");
+    assert.deepEqual(offered, [], "a resend would interrupt the replacement turn");
+    assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
   });
 });
 
@@ -2247,7 +2335,9 @@ async function streamRecorded(frames) {
     }
   }
   await settle(90);
-  return { shown, toolArguments, messages: structuredClone(w.latest.messages) };
+  // The fork's optimistic user rows carry the wall-clock send instant; the two runs differ there by construction.
+  const messages = structuredClone(w.latest.messages).map(({ timestamp, ...rest }) => rest);
+  return { shown, toolArguments, messages };
 }
 
 test("a run streamed as omp's delta updates renders exactly what its full updates render", async () => {
@@ -2259,4 +2349,13 @@ test("a run streamed as omp's delta updates renders exactly what its full update
   assert.deepEqual(deltas.shown[0].map((block) => block.type), ["thinking", "text", "toolCall"]);
   assert.equal(deltas.toolArguments.toolName, "read", "a streaming tool call shows its name from its first delta");
   assert.deepEqual(deltas.toolArguments.input, { path: "note.txt" }, "and the arguments streamed so far");
+});
+
+test("the harness and the hook share the toast, i18n and draft-store instances", async () => {
+  const hookMod = await import("./useAgentSession.ts");
+  const { toast } = await import("@/components/ui/toast");
+  const { getDraft } = await import("@/lib/draft-store");
+  assert.equal(typeof hookMod.useAgentSession, "function");
+  assert.equal(typeof toast.info, "function");
+  assert.equal(typeof getDraft, "function");
 });

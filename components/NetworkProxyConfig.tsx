@@ -76,7 +76,7 @@ export function NetworkProxyConfig() {
     }
   }, [mode, url]);
 
-  const candidates = state?.detection.candidates ?? [];
+  const candidates = state?.detection?.candidates ?? [];
   const effective = state?.effective ?? null;
 
   return (

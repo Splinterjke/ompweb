@@ -92,7 +92,7 @@ export interface FrameSink {
   close(): void;
 }
 
-class SseSink implements FrameSink {
+export class SseSink implements FrameSink {
   readonly heartbeatMs = HEARTBEAT_MS;
   readonly stream: ReadableStream<Uint8Array>;
   private controller!: ReadableStreamDefaultController<Uint8Array>;

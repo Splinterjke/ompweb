@@ -81,6 +81,8 @@ export interface SessionLiveSnapshot {
   isPromptRunning: boolean;
   isCompacting: boolean;
   streamingMessage: Partial<AgentMessage> | null;
+  /** The streamed message's id: what deltas and the replay snapshot must match. */
+  streamingMessageId: string | null;
   toolEvents: SessionLiveToolEvent[];
   /** Positive run-scoped evidence survives message_end's delayed file write. */
   responseObserved?: boolean;

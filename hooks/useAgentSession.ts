@@ -690,16 +690,19 @@ function toSlashCommandInfo(command: RpcAvailableSlashCommand): SlashCommandInfo
 /** Toast a send its connection stopped: the host's link (HostOfflineError) or
  *  this browser's session socket (TransportLostError). True when it may have
  *  left and still run, so the composer must not offer it again; null for any
- *  other error, which the caller reports itself. */
-function toastStoppedSend(error: unknown): boolean | null {
+ *  other error, which the caller reports itself. `promptIssued` false: the error
+ *  came from a command before the prompt (get_state, set_model), so nothing was
+ *  sent that could still run and the text goes back. */
+function toastStoppedSend(error: unknown, promptIssued = true): boolean | null {
   if (error instanceof TransportLostError) {
+    if (!promptIssued) return null;
     toast.info(translate("agentSession.transportLostMaybeSent"));
     return true;
   }
   if (!(error instanceof HostOfflineError)) return null;
-  if (error.mayHaveRun) toast.info(translate("agentSession.hostOfflineMaybeSent", { detail: error.message }));
+  if (error.mayHaveRun && promptIssued) toast.info(translate("agentSession.hostOfflineMaybeSent", { detail: error.message }));
   else toast.error(translate("agentSession.hostOfflineSend", { detail: error.message }));
-  return error.mayHaveRun;
+  return error.mayHaveRun && promptIssued;
 }
 
 export function useAgentSession(opts: UseAgentSessionOptions) {
@@ -3283,6 +3286,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     };
     setModelRestoreFailure(null);
     let recoveryKey = sessionIdRef.current ?? (newSessionCwd ? newChatDraftKey(newSessionCwd, newSessionHostId) : undefined);
+    // Set just before the prompt goes out: a lost reply from any earlier command (get_state, set_model) ran no prompt.
+    let promptIssued = false;
     try {
       if (isNew && newSessionCwd) {
         const selectedModel = newSessionModel;
@@ -3303,6 +3308,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           }
           await ensureEventsConnected(sid);
           void refreshSubagentRoster(sid);
+          promptIssued = true;
           queuedBehindShell = isQueuedWhileShellRunning(await sendAgentCommand(sid, {
             type: "prompt",
             message,
@@ -3326,6 +3332,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         void refreshSubagentRoster(sid);
         void registerHostTools(sid);
         void registerHostUriSchemes(sid);
+
+        promptIssued = true;
         queuedBehindShell = isQueuedWhileShellRunning(await sendAgentCommand(sid, {
           type: "prompt",
           message,
@@ -3394,7 +3402,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       // session socket) is toasted, not written into the chat: the failure
       // says nothing about the model, and the composer still holds the text
       // unless the send may have left before the connection stopped.
-      const mayHaveRun = toastStoppedSend(e);
+      const mayHaveRun = toastStoppedSend(e, promptIssued);
       if (mayHaveRun === null) {
         // Keep the prompt and add an assistant error row, matching ompcli.
         // Removing the optimistic user bubble made failed turns look as if the
@@ -3472,12 +3480,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         });
       }
       optimisticUserMessageKeyRef.current = null;
-      addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      // The reply may be lost after the interrupt ran: the composer must not offer the text again (a resend would
+      // interrupt the replacement turn), as in handleSend. Otherwise the interrupt never started: hand the text back.
+      const mayHaveRun = toastStoppedSend(e);
+      if (mayHaveRun === null) addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      if (mayHaveRun) return true;
+      if (trimmedMessage) opts.chatInputRef?.current?.insertIfEmpty(trimmedMessage);
       return false;
     } finally {
       promptDispatchPendingRef.current = false;
     }
-  }, [addNotice, ensureEventsConnected, refreshSubagentRoster]);
+  }, [addNotice, ensureEventsConnected, refreshSubagentRoster, opts.chatInputRef]);
 
   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
     if (agentRunningRef.current || bashRunningRef.current || editInFlightRef.current) return;
@@ -3497,8 +3510,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       promoteNewSession(1, inputText);
     } catch (e) {
       console.error("Failed to execute shell command:", e);
-      addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
-      opts.chatInputRef?.current?.insertIfEmpty(inputText);
+      // A stopped connection may have delivered the command: it toasts and the composer does not offer it again.
+      const mayHaveRun = toastStoppedSend(e);
+      if (mayHaveRun === null) addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      if (!mayHaveRun) opts.chatInputRef?.current?.insertIfEmpty(inputText);
     } finally {
       bashRunningRef.current = false;
       setPendingBash(null);
@@ -4780,3 +4795,5 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleAgentEventRef,
   };
 }
+
+export const __probeToast = toast;
