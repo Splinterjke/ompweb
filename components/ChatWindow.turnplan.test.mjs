@@ -32,7 +32,7 @@ function fixtureMessages() {
 
 test("buildTurnPlan precomputes text and activity overrides matching the fold semantics", () => {
   const messages = fixtureMessages();
-  const plan = buildTurnPlan(messages, 0, messages.length, false);
+  const plan = buildTurnPlan(messages, 0, messages.length, {});
 
   // Text segment overrides carry ONLY the segment's blocks; a non-final
   // segment drops usage and the mid-turn error, the final one keeps usage.
@@ -67,7 +67,7 @@ test("buildTurnPlan precomputes text and activity overrides matching the fold se
 
 test("renderActivityPieces reuses the supplied override objects verbatim", () => {
   const messages = fixtureMessages();
-  const plan = buildTurnPlan(messages, 0, messages.length, false);
+  const plan = buildTurnPlan(messages, 0, messages.length, {});
   const activitySegIdx = plan.segments.findIndex((s) => s.kind === "activity");
   const segment = plan.segments[activitySegIdx];
   const overrides = plan.activityOverrides.get(activitySegIdx);
@@ -98,7 +98,7 @@ test("renderActivityPieces reuses the supplied override objects verbatim", () =>
 });
 test("a cached turn plan survives appends to other turns and invalidates on its own growth", () => {
   const messages = fixtureMessages();
-  const plan = buildTurnPlan(messages, 0, messages.length, false);
+  const plan = buildTurnPlan(messages, 0, messages.length, {});
   // The component validates a cached plan by endIdx plus element identity of
   // the turn slice.
   const sliceIntact = (p, msgs, userIdx) =>
@@ -113,6 +113,6 @@ test("a cached turn plan survives appends to other turns and invalidates on its 
   // The same turn growing (a commit inside it) yields a different endIdx →
   // the cached plan fails the endIdx check and is rebuilt.
   const grown = [...messages, assistant([call("c"), text("more")])];
-  const grownPlan = buildTurnPlan(grown, 0, grown.length, false);
+  const grownPlan = buildTurnPlan(grown, 0, grown.length, {});
   assert.notEqual(plan.endIdx, grownPlan.endIdx);
 });

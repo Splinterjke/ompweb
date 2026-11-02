@@ -59,12 +59,22 @@ export function estimateGroupHeight(group: ChatGroup, messages: unknown[]): numb
  * Build the message-group index. Anchors are the user messages; every
  * message before the first anchor forms its own singleton group. O(n) pass,
  * no JSX — the expensive per-group render plan stays out of it.
+ * With `neverFold` ("Never fold tool activity") NOTHING folds: every message
+ * becomes its own group, so the window pages per message and no turn ever
+ * builds a Process details row.
  */
 export function buildChatGroups(
   messages: unknown[],
   isGroupAnchor: (msg: unknown) => boolean,
+  options: { neverFold?: boolean } = {},
 ): ChatGroup[] {
   const groups: ChatGroup[] = [];
+  if (options.neverFold) {
+    for (let i = 0; i < messages.length; i++) {
+      groups.push({ startIdx: i, endIdx: i + 1, userIdx: i, finalAssistantIdx: -1, processIndices: [], tailIndices: [] });
+    }
+    return groups;
+  }
   let i = 0;
   // Leading non-anchor messages (session metadata etc.) become singletons.
   while (i < messages.length && !isGroupAnchor(messages[i])) {

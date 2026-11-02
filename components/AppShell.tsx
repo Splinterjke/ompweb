@@ -84,6 +84,8 @@ const SIDEBAR_WIDTH_STORAGE_KEY = "omp-web:sidebar-width";
 const TOOL_CALLS_COLLAPSED_STORAGE_KEY = "omp-web:tool-calls-collapsed";
 const HIDE_TOOL_ACTIVITY_STORAGE_KEY = "omp-web:hide-tool-activity";
 const GOAL_TOKEN_BUDGET_STORAGE_KEY = "omp-web:goal-token-budget";
+const NEVER_FOLD_ACTIVITY_STORAGE_KEY = "omp-web:never-fold-activity";
+const SHOW_TOOL_CALLS_UNFOLDED_STORAGE_KEY = "omp-web:show-tool-calls-unfolded";
 const OPEN_URL_AUTOMATICALLY_STORAGE_KEY = "omp-web:open-url-automatically";
 const THINKING_DISPLAY_MODE_STORAGE_KEY = "omp-web:thinking-display-mode";
 const EXTENDED_THINKING_BLOCK_STORAGE_KEY = "omp-web:extended-thinking-block";
@@ -270,6 +272,8 @@ export function AppShell({ appName }: { appName: string }) {
   const [openUrlAutomatically, setOpenUrlAutomatically] = useState(false);
   const [thinkingDisplayMode, setThinkingDisplayMode] = useState<ThinkingDisplayMode>("auto");
   const [extendedThinkingBlock, setExtendedThinkingBlock] = useState(false);
+  const [neverFoldActivity, setNeverFoldActivity] = useState(false);
+  const [showToolCallsUnfolded, setShowToolCallsUnfolded] = useState(false);
   const [hideThinkingBlock, setHideThinkingBlock] = useState(false);
   useEffect(() => {
     // omp's own setting, so the transcript hides thinking when the TUI does.
@@ -487,6 +491,8 @@ export function AppShell({ appName }: { appName: string }) {
       setToolCallsDefaultCollapsed(window.localStorage.getItem(TOOL_CALLS_COLLAPSED_STORAGE_KEY) !== "false");
       setHideToolActivity(window.localStorage.getItem(HIDE_TOOL_ACTIVITY_STORAGE_KEY) !== "false");
       setShowGoalTokenBudget(window.localStorage.getItem(GOAL_TOKEN_BUDGET_STORAGE_KEY) === "true");
+      setNeverFoldActivity(window.localStorage.getItem(NEVER_FOLD_ACTIVITY_STORAGE_KEY) === "true");
+      setShowToolCallsUnfolded(window.localStorage.getItem(SHOW_TOOL_CALLS_UNFOLDED_STORAGE_KEY) === "true");
     } catch {
       // Keep the compact default when storage is unavailable.
     }
@@ -533,6 +539,22 @@ export function AppShell({ appName }: { appName: string }) {
     setHideToolActivity(hide);
     try {
       window.localStorage.setItem(HIDE_TOOL_ACTIVITY_STORAGE_KEY, String(hide));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleNeverFoldActivityChange = useCallback((never: boolean) => {
+    setNeverFoldActivity(never);
+    try {
+      window.localStorage.setItem(NEVER_FOLD_ACTIVITY_STORAGE_KEY, String(never));
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleShowToolCallsUnfoldedChange = useCallback((show: boolean) => {
+    setShowToolCallsUnfolded(show);
+    try {
+      window.localStorage.setItem(SHOW_TOOL_CALLS_UNFOLDED_STORAGE_KEY, String(show));
     } catch {
       // The preference still applies for this page load.
     }
@@ -2996,6 +3018,8 @@ export function AppShell({ appName }: { appName: string }) {
               showGoalTokenBudget={showGoalTokenBudget}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollowEnabled}
+              neverFoldActivity={neverFoldActivity}
+              showToolCallsUnfolded={showToolCallsUnfolded}
               hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
               processDetailsAutoExpand={processDetailsAutoExpand}
@@ -3228,6 +3252,10 @@ export function AppShell({ appName }: { appName: string }) {
         onToolCallsDefaultCollapsedChange={handleToolCallsDefaultCollapsedChange}
         hideToolActivity={hideToolActivity}
         onHideToolActivityChange={handleHideToolActivityChange}
+        neverFoldActivity={neverFoldActivity}
+        onNeverFoldActivityChange={handleNeverFoldActivityChange}
+        showToolCallsUnfolded={showToolCallsUnfolded}
+        onShowToolCallsUnfoldedChange={handleShowToolCallsUnfoldedChange}
         showGoalTokenBudget={showGoalTokenBudget}
         onShowGoalTokenBudgetChange={handleShowGoalTokenBudgetChange}
         thinkingDisplayMode={thinkingDisplayMode}

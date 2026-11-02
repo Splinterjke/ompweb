@@ -9,8 +9,9 @@ import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
+
 import { isMessageOverflowing } from "@/lib/message-overflow";
-import { isEmptyThinkingBlock } from "@/lib/message-display";
+import { isEmptyThinkingBlock, isReplyBlock } from "@/lib/message-display";
 import { isPassiveToolContext } from "@/lib/passive-tool-context";
 import { splitPathTokens } from "@/lib/markdown-path-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
@@ -593,7 +594,8 @@ function AssistantMessageView({
     .map((block, index) => ({ block, originalIndex: sourceBlockIndices?.[index] ?? index }))
     .filter(({ block }) => !(hideThinking && block.type === "thinking") && !isEmptyThinkingBlock(block, { isStreaming }));
   const blocks = blockItems.map(({ block }) => block);
-  const hasActivityBlocks = blocks.some((block) => block.type === "thinking" || block.type === "toolCall");
+  // Activity rows stay compact; a row that also carries reply text keeps its model label.
+  const hideHeader = blocks.some((block) => block.type === "thinking" || block.type === "toolCall") && !blocks.some(isReplyBlock);
   const isInterrupted = isInterruptedMessage(message.errorMessage, message.stopReason);
   // 消息内最新内容块的原始索引：思考块只有在"流式输出且是最新块"时才自动
   // 展开，下一轮工具调用/文本到达后自动收起。
@@ -786,7 +788,7 @@ function AssistantMessageView({
           fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
           marginBottom: 4,
-          display: hasActivityBlocks ? "none" : "flex",
+          display: hideHeader ? "none" : "flex",
           alignItems: "center",
           gap: 6,
         }}

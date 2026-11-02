@@ -988,6 +988,17 @@ wait for that commit:
   collapsed" setting is off — that is what that setting means. `AppShell` must
   pass `toolCallsDefaultCollapsed` into `ChatWindow`; without it the setting is
   inert (the chat then always collapses).
+- Two more UI switches shape the fold, both planned in
+  `planTurnSegments` (`lib/chat-segments.ts`): `showThinking`
+  (driven by the Thinking Blocks mode "expanded") and `showToolCalls` ("Show
+  tool calls outside Process details", `omp-web:show-tool-calls-unfolded`)
+  treat those blocks like text, so they never fold. A text segment can
+  therefore carry thinking, and `ChatWindow` passes its `sourceBlockIndices`
+  so deferred thinking loads the right block. "Never fold tool activity"
+  (`omp-web:never-fold-activity`, `buildChatGroups` option `neverFold`) makes
+  every message its own group, so the virtual window pages per message and no
+  turn ever builds a Process details row; it overrides "Hide tool activity
+  while working".
 - `tool_execution_update` is coalesced per tool call at display rate in
   `lib/message-update-coalescer.ts` (chatty commands emit ~10-100+ frames/s),
   like `message_update` (which carries omp deltas, see "Streaming message
@@ -1006,6 +1017,20 @@ wait for that commit:
   frame flushes the fold first); `restart` and `destroyAndWait` reset it.
 - Live entries are cleared on `agent_start`, terminal `agent_end`, prompt
   send/settlement failure — a tool must never leak into the next run.
+
+### Reasoning display ("Thinking Display Behavior" = Expanded)
+- `ThinkingBlock` (`components/MessageView.tsx`) seeds `expanded` from the
+  `thinkingDisplayMode` preference ("expanded" always opens; "auto" opens only
+  the streaming latest block; "collapsed" never), plumbed and stored like
+  `toolCallsDefaultCollapsed`. Manual collapse/expand keeps working per block,
+  and a reload remounts from the preference.
+- Auto-expanded historical blocks are `deferred` (thinking text is fetched on
+  demand), so a mount effect loads their content through the same loader the
+  click path uses — one request per mount, cached per (session, entry, block).
+- While the mode is "expanded", thinking never folds into **Process details**
+  (`planTurnSegments` option `showThinking`): a streamed block mounts
+  expanded, and folding it when the step commits would hide it in a closed
+  row, which reads as the block collapsing on its own.
 
 ### Tool-result images (`lib/media-cache.ts`, `/api/media/[hash]`)
 - Tool-result images never reach the browser as base64. History (`deferMedia`)

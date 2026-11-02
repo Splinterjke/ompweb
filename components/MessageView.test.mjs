@@ -260,6 +260,7 @@ test("advisor custom messages use the localized advisor label", () => {
   assert.doesNotMatch(html, /customType/);
 });
 
+
 test("a running tool call shows a spinner instead of the no-result marker", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     message: {
@@ -483,6 +484,18 @@ test("committed thinking blocks default collapsed", () => {
   }));
 
   assert.match(html, /aria-expanded="false"/);
+});
+
+test("the model label hides on activity-only rows but stays on a row that also carries reply text", () => {
+  const html = (content) => renderToStaticMarkup(React.createElement(MessageView, {
+    message: { role: "assistant", provider: "t", model: "label-model", content },
+    modelNames: { "t:label-model": "Label Model" },
+  }));
+  const labelShown = (markup) => /display:flex[^>]*><span>Label Model<\/span>/.test(markup);
+  assert.equal(labelShown(html([{ type: "thinking", thinking: "plan" }])), false);
+  // Unfolded thinking rides in the reply's segment; the reply keeps its attribution.
+  assert.equal(labelShown(html([{ type: "thinking", thinking: "plan" }, { type: "text", text: "Answer" }])), true);
+  assert.equal(labelShown(html([{ type: "text", text: "Answer" }])), true);
 });
 
 test("provider errors render as a persistent assistant error row", () => {

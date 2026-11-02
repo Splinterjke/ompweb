@@ -11,6 +11,7 @@
  */
 
 import { isPassiveToolContext } from "./passive-tool-context";
+import { isReplyBlock } from "./message-display";
 import type { AssistantContentBlock, AssistantMessage, CustomMessage, AgentMessage } from "./types";
 
 /** A folded activity entry: listed blocks of an assistant message, or a whole non-assistant message. */
@@ -30,6 +31,12 @@ export type TranscriptSegment =
 export interface PlanOptions {
   /** Mirrors omp's `hideThinkingBlock`: drop thinking blocks entirely. */
   hideThinking?: boolean;
+  /** "Expand thinking blocks by default": thinking stays visible like text instead of folding. */
+  showThinking?: boolean;
+  /** "Show tool calls outside Process details": tool call rows stay visible like text. */
+  showToolCalls?: boolean;
+  /** "Never fold tool activity": every turn becomes standalone rows, with no Process details. */
+  neverFold?: boolean;
 }
 
 // A user message normally anchors a turn. When compaction fires mid-turn,
@@ -104,7 +111,7 @@ export function planTurnSegments(
       other = [];
     };
     for (const block of blocks) {
-      if (block.type === "image" || (block.type === "text" && block.text.trim().length > 0)) {
+      if (isReplyBlock(block) || (block.type === "thinking" && options.showThinking) || (block.type === "toolCall" && options.showToolCalls)) {
         flushOther();
         text.push(block);
       } else if (block.type !== "text") {

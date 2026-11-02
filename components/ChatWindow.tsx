@@ -8,8 +8,9 @@ import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
-import { planTurnSegments, isGroupAnchor, type ActivityPiece, type TranscriptSegment } from "@/lib/chat-segments";
+import { planTurnSegments, isGroupAnchor, type ActivityPiece, type PlanOptions, type TranscriptSegment } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
+import { isReplyBlock } from "@/lib/message-display";
 import { MessageView } from "./MessageView";
 import { ToolExpansionProvider } from "./tool-expansion";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
@@ -67,6 +68,10 @@ interface Props {
   showGoalTokenBudget?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
+  /** UI `neverFoldActivity`: render every turn flat, no Process details rows. */
+  neverFoldActivity?: boolean;
+  /** UI `showToolCallsUnfolded`: tool call rows stay out of Process details. */
+  showToolCallsUnfolded?: boolean;
   /** omp `hideThinkingBlock`: omit thinking blocks from the transcript. */
   hideThinkingBlock?: boolean;
   /** Show the copy/fork/edit buttons under messages (Interface & Behavior switch). */
@@ -216,7 +221,10 @@ export interface TurnPlan {
   /** The turn's messages at build time; identity-checked to invalidate. */
   slice: AgentMessage[];
   endIdx: number;
+  /** The planning options the cache entry was built with (invalidation keys). */
   hideThinking: boolean;
+  showThinking: boolean;
+  showToolCalls: boolean;
   segments: TranscriptSegment[];
   /** Per text segment (indexed by segmentIdx): the split-message override. */
   textOverrides: (AssistantMessage | undefined)[];
@@ -224,8 +232,11 @@ export interface TurnPlan {
   activityOverrides: Map<number, (AssistantMessage | undefined)[]>;
 }
 
-export function buildTurnPlan(messages: AgentMessage[], userIdx: number, endIdx: number, hideThinking: boolean): TurnPlan {
-  const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking });
+export function buildTurnPlan(messages: AgentMessage[], userIdx: number, endIdx: number, options: PlanOptions = {}): TurnPlan {
+  const hideThinking = options.hideThinking ?? false;
+  const showThinking = options.showThinking ?? false;
+  const showToolCalls = options.showToolCalls ?? false;
+  const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking, showThinking, showToolCalls });
   const textOverrides: (AssistantMessage | undefined)[] = [];
   const activityOverrides = new Map<number, (AssistantMessage | undefined)[]>();
   segments.forEach((segment, segmentIdx) => {
@@ -242,7 +253,7 @@ export function buildTurnPlan(messages: AgentMessage[], userIdx: number, endIdx:
         : undefined,
     ));
   });
-  return { slice: messages.slice(userIdx, endIdx), endIdx, hideThinking, segments, textOverrides, activityOverrides };
+  return { slice: messages.slice(userIdx, endIdx), endIdx, hideThinking, showThinking, showToolCalls, segments, textOverrides, activityOverrides };
 }
 
 /** Render a folded activity run exactly as it streamed: one entry per piece, never merged across messages. */
@@ -323,6 +334,10 @@ interface CommittedTranscriptProps {
   thinkingAutoFollow?: boolean;
   /** omp `hideThinkingBlock`: omit thinking from the transcript. */
   hideThinkingBlock?: boolean;
+  /** UI pref: every turn renders flat, no Process details rows. */
+  neverFoldActivity: boolean;
+  /** UI pref: tool call rows stay out of Process details. */
+  showToolCallsUnfolded: boolean;
   messageActionsVisible?: boolean;
   processDetailsAutoExpand?: boolean;
   messageTimeFormat?: MessageTimeFormat;
@@ -345,7 +360,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isCompacting, isNew, forkingEntryId, editingEntryId,
   handleFork, handleEdit, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
-  toolCallsDefaultCollapsed, hideToolActivity = true, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // The user's expand/collapse choice per process-details group, keyed by the
@@ -363,7 +378,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
     messageRefs.current[refIndex] = el;
   };
 
-  const renderMessage = (idx: number, options: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] } = {}): ReactNode => {
+  const renderMessage: RenderMessage = (idx, options = {}) => {
     const msg = options.messageOverride ?? messages[idx];
     const isVisible = msg.role === "user" || msg.role === "assistant";
     const currentRefIdx = visibleRefIndexByMessage.get(idx);
@@ -383,7 +398,10 @@ const CommittedTranscript = memo(function CommittedTranscript({
     }
     if (options.showTimestamp !== undefined) showTimestamp = options.showTimestamp;
     const forkTarget = forkTargets[idx];
-    const canOfferFork = !sessionBusy && !isNew && !!forkTarget;
+    // Assistant rows fork from reply text or a visible error, not from each thinking/tool step:
+    // every row of a turn forks at the same prompt, so the extra buttons were only clutter.
+    const forkableRow = msg.role !== "assistant" || !!msg.errorMessage?.trim() || (Array.isArray(msg.content) && msg.content.some(isReplyBlock));
+    const canOfferFork = !sessionBusy && !isNew && !!forkTarget && forkableRow;
     const canOfferEdit = !sessionBusy && !isCompacting && !isNew && msg.role === "user" && !msg.branchSummary && !!entryIds[idx];
     const historyMutationPending = forkingEntryId !== null || editingEntryId !== null;
     const view = (
@@ -602,25 +620,32 @@ const CommittedTranscript = memo(function CommittedTranscript({
     const processGroupKey = entryIds[userIdx] ?? String(userIdx);
     // TUI-style folding: agent text is always visible; each run of activity
     // text folds into one collapsed row.
+    // Expanded-by-default thinking, and tool calls when asked, stay out of the
+    // fold: folding on commit would hide the block the preference just opened.
+    const showThinking = thinkingDisplayMode === "expanded";
     // Reuse the turn's plan (segments + override objects) while its messages
     // are identity-stable — the ONLY way the rows' memo comparators pass and
     // finished turns stop re-rendering on every streaming batch / tool commit.
     let plan = turnPlansRef.current.get(processGroupKey);
     const turnLen = endIdx - userIdx;
     if (!plan || plan.endIdx !== endIdx || plan.hideThinking !== hideThinkingBlock
+      || plan.showThinking !== showThinking || plan.showToolCalls !== showToolCallsUnfolded
       || plan.slice.length !== turnLen || plan.slice.some((m, i) => m !== messages[userIdx + i])) {
-      plan = buildTurnPlan(messages, userIdx, endIdx, hideThinkingBlock);
+      plan = buildTurnPlan(messages, userIdx, endIdx, { hideThinking: hideThinkingBlock, showThinking, showToolCalls: showToolCallsUnfolded });
       turnPlansRef.current.set(processGroupKey, plan);
     }
     const attached = new Set<number>();
     plan.segments.forEach((segment, segmentIdx) => {
       if (segment.kind === "text") {
+        const msg = messages[segment.index] as AssistantMessage;
         const override = plan.textOverrides[segmentIdx];
         nodes.push(renderMessage(segment.index, {
           attachRef: !attached.has(segment.index),
           keyPrefix: `text-${segmentIdx}`,
           messageOverride: override,
           ...(segment.last ? {} : { showTimestamp: false }),
+          // Thinking can ride in a text segment; deferred text loads by source index.
+          sourceBlockIndices: segment.blocks.map((block) => msg.content.indexOf(block)),
         }));
         attached.add(segment.index);
         return;
@@ -691,7 +716,8 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
+
 
 
 
@@ -885,11 +911,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
   // --- 虚拟化（doc 14 T2.1/T2.2）---
   // 消息全量在内存（session-reader 全量解析）；组索引只依赖消息结构，
   // 流式 token 帧（length/id 不变）复用缓存，不重建。
-  const groupsKey = messages.length + ":" + (messages.length > 0 ? String((messages[messages.length - 1] as { id?: unknown }).id ?? "") : "");
+  const groupsKey = (neverFoldActivity ? "nf:" : "") + messages.length + ":" + (messages.length > 0 ? String((messages[messages.length - 1] as { id?: unknown }).id ?? "") : "");
   const groupsRef = useRef<{ key: string; groups: ChatGroup[] } | null>(null);
   const groups = useMemo(() => {
     if (groupsRef.current?.key === groupsKey) return groupsRef.current.groups;
-    const built = buildChatGroups(messages, (m: unknown) => isGroupAnchor(m as AgentMessage));
+    const built = buildChatGroups(messages, (m: unknown) => isGroupAnchor(m as AgentMessage), { neverFold: neverFoldActivity });
     groupsRef.current = { key: groupsKey, groups: built };
     return built;
   }, [messages, groupsKey]);
@@ -1728,6 +1754,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
               hideToolActivity={hideToolActivity}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollow}
+              neverFoldActivity={neverFoldActivity}
+              showToolCallsUnfolded={showToolCallsUnfolded}
               hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
               processDetailsAutoExpand={processDetailsAutoExpand}
