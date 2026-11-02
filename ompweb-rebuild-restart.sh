@@ -286,8 +286,13 @@ PY
   # marker must appear in the served HTML. If a stale instance (old bundle) is
   # still bound to the port, its HTML carries the old hash and this fails —
   # leftover processes cannot fake it.
+  # With the sign-in gate on, an unauthenticated GET / is a bodiless 307 to
+  # /login, so probe BOTH: /login carries the marker when auth is on (it is
+  # the page every visitor gets), / carries it when auth is off. Concat the
+  # bodies; the marker must appear in whichever page the server actually
+  # serves unauthenticated.
   if [ -n "$NEW_ASSET" ]; then
-    served_html="$(curl -s -m 5 "http://127.0.0.1:$PORT/" 2>/dev/null)"
+    served_html="$(curl -s -m 5 "http://127.0.0.1:$PORT/login" 2>/dev/null)$(curl -s -m 5 "http://127.0.0.1:$PORT/" 2>/dev/null)"
     case "$served_html" in
       *"$NEW_ASSET"*)
         rlog "verify: served page contains deployed asset $NEW_ASSET"
@@ -310,6 +315,44 @@ PY
     rlog "refresh: ${refresh_out:-ok}"
   else
     rlog "refresh: endpoint not reachable (old build or no server) — continuing"
+  fi
+
+  # --- Self-heal the local host daemon (transition: images predating Bun era) ---
+  # Sessions are reached ONLY through the local daemon link, and the orphan
+  # sweep above just killed every daemon the entrypoint does not supervise —
+  # e.g. the detached manual `ompweb host` a previous bounce left behind. An
+  # image whose entrypoint predates the Bun-era daemon loop supervises none,
+  # so after the sweep NOTHING would link this machine and the session list
+  # would silently empty (200 + []). Relaunch a detached daemon when no live
+  # one remains; on a rebuilt image the entrypoint-supervised daemon survives
+  # the sweep and this check no-ops. Detection mirrors the sweep's own
+  # predicate (title-stamped JS daemon or a direct omp-web-host.js runner).
+  daemon_up="$(python3 - <<'PY'
+import os
+for e in os.listdir('/proc'):
+    if not e.isdigit():
+        continue
+    try:
+        comm = open(f'/proc/{e}/comm').read().strip()
+        cmd = open(f'/proc/{e}/cmdline', 'rb').read().replace(b'\0', b' ').decode(errors='replace')
+        state = open(f'/proc/{e}/stat').read().rsplit(')', 1)[1].split()[0]
+    except OSError:
+        continue
+    if state != 'Z' and (comm in ('ompweb-host', 'ompweb host') or 'omp-web-host.js' in cmd):
+        print('up')
+        break
+else:
+    print('down')
+PY
+)" || daemon_up="unknown"
+  if [ "$daemon_up" = "down" ]; then
+    rlog "daemon: none live after the sweep and no entrypoint supervision — relaunching a detached ompweb host"
+    setsid nohup ompweb host >>"$STATE_HOME/host-daemon.log" 2>&1 </dev/null &
+    sleep 2
+    daemon_pid="$(pgrep -f 'ompweb host' | head -1 || true)"
+    rlog "daemon: relaunched (pid ${daemon_pid:-?}); the link line lands in $STATE_HOME/host-daemon.log"
+  else
+    rlog "daemon: live host daemon present ($daemon_up) — nothing to heal"
   fi
 
   pid="$(pgrep -f "ompweb.*--port $PORT" | head -1 || true)"
@@ -472,6 +515,31 @@ fi
 # the bit on disk), so re-assert it here — entrypoint execs them directly.
 chmod +x "$DST/bin/omp-web.js" "$DST/bin/omp-web-desktop.js"
 log "deploy: done in $(( $(date +%s) - T_DEPLOY ))s"
+
+# --- 2b. PRODUCTION-DEPS SYNC (node_modules is image-owned, never mirrored) ---
+# The server reaches this machine's sessions ONLY through the local host
+# daemon link, and the node-run `ompweb host` daemon needs the prod deps
+# declared in package.json (jiti to load lib/hosts/host-cli.ts, ws for the
+# link, ...). When a release adds a prod dependency the mirror rewrites
+# $DST/package.json but nobody installs it: the daemon crash-loops on
+# MODULE_NOT_FOUND, the link never comes up, and every session list silently
+# empties (200 + []). Detect the drift by hashing the dependency SET (not the
+# file — lockfiles/version bumps inside a range must not force a reinstall)
+# and run one npm install when it changed.
+DEPS_HASH="$(python3 -c 'import json,sys,hashlib; print(hashlib.sha256(json.dumps(json.load(open(sys.argv[1])).get("dependencies", {}), sort_keys=True).encode()).hexdigest()[:16])' "$REPO/package.json" 2>/dev/null || echo '')"
+if [ -z "$DEPS_HASH" ]; then
+  log "FATAL: could not hash the dependencies of $REPO/package.json"
+  exit 1
+fi
+if [ ! -d "$DST/node_modules/jiti" ] || [ "$(cat "$DST/.prod-deps-hash" 2>/dev/null)" != "$DEPS_HASH" ]; then
+  log "deploy: production dependencies drifted — npm install --omit=dev in $DST"
+  ( cd "$DST" && npm install --omit=dev --no-audit --no-fund ) 2>&1 | tee -a "$LOG"
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log "FAILED: npm install --omit=dev in $DST — running instance left untouched"
+    exit 1
+  fi
+  echo "$DEPS_HASH" > "$DST/.prod-deps-hash"
+fi
 
 # The client-asset marker the reaper must confirm is served after the restart:
 # the Bun build embeds the hashed entry chunk (/assets/<hash>.js) in

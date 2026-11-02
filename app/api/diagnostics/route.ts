@@ -1,6 +1,8 @@
 import { resolveOmpBin, getOmpVersion } from "@/lib/omp/omp-cli";
 import { readProxyConfig, resolveEffectiveProxy } from "@/lib/proxy-config";
 import { recentRpcFailures } from "@/lib/rpc-manager";
+import { localHostRow } from "@/lib/hosts/hub";
+import { isLinkUp } from "@/lib/hosts/host";
 import { clearBackendErrors, recentBackendErrors } from "@/lib/backend-errors";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
@@ -30,8 +32,8 @@ export async function GET() {
   // 扰乱 --resume，是"服务异常但健康显示正常"的主要来源。扫描本机常见端口。
   const selfPort = Number(webPort);
   const otherInstances: Array<{ port: number; alive: boolean }> = [];
-  // Include the historical dev port as well: an old `next-server` on 30180
-  // can still hold session locks even though the current App runs on 30179.
+  // Include the historical dev ports as well: a leftover server on one of
+  // them can still hold session locks beside the current instance.
   for (const port of [30177, 30178, 30179, 30180]) {
     if (port === selfPort) continue;
     otherInstances.push({ port, alive: await probeOmpWebPort(port) });
@@ -48,13 +50,27 @@ export async function GET() {
     node: hasTool("node"),
   };
 
+  // This machine's host daemon (the `ompweb host` link, `lib/hosts`): every
+  // omp child runs under it, so the topology card shows the real chain
+  // server → WebSocket link → daemon → omp children.
+  const localHost = localHostRow();
+
   return Response.json({
     server: {
+      // Bun runs the server (`process.versions.bun`); `node` stays for the
+      // Node-emulation version and for any non-Bun launch form.
       node: process.version,
+      bun: process.versions.bun ?? null,
       platform: process.platform,
       arch: process.arch,
       uptimeSeconds: Math.round(process.uptime()),
       tools,
+    },
+    daemon: {
+      linked: isLinkUp(localHost.status),
+      status: localHost.status,
+      daemonManaged: localHost.daemonManaged,
+      hostVersion: localHost.hostVersion,
     },
     omp: {
       installed: Boolean(ompBin),

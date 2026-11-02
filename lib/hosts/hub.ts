@@ -1041,10 +1041,10 @@ export interface LocalHostRow {
 
 export type HostRow = LocalHostRow | LinkedHostRow;
 
-/** Settings → Hosts payload (`GET /api/hosts` and the `hosts` channel): this machine first, then linked hosts. This machine's status is its daemon link's. */
-export function hostsSnapshot(): { hosts: HostRow[] } {
+/** This machine's row: its status is its daemon link's, offline while none is linked. */
+export function localHostRow(): LocalHostRow {
   const link = hub().links.get(LOCAL_HOST_ID);
-  const local: LocalHostRow = {
+  return {
     id: "local",
     label: customLocalLabel(),
     status: link?.status ?? "offline",
@@ -1056,7 +1056,11 @@ export function hostsSnapshot(): { hosts: HostRow[] } {
     serverPlatform: process.platform,
     daemonManaged: process.env.NODE_ENV !== "development",
   };
-  return { hosts: [local, ...listHosts()] };
+}
+
+/** Settings → Hosts payload (`GET /api/hosts` and the `hosts` channel): this machine first, then linked hosts. */
+export function hostsSnapshot(): { hosts: HostRow[] } {
+  return { hosts: [localHostRow(), ...listHosts()] };
 }
 
 /** Tell `hosts` subscribers the registry changed (rename, toggle, revoke); link changes notify on their own. */

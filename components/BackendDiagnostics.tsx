@@ -26,7 +26,9 @@ import { toast } from "@/components/ui/toast";
 import { filterBenignGitEntries } from "@/lib/git-nonrepo";
 
 export interface DiagnosticsData {
-  server: { node: string; platform: string; arch: string; uptimeSeconds: number; tools?: Record<string, boolean> };
+  server: { node: string; bun?: string | null; platform: string; arch: string; uptimeSeconds: number; tools?: Record<string, boolean> };
+  /** This machine's `ompweb host` daemon link — every omp child runs under it. */
+  daemon?: { linked: boolean; status: string; daemonManaged: boolean; hostVersion: number | null };
   system?: {
     memory: { rss: number; heapUsed: number; heapTotal: number };
     cpus: number;
@@ -1228,7 +1230,7 @@ function BackendDiagnosticsFullView() {
               <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Web UI Client</span>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-success)" }} />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Next.js Client / Electron</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Browser / Electron</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
@@ -1236,7 +1238,7 @@ function BackendDiagnosticsFullView() {
             <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>SSE / Fetch</span>
           </div>
 
-          {/* Node 2: Web Server */}
+          {/* Node 2: Bun web server */}
           <div
             style={{
               padding: "10px 12px",
@@ -1249,10 +1251,53 @@ function BackendDiagnosticsFullView() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Next.js Server</span>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>omp-web Server (Bun)</span>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-success)" }} />
             </div>
-            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>Port {diag?.web.port ?? "30178"} · Node {diag?.server.node}</span>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
+              Port {diag?.web.port ?? "30178"} · {diag?.server.bun ? `Bun v${diag.server.bun}` : `Node ${diag?.server.node}`}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
+            <ArrowRight size={14} aria-hidden="true" />
+            <span style={{ fontSize: "calc(9.5px * var(--ui-font-scale-sm, 1))", fontFamily: "var(--font-mono)", margin: "0 4px" }}>WebSocket link</span>
+          </div>
+
+          {/* Node 3: the local JS host daemon — it owns every omp child. */}
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: "var(--radius-control)",
+              background: "var(--bg-subtle)",
+              border: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", fontWeight: 700, color: "var(--text)" }}>Host Daemon</span>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: !diag?.daemon?.linked && diag?.daemon?.daemonManaged === false
+                    ? "var(--text-dim)"
+                    : diag?.daemon?.linked ? "var(--status-success)" : "var(--status-error)",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)" }}>
+              {diag?.daemon == null
+                ? "ompweb host (JS)"
+                : diag.daemon.linked
+                  ? `ompweb host · v${diag.daemon.hostVersion ?? "?"} online`
+                  : diag.daemon.daemonManaged
+                    ? "ompweb host — offline"
+                    : "dev server: daemon unmanaged"}
+            </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
