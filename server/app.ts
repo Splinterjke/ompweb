@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { hostLinkSocket, type LinkSocketData } from "@/lib/hosts/hub";
 import { proxy } from "@/proxy";
 import { requestPeerHeaders } from "../bin/request-peer.js";
 import { register } from "../instrumentation.node";
@@ -33,9 +34,10 @@ function decodable(pathname: string): boolean {
  * through finalizeResponse. Bun's idle timeout also cuts a handler that is still working, so an authenticated API
  * request runs without it. The setting outlives the response on a keep-alive socket, so it is put back once the
  * handler returns or throws, or, when the handler keeps its response open (a stream) with `disableIdleTimeout`, once
- * that stream ends or is cancelled. Public requests keep it unless their handler lifts it (the host link, once its
- * bearer token checks out), so no unauthenticated caller can hold a socket open. No test reaches the throw: `dispatch`
- * (routes.ts) already turns a handler's throw into a 500, so the `finally` only guards a `respond` that throws later.
+ * that stream ends or is cancelled. Public requests keep it, so no unauthenticated caller can hold a socket open. A
+ * handler that upgraded the request to a WebSocket answers undefined, returned as is: Bun has answered. No test reaches
+ * the throw: `dispatch` (routes.ts) already turns a handler's throw into a 500, so the `finally` only guards a
+ * `respond` that throws later.
  */
 /**
  * Replace the peer stamp with this socket's real peer, so no client can claim
@@ -43,7 +45,7 @@ function decodable(pathname: string): boolean {
  * first). The gate and every handler read the stamped Request; `server.timeout`
  * stays keyed by the original BunRequest (`peer`).
  */
-function stampPeer(request: Request, server: Bun.Server<undefined>): Request {
+function stampPeer(request: Request, server: Bun.Server<LinkSocketData>): Request {
   const headers = new Headers(request.headers);
   for (const [name, value] of Object.entries(requestPeerHeaders(server.requestIP(request)?.address ?? null))) {
     if (value === null) headers.delete(name);
@@ -55,14 +57,14 @@ function stampPeer(request: Request, server: Bun.Server<undefined>): Request {
 
 async function handle(
   peer: Request,
-  server: Bun.Server<undefined>,
-  respond: (context: { gate: "public" | "authenticated"; disableIdleTimeout: () => void }) => Response | Promise<Response>,
-): Promise<Response> {
+  server: Bun.Server<LinkSocketData>,
+  respond: (context: { gate: "public" | "authenticated"; disableIdleTimeout: () => void }) => Response | undefined | Promise<Response | undefined>,
+): Promise<Response | undefined> {
   let pathname: string;
   try {
     pathname = new URL(peer.url).pathname;
   } catch {
-    // Bun builds request.url from the Host header, so a malformed or missing Host makes the URL unparsable.
+    // Bun builds request.url from the Host header, so a malformed or missing Host makes it unparsable.
     return text("Bad Request", 400);
   }
   const request = stampPeer(peer, server);
@@ -86,7 +88,7 @@ async function handle(
     if (keepOpen && response?.body) response = new Response(untilEnd(response.body, restore), response);
     else if (lifted || keepOpen) restore();
   }
-  return finalizeResponse(request, response);
+  return response && finalizeResponse(request, response);
 }
 
 /** `body`, calling `end` once it is done, fails or is cancelled. */
@@ -115,7 +117,7 @@ function untilEnd(body: ReadableStream<Uint8Array>, end: () => void): ReadableSt
 // It is the same public shell that /login serves without a session.
 const DEV_INDEX = "/__omp_dev_index";
 
-async function devIndex(server: Bun.Server<undefined>): Promise<string> {
+async function devIndex(server: Bun.Server<LinkSocketData>): Promise<string> {
   const url = new URL(DEV_INDEX, server.url);
   // A wildcard bind answers on loopback.
   if (url.hostname === "0.0.0.0") url.hostname = "127.0.0.1";
@@ -124,12 +126,12 @@ async function devIndex(server: Bun.Server<undefined>): Promise<string> {
   return stylesheetFirst(await (await fetch(url, { proxy: false })).text());
 }
 
-export function startServer(options: { port: number; hostname: string; dev: boolean; root: string; html?: Bun.HTMLBundle }): Bun.Server<undefined> {
+export function startServer(options: { port: number; hostname: string; dev: boolean; root: string; html?: Bun.HTMLBundle }): Bun.Server<LinkSocketData> {
   const { dev, root, html } = options;
   // Dev serves the SPA from the HTML import (`html`) and never reads dist/.
   const index = dev ? null : readFileSync(path.join(root, "dist", "index.html"), "utf8");
 
-  const routes: Record<string, Bun.HTMLBundle | ((request: Bun.BunRequest, server: Bun.Server<undefined>) => Promise<Response>)> = {};
+  const routes: Record<string, Bun.HTMLBundle | ((request: Bun.BunRequest, server: Bun.Server<LinkSocketData>) => Promise<Response | undefined>)> = {};
   for (const [key, mod] of Object.entries(ROUTE_MODULES)) {
     const { pattern, rest } = routePattern(key);
     const matcher = new URLPattern({ pathname: pattern });
@@ -144,7 +146,7 @@ export function startServer(options: { port: number; hostname: string; dev: bool
         if (name !== "0" && value !== undefined) params[name] = decodeURIComponent(value);
       }
       if (rest) params[rest.name] = pathname.split("/").slice(rest.index).filter(Boolean).map(decodeURIComponent);
-      return dispatch(mod, request, params, disableIdleTimeout);
+      return dispatch(mod, request, params, disableIdleTimeout, (data) => server.upgrade(request, { data }));
     });
   }
   // Server-rendered pages (keys are literal pathnames): a full document from
@@ -162,6 +164,7 @@ export function startServer(options: { port: number; hostname: string; dev: bool
     reusePort: false,
     idleTimeout: IDLE_TIMEOUT,
     routes,
+    websocket: hostLinkSocket,
     fetch: async (request, server) => {
       const response = await handle(request, server, async ({ gate }) => {
         const { pathname, search } = new URL(request.url);
@@ -184,8 +187,8 @@ export function startServer(options: { port: number; hostname: string; dev: bool
         return new Response(renderIndex(shell, request), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": INDEX_CACHE } });
       });
       // Bun's HMR client runs each update as a blob: script; without it every edit in dev is a full reload.
-      const csp = response.headers.get("content-security-policy");
-      if (dev && csp && response.headers.get("content-type")?.startsWith("text/html")) {
+      const csp = response?.headers.get("content-security-policy");
+      if (dev && csp && response?.headers.get("content-type")?.startsWith("text/html")) {
         response.headers.set("content-security-policy", csp.replace("script-src ", "script-src blob: "));
       }
       return response;
@@ -198,8 +201,8 @@ export function startServer(options: { port: number; hostname: string; dev: bool
  * Run by server/main.ts and by the compiled binary (server/binary.ts) once NODE_ENV is "production". A taken port
  * prints why and exits 1.
  */
-export async function startProduction(listen: { port: number; hostname: string }): Promise<Bun.Server<undefined>> {
-  let server: Bun.Server<undefined>;
+export async function startProduction(listen: { port: number; hostname: string }): Promise<Bun.Server<LinkSocketData>> {
+  let server: Bun.Server<LinkSocketData>;
   try {
     server = startServer({ ...listen, dev: false, root: process.env.OMP_WEB_PACKAGE_DIR ?? process.cwd() });
   } catch (error) {
