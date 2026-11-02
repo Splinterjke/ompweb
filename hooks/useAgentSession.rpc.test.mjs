@@ -728,6 +728,26 @@ test("web /goal with attachments sends the prompt with the images and sets the m
   assert.deepEqual(promptCall.body.images, [{ type: "image", data: "ZGF0YQ==", mimeType: "image/png" }], "the attachments must ride the expanded prompt");
 });
 
+test("upload ids ride the prompt and follow-up bodies; a files-only prompt is sent", async () => {
+  resetWorld();
+  primeSession("uploads", [userMsg("u0", "q")]);
+  const id = "0f0e0d0c-0b0a-4908-8706-050403020100";
+  const w = await mountSession("uploads");
+  let sending;
+  await act(async () => {
+    sending = w.latest.handleSend("", undefined, [id]);
+    await sleep(30);
+  });
+  await act(async () => {
+    lastEs().open();
+    await sending;
+  });
+  const prompt = callsTo("POST", "/api/agent/").find((call) => call.body?.type === "prompt");
+  assert.deepEqual(prompt?.body.uploads, [id]);
+  await act(async () => { await w.latest.handleFollowUp("and this", undefined, [id]); });
+  assert.deepEqual(callsTo("POST", "/api/agent/").find((call) => call.body?.type === "follow_up")?.body.uploads, [id]);
+});
+
 test("a prompt queued behind a running shell command drops the phantom turn and reports it", async () => {
   resetWorld();
   primeSession("bash-queue", [userMsg("u0", "q")]);
@@ -1728,7 +1748,7 @@ async function mountEditableSession(sid, options = {}) {
     React.useImperativeHandle(chatInputRef, () => ({
       insertIfEmpty(text) { setValue((current) => current.trim() ? current : text); },
     }), []);
-    React.useEffect(() => { setDraft(sid, { value, images: [] }); }, [value]);
+    React.useEffect(() => { setDraft(sid, { value, images: [], files: [] }); }, [value]);
     const hook = useAgentSession({ session, newSessionCwd: null, ...options, chatInputRef, onBranchDataChange });
     latest = hook;
     const historyBusy = hook.editingEntryId !== null || hook.forkingEntryId !== null;
@@ -1759,6 +1779,380 @@ async function mountEditableSession(sid, options = {}) {
   };
 }
 
+// A live but idle wrapper supplies the observer connection without inventing
+// an agent run just to deliver history notifications.
+async function mountObservedEditableSession(sid, options = {}) {
+  world.agents.set(sid, { running: true, state: { isStreaming: false, isPromptRunning: false } });
+  const w = await mountEditableSession(sid, options);
+  const stream = lastEs();
+  assert.ok(stream, "the mounted hook must attach an idle history observer");
+  assert.deepEqual(stream.channel, { kind: "session", sessionId: sid });
+  await act(async () => { stream.open(); });
+  await settle();
+  assert.equal(w.latest.agentRunning, false);
+  return { w, stream };
+}
+
+for (const order of ["identity/history before HTTP", "HTTP before history delivery"]) {
+  test(`native Edit relocation keeps the prefix, composer and resend (${order})`, async (t) => {
+    resetWorld();
+    const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+    const sid = `edit-move-${order.startsWith("identity") ? "early" : "late"}`;
+    const target = `${sid}-owned`;
+    for (const id of [sid, target]) clearDraft(id);
+    t.after(() => { clearDraft(sid); clearDraft(target); });
+    const images = [{ data: "AAAA", mimeType: "image/png" }];
+    const files = [{ name: "context.txt", mimeType: "text/plain", content: "keep attached context", size: 21 }];
+    setDraft(sid, { value: "", images, files });
+    const native = primeEditableHistory(sid);
+    native.moveTo = target;
+    const original = structuredClone(world.sessions.get(sid));
+    const originalEntries = native.entries;
+    const originalJsonl = native.jsonl;
+    const server = await attachEditableWrapper(t, native, { holdHistory: order.startsWith("HTTP") });
+    const w = await mountMovableChat(sid);
+    const composer = w.view.getByRole("textbox");
+    let releaseReply;
+    let replyReady = false;
+    if (order.startsWith("identity")) {
+      const replyGate = new Promise((resolve) => { releaseReply = resolve; });
+      t.after(releaseReply);
+      world.holds.push({
+        match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "edit_message",
+        produce: async () => {
+          const result = await server.wrapper.send({ type: "edit_message", entryId: "entry-u2" });
+          replyReady = true;
+          await replyGate;
+          return { value: { success: true, data: result } };
+        },
+      });
+    }
+    await confirmEdit(w.view, w.editButton());
+    await until(() => server.identityChanges.length === 1, "native identity machinery must confirm the copy-on-write move");
+    assert.deepEqual(server.identityChanges, [{ oldId: sid, newId: target, keepOldId: true }]);
+    assert.equal(world.wrappers.get(sid), world.wrappers.get(target), "the existing alias registry retains the originating observer");
+    if (releaseReply) {
+      await until(() => replyReady, "the wrapper history event must precede the held HTTP response");
+      assert.equal(w.selectedId, sid, "a native identity/history event alone cannot navigate the client");
+      assert.equal(w.activeLeaf, original.leafId);
+      assert.equal(composer.value, "");
+      await act(async () => { releaseReply(); });
+    }
+    await until(() => w.selectedId === target && w.activeLeaf === native.leafId, "confirmed Edit must reload and select the moved conversation");
+    await settle();
+    assert.equal(w.view.getByRole("textbox"), composer, "ownership relocation preserves the live composer instance");
+    assert.equal(w.view.getByRole("textbox").value, "U2-original");
+    assert.equal(new URL(window.location.href).searchParams.get("session"), target);
+    assert.deepEqual(getDraft(target), { value: "U2-original", images, files });
+    assert.equal(getDraft(sid), null, "the draft moves rather than remaining on the abandoned branch");
+    assert.deepEqual(world.sessions.get(sid), original, "the non-owned source file remains historical");
+    assert.equal(native.persistedFiles.get(original.filePath), originalJsonl, "copy-on-write must never append the Edit marker to the source file");
+    assert.deepEqual(native.entries.slice(0, originalEntries.length), originalEntries);
+    assert.deepEqual(world.sessions.get(target).messages, original.messages.slice(0, 2));
+    assert.equal(w.view.queryByText("U3-original"), null);
+
+    // A held server frame is delivered during the replacement response. It must
+    // not clear the optimistic prompt or reset streaming after the id changed.
+    await act(async () => {
+      fireEvent.change(w.view.getByRole("textbox"), { target: { value: "U2-modified" } });
+      fireEvent.keyDown(w.view.getByRole("textbox"), { key: "Enter", code: "Enter" });
+    });
+    await until(() => lastEs()?.channel.sessionId === target, "resend must attach the confirmed native identity");
+    await act(async () => { lastEs().open(); });
+    await until(() => native.prompts.length === 1, "replacement prompt must reach native history");
+    const partial = assistantMsg("moving-partial", "Moved response in progress");
+    await act(async () => { server.emitNative({ type: "agent_start" }); server.emitNative({ type: "message_update", message: partial }); });
+    await settle(90);
+    await act(async () => { server.releaseHistory(); });
+    await settle();
+    assert.ok(w.view.getByText("Moved response in progress"), "a delayed history echo must not reset the new response");
+    assert.equal(native.prompts[0].sessionId, target);
+    assert.deepEqual(native.prompts[0].messages.slice(0, 2), original.messages.slice(0, 2));
+    assert.match(native.prompts[0].messages.at(-1).content, /U2-modified/);
+    assert.match(native.prompts[0].messages.at(-1).content, /keep attached context/);
+    assert.equal(native.prompts[0].messages.some((message) => message.content === "U3-original"), false);
+    const promptCall = world.calls.findLast((call) => call.body?.type === "prompt");
+    assert.equal(promptCall.url, `/api/agent/${target}`);
+    assert.deepEqual(promptCall.body.images.map(({ data, mimeType }) => ({ data, mimeType })), images);
+    await act(async () => { server.completePrompt(); });
+    await until(() => w.activeLeaf === native.leafId && w.view.queryByText("A2-revised") !== null, "the moved replacement must persist and hydrate");
+    await act(async () => { await w.changeLeaf(original.leafId); });
+    assert.ok(w.view.getByText("U3-original"), "the abandoned continuation remains browsable in the copied history");
+    assert.deepEqual(world.sessions.get(sid), original);
+    await act(async () => { await w.changeLeaf(null); });
+    const revised = structuredClone(world.sessions.get(target));
+    w.unmount();
+    native.reopen();
+    const reopened = await mountMovableChat(new URL(window.location.href).searchParams.get("session"));
+    assert.equal(reopened.selectedId, target);
+    assert.equal(reopened.activeLeaf, revised.leafId);
+    assert.ok(reopened.view.getByText("A2-revised"), "reloading the selected URL keeps the revised conversation");
+    assert.equal(reopened.view.queryByText("U3-original"), null);
+  });
+}
+
+test("relocation merges existing target attachments and preserves typing added while reload awaits", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-move-new-typing", target = `${sid}-owned`;
+  t.after(() => { clearDraft(sid); clearDraft(target); });
+  const sourceImage = { data: "AAAA", mimeType: "image/png" };
+  const targetImage = { data: "BBBB", mimeType: "image/webp" };
+  const sourceFile = { name: "source.txt", mimeType: "text/plain", content: "source", size: 6 };
+  const targetFile = { name: "target.txt", mimeType: "text/plain", content: "target", size: 6 };
+  setDraft(sid, { value: "initial source draft", images: [sourceImage], files: [sourceFile] });
+  setDraft(target, { value: "existing target draft", images: [targetImage], files: [targetFile] });
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  let release;
+  t.after(() => release?.());
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.startsWith(`/api/sessions/${target}?`),
+    produce: () => new Promise((resolve) => { release = () => resolve({ value: {
+      sessionId: target, filePath: native.filePath, tree: world.sessions.get(target).tree,
+      leafId: native.leafId, context: world.sessions.get(target),
+    } }); }),
+  });
+  await confirmEdit(w.view, w.editButton());
+  await until(() => release, "confirmed target history must be awaiting its load");
+  await act(async () => {
+    fireEvent.change(w.view.getByRole("textbox"), { target: { value: "new source typing" } });
+    w.chatInputRef.current.addFiles([new File(["new file while waiting"], "new.txt", { type: "text/plain" })]);
+  });
+  await until(() => getDraft(sid)?.files.length === 2, "attachment reads completed during the reload must join the moved draft");
+  await act(async () => { release(); });
+  await until(() => w.selectedId === target, "the confirmed move must transition its composer");
+  // Bun appends ";charset=utf-8" to a text File's type, so the type is pinned by its prefix.
+  const mimeType = getDraft(target)?.files[1]?.mimeType ?? "";
+  assert.ok(mimeType.startsWith("text/plain"), mimeType);
+  assert.deepEqual(getDraft(target), {
+    value: "new source typing\n\nexisting target draft", images: [sourceImage, targetImage],
+    files: [sourceFile, { name: "new.txt", mimeType, content: "new file while waiting", size: 22 }, targetFile],
+  });
+  assert.equal(w.view.getByRole("textbox").value, "new source typing\n\nexisting target draft");
+  assert.equal(getDraft(sid), null);
+});
+
+test("relocation keeps the source and existing target finished uploads", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-move-uploads", target = `${sid}-owned`;
+  t.after(() => { clearDraft(sid); clearDraft(target); });
+  const sourceUpload = { id: "up-source", name: "source.bin", size: 10, hostId: "local" };
+  const targetUpload = { id: "up-target", name: "target.bin", size: 20, hostId: "local" };
+  setDraft(sid, { value: "", images: [], files: [], uploads: [sourceUpload] });
+  setDraft(target, { value: "Existing target text", images: [], files: [], uploads: [targetUpload] });
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.selectedId === target, "the confirmed target must become selected");
+  await settle();
+  // The composer re-persists the merged list in its own order.
+  assert.deepEqual(getDraft(target)?.uploads?.map((upload) => upload.id).sort(), [sourceUpload.id, targetUpload.id]);
+  assert.equal(getDraft(sid), null);
+});
+
+test("relocation merges an upload both drafts hold once", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft, subscribeDrafts } = await import("@/lib/draft-store");
+  const sid = "edit-move-shared-upload", target = `${sid}-owned`;
+  t.after(() => { clearDraft(sid); clearDraft(target); });
+  const shared = { id: "up-shared", name: "shared.bin", size: 10, hostId: "local" };
+  const targetOnly = { id: "up-target", name: "target.bin", size: 20, hostId: "local" };
+  setDraft(sid, { value: "", images: [], files: [], uploads: [shared] });
+  setDraft(target, { value: "Existing target text", images: [], files: [], uploads: [{ ...shared, name: "target-shared.bin" }, targetOnly] });
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  const persistedUploads = [];
+  t.after(subscribeDrafts(() => {
+    if (getDraft(sid) === null) persistedUploads.push(getDraft(target)?.uploads ?? []);
+  }));
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.selectedId === target, "the confirmed target must become selected");
+  await settle();
+  assert.deepEqual(getDraft(target)?.uploads?.map((upload) => upload.id).sort(), [shared.id, targetOnly.id]);
+  assert.equal(getDraft(target)?.uploads?.find((upload) => upload.id === shared.id)?.name, shared.name, "the source occurrence wins");
+  assert.ok(persistedUploads.length > 0);
+  for (const saved of persistedUploads) {
+    assert.equal(saved.filter((upload) => upload.id === shared.id).length, 1, "no persisted snapshot contains the shared id twice");
+  }
+  assert.equal(getDraft(sid), null);
+});
+
+test("relocation adopts existing target text without prefilling over it", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-move-target-text", target = `${sid}-owned`;
+  t.after(() => { clearDraft(sid); clearDraft(target); });
+  const sourceImage = { data: "AAAA", mimeType: "image/png" };
+  const targetFile = { name: "target.txt", mimeType: "text/plain", content: "Target context", size: 14 };
+  setDraft(sid, { value: "", images: [sourceImage], files: [] });
+  setDraft(target, { value: "Existing target text", images: [], files: [targetFile] });
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  const composer = w.view.getByRole("textbox");
+  assert.equal(composer.value, "");
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.selectedId === target, "the confirmed target must become selected");
+  await settle();
+  assert.equal(w.view.getByRole("textbox"), composer, "the existing composer adopts its new draft identity");
+  assert.equal(composer.value, "Existing target text", "Edit prefill must not replace existing target content");
+  assert.deepEqual(getDraft(target), { value: "Existing target text", images: [sourceImage], files: [targetFile] });
+  assert.equal(getDraft(sid), null);
+});
+
+test("relocation at draft capacity preserves every unrelated draft and its attachments", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-move-full-drafts", target = `${sid}-owned`;
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  const unrelated = Array.from({ length: 49 }, (_, index) => {
+    const id = `${sid}-unrelated-${index}`;
+    return [id, {
+      value: `Unsent conversation ${index}`,
+      images: [{ data: png, mimeType: "image/png" }],
+      files: [{ name: `context-${index}.txt`, mimeType: "text/plain", content: `Context ${index}`, size: 10 }],
+    }];
+  });
+  clearDraft(target);
+  t.after(() => { for (const id of [sid, target, ...unrelated.map(([id]) => id)]) clearDraft(id); });
+  // Fill all 50 slots with the source newer than every unrelated draft.
+  // This also removes any in-memory drafts left by earlier tests.
+  for (const [id, draft] of unrelated) setDraft(id, draft);
+  const source = {
+    value: "",
+    images: [{ data: png, mimeType: "image/png" }],
+    files: [{ name: "source.txt", mimeType: "text/plain", content: "Source context", size: 14 }],
+  };
+  setDraft(sid, source);
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  const composer = w.view.getByRole("textbox");
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.selectedId === target, "Edit must move the selected conversation at full draft capacity");
+  await settle();
+  assert.equal(w.view.getByRole("textbox"), composer);
+  assert.equal(composer.value, "U2-original");
+  assert.deepEqual(getDraft(target), { ...source, value: "U2-original" });
+  assert.equal(getDraft(sid), null);
+  for (const [id, draft] of unrelated) {
+    assert.deepEqual(getDraft(id), draft, `relocation must preserve ${id}, including its attachments`);
+  }
+  const [oldestId, oldestDraft] = unrelated[0];
+  primeEditableHistory(oldestId);
+  await act(async () => { w.navigate(oldestId); });
+  await settle();
+  assert.equal(w.view.getByRole("textbox").value, oldestDraft.value, "the oldest unrelated conversation still restores its unsent text");
+  assert.deepEqual(getDraft(oldestId), oldestDraft, "restoring the oldest composer keeps both attachment payloads");
+});
+
+for (const phase of ["HTTP response", "target reload"]) {
+test(`navigation during a moved Edit's ${phase} is not hijacked or prefilled`, async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = `edit-move-leave-${phase.startsWith("HTTP") ? "http" : "reload"}`, target = `${sid}-owned`, other = `${sid}-other`;
+  t.after(() => { for (const id of [sid, target, other]) clearDraft(id); });
+  setDraft(sid, { value: "origin draft", images: [], files: [] });
+  setDraft(other, { value: "other user's navigation draft", images: [], files: [] });
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  primeEditableHistory(other);
+  const server = await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  let release;
+  t.after(() => release?.());
+  if (phase === "HTTP response") {
+    world.holds.push({
+      match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "edit_message",
+      produce: async () => {
+        const result = await server.wrapper.send({ type: "edit_message", entryId: "entry-u2" });
+        await new Promise((resolve) => { release = resolve; });
+        return { value: { success: true, data: result } };
+      },
+    });
+  } else {
+    world.holds.push({
+      match: (method, url) => method === "GET" && url.startsWith(`/api/sessions/${target}?`),
+      produce: () => new Promise((resolve) => { release = () => resolve({ value: {
+        sessionId: target, leafId: native.leafId, tree: [], context: world.sessions.get(target),
+      } }); }),
+    });
+  }
+  await confirmEdit(w.view, w.editButton());
+  await until(() => release, "the old instance must await the moved Edit");
+  await act(async () => { w.navigate(other); });
+  await settle();
+  const selectedComposer = w.view.getByRole("textbox");
+  await act(async () => { release(); });
+  await settle();
+  assert.equal(w.selectedId, other);
+  assert.equal(new URL(window.location.href).searchParams.get("session"), other);
+  assert.equal(selectedComposer.value, "other user's navigation draft");
+  assert.equal(getDraft(other)?.value, "other user's navigation draft");
+  assert.equal(getDraft(sid)?.value, "origin draft");
+  assert.equal(getDraft(target), null);
+});
+}
+
+test("a moved conversation whose reload fails preserves attachments without prefilling and reports failure", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-move-load-failed", target = `${sid}-owned`;
+  t.after(() => { clearDraft(sid); clearDraft(target); });
+  const draft = { value: "", images: [{ data: "AAAA", mimeType: "image/png" }],
+    files: [{ name: "keep.txt", mimeType: "text/plain", content: "retained file", size: 13 }] };
+  setDraft(sid, draft);
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.startsWith(`/api/sessions/${target}?`),
+    produce: async () => ({ status: 503, value: {} }),
+  });
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.selectedId === target, "authoritative identity must survive a failed read of the moved history");
+  await settle();
+  assert.equal(new URL(window.location.href).searchParams.get("session"), target);
+  assert.equal(w.view.getByRole("textbox").value, "", "an unconfirmed history load must not prefill the original prompt");
+  assert.deepEqual(getDraft(target), draft);
+  assert.ok(w.view.getByText(translate("agentSession.commandFailed")));
+});
+
+test("observed edit-time persistence errors preserve the real composer and complete draft", async (t) => {
+  resetWorld();
+  const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
+  const sid = "edit-native-disk-error";
+  t.after(() => clearDraft(sid));
+  const draft = { value: "keep unsent text", images: [{ data: "AAAA", mimeType: "image/png" }],
+    files: [{ name: "keep.txt", mimeType: "text/plain", content: "retained file", size: 13 }] };
+  setDraft(sid, draft);
+  const native = primeEditableHistory(sid);
+  native.editOutcome = "persistence-error";
+  const original = structuredClone(world.sessions.get(sid));
+  await attachEditableWrapper(t, native);
+  const w = await mountMovableChat(sid);
+  const composer = w.view.getByRole("textbox");
+  await confirmEdit(w.view, w.editButton());
+  await until(() => w.view.queryAllByText(/Could not append session file: disk full/).length > 0, "native persistence failure must be displayed");
+  await settle();
+  assert.equal(w.selectedId, sid);
+  assert.equal(w.view.getByRole("textbox"), composer);
+  assert.equal(composer.value, draft.value);
+  assert.deepEqual(getDraft(sid), draft);
+  assert.deepEqual(world.sessions.get(sid), original);
+  assert.equal(w.editButton().disabled, false, "failure releases the mutation gate without discarding draft state");
+});
 
 test("Edit rewinds and resends in the same persisted session while retaining the old branch", async (t) => {
   resetWorld();
@@ -1853,7 +2247,7 @@ test("cancelled and failed Edits preserve history selection and draft, then rele
     await t.test(outcome, async (t) => {
       resetWorld();
       const sid = `edit-${outcome}`;
-      setDraft(sid, { value: "keep my draft", images: [] });
+      setDraft(sid, { value: "keep my draft", images: [], files: [] });
       t.after(() => clearDraft(sid));
       const native = primeEditableHistory(sid);
       native.editOutcome = outcome;
@@ -1891,101 +2285,6 @@ test("cancelled and failed Edits preserve history selection and draft, then rele
   }
 });
 
-for (const order of ["identity/history before HTTP", "HTTP before history delivery"]) {
-  test(`native Edit relocation keeps the prefix, composer and resend (${order})`, async (t) => {
-    resetWorld();
-    const { getDraft, setDraft, clearDraft } = await import("@/lib/draft-store");
-    const sid = `edit-move-${order.startsWith("identity") ? "early" : "late"}`;
-    const target = `${sid}-owned`;
-    for (const id of [sid, target]) clearDraft(id);
-    t.after(() => { clearDraft(sid); clearDraft(target); });
-    const images = [{ data: "AAAA", mimeType: "image/png" }];
-    setDraft(sid, { value: "", images });
-    const native = primeEditableHistory(sid);
-    native.moveTo = target;
-    const original = structuredClone(world.sessions.get(sid));
-    const originalEntries = native.entries;
-    const originalJsonl = native.jsonl;
-    const server = await attachEditableWrapper(t, native, { holdHistory: order.startsWith("HTTP") });
-    const w = await mountMovableChat(sid);
-    const composer = w.view.getByRole("textbox");
-    let releaseReply;
-    let replyReady = false;
-    if (order.startsWith("identity")) {
-      const replyGate = new Promise((resolve) => { releaseReply = resolve; });
-      t.after(releaseReply);
-      world.holds.push({
-        match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "edit_message",
-        produce: async () => {
-          const result = await server.wrapper.send({ type: "edit_message", entryId: "entry-u2" });
-          replyReady = true;
-          await replyGate;
-          return { value: { success: true, data: result } };
-        },
-      });
-    }
-    await confirmEdit(w.view, w.editButton());
-    await until(() => server.identityChanges.length === 1, "native identity machinery must confirm the copy-on-write move");
-    assert.deepEqual(server.identityChanges, [{ oldId: sid, newId: target, keepOldId: true }]);
-    assert.equal(world.wrappers.get(sid), world.wrappers.get(target), "the existing alias registry retains the originating observer");
-    if (releaseReply) {
-      await until(() => replyReady, "the wrapper history event must precede the held HTTP response");
-      assert.equal(w.selectedId, sid, "a native identity/history event alone cannot navigate the client");
-      assert.equal(w.activeLeaf, original.leafId);
-      assert.equal(composer.value, "");
-      await act(async () => { releaseReply(); });
-    }
-    await until(() => w.selectedId === target && w.activeLeaf === native.leafId, "confirmed Edit must reload and select the moved conversation");
-    await settle();
-    assert.equal(w.view.getByRole("textbox"), composer, "ownership relocation preserves the live composer instance");
-    assert.equal(w.view.getByRole("textbox").value, "U2-original");
-    assert.equal(new URL(window.location.href).searchParams.get("session"), target);
-    assert.deepEqual(getDraft(target), { value: "U2-original", images });
-    assert.equal(getDraft(sid), null, "the draft moves rather than remaining on the abandoned branch");
-    assert.deepEqual(world.sessions.get(sid), original, "the non-owned source file remains historical");
-    assert.equal(native.persistedFiles.get(original.filePath), originalJsonl, "copy-on-write must never append the Edit marker to the source file");
-    assert.deepEqual(native.entries.slice(0, originalEntries.length), originalEntries);
-    assert.deepEqual(world.sessions.get(target).messages, original.messages.slice(0, 2));
-    assert.equal(w.view.queryByText("U3-original"), null);
-
-    // A held server frame is delivered during the replacement response. It must
-    // not clear the optimistic prompt or reset streaming after the id changed.
-    await act(async () => {
-      fireEvent.change(w.view.getByRole("textbox"), { target: { value: "U2-modified" } });
-      fireEvent.keyDown(w.view.getByRole("textbox"), { key: "Enter", code: "Enter" });
-    });
-    await until(() => lastEs()?.channel.sessionId === target, "resend must attach the confirmed native identity");
-    await act(async () => { lastEs().open(); });
-    await until(() => native.prompts.length === 1, "replacement prompt must reach native history");
-    const partial = assistantMsg("moving-partial", "Moved response in progress");
-    await act(async () => { server.emitNative({ type: "agent_start" }); server.emitNative({ type: "message_update", message: partial }); });
-    await settle(90);
-    await act(async () => { server.releaseHistory(); });
-    await settle();
-    assert.ok(w.view.getByText("Moved response in progress"), "a delayed history echo must not reset the new response");
-    assert.equal(native.prompts[0].sessionId, target);
-    assert.deepEqual(native.prompts[0].messages.slice(0, 2), original.messages.slice(0, 2));
-    assert.match(native.prompts[0].messages.at(-1).content, /U2-modified/);
-    assert.equal(native.prompts[0].messages.some((message) => message.content === "U3-original"), false);
-    const promptCall = world.calls.findLast((call) => call.body?.type === "prompt");
-    assert.equal(promptCall.url, `/api/agent/${target}`);
-    assert.deepEqual(promptCall.body.images.map(({ data, mimeType }) => ({ data, mimeType })), images);
-    await act(async () => { server.completePrompt(); });
-    await until(() => w.activeLeaf === native.leafId && w.view.queryByText("A2-revised") !== null, "the moved replacement must persist and hydrate");
-    await act(async () => { await w.changeLeaf(original.leafId); });
-    assert.ok(w.view.getByText("U3-original"), "the abandoned continuation remains browsable in the copied history");
-    assert.deepEqual(world.sessions.get(sid), original);
-    await act(async () => { await w.changeLeaf(null); });
-    const revised = structuredClone(world.sessions.get(target));
-    w.unmount();
-    native.reopen();
-    const reopened = await mountMovableChat(new URL(window.location.href).searchParams.get("session"));
-    assert.equal(reopened.selectedId, target);
-    assert.equal(reopened.activeLeaf, revised.leafId);
-    assert.ok(reopened.view.getByText("A2-revised"), "reloading the selected URL keeps the revised conversation");
-    assert.equal(reopened.view.queryByText("U3-original"), null);
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Remote hosts — port of upstream 8257ed02 (#339): a session can run on another

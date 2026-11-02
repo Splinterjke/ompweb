@@ -108,6 +108,8 @@ import * as terminalResize from "@/app/api/terminal/resize/route";
 import * as terminalSession from "@/app/api/terminal/session/route";
 import * as terminalStream from "@/app/api/terminal/stream/route";
 import * as transportMetrics from "@/app/api/transport-metrics/route";
+import * as uploadsId from "@/app/api/uploads/[id]/route";
+import * as uploads from "@/app/api/uploads/route";
 import * as uiLocale from "@/app/api/ui/locale/route";
 import * as uiRefresh from "@/app/api/ui/refresh/route";
 import * as usageReset from "@/app/api/usage-reset/route";
@@ -245,6 +247,8 @@ export const ROUTE_MODULES: Record<string, RouteModule> = {
   "terminal/session": terminalSession,
   "terminal/stream": terminalStream,
   "transport-metrics": transportMetrics,
+  "uploads/[id]": uploadsId,
+  "uploads": uploads,
   "ui/locale": uiLocale,
   "ui/refresh": uiRefresh,
   "usage-reset": usageReset,

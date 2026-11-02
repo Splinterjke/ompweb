@@ -1,9 +1,10 @@
 import { apiErrorResponse, hostOfflineResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
-import { startRpcSession, getRpcSession, WebRpcError } from "@/lib/rpc-manager";
+import { startRpcSession, getRpcSession, getRpcSessionKeys, WebRpcError, type AgentSessionWrapper } from "@/lib/rpc-manager";
 import { sessionSpawnTarget } from "@/lib/hosts/session-index";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { modelSwitchRepairBinding, parseSessionStartupBinding } from "@/lib/session-model-check";
+import { attachUploads, forgetUploads, takeUploads } from "@/lib/uploads";
 
 // Commands that ride whatever child is alive and never spawn or replace one:
 // keystroke predictions, and the side-question reads/cancel omp-web sends in
@@ -52,9 +53,21 @@ export function commandErrorResponse(error: unknown): Response {
   return apiErrorResponse(error);
 }
 
+declare global {
+  var __ompSendFences: Map<string, Promise<void>> | undefined;
+}
+
+// globalThis, like the rpc-manager registry: survives a `bun --hot` re-evaluation.
+function sendFences(): Map<string, Promise<void>> {
+  return (globalThis.__ompSendFences ??= new Map());
+}
+
 /** Everything POST /api/agent/[id] does once the body is parsed; shared with
- * the browser socket. Never throws: failures become `commandErrorResponse`. */
-export async function runAgentCommand(id: string, body: unknown, advisor: boolean): Promise<Response> {
+ * the browser socket. `owner`: the caller's web session (lib/web-auth.ts
+ * `requestOwner`), whose uploads a prompt may attach. Never throws: failures
+ * become `commandErrorResponse`. */
+export async function runAgentCommand(id: string, body: unknown, advisor: boolean, owner: string): Promise<Response> {
+  let release = () => {}; // frees this command's send fence; idempotent
   try {
     const command = body as { type?: unknown; [key: string]: unknown } | null;
     if (typeof command?.type !== "string" || !command.type.trim()) {
@@ -67,6 +80,37 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
     // the command is forwarded.
     const startup = parseSessionStartupBinding(command.startup) ?? modelSwitchRepairBinding(command);
     delete command.startup;
+    // Attached files go to the session's host first; nothing reaches omp when one fails (spec U3).
+    const uploads = takeUploads(command, owner);
+    // Hold later wrapper selection as well as dispatch behind attachment preparation, so an
+    // advisor toggle cannot replace the child and a Stop cannot overtake the preparing prompt.
+    // A moved session answers to several ids: a command through any of them waits.
+    const held = getRpcSessionKeys(id).flatMap((key) => sendFences().get(key) ?? []);
+    const prior = held.length ? Promise.all(held).then(() => {}) : undefined;
+    if (uploads) {
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const fence = prior ? prior.then(() => gate) : gate;
+      sendFences().set(id, fence);
+      void fence.then(() => {
+        if (sendFences().get(id) === fence) sendFences().delete(id);
+      });
+    }
+    if (prior) await prior;
+    const send = async (session: AgentSessionWrapper) => {
+      if (!uploads) return session.send(command);
+      return session.withPendingCommand(async () => {
+        let sending: Promise<unknown>;
+        try {
+          await attachUploads(uploads, owner, session, command);
+          sending = session.send(command);
+        } finally {
+          release();
+        }
+        const result = await sending;
+        if (uploads) forgetUploads(uploads);
+        return result;
+      });
+    };
 
     // Fast path: already-running session. --advisor is a spawn-time flag with
     // no runtime RPC, so a toggle that now differs from the live child's spawn
@@ -78,7 +122,7 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
     const liveOnly = LIVE_SESSION_ONLY.has(type);
     if (existing?.isAlive()) {
       if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning() || existing.isEditingHistory()) {
-        const result = await existing.send(command);
+        const result = await send(existing);
         return Response.json({ success: true, data: result });
       }
       // Disposing a child behind a down link would wait for the link to return.
@@ -132,10 +176,12 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
         throw error;
       }
     }
-    const result = await session.send(command);
+    const result = await send(session);
 
     return Response.json({ success: true, data: result });
   } catch (error) {
     return commandErrorResponse(error);
+  } finally {
+    release();
   }
 }

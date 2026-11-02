@@ -660,8 +660,8 @@ export class AgentSessionWrapper {
    *    vanish silently and the tab would only notice via a later 409;
    *  - isRunning() covers an in-flight turn that no listener is watching;
    *  - handshaking covers a spawn that has not finished its startup handshake;
-   *  - pendingCommands covers a route command (predict_word, mcp list, export)
-   *    whose response the child still owes us;
+   *  - pendingCommands covers command preparation and dispatch, including a
+   *    response the child still owes us;
    *  - the deadline check absorbs activity that landed while this fired.
    * Anything else keeps the session and re-arms for the remaining window.
    */
@@ -2849,6 +2849,17 @@ export class AgentSessionWrapper {
     notifyRunningChange();
   }
 
+  /** Protect submitted command work, including route preparation, from both idle reapers. */
+  async withPendingCommand<T>(callback: () => Promise<T>): Promise<T> {
+    this.resetIdleTimer();
+    this.pendingCommands += 1;
+    try {
+      return await callback();
+    } finally {
+      this.pendingCommands -= 1;
+    }
+  }
+
   async send(command: Record<string, unknown>): Promise<unknown> {
     if (this.restarting) throw new WebRpcError(RESTARTING_MESSAGE, "session_restarting");
     if (this.mcpListWaiter) throw new WebRpcError("MCP management is in progress. Try again when it finishes.", "session_busy");
@@ -2862,15 +2873,9 @@ export class AgentSessionWrapper {
     if (typeof command.type === "string" && command.type.startsWith("abort")) {
       console.info("[omp-web] cancellation-command", JSON.stringify({ sessionId: this._sessionId, type: command.type, at: new Date().toISOString() }));
     }
-    this.resetIdleTimer();
-    // Covers the whole command, including the awaits inside it: a route that
-    // has an unwatched session in mid-command (predict_word on a keystroke, an
-    // export, a follow-up) must never have its child reaped underneath it.
-    this.pendingCommands += 1;
     try {
-      return await this.dispatchCommand(command);
+      return await this.withPendingCommand(() => this.dispatchCommand(command));
     } finally {
-      this.pendingCommands = Math.max(0, this.pendingCommands - 1);
       if (mutatesHistory) this.historyMutationPendingCount -= 1;
     }
   }
@@ -3503,6 +3508,13 @@ export interface RunningRpcSession {
 
 /** Running sessions with their spawn metadata: ids deduplicated (moved
  *  sessions report their current id; registry aliases never duplicate). */
+/** Every registry key of the wrapper under `sessionId` (its id and the aliases omp's moves left), else `[sessionId]`. */
+export function getRpcSessionKeys(sessionId: string): string[] {
+  const wrapper = getRegistry().get(sessionId);
+  if (!wrapper) return [sessionId];
+  return [...getRegistry()].flatMap(([key, live]) => (live === wrapper ? [key] : []));
+}
+
 export function getRunningRpcSessions(): RunningRpcSession[] {
   const map = new Map<string, RunningRpcSession>();
   for (const [sessionId, session] of getRegistry()) {

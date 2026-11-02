@@ -1554,7 +1554,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (isInitialHydration) initialHydrationPendingRef.current = false;
       }
     } catch (e) {
-      setError(String(e));
+      // loadSession runs fire-and-forget as a background reconciler (file
+      // watcher, agent_end, bash, compaction) with showLoading=false. A
+      // transient failure there must not replace the chat with an error
+      // screen — only surface it when the user is actively waiting.
+      if (showLoading) setError(String(e));
+      else console.warn("Background loadSession failed:", e);
       if (showLoading && includeState) initialHydrationPendingRef.current = false;
       return null;
     } finally {
@@ -3201,9 +3206,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   handleAgentEventRef.current = handleAgentEvent;
 
 
-  const handleSend = useCallback(async (message: string, images?: AttachedImage[]): Promise<PromptSubmissionResult> => {
+  const handleSend = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]): Promise<PromptSubmissionResult> => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage && !images?.length) return { status: "rejected" };
+    if (!trimmedMessage && !images?.length && !uploads?.length) return { status: "rejected" };
     if (agentRunningRef.current || bashRunningRef.current || editInFlightRef.current) {
       if (externalRunningRef.current) {
         addNotice({ type: "info", message: translate("agentSession.externallyRunning") });
@@ -3211,7 +3216,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       return { status: "rejected" };
     }
     if (initialHydrationPendingRef.current) return { status: "rejected" };
-    const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
+    const isSlashCommandPrompt = !images?.length && !uploads?.length && trimmedMessage.startsWith("/");
     // omp runs TUI-only commands such as `/guided-goal` nowhere but its own
     // terminal, so over RPC the text is sent as an ordinary prompt and the turn
     // looks like it obeyed. Say so once per name instead of staying silent
@@ -3225,7 +3230,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
     }
 
-    const isBashCommand = !images?.length && trimmedMessage.startsWith("!");
+    const isBashCommand = !images?.length && !uploads?.length && trimmedMessage.startsWith("!");
     if (isBashCommand) {
       const isExcluded = trimmedMessage.startsWith("!!");
       const bashCmd = (isExcluded ? trimmedMessage.slice(2) : trimmedMessage.slice(1)).trim();
@@ -3319,6 +3324,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             type: "prompt",
             message,
             ...(piImages?.length ? { images: piImages } : {}),
+            ...(uploads?.length ? { uploads } : {}),
           }));
         }
       } else if (session) {
@@ -3344,6 +3350,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           type: "prompt",
           message,
           ...(piImages?.length ? { images: piImages } : {}),
+          ...(uploads?.length ? { uploads } : {}),
         }));
       }
       if (queuedBehindShell) { finishQueuedBehindShell(); return { status: "accepted" }; }
@@ -3736,7 +3743,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // Snapshot after the reload: typing and attachments added while it
         // awaited still belong to this edit's composer. Its identity changes
         // without remounting; only a confirmed history load may seed edit text.
-        const draft = getDraft(sid) ?? { value: "", images: [] };
+        const draft = getDraft(sid) ?? { value: "", images: [], files: [] };
         const destination = getDraft(edit.sessionId);
         const value = destination ? mergeRecoveredText(destination.value, { text: draft.value }) : draft.value;
         // Free the source slot before inserting an absent target: moving a
@@ -3745,6 +3752,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         setDraft(edit.sessionId, {
           value: loaded && !value.trim() ? content : value,
           images: destination ? [...draft.images, ...destination.images] : draft.images,
+          files: destination ? [...draft.files, ...destination.files] : draft.files,
+          // The same upload may sit in both drafts (an id is one file): keep its first occurrence.
+          uploads: destination
+            ? [...(draft.uploads ?? []), ...(destination.uploads ?? [])].filter((upload, at, all) => all.findIndex((other) => other.id === upload.id) === at)
+            : draft.uploads,
         });
         onSessionMoved?.(sid, edit.sessionId, draft);
       }
@@ -3788,7 +3800,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
       const { cancelled, newSessionId, text } = result ?? {};
       if (!cancelled && newSessionId) {
-        if (editPrompt && text) setDraft(newSessionId, { value: text, images: [] });
+        if (editPrompt && text) setDraft(newSessionId, { value: text, images: [], files: [] });
         onSessionForked?.(newSessionId);
       }
     } catch (e) {
@@ -4321,7 +4333,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
     return false;
   }, [addNotice]);
-  const handleSteer = useCallback(async (message: string, images?: AttachedImage[]) => {
+  const handleSteer = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
     if (!sid || editInFlightRef.current) return false;
@@ -4331,6 +4343,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         type: "steer",
         message,
         ...(piImages?.length ? { images: piImages } : {}),
+        ...(uploads?.length ? { uploads } : {}),
       });
       // A web shell command (`!`) owned the session: the agent route put the
       // text into omp's follow-up queue instead of steering a (nonexistent)
@@ -4347,6 +4360,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     message: string,
     behavior: "steer" | "followUp",
     images?: AttachedImage[],
+    uploads?: string[],
   ) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
@@ -4358,6 +4372,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         message,
         streamingBehavior: behavior,
         ...(piImages?.length ? { images: piImages } : {}),
+        ...(uploads?.length ? { uploads } : {}),
       });
       // Same degradation as `handleSteer`: queued behind the running shell
       // command rather than delivered into this run.
@@ -4369,7 +4384,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [addNotice, rejectIfExternallyRunning, reportQueueFailure]);
 
-  const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[]) => {
+  const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
     if (!sid || editInFlightRef.current) return false;
@@ -4379,6 +4394,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         type: "follow_up",
         message,
         ...(piImages?.length ? { images: piImages } : {}),
+        ...(uploads?.length ? { uploads } : {}),
       });
       return true;
     } catch (e) {

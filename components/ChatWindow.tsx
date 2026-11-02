@@ -1538,6 +1538,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       onBuiltinCommand={handleBuiltinSlashCommand}
       onAudioUnlock={unlockAudio}
       draftKey={draftKey}
+      uploadHostId={session ? session.hostId : newSessionHostId}
       // @-mentions and skill lookups read this machine's disk: not for a remote workspace yet.
       cwd={remoteWorkspace ? null : session?.cwd ?? newSessionCwd}
       narrowColumn={isEmptyNew}

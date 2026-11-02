@@ -6,6 +6,7 @@ import { parseJsonWithinLimit } from "@/lib/bounded-form-data";
 import { MAX_AGENT_COMMAND_REQUEST_BYTES } from "@/lib/image-attachments";
 import { getSessionAdvisorEnabled, setSessionAdvisorEnabled } from "@/lib/session-preferences";
 import { isExternallyActive, heldSessionsWithPendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
+import { requestOwner } from "@/lib/web-auth";
 
 /** Stamp when the handler had the request and when it answered, so the browser
  * can split network time from server time. */
@@ -28,16 +29,11 @@ export async function POST(
   try {
     const body = await parseJsonWithinLimit<unknown>(req, MAX_AGENT_COMMAND_REQUEST_BYTES);
     receivedAt = Date.now();
-    // The explicit query updates the durable per-session advisor choice;
-    // requests without it reuse the choice set by ompweb or external surfaces.
-    // It rides the query string (never the RPC body, which is forwarded to omp
-    // verbatim) and only matters when this request spawns or replaces the
-    // session's omp process.
     const advisorParam = new URL(req.url).searchParams.get("advisor");
     if (advisorParam === "1" || advisorParam === "0")
       setSessionAdvisorEnabled(id, advisorParam === "1");
     const advisor = getSessionAdvisorEnabled(id);
-    return timed(receivedAt, await runAgentCommand(id, body, advisor));
+    return timed(receivedAt, await runAgentCommand(id, body, advisor, requestOwner(req)));
   } catch (error) {
     return timed(receivedAt ?? Date.now(), commandErrorResponse(error));
   }
