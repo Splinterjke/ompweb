@@ -14,9 +14,9 @@
 # So the work is split by DUTY:
 #
 #   LAUNCHER (foreground, run under the scheduler engine; stdout is captured):
-#     preflight → lock → BUILD → HOST → DEPLOY → compute BUILD_ID →
-#     spawn the detached reaper → exit 0.
-#     Because build/host/deploy run in the foreground, their output streams to
+#     preflight → lock → BUILD → DEPLOY → compute the fresh client-asset
+#     marker → spawn the detached reaper → exit 0.
+#     Because build/deploy run in the foreground, their output streams to
 #     stdout and the scheduler CAPTURES it in the run record — the user sees the
 #     FULL build/deploy log there (and a copy in $LOG). A build or deploy failure
 #     exits 1 → the run records "error" WITH the full log, and the running
@@ -26,8 +26,8 @@
 #   stop stage's tree kill of the instance):
 #     sleep 2 (let the engine persist the run) → STOP the instance's process
 #     tree → wait for the supervisor to relaunch → VERIFY it serves the fresh
-#     BUILD_ID → POST /api/ui/refresh. It has no stdout to the engine (detached,
-#     engine already gone), so its restart log goes to $REAPER_LOG.
+#     client-asset marker → POST /api/ui/refresh. It has no stdout to the engine
+#     (detached, engine already gone), so its restart log goes to $REAPER_LOG.
 #
 # The entrypoint's `while true` loop relaunches `ompweb` ~3s after the stop.
 # Because DEPLOY already wrote the fresh build to $DST, that relaunch serves the
@@ -74,16 +74,16 @@ if [ "${1:-}" = "--reaper" ]; then
   DST="${3:?--reaper needs <dst>}"
   PORT="${4:?--reaper needs <port>}"
   WAIT_S="${5:?--reaper needs <wait_s>}"
-  NEW_BUILD_ID="${6:-}"
+  NEW_ASSET="${6:-}"
   rlog() { echo "[$(date -Is)] $*" >>"$REAPER_LOG"; }
 
-  # The reaper inherits the scheduler child's env, which includes NODE_OPTIONS
-  # carrying --require=./bin/request-peer-preload.js (the dev server's own).
-  # Any node command the reaper spawns would load that preload; nothing in the
-  # restart pipeline needs it, so clear it.
+  # The reaper inherits the scheduler child's env, which may carry a
+  # NODE_OPTIONS with a --require preload (a dev launcher's own). Nothing in
+  # the restart pipeline needs it, and a stale preload path would crash every
+  # node command the reaper spawns, so clear it.
   export NODE_OPTIONS=""
 
-  rlog "reaper: start (port $PORT, wait ${WAIT_S}s, build ${NEW_BUILD_ID:-?})"
+  rlog "reaper: start (port $PORT, wait ${WAIT_S}s, asset ${NEW_ASSET:-?})"
   # Give the scheduler parent (the main instance, about to be killed) a moment to
   # finalizeRun -> persistRun("ok") to disk. The launcher already exited; margin.
   sleep 2
@@ -92,31 +92,31 @@ if [ "${1:-}" = "--reaper" ]; then
   # --- helper: belt-and-suspenders port sweep ---
   release_port() {
     # SIGTERM then SIGKILL whatever is bound to the port. pkill/fuser may be
-    # missing; every step is best-effort — the BUILD_ID verify decides success.
+    # missing; every step is best-effort — the asset-marker verify decides success.
     local pids=""
     if command -v fuser >/dev/null 2>&1; then
       pids="$(fuser -n tcp "$PORT" 2>/dev/null | tr -s ' ' '\n' | sed 's/^//;s/ .*//;s/^[0-9]*//g' || true)"
     fi
     if command -v pkill >/dev/null 2>&1; then
       pkill -TERM -f "ompweb.*--port $PORT" 2>/dev/null || true
-      pkill -TERM -f "next start -p $PORT" 2>/dev/null || true
+      pkill -TERM -f "server/main.ts -p $PORT" 2>/dev/null || true
     fi
     [ -n "$pids" ] && kill -TERM $pids 2>/dev/null || true
     sleep 1
     if command -v pkill >/dev/null 2>&1; then
       pkill -KILL -f "ompweb.*--port $PORT" 2>/dev/null || true
-      pkill -KILL -f "next start -p $PORT" 2>/dev/null || true
+      pkill -KILL -f "server/main.ts -p $PORT" 2>/dev/null || true
     fi
     [ -n "$pids" ] && kill -KILL $pids 2>/dev/null || true
     return 0
   }
 
   # --- Stop the current instance (the entrypoint loop relaunches it) ---
-  # Killing the ompweb wrapper's process tree (wrapper -> next start -> host)
+  # Killing the ompweb wrapper's process tree (wrapper -> bun server/main.ts)
   # makes the entrypoint's `while true` loop detect the death and relaunch
   # `ompweb` in ~3s. Because the launcher already deployed the fresh build to
   # $DST, that relaunch serves the NEW code. release_port is a belt-and-
-  # suspenders sweep for a `next start` the tree walk might miss. We do NOT gate
+  # suspenders sweep for a bun server the tree walk might miss. We do NOT gate
   # on the port being free: the supervisor re-occupies it within seconds and a
   # port-free wait would race that restart.
   rlog "stop: tearing down the current instance on port $PORT (supervisor will relaunch)"
@@ -184,22 +184,27 @@ try:
 except Exception as ex:
     print(f"WARNING: tree walk/kill failed ({type(ex).__name__}: {ex})", flush=True)
 PY
-  # belt-and-suspenders: sweep the port in case a `next start` the tree walk
+  # belt-and-suspenders: sweep the port in case a bun server the tree walk
   # missed is still holding it (orphaned from the wrapper).
   release_port
   rlog "stop: tree torn down; the supervisor loop will relaunch ompweb with the new build"
 
   # --- Reap leaked host daemons and their session holders ---
-  # A killed next-server leaves its ompweb-host daemon orphaned (reparented
-  # to init), and the daemon keeps its `omp --mode rpc-ui` children alive for
-  # the whole session lifetime. Those children hold their session files OPEN;
-  # under omp >= 18.5 file ownership any later `--resume` of a held file
-  # forks it into a sibling file on the first write — the per-prompt fork
-  # storm after a restart. The tree kill above cannot reach them: orphaned
-  # daemons left the wrapper's process tree the moment their parent died.
-  # Scope is exact: only daemons ALREADY reparented to init (every live
-  # instance's daemon is a child of its own node process, so dev instances
-  # and terminal omp runs are never touched).
+  # The JS host daemon (`ompweb host`) keeps its `omp --mode rpc-ui` children
+  # alive for the whole session lifetime. Those children hold their session
+  # files OPEN; under omp >= 18.5 file ownership any later `--resume` of a
+  # held file forks it into a sibling file on the first write — the per-prompt
+  # fork storm after a restart. The tree kill above cannot reach daemons that
+  # were orphaned (reparented to init) before this reaper ran: a daemon left
+  # by a dead previous instance, or a `ompweb host` started in a terminal
+  # whose shell died. The deployed daemon is SUPERVISED by the container
+  # entrypoint (PPid != 1), so a normal restart never sweeps it — its omp
+  # children survive the web restart and are adopted by the new server.
+  # `comm` matches both the title-stamped JS daemon (`ompweb host` runs
+  # in-process under node, which applies the title) and the historical Rust
+  # `ompweb-host` binary. Scope is exact: only daemons ALREADY reparented to
+  # init (every live instance's daemon is a child of its supervisor or node
+  # process, so dev instances and terminal omp runs are never touched).
   python3 - >>"$REAPER_LOG" 2>&1 <<'PY'
 import os, signal
 
@@ -225,12 +230,25 @@ def alive(pid):
     except OSError:
         return False
 
+def cmdline(pid):
+    try:
+        return open(f'/proc/{pid}/cmdline', 'rb').read().replace(b'\0', b' ').decode(errors='replace')
+    except OSError:
+        return ''
+
+def is_daemon(pid):
+    # The JS daemon under node (`ompweb host` runs it in-process, and the CLI
+    # stamps process.title) and the historical Rust binary both carry the
+    # comm; a daemon launched straight through bun (`bun bin/omp-web-host.js`)
+    # keeps comm "bun" and is identified by its script argument instead.
+    return comm(pid) == 'ompweb-host' or 'omp-web-host.js' in cmdline(pid)
+
 try:
     pids = [int(p) for p in os.listdir('/proc') if p.isdigit()]
     kids = {}
     for p in pids:
         kids.setdefault(field(p, 'PPid'), []).append(p)
-    orphans = [p for p in pids if comm(p) == 'ompweb-host' and field(p, 'PPid') == '1' and alive(p)]
+    orphans = [p for p in pids if field(p, 'PPid') == '1' and alive(p) and is_daemon(p)]
     victims = []
     for d in orphans:
         victims += [k for k in kids.get(str(d), []) if comm(k) == 'omp' and alive(k)]
@@ -262,19 +280,20 @@ PY
     exit 1
   fi
 
-  # A successful deploy must serve the FRESHLY DEPLOYED build. Next.js embeds the
-  # build id in the RSC payload of every rendered page ("b":"<BUILD_ID>"), so the
-  # deployed build id must appear in the served HTML. If a stale instance (old
-  # build id) is still bound to the port, its payload carries the old id and this
-  # fails — leftover processes cannot fake it.
-  if [ -n "$NEW_BUILD_ID" ]; then
-    served_html="$(curl -s -m 5 "http://127.0.0.1:$PORT/login" 2>/dev/null)"
+  # A successful deploy must serve the FRESHLY DEPLOYED client. The Bun build
+  # embeds the hashed entry-chunk path (/assets/<hash>.js) in dist/index.html,
+  # and the server serves that file for every page route — so the deployed
+  # marker must appear in the served HTML. If a stale instance (old bundle) is
+  # still bound to the port, its HTML carries the old hash and this fails —
+  # leftover processes cannot fake it.
+  if [ -n "$NEW_ASSET" ]; then
+    served_html="$(curl -s -m 5 "http://127.0.0.1:$PORT/" 2>/dev/null)"
     case "$served_html" in
-      *"$NEW_BUILD_ID"*)
-        rlog "verify: served page contains deployed build id $NEW_BUILD_ID"
+      *"$NEW_ASSET"*)
+        rlog "verify: served page contains deployed asset $NEW_ASSET"
         ;;
       *)
-        rlog "FAILED: port $PORT is not serving build '$NEW_BUILD_ID' — the old instance is still running"
+        rlog "FAILED: port $PORT is not serving asset '$NEW_ASSET' — the old instance is still running"
         exit 1
         ;;
     esac
@@ -294,14 +313,14 @@ PY
   fi
 
   pid="$(pgrep -f "ompweb.*--port $PORT" | head -1 || true)"
-  rlog "OK: port $PORT serving (pid ${pid:-?}), deployed BUILD_ID ${NEW_BUILD_ID:-?}"
+  rlog "OK: port $PORT serving (pid ${pid:-?}), deployed asset ${NEW_ASSET:-?}"
   rlog "reaper total: $(( $(date +%s) - T_START ))s"
   exit 0
 fi
 
 # ═══════════════════════ LAUNCHER mode (foreground) ═══════════════════════
 # Runs under the scheduler engine; its stdout is captured into the run record.
-# Does all NON-destructive work (preflight, build, host, deploy). It does NOT
+# Does all NON-destructive work (preflight, build, deploy). It does NOT
 # touch the running instance. Only after build+deploy succeed does it launch the
 # reaper (which does the destructive restart) and exit 0.
 
@@ -313,7 +332,7 @@ fi
 # nothing.
 if [[ -z "$REPO" ]]; then
   for _candidate in /work/ompweb /workspace/ompweb; do
-    if [[ -f "$_candidate/bin/request-peer-preload.js" ]]; then
+    if [[ -f "$_candidate/bin/request-peer.js" ]]; then
       REPO="$_candidate"
       log "repo: auto-detected $REPO"
       break
@@ -323,7 +342,7 @@ fi
 # --- preflight (cheap, non-destructive) ---
 command -v npm >/dev/null || { log "FATAL: npm not on PATH"; exit 1; }
 [ -n "$REPO" ] && [ -d "$REPO" ] || { log "FATAL: repo not found (auto-detection failed; set REPO=/path/to/ompweb)"; exit 1; }
-[ -f "$REPO/bin/request-peer-preload.js" ] || { log "FATAL: $REPO/bin/request-peer-preload.js not found"; exit 1; }
+[ -f "$REPO/bin/request-peer.js" ] || { log "FATAL: $REPO/bin/request-peer.js not found"; exit 1; }
 command -v python3 >/dev/null || { log "FATAL: python3 not on PATH (deploy + reaper tree-kill need it)"; exit 1; }
 # fuser/pkill (psmisc/procps) are NOT required: the reaper kills via a /proc tree
 # walk (python3) and uses fuser/pkill only as a best-effort port sweep that skips
@@ -345,7 +364,9 @@ T_START=$(date +%s)
 # deploy, so there is no downtime until the reaper stops it.
 T_BUILD=$(date +%s)
 # node_modules may be absent (fresh clone / host bind without deps) — install once.
-if [ ! -f "$REPO/node_modules/.bin/next" ]; then
+# `node_modules/.bin/bun` is the marker: the build script runs `bun
+# scripts/build-client.ts` through npm's local-bin PATH, so no global bun is needed.
+if [ ! -f "$REPO/node_modules/.bin/bun" ]; then
   log "build: node_modules missing in $REPO — running npm ci"
   ( cd "$REPO" && npm ci ) 2>&1 | tee -a "$LOG"
   if [ "${PIPESTATUS[0]}" -ne 0 ]; then
@@ -361,52 +382,15 @@ if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 fi
 log "build: done in $(( $(date +%s) - T_BUILD ))s"
 
-# --- 2b. HOST (rebuild + deploy the Rust host binary; non-fatal) ---
-# The entrypoint pins OMPWEB_HOST_BIN to $DST/vendor/ompweb-host/linux-<arch>/ompweb-host
-# (the image's canonical vendor layout, the path the launcher probes). The deploy
-# mirror preserves `vendor/ompweb-host`, so a change to the host (crates/ompweb-host)
-# — e.g. a new IPC method — is deployed here and survives the mirror's prune.
-# Non-fatal: if cargo is missing/failed, the run proceeds with the existing binary.
-T_HOST=$(date +%s)
-case "$(uname -m)" in aarch64|arm64) HOST_ARCH=arm64 ;; *) HOST_ARCH=x64 ;; esac
-HOST_DST="$DST/vendor/ompweb-host/linux-${HOST_ARCH}/ompweb-host"
-# cargo is frequently off PATH: rustup installs into ~/.cargo/bin and container
-# images install into /usr/local/cargo/bin. Probe both before the check, so a
-# host rebuild is never silently skipped because of the launching shell's PATH.
-for CARGO_DIR in /usr/local/cargo/bin "$HOME/.cargo/bin"; do
-  if [ -x "$CARGO_DIR/cargo" ]; then PATH="$CARGO_DIR:$PATH"; fi
-done
-export PATH
-if command -v cargo >/dev/null 2>&1; then
-  log "host: cargo build --locked --bin ompweb-host in $REPO/crates"
-  ( cd "$REPO" && cargo build --locked --manifest-path crates/Cargo.toml --bin ompweb-host ) 2>&1 | tee -a "$LOG"
-  HOST_RC=${PIPESTATUS[0]}
-  if [ "$HOST_RC" -eq 0 ]; then
-    mkdir -p "$(dirname "$HOST_DST")"
-    cp -f "$REPO/crates/target/debug/ompweb-host" "$HOST_DST"
-    chmod +x "$HOST_DST"
-    log "host: deployed $HOST_DST"
-  else
-    log "host: cargo build FAILED (exit $HOST_RC) — keeping the existing binary (run proceeds)"
-  fi
-else
-  log "host: cargo not on PATH — skipping host rebuild (using existing binary)"
-fi
-# The source repo's vendor/ompweb-host is a gitignored build artifact (a stale
-# host left by a prior `host:stage`/bind). Step 2b already deployed the fresh
-# binary to $DST/vendor/ompweb-host; if we left the stale one in $REPO, the
-# deploy mirror's copy would overwrite it. Drop it so the mirror never carries
-# a stale host into the deploy target (the mirror's preserve is a prune-safety net).
-rm -rf "$REPO/vendor/ompweb-host" 2>/dev/null || true
-log "host: dropped stale source $REPO/vendor/ompweb-host (prevents the mirror clobbering the fresh $DST vendor host)"
-log "host: done in $(( $(date +%s) - T_HOST ))s"
-
 # --- 2. DEPLOY (incremental mirror; rsync is not installed in this container) ---
 # Mirrors build artifacts into $DST with rsync --delete quick-check semantics: a
 # file is re-copied only when its (size, mtime@1s) differs, and destination
-# entries absent from the source (or in the ignore set) are pruned. The .next
-# mirror excludes `cache` (build cache, not needed at runtime) and `dev` (the
-# active dev server keeps rewriting .next/dev, and `next start` never reads it).
+# entries absent from the source are pruned. The Bun-era runtime is the SOURCE
+# tree plus the built client: server/ + lib/ + app/ + bin/ + vendor/ (route
+# modules and their imports, run by bun), dist/ (hashed client bundle), and the
+# public/ + scripts/ + templates/ assets the server reads at runtime. The old
+# .next/ and vendor/ompweb-host trees in $DST are NOT mirrored any more: the
+# first stops being rewritten, the second is pruned (the Rust host is retired).
 # This is what makes the steady-state deploy near-instant.
 T_DEPLOY=$(date +%s)
 log "deploy: incrementally mirroring build artifacts into $DST"
@@ -414,22 +398,13 @@ python3 - "$REPO" "$DST" 2>&1 <<'PY' | tee -a "$LOG"
 import os, shutil, stat, sys
 src, dst = sys.argv[1], sys.argv[2]
 
-def _mirror_dir(s, d, ignore, preserve, depth=0):
-    # Ignore names apply ONLY at the root of the mirrored tree. They name
-    # build-time top-level dirs (cache, dev, types, standalone, trace,
-    # trace-build) that next start never reads. Applying them recursively would
-    # also delete nested source dirs that share a name — e.g. the compiled
-    # routes .next/server/app/api/diagnostics/ and .../api/pair/diagnostics/ —
-    # which the manifest still references, turning them into 500s at runtime.
-    top_ignore = ignore if depth == 0 else ()
-    src_names = {e.name for e in os.scandir(s) if e.name not in top_ignore}
-    # Prune destination entries that are stale or ignored (exact mirror of
-    # source-minus-ignore). Never touches ignored source names.
+def _mirror_dir(s, d):
+    src_names = {e.name for e in os.scandir(s)}
+    # Prune destination entries absent from the source (exact mirror). This is
+    # how a retired build artifact disappears from $DST — e.g. the Rust host's
+    # old vendor/ompweb-host/ tree, gone once the vendor tuple mirrors the
+    # source vendor/ verbatim.
     for entry in os.scandir(d):
-        if entry.name in preserve:
-            continue
-        if entry.name in top_ignore:
-            continue
         if entry.name not in src_names:
             p = entry.path
             if os.path.islink(p) or os.path.isfile(p):
@@ -439,8 +414,6 @@ def _mirror_dir(s, d, ignore, preserve, depth=0):
     # Copy/update from the source (quick-check: size + mtime truncated to 1s,
     # the same heuristic rsync's default quick-check uses).
     for entry in os.scandir(s):
-        if entry.name in top_ignore:
-            continue
         sd, dd = entry.path, os.path.join(d, entry.name)
         if entry.is_symlink():
             target = os.readlink(sd)
@@ -452,7 +425,7 @@ def _mirror_dir(s, d, ignore, preserve, depth=0):
             continue
         if entry.is_dir(follow_symlinks=False):
             os.makedirs(dd, exist_ok=True)
-            _mirror_dir(sd, dd, ignore, preserve, depth + 1)
+            _mirror_dir(sd, dd)
             continue
         ss = os.lstat(sd)
         if os.path.lexists(dd):
@@ -463,7 +436,7 @@ def _mirror_dir(s, d, ignore, preserve, depth=0):
         shutil.copy2(sd, dd)
         print(f"  + {entry.name}", flush=True)
 
-def mirror(root_name, ignore, preserve=()):
+def mirror(root_name):
     s = os.path.join(src, root_name)
     d = os.path.join(dst, root_name)
     if not os.path.isdir(s):
@@ -472,18 +445,13 @@ def mirror(root_name, ignore, preserve=()):
     if os.path.lexists(d) and not os.path.isdir(d):
         os.remove(d)
     os.makedirs(d, exist_ok=True)
-    _mirror_dir(s, d, ignore, preserve)
+    _mirror_dir(s, d)
     print(f"deployed {root_name}", flush=True)
 
-for name, ignore, preserve in (
-    ('.next', ('cache', 'dev', 'types', 'standalone', 'diagnostics', 'trace', 'trace-build'), ()),
-    ('bin', (), ()),
-    ('public', (), ()),
-    ('vendor', (), ('ompweb-host',)),
-):
-    mirror(name, ignore, preserve)
+for name in ('dist', 'server', 'lib', 'app', 'bin', 'vendor', 'public', 'scripts', 'templates'):
+    mirror(name)
 
-for f in ('next.config.ts', 'package.json', 'instrumentation.ts', 'proxy.ts', 'tsconfig.json', 'backend-ownership.yaml'):
+for f in ('proxy.ts', 'instrumentation.node.ts', 'tsconfig.json', 'package.json', 'package-lock.json'):
     sp, dp = os.path.join(src, f), os.path.join(dst, f)
     if not os.path.exists(sp):
         continue
@@ -505,33 +473,36 @@ fi
 chmod +x "$DST/bin/omp-web.js" "$DST/bin/omp-web-desktop.js"
 log "deploy: done in $(( $(date +%s) - T_DEPLOY ))s"
 
-# The build id the reaper must confirm is served after the restart.
-NEW_BUILD_ID="$(cat "$DST/.next/BUILD_ID" 2>/dev/null || true)"
-log "deploy: BUILD_ID ${NEW_BUILD_ID:-<none>}"
-# Guard: the build just wrote a fresh id into $REPO and the mirror copied
-# $REPO/.next into $DST, so the two build ids must now MATCH. If $DST still
-# carries a different (previous) id, the mirror produced nothing (a silent
-# failure) — restarting now would keep serving the old code while the run
-# records "ok". Bail out; the running instance is left untouched.
-REPO_BUILD_ID="$(cat "$REPO/.next/BUILD_ID" 2>/dev/null || true)"
-if [ -n "$REPO_BUILD_ID" ] && [ "$NEW_BUILD_ID" != "$REPO_BUILD_ID" ]; then
-  log "FAILED: deploy did not update $DST (dst=$NEW_BUILD_ID but fresh build is $REPO_BUILD_ID) — running instance left untouched"
+# The client-asset marker the reaper must confirm is served after the restart:
+# the Bun build embeds the hashed entry chunk (/assets/<hash>.js) in
+# dist/index.html, and the server serves that HTML for every page route.
+NEW_ASSET="$(grep -o '/assets/[^"]*\.js' "$DST/dist/index.html" 2>/dev/null | head -1 || true)"
+log "deploy: asset marker ${NEW_ASSET:-<none>}"
+# Guard: the build just wrote a fresh dist into $REPO and the mirror copied it
+# into $DST, so the two entry-chunk names must now MATCH. If $DST still carries
+# a different (previous) hash, the mirror produced nothing (a silent failure) —
+# restarting now would keep serving the old client while the run records "ok".
+# Bail out; the running instance is left untouched.
+REPO_ASSET="$(grep -o '/assets/[^"]*\.js' "$REPO/dist/index.html" 2>/dev/null | head -1 || true)"
+if [ -n "$REPO_ASSET" ] && [ "$NEW_ASSET" != "$REPO_ASSET" ]; then
+  log "FAILED: deploy did not update $DST (dst=$NEW_ASSET but fresh build is $REPO_ASSET) — running instance left untouched"
   exit 1
 fi
 
 # --- Launch the detached reaper (does the destructive restart) and exit 0 ---
 # Everything non-destructive is done. The reaper, in its own session (setsid),
-# stops the instance, waits for the supervisor to relaunch with the fresh build,
-# verifies the BUILD_ID, and fans out a UI refresh. It is unreachable by the stop
-# stage's tree kill. We pass the fresh BUILD_ID so the reaper can verify.
+# stops the instance, waits for the supervisor to relaunch with the fresh
+# build, verifies the client-asset marker, and fans out a UI refresh. It is
+# unreachable by the stop stage's tree kill. We pass the fresh asset marker so
+# the reaper can verify.
 SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")"
-log "rebuild: build+host+deploy done in $(( $(date +%s) - T_START ))s; launching detached reaper (port $PORT, build ${NEW_BUILD_ID:-?})"
-setsid nohup bash "$SELF" --reaper "$REPO" "$DST" "$PORT" "$WAIT_S" "$NEW_BUILD_ID" \
+log "rebuild: build+deploy done in $(( $(date +%s) - T_START ))s; launching detached reaper (port $PORT, asset ${NEW_ASSET:-?})"
+setsid nohup bash "$SELF" --reaper "$REPO" "$DST" "$PORT" "$WAIT_S" "$NEW_ASSET" \
   >/dev/null 2>&1 </dev/null &
 REAPER_PID=$!
 log "rebuild: reaper launched (pid $REAPER_PID); its restart log: $REAPER_LOG"
 # Exit NOW: the scheduler parent records this run "ok" (carrying the full
-# build/host/deploy log above) from this exit. The reaper is in its own session,
+# build/deploy log above) from this exit. The reaper is in its own session,
 # so the stop stage's tree kill of the instance cannot reach it. The restart
 # outcome (stop/verify/refresh) is in $REAPER_LOG.
 exit 0

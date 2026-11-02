@@ -450,9 +450,9 @@ function onFirstFrame(ws: LinkSocket, data: string | Uint8Array): void {
   if (typeof data !== "string") return refuse();
   // A hello is one line: nothing longer is worth parsing.
   if (Buffer.byteLength(data) > LINK_LIMITS.maxLineBytes) return ws.close(LINK_CLOSE.tooBig, "Hello too large");
-  // Revoked or deleted since the upgrade, or the registry cannot say: a plain close sends the daemon's redial through
-  // the token check (401 stops its children, 503 redials).
-  if (ws.data.hostId !== LOCAL_HOST_ID && !loadHosts().some((h) => h.id === ws.data.hostId)) return ws.close();
+  // Revoked or deleted since the upgrade, or the registry cannot say: close 1000 (the spec's
+  // revoke code) and let the daemon's redial hit the token check (401 stops its children, 503 redials).
+  if (ws.data.hostId !== LOCAL_HOST_ID && !loadHosts().some((h) => h.id === ws.data.hostId)) return ws.close(1000, "revoked");
   const link = linkFor(ws.data.hostId);
   let raw: unknown;
   try {
@@ -478,12 +478,21 @@ function openLink(link: Link, ws: LinkSocket, hello: Hello): void {
   link.socket = ws;
   previous?.close(LINK_CLOSE.replaced, "replaced by a newer link");
   // Every sequenced uplink message answers a downlink one, so a daemon that
-  // has applied none (ack 0) has sent none: it is a fresh process whose
-  // uplink numbering starts again at 1.
-  if (hello.ack <= 0) link.up = new SeqWindow();
-  // After a restart of this server the daemon is ahead: number above its ack.
-  link.downSeq = Math.max(link.downSeq, hello.ack);
-  link.outbox.ack(hello.ack);
+  // has applied none (ack 0) is a fresh process whose uplink numbering
+  // starts again at 1. The DOWNLINK numbering never restarts: a daemon on a
+  // reconnected socket may still hold our earlier lines in its window, and a
+  // lower seq would make it drop them as already-applied duplicates.
+  if (hello.ack <= 0) {
+    link.up = new SeqWindow();
+    link.outbox.ack(0);
+  } else {
+    // After a restart of this server the daemon is ahead: number above its ack.
+    // The ack is daemon input: cap it below the safe-integer bound so a bogus
+    // one cannot pin downSeq, where the next ++downSeq would fail seqNum and
+    // drop every later downlink line.
+    link.downSeq = Math.max(link.downSeq, Math.min(hello.ack, Number.MAX_SAFE_INTEGER - 2 ** 24));
+    link.outbox.ack(hello.ack);
+  }
   link.unknownLog.reset();
   // The version this link speaks: from 5 on, lines over pieceBytes go in parts.
   link.hostVersion = hello.v;
@@ -579,7 +588,10 @@ function reattach(link: Link, listed: HelloChannel[]): void {
   }
 }
 
-function killOrphan(orphan: RemoteRpcTransport): void {
+/** Kill a child no one adopts: SIGTERM, escalating to force after the grace,
+ * the escalation cancelled by its exit. Exported for adoptRpcSession's early
+ * "already started" rejection, which kills before any wrapper exists. */
+export function killOrphan(orphan: Pick<RpcTransport, "killTree" | "onExit"> & { orphaned?: boolean }): void {
   orphan.orphaned = true;
   orphan.killTree(false);
   const escalate = setTimeout(() => orphan.killTree(true), ORPHAN_KILL_GRACE_MS);
@@ -602,7 +614,8 @@ async function adopt(link: Link, child: RemoteRpcTransport, sessionId: string, c
       // Nothing reaches the daemon now, a kill included: the child runs on for the next server.
       console.warn(`[omp-web] left the omp child of session ${sessionId} on ${labelOf(link.id)} to the next server: this one stopped while adopting it (${reason})`);
     } else {
-      // adoptRpcSession has already killed it (its wrapper's dispose escalates to SIGKILL).
+      // adoptRpcSession has already killed it: the early rejection escalates
+      // like any orphan (killOrphan); once a wrapper exists, its dispose does.
       console.warn(`[omp-web] killing the omp child of session ${sessionId} on ${labelOf(link.id)}: it could not be adopted (${reason})`);
     }
     return false;
@@ -1115,7 +1128,7 @@ export function closeHostLink(id: string): void {
   hub().links.delete(id);
   stopTimers(link);
   failAllOps(link, () => new HostOpError(503, "host_offline", "The host link was closed"));
-  link.socket?.close();
+  link.socket?.close(1000, "link closed");
   endSocket(link);
   // Nothing will report these children again.
   for (const transport of link.channels.values()) transport.deliverExit(null, null);

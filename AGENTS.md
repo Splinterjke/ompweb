@@ -88,17 +88,20 @@ curl -s -b /tmp/jar http://127.0.0.1:30178/api/diagnostics
 
 ### Loopback detection (why remote clients can't spoof)
 
-`proxy.ts` detects loopback via the socket peer IP, which the dev/production
-launchers stamp at the HTTP boundary: `--require ./bin/request-peer-preload.js`
-overwrites `x-ompweb-socket-peer` + `x-ompweb-socket-proof` (HMAC of the real
-`remoteAddress` with a per-process secret) on every incoming request, so a
+`proxy.ts` detects loopback via the socket peer IP, which the Bun server itself
+stamps at the HTTP boundary: `server/app.ts` `stampPeer()` deletes any
+client-supplied stamp and sets `x-ompweb-socket-peer` +
+`x-ompweb-socket-proof` (HMAC of the real `server.requestIP()` address with a
+per-process secret, from `bin/request-peer.js`) on every incoming request, so a
 client cannot forge a "loopback" header. This means:
 
 - **You can only exercise loopback-gated paths (e.g. the `/api/ui/refresh`
   exemption) from the machine running the server.** A remote `curl` is not
   loopback and will be denied.
-- The preload is what makes `isLoopbackConnection()` trustworthy; without it
-  (a bare `next dev` without the `--require`), loopback detection fails closed.
+- The in-server stamp is what makes `isLoopbackConnection()` trustworthy; a
+  Request that never passed through `stampPeer()` carries no proof, and
+  loopback detection fails closed. (Dev and production share `startServer`,
+  so both stamp identically.)
 
 ### Host daemons (JS only)
 

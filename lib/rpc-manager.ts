@@ -42,7 +42,7 @@ import { BLOCKING_UI_METHODS, createNotificationDetector } from "./notification-
 import { publishNotification } from "./notification-hub";
 import { parseSkillDiagnosticsSnapshot, type SkillDiagnosticsSnapshot } from "./skill-diagnostics";
 import { isLinkUp, type Host, type HostStatus, type SpawnResult } from "./hosts/host";
-import { freezeHostLinks, getHost, lastUplinkAt, listHosts, orphanExit } from "./hosts/hub";
+import { freezeHostLinks, getHost, killOrphan, lastUplinkAt, listHosts, orphanExit } from "./hosts/hub";
 import { LOCAL_HOST_ID } from "./hosts/registry";
 import type { OpResult } from "./hosts/session-ops";
 import { hostForSessionId, invalidateHostSessionList, listSessionsAllHosts, sessionSpawnTarget } from "./hosts/session-index";
@@ -3765,8 +3765,10 @@ export async function startRpcSession(
           // omp ≥ 18.7.0 fails closed on a missing --resume path instead of
           // silently creating a session. The file can move between the
           // route's resolve and the spawn (ownership move, archive, delete):
-          // re-resolve the id once and retry against the current path.
-          if (attempt === 0) {
+          // re-resolve the id once and retry against the current path. Only
+          // for THIS machine — main-side paths mean nothing to a remote host,
+          // whose files only its own daemon may resolve.
+          if (attempt === 0 && host.id === LOCAL_HOST_ID) {
             const fresh = await resolveSessionPath(sessionId);
             if (fresh && !samePath(fresh, resumeFile)) {
               resumeFile = fresh;
@@ -3893,7 +3895,9 @@ export async function adoptRpcSession({ host, transport, sessionId, cwd, replay 
   const registry = getRegistry();
   const locks = getLocks();
   if (locks.has(sessionId) || registry.has(sessionId)) {
-    transport.killTree(false);
+    // No wrapper exists yet to own the kill: escalate like any orphan, so a
+    // child that ignores SIGTERM cannot leave orphanExit waiters hanging.
+    killOrphan(transport);
     throw new Error(`Session ${sessionId} is already started on this server`);
   }
   const holder: { wrapper?: AgentSessionWrapper } = {};

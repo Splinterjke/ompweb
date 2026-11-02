@@ -1,10 +1,17 @@
 // A git operation against a directory that is not a git repository is a
 // normal situation (plain folders are common workspaces), not a backend
-// failure. The Rust host signals it with the structured `not_a_git_repository`
-// error code; the Node fallback throws a plain Error("Not a Git repository").
-// Neither may be recorded in the backend error ring — doing so degrades the
-// whole app ("Degraded" banner + Recovery queue) for every file open in a
-// non-git workspace.
+// failure. The git libs throw NotGitRepositoryError (structured `code`);
+// neither it nor a bare message match may be recorded in the backend error
+// ring — doing so degrades the whole app ("Degraded" banner + Recovery queue)
+// for every file open in a non-git workspace.
+export class NotGitRepositoryError extends Error {
+  readonly code = "not_a_git_repository";
+  constructor() {
+    super("Not a Git repository");
+    this.name = "NotGitRepositoryError";
+  }
+}
+
 export function isNonRepositoryError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
   const { code, message } = error as { code?: unknown; message?: unknown };

@@ -40,6 +40,17 @@ test("desktop packaging stages the Bun server tree under Resources/standalone", 
   for (const directory of ["dist", "server", "lib", "app/api", "public"]) {
     assert.equal(staged.get(directory), `standalone/${directory}`, `extraResources must stage ${directory}`);
   }
+  // The Bun server runs SOURCES at runtime: `@/proxy`/`@/lib` resolve through
+  // tsconfig paths, server/app.ts imports ../instrumentation.node and
+  // ../bin/request-peer.js, and the git-graph route imports
+  // @/vendor/vscode-git-graph/types — all must sit under standalone.
+  for (const file of ["tsconfig.json", "proxy.ts", "instrumentation.node.ts", "bin/request-peer.js", "vendor/vscode-git-graph/types.ts"]) {
+    assert.equal(staged.get(file), `standalone/${file}`, `extraResources must stage ${file}`);
+  }
+  // The npm tarball ships the same runtime set (the launcher runs bun server/main.ts there).
+  for (const entry of ["tsconfig.json", "proxy.ts", "instrumentation.node.ts", "bin", "vendor/vscode-git-graph/types.ts"]) {
+    assert.ok(packageJson.files.includes(entry), `package files must ship ${entry}`);
+  }
   // Nothing Next-era may creep back in.
   assert.ok(![...staged.keys()].some((from) => from.startsWith(".next")));
 });

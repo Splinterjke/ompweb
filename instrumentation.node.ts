@@ -114,9 +114,18 @@ export async function register(): Promise<void> {
   // so the next incident explains itself. Node's default crash semantics are
   // preserved — this only adds the record before exiting — except for client
   // aborts, which are journaled and survived (see below).
-  const logDir = getDiagnosticsDir();
-  const logPath = join(logDir, "diagnostics.log");
+  // An invalid OMP_PROFILE makes every path resolution throw — the journal is
+  // diagnostics, so it degrades to a no-op instead of aborting boot (the same
+  // rule as the guarded getAgentDir() probe above).
+  let logDir: string | null = null;
+  try {
+    logDir = getDiagnosticsDir();
+  } catch (error) {
+    console.warn(`[omp-web] crash journal disabled: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const logPath = logDir ? join(logDir, "diagnostics.log") : null;
   const appendDiag = (kind: string, detail: string) => {
+    if (!logDir || !logPath) return;
     try {
       mkdirSync(logDir, { recursive: true });
       try {

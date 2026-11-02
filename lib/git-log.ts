@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { mergeDiffContents, readRefFile, readWorkingFile } from "./git-blob.ts";
+import { NotGitRepositoryError } from "./git-nonrepo";
 import { createChildProcessEnvironment } from "./project-command-env";
 const execFileAsync = promisify(execFile);
 
@@ -49,7 +50,7 @@ export interface GitCommitFileDiff {
  */
 export async function getCommitFileDiff(cwd: string, hash: string, filePath: string, withContents = false): Promise<GitCommitFileDiff> {
   const root = await findRepositoryRoot(cwd);
-  if (!root) throw new Error("Not a Git repository");
+  if (!root) throw new NotGitRepositoryError();
   if (!/^[0-9a-f]{7,40}$/.test(hash)) throw new Error("Invalid commit hash");
   if (!filePath || filePath.includes("\0") || filePath.startsWith("/") || filePath.split("/").includes("..")) {
     throw new Error("Invalid file path");
@@ -96,7 +97,7 @@ function isSafeGitRef(ref: string): boolean {
  */
 export async function getGitRefDiff(cwd: string, from: string, to: string, filePath: string, withContents = false): Promise<GitCommitFileDiff> {
   const root = await findRepositoryRoot(cwd);
-  if (!root) throw new Error("Not a Git repository");
+  if (!root) throw new NotGitRepositoryError();
   if (!isSafeGitRef(from)) throw new Error("Invalid source ref");
   if (to !== "*" && !isSafeGitRef(to)) throw new Error("Invalid target ref");
   if (!filePath || filePath.includes("\0") || filePath.startsWith("/") || filePath.split("/").includes("..")) {

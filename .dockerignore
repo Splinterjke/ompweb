@@ -1,7 +1,5 @@
 node_modules
 .next
 .next-dev
-crates/target
 .git
-vendor/ompweb-host
 *.tsbuildinfo

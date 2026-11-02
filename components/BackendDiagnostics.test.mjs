@@ -67,7 +67,7 @@ test("healthOf: benign non-repo git entries never degrade, real git failures do"
   assert.equal(healthOf({ ...base, backendErrors: [benign, realWrite] }), "warn");
   assert.equal(healthOf({ ...base, backendErrors: [realWrite, realWrite] }), "error");
   // A real non-git failure still degrades alongside the benign noise.
-  const scan = { at: 5, kind: "session_scan_failed", detail: "x" };
+  const scan = { at: 5, kind: "rpc_failure", detail: "x" };
   assert.equal(healthOf({ ...base, backendErrors: [benign, benign2, scan] }), "warn");
 });
 

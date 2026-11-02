@@ -17,6 +17,7 @@ import {
   type GitPorcelainEntry,
 } from "./git-status";
 import { readRefFile } from "./git-blob.ts";
+import { NotGitRepositoryError } from "./git-nonrepo";
 import { createChildProcessEnvironment } from "./project-command-env";
 
 const execFileAsync = promisify(execFile);
@@ -42,7 +43,7 @@ async function git(cwd: string, args: string[], maxBuffer = GIT_STATUS_MAX_BUFFE
 
 export async function commitGitChanges(cwd: string, message: string): Promise<{ hash: string; output: string }> {
   const repositoryRoot = await findRepositoryRoot(cwd);
-  if (!repositoryRoot) throw new Error("Not a Git repository");
+  if (!repositoryRoot) throw new NotGitRepositoryError();
   const trimmedMessage = message.trim();
   if (!trimmedMessage) throw new Error("Commit message is required");
   const status = await getGitStatus(repositoryRoot);
@@ -55,7 +56,7 @@ export async function commitGitChanges(cwd: string, message: string): Promise<{ 
 
 export async function pushGitChanges(cwd: string): Promise<{ branch: string; output: string }> {
   const repositoryRoot = await findRepositoryRoot(cwd);
-  if (!repositoryRoot) throw new Error("Not a Git repository");
+  if (!repositoryRoot) throw new NotGitRepositoryError();
   const branch = (await git(repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim();
   if (!branch || branch === "HEAD") throw new Error("Cannot push from detached HEAD");
   const upstream = await git(repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).then((value) => value.trim()).catch(() => "");
@@ -66,7 +67,7 @@ export async function pushGitChanges(cwd: string): Promise<{ branch: string; out
 
 export async function listGitBranches(cwd: string): Promise<{ name: string; current: boolean }[]> {
   const repositoryRoot = await findRepositoryRoot(cwd);
-  if (!repositoryRoot) throw new Error("Not a Git repository");
+  if (!repositoryRoot) throw new NotGitRepositoryError();
   const output = await git(repositoryRoot, ["for-each-ref", "--format=%(HEAD)\t%(refname:short)", "refs/heads/"]);
   // git emits a leading tab for non-current branches ("\tmain"); split BEFORE
   // trimming — trimming first would swallow the tab and drop the name.
@@ -78,7 +79,7 @@ export async function listGitBranches(cwd: string): Promise<{ name: string; curr
 
 export async function checkoutGitBranch(cwd: string, branch: string): Promise<{ branch: string }> {
   const repositoryRoot = await findRepositoryRoot(cwd);
-  if (!repositoryRoot) throw new Error("Not a Git repository");
+  if (!repositoryRoot) throw new NotGitRepositoryError();
   const target = branch.trim();
   if (!/^[A-Za-z0-9._\/-]+$/.test(target) || target.startsWith("-") || target.includes("..")) throw new Error("Invalid branch name");
   await git(repositoryRoot, ["checkout", target]);

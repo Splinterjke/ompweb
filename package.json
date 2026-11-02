@@ -31,6 +31,7 @@
     "proxy.ts",
     "instrumentation.node.ts",
     "templates",
+    "vendor/vscode-git-graph/types.ts",
     "tsconfig.json",
     "package.json"
   ],
@@ -176,6 +177,26 @@
       {
         "from": "public",
         "to": "standalone/public"
+      },
+      {
+        "from": "tsconfig.json",
+        "to": "standalone/tsconfig.json"
+      },
+      {
+        "from": "proxy.ts",
+        "to": "standalone/proxy.ts"
+      },
+      {
+        "from": "instrumentation.node.ts",
+        "to": "standalone/instrumentation.node.ts"
+      },
+      {
+        "from": "bin/request-peer.js",
+        "to": "standalone/bin/request-peer.js"
+      },
+      {
+        "from": "vendor/vscode-git-graph/types.ts",
+        "to": "standalone/vendor/vscode-git-graph/types.ts"
       },
       {
         "from": "templates/desktop/splash.mp4",

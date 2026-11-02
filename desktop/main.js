@@ -469,10 +469,13 @@ function isPortFree() {
 function getOmpProcessSignatures() {
   // Only the dedicated server entrypoint identifies a hosted server. The
   // Electron executable or installation directory can also belong to an
-  // unrelated process and must never authorize termination.
-  return [normalizeExePath(app.isPackaged
-    ? path.join(process.resourcesPath, "standalone", "server.js")
-    : path.join(pkgDir, ".next", "standalone", "server.js"))];
+  // unrelated process and must never authorize termination. The Bun-era owner
+  // runs `bun <standalone>/server/main.ts -p …` — the Next-era `server.js`
+  // entries are gone with the cutover.
+  const standaloneDir = app.isPackaged
+    ? path.join(process.resourcesPath, "standalone")
+    : pkgDir;
+  return [normalizeExePath(path.join(standaloneDir, "server", "main.ts"))];
 }
 
 /** Normalize an executable path the same way as getOmpProcessSignatures(). */

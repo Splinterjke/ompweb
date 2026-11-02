@@ -812,8 +812,9 @@ export function findSessionFileHolders(sessionFile: string): SessionFileHolder[]
     } catch {
       parentArgv = [];
     }
-    // The daemon is either the (retired) `ompweb-host` binary or the JS
-    // `ompweb host` daemon (`bun …/bin/omp-web-host.js`).
+    // The daemon is the (retired) `ompweb-host` binary, a process that stamped
+    // its title (`ompweb host` under node → cmdline "ompweb-host"), or the JS
+    // daemon under bun (`bun …/bin/omp-web-host.js`, which cannot retitle).
     const parentIsHost =
       basename(parentArgv[0] ?? "") === "ompweb-host" ||
       basename(parentArgv[1] ?? "") === "omp-web-host.js";

@@ -415,7 +415,7 @@ export async function GET(
     if (!access.ok) {
       return Response.json({ error: access.error, code: access.code }, { status: access.status });
     }
-    const { filePath, stat, allowedRoots } = access;
+    const { filePath, stat } = access;
     // A paused media element stops reading its stream, which Bun's idle timeout would cut. Lifted once the stream exists.
     const stream = (contentType: string, asDownload = false) => {
       const response = streamFile(filePath, stat, contentType, request.headers.get("range"), asDownload);

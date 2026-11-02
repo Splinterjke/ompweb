@@ -17,13 +17,17 @@ test("port reclaim identifies the exact hosted entrypoint, not shared executable
   vm.runInContext(signatures + ownership, context);
   for (const command of [
     "/Applications/OmpWeb.app/Contents/MacOS/OmpWeb --some-other-process",
-    "node /Applications/OmpWeb.app/Contents/Resources/other.js",
-    "node /Applications/OmpWeb.app/Contents/Resources/standalone/server.js.unrelated",
+    "bun /Applications/OmpWeb.app/Contents/Resources/other.js",
+    // Prefix-attack: the entrypoint path extended with extra characters.
+    "bun /Applications/OmpWeb.app/Contents/Resources/standalone/server/main.ts.unrelated",
+    // The shared bun executable alone must not authorize termination.
+    "/usr/local/bin/bun /somewhere/else/main.ts",
   ]) {
     context.command = command.toLowerCase();
     assert.equal(await context.isOwnedOmpProcess("123"), false, command);
   }
-  context.command = 'node "/Applications/OmpWeb.app/Contents/Resources/standalone/server.js"'.toLowerCase();
+  // The Bun-era hosted server: `bun <Resources>/standalone/server/main.ts -p … -H …`.
+  context.command = 'bun "/Applications/OmpWeb.app/Contents/Resources/standalone/server/main.ts" -p 6767'.toLowerCase();
   assert.equal(await context.isOwnedOmpProcess("123"), true);
   assert.equal(await context.isOwnedOmpProcess("42"), false);
 });

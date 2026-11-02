@@ -62,6 +62,11 @@ async function main(argv: string[]): Promise<number> {
 
 /** `ompweb host <argv>`: the exit code; errors are printed, never thrown. */
 export function runHostCli(argv: string[]): Promise<number> {
+  // Stamp the identity the holder gate (`lib/session-watcher.ts`) and the
+  // deploy reaper's orphan sweep match on: every launch form — `bun
+  // bin/omp-web-host.js`, in-process `ompweb host` (argv spliced), release
+  // binary — otherwise leaves a generic node/bun cmdline.
+  process.title = "ompweb-host";
   return main(argv).catch((error: unknown) => {
     console.error(`ompweb host: ${error instanceof Error ? error.message : String(error)}`);
     return 1;

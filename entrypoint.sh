@@ -19,20 +19,16 @@ fi
 
 echo "Container ready. Starting ompweb as a child (container stays alive)."
 OMPWEB_PID=""
+HOSTD_PID=""
 cleanup() {
   if [[ -n "${OMPWEB_PID:-}" ]] && kill -0 "$OMPWEB_PID" 2>/dev/null; then
     kill "$OMPWEB_PID" 2>/dev/null || true
   fi
+  if [[ -n "${HOSTD_PID:-}" ]] && kill -0 "$HOSTD_PID" 2>/dev/null; then
+    kill "$HOSTD_PID" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT INT TERM
-
-# Pin the Rust host binary to the image's canonical vendor layout
-# (vendor/ompweb-host/<plat>-<arch>/ompweb-host), the path the launcher probes.
-# Set explicitly so the exact path stays authoritative even if the vendor probe
-# regresses. An externally-provided OMPWEB_HOST_BIN (e.g. a bind-mounted host
-# build) wins — only the default is computed from the container arch.
-case "$(uname -m)" in aarch64|arm64) OMPWEB_HOST_ARCH=arm64 ;; *) OMPWEB_HOST_ARCH=x64 ;; esac
-export OMPWEB_HOST_BIN="${OMPWEB_HOST_BIN:-/opt/ompweb/vendor/ompweb-host/linux-${OMPWEB_HOST_ARCH}/ompweb-host}"
 
 # Sign-in gate, hash-only: the launcher serves a non-loopback bind only with
 # OMP_WEB_PASSWORD_HASH (the scrypt hash from `ompweb hash-password`), and a
@@ -81,5 +77,19 @@ while true; do
   echo "ompweb exited ($?). Restarting in 3s..."
   sleep 3
 done &
+
+# The JS host daemon (`ompweb host`) owns this machine's omp children, so a
+# web-server restart or upgrade leaves runs going and the new server adopts
+# them over the daemon's link (lib/hosts). It is supervised beside the web
+# loop: the web server writes the local link (<agent dir>/omp-web/host.json)
+# when it boots, so until that exists the daemon exits at once and this loop
+# retries — the stdin redirect keeps a token prompt from ever blocking it.
+# The reaper's orphan sweep deliberately never touches this daemon (PPid != 1).
+while true; do
+  ompweb host </dev/null
+  echo "ompweb host exited ($?). Restarting in 3s..."
+  sleep 3
+done &
+HOSTD_PID=$!
 
 exec tail -f /dev/null
