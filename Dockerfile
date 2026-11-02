@@ -3,17 +3,20 @@
 # 3-stage image — build in temp, ship only what the runtime needs:
 #
 #   1. base     — runtime infrastructure (Chrome-for-Testing, .NET, omp, python venv). Never compiles anything.
-#   2. builder  — npm ci + next build + cargo build + host:stage. DevDeps, the
-#                 .next build cache, and the full cargo target/ live ONLY here.
-#   3. runtime  — base + the exact files `next start` (launched by bin/omp-web.js
-#                 from /opt/ompweb) resolves: prod node_modules, the pruned .next,
-#                 bin/, public/, vendor/ (Rust host), and the config files.
+#   2. builder  — npm ci + the Bun client build (scripts/build-client.ts). DevDeps
+#                 and the build cache live ONLY here.
+#   3. runtime  — base + the exact files the Bun server (launched by
+#                 bin/omp-web.js as `bun /opt/ompweb/server/main.ts`) resolves:
+#                 prod node_modules (incl. the `bun` runtime package), the
+#                 SOURCE tree it runs (server/, lib/, app/, bin/, vendor/,
+#                 proxy.ts, instrumentation.node.ts, tsconfig.json), the built
+#                 client (dist/), public/, and package.json.
 #
 # The builder stage is never copied from as a whole, so its build artifacts
-# (devDeps, .next/cache, crates/target) are discarded from the final image.
+# (devDeps, build caches) are discarded from the final image.
 #
-# The image is self-contained: a third party can run the UI + Rust host from
-# /opt/ompweb alone with no host repo bind mounted.
+# The image is self-contained: a third party can run the UI + JS host daemon
+# from /opt/ompweb alone with no host repo bind mounted.
 
 # ── 1. base ───────────────────────────────────────────────────────────────────
 FROM node:26-slim AS base
@@ -23,7 +26,7 @@ LABEL maintainer="Oh My Pi" \
       version="0.9"
 
 # build-essential is intentionally absent: the runtime never compiles. node-pty
-# ships per-platform prebuilds, and the Rust host is pre-built in the builder.
+# ships per-platform prebuilds, and the Bun runtime ships as an npm package.
 RUN sed -i 's/^URIs: https/URIs: http/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -86,71 +89,67 @@ COPY entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 
 # ── 2. builder ────────────────────────────────────────────────────────────────
-# Compiles the Next.js app and the Rust host. DevDeps, the .next build cache,
-# and the full cargo target/ exist only here; the final stage never copies them.
+# Installs deps, builds the client bundle (scripts/build-client.ts via the
+# `bun` npm package) and prunes devDeps. DevDeps and build caches exist only
+# here; the final stage copies the pruned node_modules, the source tree and
+# the built dist/ — never the build toolchain beyond the runtime bun package.
 FROM node:26-slim AS builder
 
 # build-essential is a node-gyp fallback in case a native prebuild is missing
 # (node-pty normally ships a prebuild, so this is rarely exercised).
-# ca-certificates: curl (rustup install) validates TLS against the system
-# bundle, which node:26-slim does not ship.
+# ca-certificates: outbound HTTPS from the toolchain validates TLS against the
+# system bundle, which node:26-slim does not ship.
 RUN sed -i 's/^URIs: https/URIs: http/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
  && apt-get update \
  && apt-get install -y --no-install-recommends build-essential python3 curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Rust at the same paths the compose `cargo-cache`/`rustup-cache` volumes warm.
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-RUN curl -fsSL https://sh.rustup.rs -o /tmp/rustup-init.sh \
- && sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain stable \
- && rm /tmp/rustup-init.sh \
- && ln -sf /usr/local/cargo/bin/cargo /usr/local/bin/cargo \
- && ln -sf /usr/local/cargo/bin/rustc /usr/local/bin/rustc
-
 WORKDIR /src
-# .dockerignore excludes node_modules / .next / crates/target / vendor, so this
-# copies sources only; the build below regenerates the rest.
+# .dockerignore excludes node_modules/.next-dev/.git, so this copies the source
+# tree (including vendor/vscode-git-graph/types.ts, a runtime import); the
+# build below regenerates the rest.
 COPY . /src
 
-# Install deps → compile Rust host → build the app → stage the host into
-# vendor/ → strip devDeps (build is done) → drop build-only .next dirs.
-# The two asserts guarantee the pruned prod tree still boots: a loadable
-# node-pty native binary and the staged Rust host binary.
+# Install deps → build the client bundle (dist/) → strip devDeps (build is
+# done). The assert guarantees the pruned prod tree still has a loadable
+# node-pty native binary, and that the runtime bun + server entry survived.
 RUN npm ci \
- && cargo build --locked --manifest-path crates/Cargo.toml --bin ompweb-host \
  && npm run build \
- && npm run host:stage -- --vendor \
  && npm prune --omit=dev \
- && rm -rf .next/cache .next/dev .next/types .next/standalone .next/diagnostics .next/trace .next/trace-build \
  && test -n "$(find node_modules/node-pty -name '*.node' -type f | head -1)" \
- && test -n "$(find vendor/ompweb-host -name 'ompweb-host' -type f | head -1)"
+ && test -f "$(node -p "require.resolve('bun/package.json')")" \
+ && test -f dist/index.html
 
 # ── 3. runtime ────────────────────────────────────────────────────────────────
 FROM base
 
 # Only what the launcher (bin/omp-web.js, run from /opt/ompweb) resolves at
 # runtime:
-#   node_modules  — prod deps incl. `next` (launcher does
-#                   require.resolve("next/dist/bin/next") then `next start`)
-#   .next         — compiled server/static + BUILD_ID + manifests
-#   bin/          — launcher + request-peer-preload.js (loopback/HMAC security gate)
-#   public/       — static assets served by Next
-#   vendor/       — Rust host: vendor/ompweb-host/<plat>-<arch>/ompweb-host
-#   package.json / next.config.ts / tsconfig.json
-# instrumentation.ts / proxy.ts are compiled into .next/server; app/, lib/,
-# components/, hooks/ source are compiled into .next/server — none are read at
-# runtime. templates/ (desktop-only) is dropped.
+#   node_modules  — prod deps incl. `bun` (the launcher spawns
+#                   resolveBunBinary() → `bun /opt/ompweb/server/main.ts`)
+#   dist/         — the built client bundle (hashed /assets/, index.html)
+#   server/ lib/ app/api/ — the SOURCE tree Bun runs (routes import through
+#                   the tsconfig `@/*` paths; nothing is pre-compiled)
+#   bin/          — launcher + daemon CLI + request-peer.js (loopback/HMAC gate)
+#   vendor/       — vendor/vscode-git-graph/types.ts (imported by the git-graph route)
+#   public/       — static assets (git-graph webview bundle, icons, service worker)
+#   proxy.ts / instrumentation.node.ts — imported by server/app.ts
+#   tsconfig.json — the @/* path map Bun resolves at runtime
+#   package.json  — launcher version + OMP_WEB_PACKAGE_DIR anchor
+# components/, hooks/, templates/, scripts/ are client-build-only or
+# desktop-only inputs — the server never reads them at runtime.
 # The app lives in /opt/ompweb (the launcher resolves it from __dirname); the
 # container's default working directory is /work (the repo bind, or empty).
 WORKDIR /work
 COPY --from=builder /src/node_modules /opt/ompweb/node_modules
-COPY --from=builder /src/.next /opt/ompweb/.next
+COPY --from=builder /src/dist /opt/ompweb/dist
+COPY --from=builder /src/server /opt/ompweb/server
+COPY --from=builder /src/lib /opt/ompweb/lib
+COPY --from=builder /src/app/api /opt/ompweb/app/api
 COPY --from=builder /src/bin /opt/ompweb/bin
-COPY --from=builder /src/public /opt/ompweb/public
 COPY --from=builder /src/vendor /opt/ompweb/vendor
-COPY --from=builder /src/package.json /src/next.config.ts /src/tsconfig.json /opt/ompweb/
+COPY --from=builder /src/public /opt/ompweb/public
+COPY --from=builder /src/proxy.ts /src/instrumentation.node.ts /src/tsconfig.json /src/package.json /opt/ompweb/
 
 RUN chmod +x /opt/ompweb/bin/omp-web.js /opt/ompweb/bin/omp-web-desktop.js \
  && ln -sf /opt/ompweb/bin/omp-web.js /usr/local/bin/ompweb \
