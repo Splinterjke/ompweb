@@ -949,6 +949,83 @@ test("opening a session past its Claude usage limit shows the badge, and an idle
   assert.equal(w.latest.usageLimit, undefined, "the idle slash refresh clears the badge");
 });
 
+test("unmount during the send connection still delivers the prompt", async () => {
+  resetWorld();
+  primeSession("connecting-unmount", [userMsg("u0", "q")]);
+  const w = await mountSession("connecting-unmount");
+  let sending;
+  await act(async () => {
+    sending = w.latest.handleSend("switched chats mid-send");
+    await sleep(30);
+  });
+  const source = lastEs();
+  assert.ok(source, "the actual send must await a real observer subscription");
+  assert.equal(source.readyState, FakeStream.CONNECTING);
+  let result;
+  await act(async () => {
+    w.unmount();
+    result = await sending;
+  });
+  assert.equal(source.closedByCaller, true);
+  assert.equal(result.status, "accepted");
+  assert.equal(world.calls.filter((call) => call.body?.type === "prompt").length, 1);
+  assert.equal(world.esInstances.length, 1, "no observer is opened for the unmounted chat");
+  for (const type of ["set_host_tools", "set_host_uri_schemes", "get_subagents"]) {
+    assert.equal(world.calls.some((call) => call.body?.type === type), false, `no ${type} for the unmounted chat`);
+  }
+});
+
+test("a send connection that fails while the chat is mounted rejects without dispatching the prompt", async () => {
+  resetWorld();
+  primeSession("connecting-fails", [userMsg("u0", "q")]);
+  const w = await mountSession("connecting-fails");
+  let sending;
+  await act(async () => {
+    sending = w.latest.handleSend("stays in the composer");
+    await sleep(30);
+  });
+  let result;
+  await act(async () => {
+    lastEs().failFatal();
+    result = await sending;
+  });
+  assert.equal(result.status, "rejected");
+  assert.equal(world.calls.some((call) => call.body?.type === "prompt"), false);
+});
+
+for (const operation of ["prompt", "btw"]) {
+  test(`unmount during ${operation} RPC startup cannot create an observer after teardown`, async (t) => {
+    resetWorld();
+    const sid = `startup-unmount-${operation}`;
+    primeSession(sid, [userMsg("u0", "q")]);
+    const w = await mountSession(sid);
+    let release;
+    t.after(() => release?.());
+    world.holds.push({
+      match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "get_state",
+      produce: () => new Promise((resolve) => { release = () => resolve({ value: { success: true, data: {} } }); }),
+    });
+    let pending;
+    await act(async () => {
+      pending = operation === "prompt" ? w.latest.handleSend("must stay unsent") : w.latest.askBtw("must stay unasked");
+      await sleep(20);
+    });
+    assert.equal(typeof release, "function", "the supported startup RPC must be awaiting its response");
+    assert.equal(world.esInstances.length, 0, "startup has not yet acquired its observer");
+    let result;
+    await act(async () => {
+      w.unmount();
+      release();
+      result = await pending;
+    });
+    // (renderHook's unmount already completed the root's cleanup here.)
+    assert.equal(world.esInstances.length, 0, "a late RPC response cannot create an observer its owner cannot close");
+    assert.equal(operation === "prompt" ? result.status : result, operation === "prompt" ? "accepted" : false);
+    // The user's prompt still goes out (they switched chats); a side question has no UI left to answer into.
+    assert.equal(world.calls.some((call) => call.body?.type === operation), operation === "prompt");
+  });
+}
+
 /** Mount + hydrate, start the run, and stream one assistant delta. */
 async function startStreamingRun(sid) {
   const { w, es } = await startRun(sid, "q1");

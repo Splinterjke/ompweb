@@ -3425,11 +3425,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           // Cold path: start/resume the wrapper before attaching the observer.
           await sendAgentCommand(sid, { type: "get_state" });
         }
-        await ensureEventsConnected(sid);
-        void refreshSubagentRoster(sid);
-        void registerHostTools(sid);
-        void registerHostUriSchemes(sid);
-
+        // As for a new chat above: the user may have switched chats during startup
+        // (this instance unmounted, its stream wait settled "closed"). Their prompt
+        // still goes out, with no stream or UI state left to set up.
+        try {
+          await ensureEventsConnected(sid);
+        } catch (e) {
+          if (hookAliveRef.current || !(e instanceof EventStreamConnectionError)) throw e;
+        }
+        if (hookAliveRef.current) {
+          void refreshSubagentRoster(sid);
+          void registerHostTools(sid);
+          void registerHostUriSchemes(sid);
+        }
         promptIssued = true;
         queuedBehindShell = isQueuedWhileShellRunning(await sendAgentCommand(sid, {
           type: "prompt",
