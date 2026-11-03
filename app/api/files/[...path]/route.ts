@@ -405,6 +405,10 @@ export async function GET(
       return Response.json({ error: "Invalid file request type", code: "invalid_request_type" }, { status: 400 });
     }
     const sessionId = searchParams.get("sessionId");
+    // The explorer's "Show hidden items" toggle: for `type=list` only, skip the
+    // IGNORED_NAMES/IGNORED_SUFFIXES skip-list so build/ and friends can be
+    // browsed. Everything else (reads, downloads) never applied it anyway.
+    const showHidden = searchParams.get("hidden") === "1";
 
     // One authorization gate for this route and the live file-watch channel
     // (lib/file-authorization.ts): resolve the segments, deny omp's

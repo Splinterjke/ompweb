@@ -55,6 +55,7 @@ interface Props {
   onAtMentions?: (relativePaths: string[]) => void;
   onUploadBusyChange?: (busy: boolean) => void;
   onRefreshDone?: () => void;
+
 }
 
 export interface FileExplorerHandle {
@@ -617,6 +618,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
   onAtMentions,
   onUploadBusyChange,
   onRefreshDone,
+
 }, ref) {
   const { t, tn } = useI18n();
   const { showAllFiles } = useShowAllFiles();
@@ -665,6 +667,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
       return next;
     });
   }, []);
+
 
   const applyUploadResult = useCallback((data: UploadResponse) => {
     const uploaded = data.uploaded ?? [];
@@ -827,6 +830,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
     void load(cwd, true);
     return () => { cancelled = true; };
   }, [cwd, refreshKey, treeRefreshKey, showAllFiles]);
+
 
   useEffect(() => {
     let cancelled = false;

@@ -494,6 +494,7 @@ export function AppShell({ appName }: { appName: string }) {
       setShowGoalTokenBudget(window.localStorage.getItem(GOAL_TOKEN_BUDGET_STORAGE_KEY) === "true");
       setNeverFoldActivity(window.localStorage.getItem(NEVER_FOLD_ACTIVITY_STORAGE_KEY) === "true");
       setShowToolCallsUnfolded(window.localStorage.getItem(SHOW_TOOL_CALLS_UNFOLDED_STORAGE_KEY) === "true");
+
     } catch {
       // Keep the compact default when storage is unavailable.
     }
@@ -706,7 +707,6 @@ export function AppShell({ appName }: { appName: string }) {
       // The preference still applies for this page load.
     }
   }, []);
-
   // Persist the committed width (after each change; skipped mid-drag, then
   // written once the drag ends). The first run is skipped so the mount-time
   // default cannot overwrite the stored width before it is loaded.

@@ -703,6 +703,7 @@
   "fileExplorer.noFilesFound": "No files found",
   "fileExplorer.workspaceMissing": "{parent} doesn't exist on this machine — showing its parent instead",
   "fileExplorer.replace": "Replace",
+
   "fileExplorer.skipExisting": "Skip existing",
   "fileExplorer.skippedCount": "{count} skipped",
   "fileExplorer.showIgnoredFiles": "Show ignored files",

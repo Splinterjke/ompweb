@@ -1749,25 +1749,22 @@ stored `omp-web:submit-during-run` choice overrides it.
 - `/api/cwd/validate`, `/api/default-cwd`, and `/api/worktrees` call `allowFileRoot()` when they make a new location browsable.
 - The session-id → file path cache (`cacheSessionPath`, `lib/session-reader.ts`) on main is filled by main's own scans and by wrappers on the local host; it only serves the readers listed under "Session list caching".
 
-### Paged text preview reads (`lib/file-read-page.ts`, `?type=read&offset=`, FileViewer Load more)
-- Text previews are NOT capped at 256 KiB anymore: `?type=read` serves
-  byte-offset pages (`offset`/`limit` params, default page
-  `TEXT_PREVIEW_MAX_BYTES` = 256 KiB, `limit` clamped to 1 MiB) and the
-  response carries `{ size (TOTAL), offset, truncated, nextOffset }`.
-  `file_too_large_preview` is only emitted for an out-of-range `offset`
-  (413); normal reads past 256 KiB simply page.
-- One shared reader (`lib/file-read-page.ts` `readTextPage`, pinned by
-  `lib/file-read-page.test.mjs`): pages start at server-returned
-  `nextOffset`s only, and the server snaps both page ends to UTF-8
-  character boundaries (a page never splits a multi-byte character;
-  invalid bytes pass through as-is at the tail).
-- `components/FileViewer.tsx` (`TextFileViewer`) keeps the loaded pages in
-  `data.content` and shows a "Loaded X of Y" bar with **Load more** while
-  `truncated`; appends are fenced to the `contentRequestRef` generation so
-  a watcher/reset drop is impossible, and a page whose `nextOffset` does
-  not advance ends paging instead of looping. Past one page rendering
-  switches to `PlainSourceRenderer` (no syntax tokenization — highlighting
-  megabytes freezes the tab, which is what the old cap protected against).
+### Explorer hidden items
+- The tree skip-list (`IGNORED_NAMES`/`IGNORED_SUFFIXES`) lives in
+  `lib/directory-listing.ts` (`listDirectoryEntries(dir, all)` — `all`
+  bypasses it) and is **duplicated** in `app/api/file-index/route.ts` —
+  edit both or extract the same module there too.
+- The Explorer's show-ignored toggle (upstream #378 landed on this fork as
+  the earlier `showAllFiles` feature) sends `?all=1` on `type=list` only.
+  It deliberately does NOT touch `/api/file-index` — @-mentions and file
+  search keep ignoring those paths. State is the `useShowAllFiles` hook
+  (localStorage `omp-web:explorer-show-all-files`, off by default;
+  `ShowAllFilesButton` toggles it and the storage event re-lists every
+  mounted explorer). Flipping it changes the tree's `refreshToken`, so
+  open directories re-fetch and collapsed ones are marked stale —
+  expansion state is kept, and each node's `childrenRequestRef` discards
+  a superseded in-flight listing (upstream's #378 second commit, adapted
+  to this fork's per-node loading).
 
 ### Session list caching — new sessions must appear immediately
 - The sidebar and command palette list sessions per host: `listSessionsAllHosts()` (`lib/hosts/session-index.ts`) calls each host's `listSessions` op and caches it 30 s per host (`LIST_TTL_MS`, the daemon's own TTL). **This machine's list is its daemon's**; a host that fails or is offline keeps its last list. Nothing on main parses session files to build it.

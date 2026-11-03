@@ -703,6 +703,7 @@
   "fileExplorer.noFilesFound": "ファイルが見つかりません",
   "fileExplorer.workspaceMissing": "「{parent}」はこのマシンに存在しません — 代わりに親ディレクトリを表示しています",
   "fileExplorer.replace": "置き換え",
+
   "fileExplorer.skipExisting": "既存をスキップ",
   "fileExplorer.skippedCount": "{count} 件スキップ",
   "fileExplorer.showIgnoredFiles": "無視されたファイルを表示",

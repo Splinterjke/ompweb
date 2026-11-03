@@ -703,6 +703,7 @@
   "fileExplorer.noFilesFound": "未找到文件",
   "fileExplorer.workspaceMissing": "「{parent}」在本机不存在 — 显示其上级目录",
   "fileExplorer.replace": "替换",
+
   "fileExplorer.skipExisting": "跳过已存在",
   "fileExplorer.skippedCount": "{count} 个已跳过",
   "fileExplorer.showIgnoredFiles": "显示被忽略的文件",
