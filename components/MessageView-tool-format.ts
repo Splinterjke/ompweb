@@ -1,5 +1,6 @@
 import { isRecord } from "@/lib/type-guards";
 
+
 export interface HubSendSummary {
   to: string[];
   message: string;
