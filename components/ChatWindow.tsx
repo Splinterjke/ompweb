@@ -766,7 +766,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
 
   const {
     loading, error, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, bashRunning, pendingBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
+    agentRunning, bashRunning, pendingBash, deferredBash, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit,
     liveModelMeta,
     retryInfo, contextUsage, forkingEntryId, editingEntryId, liveToolResults,
     modelSwitching, modelRestoreFailure,
@@ -1816,6 +1816,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
                 <span>{t("chatWindow.runningCommand")}</span>
               </div>
             )}
+
+            {deferredBash.map((message, index) => (
+              <MessageView
+                key={index}
+                message={message}
+                sessionId={session?.id ?? sessionIdRef.current ?? undefined}
+              />
+            ))}
 
             {pendingBash && (
               <MessageView

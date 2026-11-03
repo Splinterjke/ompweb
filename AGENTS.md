@@ -1151,9 +1151,30 @@ never rejected: the wrapper degrades the frame into omp's `follow_up` queue and
 answers `{queued:true, queue:"followUp", reason:"shellRunning"}`
 (`queueWhileShellRunning`); the hook then withdraws the optimistic bubble and
 shows `agentSession.queuedWhileShellRunning`. Chips still come only from omp's
-snapshot. The default submit-during-run behavior is queue
+snapshot. This applies only with no turn streaming: during a turn, prompts and
+steers reach omp unchanged. The default submit-during-run behavior is queue
 (`DEFAULT_SUBMIT_DURING_RUN_BEHAVIOR` in `lib/composer-prefs.ts`); only a
 stored `omp-web:submit-during-run` choice overrides it.
+- A `!cmd` submitted during a run is never queued as text: `sendQueued` hands
+  it to `handleSend`, which runs it at once beside the turn, as omp's terminal
+  does. omp holds such a result back until a later prompt starts (with omp
+  18.15 it was seen landing one prompt later than the next); the wrapper marks the reply
+  `deferred`: its `streaming` read by `sendCommand`'s `onReply` as the reply
+  is read (omp's own `isStreaming`; after the await, an `agent_end` from the
+  same link batch would already have cleared it). The hook shows it from
+  `heldBash` (after the transcript) until the transcript has a run of that
+  command stamped after the newest omp stamp the tab had seen when the command
+  was sent (`newestStampRef`, which only grows, so a history view cannot lower
+  it; both omp's clock, so an older run revealed by the pre-compaction view
+  never matches; never compare counts, they change with the view). Each
+  recorded run settles one held entry (`settledRunsRef`). It then retires it
+  for good (compaction or a branch view without it must not bring it back). Never clear it on a client
+  event such as sending a prompt: the result may reach the transcript one
+  prompt later. Other tabs see it only from then on. Stop (`handleAbort`)
+  stops a running turn first, as omp's Esc does; `abort_bash` only when no
+  turn runs. An EXTERNALLY held session keeps refusing `!` (the
+  externally-running notice, `externalRunningRef` in `executeBash`): a second
+  holder would fork the file.
 
 ### Skill-invoked first prompt (`customType: "skill-prompt"`)
 - When a session is started with a skill mention (`/skill:name …`), omp stores the

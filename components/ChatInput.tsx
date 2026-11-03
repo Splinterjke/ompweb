@@ -1939,6 +1939,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     if (!msg && !attachedImages.length && !attachedTextFiles.length && !attachedUploads.length) return;
     if (sendSideQuestion(msg, overrideText)) return;
     if (rejectsPendingUploads()) return;
+    // `!cmd` runs right away during a run too, as in omp's terminal (upstream
+    // #376); it is never queued as text. handleSend's shell branch dispatches it.
+    if (msg.startsWith("!") && !attachedImages.length && !attachedTextFiles.length && !attachedUploads.length) {
+      void handleSend(overrideText);
+      return;
+    }
     const images = attachedImages.length ? attachedImages : undefined;
     const uploads = uploadArgs(attachedUploads);
     // The queue callbacks resolve false when omp refused the message: it goes
@@ -2009,7 +2015,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     }
     setAttachError(null);
     clearInput();
-  }, [value, attachedImages, attachedTextFiles, attachedUploads, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, t, advisorEnabled, rejectsPendingUploads, sendSideQuestion]);
+  }, [value, attachedImages, attachedTextFiles, attachedUploads, handleSend, onPromptWithStreamingBehavior, onSteer, onFollowUp, clearInput, onAudioUnlock, t, advisorEnabled, rejectsPendingUploads, sendSideQuestion]);
   // Stop must stay reachable WHILE a run is active: the primary button is
   // always Stop when streaming (queued follow-ups are still submitted via
   // Enter / the queued-follow-up bar). Previously a typed message replaced
