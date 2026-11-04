@@ -413,7 +413,7 @@ hooks/
   useWordPrediction.ts     debounced omp predict_word ghost text + feedback
   useChatSearchHighlights.ts  find-in-page for the sidebar search: CSS Custom Highlight API paint + jump to a picked hit
   usePrefersReducedMotion.ts OS reduce-motion preference (SMIL-safe)
-  useTheme.ts              theme state (localStorage key "omp-theme")
+  useTheme.ts              theme state (localStorage key "omp-theme"; the top bar's `--bg-panel` → theme-color meta, "omp-theme-color" cookie and the manifest link's ?theme=, see lib/manifest-theme.ts)
 
 bin/
   bun-runtime.js      resolves the Bun binary (npm `@oven/bun-*`, else PATH, minimum version check); used by the launcher, scripts and nix

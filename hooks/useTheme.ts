@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { manifestHref, THEME_COLOR_COOKIE } from "@/lib/manifest-theme";
 
 export type ThemePreference =
   | "system"
@@ -254,6 +255,28 @@ export function nextThemePreference(preference: ThemePreference): ThemePreferenc
   return isDarkTheme(preference) ? "light" : "dark";
 }
 
+/** The browser chrome and the installed app's system bars follow the top
+ *  bar's color (--bg-panel, upstream ebaae186): publish a `RRGGBB` color as
+ *  the theme-color meta, in the manifest-theme cookie (next server render)
+ *  and in the manifest link's href (a new href makes Chrome drop its cached
+ *  manifest; installed apps are refreshed without cookies). Returns false
+ *  when the color is not a plain hex (a custom theme's color-mix panel). */
+export function applyThemeChrome(color: string): boolean {
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) return false;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", color);
+  document.cookie = `${THEME_COLOR_COOKIE}=${color.slice(1)}; path=/; max-age=31536000; SameSite=Lax`;
+  const manifest = document.querySelector('link[rel="manifest"]');
+  const href = manifestHref(color.slice(1));
+  if (manifest && manifest.getAttribute("href") !== href) manifest.setAttribute("href", href);
+  return true;
+}
+
+/** Push the live --bg-panel (the top bar's color) to the browser chrome. */
+function syncThemeChrome(): void {
+  applyThemeChrome(getComputedStyle(document.documentElement).getPropertyValue("--bg-panel").trim());
+}
+
 function applyTheme(preference: ThemePreference): void {
   const root = document.documentElement;
   // Clear any inline custom variables when switching to preset
@@ -277,6 +300,7 @@ function applyTheme(preference: ThemePreference): void {
 
   if (preference === "custom") {
     applyCustomStyles(getCustomTheme());
+    syncThemeChrome();
     try {
       localStorage.setItem(STORAGE_KEY, "custom");
     } catch {}
@@ -292,6 +316,8 @@ function applyTheme(preference: ThemePreference): void {
   } else {
     root.setAttribute("data-theme", preference);
   }
+
+  syncThemeChrome();
 
   try {
     localStorage.setItem(STORAGE_KEY, preference);

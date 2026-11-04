@@ -4292,9 +4292,18 @@ html.dark .dropdown-surface :is(select, option) {
   .chat-stats-center {
     display: none !important;
   }
+  /* Drawers are sized with height, never bottom-anchored: Chrome treats a
+     bottom-anchored box padded with env(safe-area-inset-bottom) as a "complex
+     safe-area constraint" and stops drawing edge-to-edge, leaving the Android
+     navigation bar black in the installed app. */
   .sidebar-container {
     position: fixed !important;
-    inset: 0;
+    /* Height-sized, not `inset: 0` (upstream ebaae186): Chrome keeps drawing
+       edge to edge. */
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
     /* Same over-paint fix as the right-panel overlay (chat's jump button
        /streaming beam must not shine through), and above the panel layer
        so opening the drawer from the still-visible top bar wins the race;
@@ -4987,11 +4996,11 @@ html[data-animation-thinking="false"] .thinking-icon-active {
   border-radius: var(--radius-control);
   background: var(--bg-panel);
   color: var(--text);
-  box-shadow: var(--shadow-pop);
+  /* Shadow only while shown: parked above the viewport, its blur spilled onto the top bar. */
   transform: translateY(-150%);
   transition: transform var(--dur-fast) var(--ease-out-warm);
 }
-.skip-link:focus { transform: translateY(0); }
+.skip-link:focus { transform: translateY(0); box-shadow: var(--shadow-pop); }
 
 /* Text-style back/navigate button in settings section headers. */
 .settings-back {

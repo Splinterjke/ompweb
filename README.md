@@ -215,7 +215,12 @@ The single manifest link requests `/api/manifest` with credentials; that endpoin
 uses the existing web-password guard and private, revalidating caching. Its
 192×192 and 512×512 PNG icons are embedded from the packaged favicon set because
 Android's native installer fetches ordinary icon URLs without authentication
-cookies. The app still launches at `/` with scope `/`.
+cookies. The app still launches at `/` with scope `/`. Its `theme_color` and
+`background_color` come from the manifest link's `?theme=` parameter: Chrome
+refreshes an installed app's manifest without cookies, so the server renders the
+selected theme's color (remembered in the `omp-theme-color` cookie) into the
+link. Chrome 153 and later color an installed app's Android navigation bar from
+it after Chrome next checks the app for manifest updates.
 
 No public manifest exception is needed; `/api/manifest` stays behind the same
 password guard as every other API route. This does not add offline support.
