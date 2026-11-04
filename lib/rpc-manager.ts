@@ -412,7 +412,8 @@ export class AgentSessionWrapper {
   private bashRunning = false;
   private streaming = false;
   private compacting = false;
-
+  /** Calls that returned: omp keeps sending `tool_execution_update` for a backgrounded job with no later end. */
+  private endedToolCalls = new Set<string>();
   private fastModeEnabled = false;
   /** Wedged-run watchdog state: last child-originated frame, the messageCount
    *  captured at the first confirmation probe, and the per-run check timer.
@@ -685,6 +686,11 @@ export class AgentSessionWrapper {
 
   hasActiveTurn(): boolean {
     return this.isAlive() && (this.promptRunning || this.streaming);
+  }
+
+  private endTool(toolCallId: string): void {
+    this.liveToolEvents.delete(toolCallId);
+    this.endedToolCalls.add(toolCallId);
   }
 
   start(): void {
@@ -1934,23 +1940,27 @@ export class AgentSessionWrapper {
           this.streamingMessage = null;
           this.streamingMessageId = null;
         }
-        if (message?.role === "toolResult" && message.toolCallId) this.liveToolEvents.delete(message.toolCallId);
+        if (message?.role === "toolResult" && message.toolCallId) this.endTool(message.toolCallId);
         if (message?.role === "assistant") this.resumeDeltaUpdates();
         break;
       }
       case "tool_execution_start":
       case "tool_execution_update":
-        if (typeof event.toolCallId === "string") {
-          this.liveToolEvents.set(event.toolCallId, {
-            ...this.liveToolEvents.get(event.toolCallId),
-            ...event,
-            type: event.type,
-            toolCallId: event.toolCallId,
-          } as SessionLiveToolEvent);
-        }
+        if (typeof event.toolCallId !== "string") break;
+        // A start is always a new execution, even of a reused id. A returned call's updates are stale: its row
+        // shows the committed result, so tabs and the snapshot both drop them (a tab would show it running again).
+        // shortcut: a wrapper adopted after a server restart never saw the ends and still passes those updates; filter against committed results if adopted chats show them.
+        if (event.type === "tool_execution_start") this.endedToolCalls.delete(event.toolCallId);
+        else if (this.endedToolCalls.has(event.toolCallId)) return;
+        this.liveToolEvents.set(event.toolCallId, {
+          ...this.liveToolEvents.get(event.toolCallId),
+          ...event,
+          type: event.type,
+          toolCallId: event.toolCallId,
+        } as SessionLiveToolEvent);
         break;
       case "tool_execution_end":
-        if (typeof event.toolCallId === "string") this.liveToolEvents.delete(event.toolCallId);
+        if (typeof event.toolCallId === "string") this.endTool(event.toolCallId);
         break;
     }
     event.web = { streamId: this.streamId, sequence: ++this.streamSequence };
@@ -2257,6 +2267,7 @@ export class AgentSessionWrapper {
     this.clearLiveSnapshots();
     this.responseObserved = false;
     this.responseRunActive = false;
+    this.endedToolCalls.clear();
     this.streamId = randomUUID();
     this.streamSequence = 0;
   }
