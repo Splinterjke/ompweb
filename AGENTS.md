@@ -351,6 +351,7 @@ lib/
   session-match-listing.ts   server: lists a session's search hits counted per rendered text node (remark parse)
   session-resume.ts    mid-run session tracker (on-disk list) + resume prompt; resume orchestration lives in rpc-manager
   transport-metrics.ts transport samples → `<agent dir>/omp-web/transport-metrics.jsonl` (renamed to `.jsonl.1` above 20 MiB)
+  transport-stats.ts   durations of transport samples (percentiles, per-metric derivation) shared by the worker's Connection tab stats and scripts/transport-metrics.ts
   skills-service.ts    skill listing via `omp skill list --json`; pure-Node replica scan as fallback
   tool-presets.ts      PRESET_NONE/DEFAULT/FULL + getPresetFromTools()
   types.ts             shared TypeScript types
@@ -379,6 +380,7 @@ components/
   BranchNavigator.tsx in-session branch switcher
   NotificationList.tsx  notification history list + Mark all read/Clear toolbar (workbench tab, desktop bell popover)
   NotificationBell.tsx  desktop top-bar bell: unread badge + floating history popover (upstream 351237d7)
+  ConnectionDiagnostics.tsx  workbench Connection view: transport in use, status, latency stats (opt-in, Settings → Session & Agent Behavior; the fork's RightWorkbench hosts it instead of upstream's RightPanel tab)
   ChatMinimap.tsx     scroll minimap alongside the message list
   EventActionsPanel.tsx sidebar "Chat event actions" list (between Schedulers and Usage)
   EventActionModal.tsx create/edit chat-event action (event checkboxes + 4 action types)
@@ -1341,9 +1343,17 @@ stored `omp-web:submit-during-run` choice overrides it.
     `socket`/`conn` (`sse`, `link`, `http`, `worker`) and `sockets`; the worker POSTs them to
     `/api/transport-metrics` every 30 s or 200 samples (a probe not answered within 10 s is abandoned, a POST within 10 s plus its body at 2 KB/s; a failed POST keeps its samples, so a timeout after the server processed it can duplicate them). The route appends JSONL to `<agent
     dir>/omp-web/transport-metrics.jsonl` (`.jsonl.1` above 20 MiB). One worker-wide clock (the
-    lowest-RTT of the last 20 link pings and SSE probes, at most 5 min old) times every sample.
+    lowest-RTT of the last 20 link pings and SSE probes, at most 5 min old unless it is the newest sample) times every sample.
     `bun scripts/transport-metrics.ts --since 2h` prints the per-transport summary (also `--until`,
     `--client`, `--file`).
+  - **Connection tab** (right panel, both layouts, shown while Settings → Interface & Behavior → "Show connection
+    diagnostics" is on, `omp-web:connection-diagnostics`, per browser). It polls the worker (`diag` op,
+    `requestConnectionDiagnostics`) once a second while visible: the mode in effect, fallback, status (`idle` when
+    no connection is needed, `down` after `SEND_DEADLINE_MS` without a connection), the last reconnect, and
+    per-transport stats (mean, p50, p95, p99.9 from 1000 values, max) of the worker's last 30 min of samples (at most
+    20 000, kept beside the POST buffer). Command rows include confirmed successful replies only; app ↔ omp and round-trip rows skip commands whose reply does not confirm omp got them (`NO_OMP_REPLY_COMMANDS`: the `NO_SPAWN_REPLIES` the web app answers itself, a test keeps them included, plus the results `dispatchCommand` forwards without awaiting omp). A new command of either kind belongs there. Shared durations
+    come from `lib/transport-stats.ts`; one-way estimates use clock correction and assume symmetric latency.
+    Without a SharedWorker (Chrome for Android) each tab has its own worker, so the numbers are that tab's.
   - **Worker rules.** Browser code: no `AbortSignal.timeout`/`any` or `Promise.withResolvers` (a test checks
     the bundle). Every global the worker uses must be injectable into the `vm` context of
     `lib/event-stream-worker.test.mjs`. The link URL is absolute (`new URL(path, self.location.href)`,

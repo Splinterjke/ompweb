@@ -17,6 +17,8 @@ import { ToastProvider } from "./ui/toast";
 import { toast } from "./ui/toast";
 import { notificationHistory, useUnreadNotificationCount } from "@/lib/notification-history";
 import { ChatWindow } from "./ChatWindow";
+import { useConnectionDiagnosticsEnabled } from "@/lib/connection-diagnostics-prefs";
+import { ConnectionDiagnosticsPanel } from "./ConnectionDiagnostics";
 import { NotificationBell } from "./NotificationBell";
 import { TabBar, type Tab } from "./TabBar";
 import { BranchNavigator } from "./BranchNavigator";
@@ -1182,6 +1184,9 @@ export function AppShell({ appName }: { appName: string }) {
   // the user closes the popover or leaves the tab.
   const unreadNotifications = useUnreadNotificationCount();
   const [workbenchActiveView, setWorkbenchActiveView] = useState<WorkbenchView | null>(null);
+  // Connection diagnostics opt-in (Settings → Session & Agent Behavior): off,
+  // the workbench has no Connection view and drops any persisted one.
+  const connectionDiagnosticsOn = useConnectionDiagnosticsEnabled();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   // Settings replaces the top bar; the popover must not linger open there.
   useEffect(() => {
@@ -3144,6 +3149,8 @@ export function AppShell({ appName }: { appName: string }) {
             cwd={explorerCwd}
             remoteHost={remoteHost}
             worktrees={<WorktreesPanel key={worktreeCtx?.projectRoot ?? ""} ctx={worktreeCtx} remoteHost={remoteHost} />}
+            connectionEnabled={connectionDiagnosticsOn}
+            connection={(active) => <ConnectionDiagnosticsPanel active={active && rightPanelOpen} />}
             files={(
               <PanelErrorBoundary title={t("rightPanel.files") ?? "Files"} unavailable={t("rightPanel.unavailable") ?? "is temporarily unavailable"} retryLabel={t("rightPanel.retry") ?? "Retry"}>
                 <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>

@@ -2,7 +2,7 @@
 import { Tooltip } from "../ui/primitives";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bell, Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
+import { Activity, Bell, Bot, Brain, Columns2, ExternalLink, Files, GitBranch, GitFork, Globe2, MessageCircle, Plus, Search, Split, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { createTemporarySession } from "@/lib/workbench-client";
@@ -12,7 +12,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { NotificationListView } from "../NotificationList";
 import { useUnreadNotificationCount } from "@/lib/notification-history";
 import { matchMobileViewport, useIsMobile } from "@/hooks/useIsMobile";
-export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory";
+export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory" | "connection";
 // The workbench intentionally has one axis only.  A second axis (or a
 // draggable dock) made the right rail feel like a nested window manager and
 // was especially confusing on small screens.  The sole split is upper/lower.
@@ -31,6 +31,7 @@ const VIEW_META: Record<WorkbenchView, { icon: typeof Files; labelKey: string; f
   sidechat: { icon: MessageCircle, labelKey: "rightWorkbench.sideChat", fallback: "Side Chat" },
   browser: { icon: Globe2, labelKey: "rightWorkbench.browser", fallback: "Browser" },
   memory: { icon: Brain, labelKey: "rightWorkbench.memory", fallback: "Memories" },
+  connection: { icon: Activity, labelKey: "tabBar.connection", fallback: "Connection" },
 };
 
 function emptyLayout(): Layout {
@@ -42,7 +43,7 @@ function normalizeLayout(value: unknown): Layout {
   const candidate = value as Partial<Layout>;
   const panes = Array.isArray(candidate.panes) ? candidate.panes.slice(0, 2).map((pane, index) => {
     const source = pane as Partial<Pane>;
-    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "notifications" || tab === "files" || tab === "agents" || tab === "git" || tab === "worktrees" || tab === "sidechat" || tab === "browser" || tab === "memory") : [];
+    const tabs = Array.isArray(source.tabs) ? source.tabs.filter((tab): tab is WorkbenchView => tab === "notifications" || tab === "files" || tab === "agents" || tab === "git" || tab === "worktrees" || tab === "sidechat" || tab === "browser" || tab === "memory" || tab === "connection") : [];
     const active = tabs.includes(source.active as WorkbenchView) ? source.active as WorkbenchView : tabs[0] ?? null;
     return { id: typeof source.id === "string" ? source.id : `pane-${index + 1}`, tabs: [...new Set(tabs)], active };
   }) : [];
@@ -67,6 +68,20 @@ function withoutNotifications(layout: Layout): Layout {
       if (!pane.tabs.includes("notifications")) return pane;
       const tabs = pane.tabs.filter((tab) => tab !== "notifications");
       return { ...pane, tabs, active: pane.active === "notifications" ? tabs[0] ?? null : pane.active };
+    }),
+  };
+}
+
+/** The Connection diagnostics setting is off in this browser: persisted
+ *  Connection tabs must not survive a layout load or a setting flip. */
+function withoutConnection(layout: Layout): Layout {
+  if (!layout.panes.some((pane) => pane.tabs.includes("connection"))) return layout;
+  return {
+    ...layout,
+    panes: layout.panes.map((pane) => {
+      if (!pane.tabs.includes("connection")) return pane;
+      const tabs = pane.tabs.filter((tab) => tab !== "connection");
+      return { ...pane, tabs, active: pane.active === "connection" ? tabs[0] ?? null : pane.active };
     }),
   };
 }
@@ -235,6 +250,8 @@ export function RightWorkbench({
   files,
   agents,
   worktrees,
+  connection,
+  connectionEnabled = false,
   requestedView,
   onActiveViewChange,
   onOpenFile,
@@ -247,6 +264,13 @@ export function RightWorkbench({
   agents: ReactNode;
   /** Right-panel Worktrees view content (rendered per `requestedView` / the + menu). */
   worktrees: ReactNode;
+  /** Connection diagnostics view content, built with the pane's active flag so
+   *  the panel polls only while its tab is truly shown (the shell adds the
+   *  workbench's open state on top). */
+  connection?: (active: boolean) => ReactNode;
+  /** The "Show connection diagnostics" setting: off, the Connection view has
+   *  no menu entry and persisted Connection tabs drop out of the layout. */
+  connectionEnabled?: boolean;
   requestedView?: { view: WorkbenchView; nonce: number } | null;
   /** Reports which view the panes show, so the shell can badge/mark-read the Notifications tab. */
   onActiveViewChange?: (view: WorkbenchView | null) => void;
@@ -286,15 +310,23 @@ export function RightWorkbench({
     setLayout(withoutNotifications);
   }, [isMobile]);
 
+  // Connection diagnostics off in this browser: a persisted or just-closed
+  // Connection tab drops out (the same way desktop drops Notifications).
+  useEffect(() => {
+    if (connectionEnabled) return;
+    setLayout(withoutConnection);
+  }, [connectionEnabled]);
+
   const openView = useCallback((view: WorkbenchView) => {
     if (view === "notifications" && !matchMobileViewport()) return;
+    if (view === "connection" && !connectionEnabled) return;
     setLayout((current) => {
       const existingIndex = current.panes.findIndex((pane) => pane.tabs.includes(view));
       if (existingIndex >= 0) return { ...current, panes: current.panes.map((pane, index) => index === existingIndex ? { ...pane, active: view } : pane) };
       const targetIndex = current.panes.length - 1;
       return { ...current, panes: current.panes.map((pane, index) => index === targetIndex ? { ...pane, tabs: [...pane.tabs, view], active: view } : pane) };
     });
-  }, []);
+  }, [connectionEnabled]);
 
   useEffect(() => {
     if (!requestedView) return;
@@ -343,11 +375,13 @@ export function RightWorkbench({
       : cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
     if (view === "memory") return <MemoryPanel cwd={cwd} />;
+    if (view === "connection") return connection ? connection(active) : null;
     return <BrowserView />;
-  }, [agents, cwd, files, onOpenFile, remoteHost, t, worktrees]);
+  }, [agents, connection, cwd, files, onOpenFile, remoteHost, t, worktrees]);
 
-  // The Notifications entry belongs to the top-bar bell on desktop (upstream 351237d7).
-  const actions = useMemo(() => (["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory"] as WorkbenchView[]).filter((view) => isMobile || view !== "notifications"), [isMobile]);
+  // The Notifications entry belongs to the top-bar bell on desktop (upstream 351237d7);
+  // the Connection entry belongs to this browser's diagnostics setting.
+  const actions = useMemo(() => (["notifications", "files", "agents", "git", "worktrees", "sidechat", "browser", "memory", "connection"] as WorkbenchView[]).filter((view) => (isMobile || view !== "notifications") && (connectionEnabled || view !== "connection")), [connectionEnabled, isMobile]);
   const emptyActions = actions;
 
   const updateMenuPosition = useCallback(() => {
@@ -456,7 +490,7 @@ export function RightWorkbench({
       {layout.panes.map((pane, index) => <div key={pane.id} style={{ position: "relative", minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: index === 0 && layout.panes.length > 1 ? `0 0 ${layout.split}%` : 1 }}>
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
           {pane.tabs.map((view) => (
-            <div key={view} aria-hidden={pane.active !== view} style={{ position: "absolute", inset: 0, visibility: pane.active === view ? "visible" : "hidden", pointerEvents: pane.active === view ? "auto" : "none", opacity: pane.active === view ? 1 : 0, transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
+            <div key={view} role="tabpanel" aria-label={labelFor(t, view)} aria-hidden={pane.active !== view} style={{ position: "absolute", inset: 0, visibility: pane.active === view ? "visible" : "hidden", pointerEvents: pane.active === view ? "auto" : "none", opacity: pane.active === view ? 1 : 0, transition: "opacity var(--dur-fast) var(--ease-out-warm)" }}>
               {renderView(view, pane.active === view)}
             </div>
           ))}

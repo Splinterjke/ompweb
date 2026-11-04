@@ -34,6 +34,7 @@ import {
 import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 
 import { BROWSER_TRANSPORTS, type BrowserTransport } from "@/lib/event-stream-protocol";
+import { setConnectionDiagnosticsEnabled, useConnectionDiagnosticsEnabled } from "@/lib/connection-diagnostics-prefs";
 const SettingsTabLoading = () => {
   const { t } = useI18n();
   return <div role="status" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))" }}>{t("settingsConfig.loadingSettings")}</div>;
@@ -313,6 +314,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   { id: "auto-session-titles", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.autoSessionTitles", descKey: "settingsConfig.autoSessionTitlesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Auto-generate session titles", fallbackDesc: "When enabled, names a new session automatically once its first response finishes, using omp's own title generator (model roles tried in order: tiny → commit → smol). Runs once per new session; the first-message title is used otherwise, and the top-bar wand can re-generate at any later turn.", scope: "UI" },
   { id: "open-url-automatically", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.openUrlAutomatically", descKey: "settingsConfig.openUrlAutomaticallyDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Open links automatically", fallbackDesc: "Open links the agent shares directly instead of asking first.", scope: "UI" },
   { id: "browser-transport", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.browserTransport", descKey: "settingsConfig.browserTransportDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Browser connection", fallbackDesc: "How browsers receive live updates and send chat commands: one WebSocket that picks up where it left off after a dropped connection (the default), or server-sent events + HTTP. A browser whose proxy blocks WebSockets falls back to server-sent events on its own. Every open browser switches within a few seconds.", scope: "UI" },
+  { id: "connection-diagnostics", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.connectionDiagnostics", descKey: "settingsConfig.connectionDiagnosticsDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Show connection diagnostics", fallbackDesc: "Adds a Connection tab to the right panel showing the connection this browser uses (WebSocket or server-sent events), its status and delivery latency statistics. Applies to this browser only.", scope: "UI" },
   { id: "skill-startup-notices", tab: "general", sectionKey: "settingsConfig.sectionSessionBehavior", labelKey: "settingsConfig.skillStartupNotices", descKey: "settingsConfig.skillStartupNoticesDesc", fallbackSection: "Session & Agent Behavior", fallbackLabel: "Skill startup notices", fallbackDesc: "Show conflicts and redundant skill copies when an OMP session starts.", scope: "Native OMP" },
   // Interface & Behavior — Sidebar & Panels
   { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
@@ -1115,6 +1117,7 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [submitBehavior, setSubmitBehavior] = useState<SubmitDuringRunBehavior>(() => getSubmitDuringRunBehavior());
   const [wordCompletion, setWordCompletion] = useState<WordCompletionMode>(() => getWordCompletionMode());
+  const connectionDiagnostics = useConnectionDiagnosticsEnabled();
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     try {
@@ -1595,6 +1598,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                     <ToggleSwitch checked={openUrlAutomatically} onChange={(v) => onOpenUrlAutomaticallyChange?.(v)} />
                   </NativeSetting>
                   <BrowserTransportSetting />
+                  <NativeSetting searchId="connection-diagnostics" label={t("settingsConfig.connectionDiagnostics")} description={t("settingsConfig.connectionDiagnosticsDesc")} scope="UI">
+                    <ToggleSwitch checked={connectionDiagnostics} onChange={setConnectionDiagnosticsEnabled} />
+                  </NativeSetting>
                   <NativeSetting searchId="skill-startup-notices" label={t("settingsConfig.skillStartupNotices")} description={t("settingsConfig.skillStartupNoticesDesc")} scope="Native OMP">
                     <ToggleSwitch checked={nativeSettings?.skills?.showStartupDiagnostics !== false} disabled={nativeSettingsLoading} onChange={(enabled) => patchSection("skills", { showStartupDiagnostics: enabled })} />
                   </NativeSetting>
