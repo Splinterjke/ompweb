@@ -35,8 +35,6 @@ import { WorktreesPanel } from "./WorktreesPanel";
 import type { WorktreeContext } from "./SessionSidebar";
 import { AgentsPanel } from "./agents/AgentsPanel";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
-import { ShowAllFilesButton } from "./ShowAllFilesButton";
-import { useShowAllFiles } from "@/hooks/useShowAllFiles";
 import { SubagentDetailPanel } from "./agents/SubagentDetailPanel";
 import { useTheme } from "@/hooks/useTheme";
 import { translate, useI18n } from "@/lib/i18n";
@@ -1237,8 +1235,6 @@ export function AppShell({ appName }: { appName: string }) {
   const [explorerGitCount, setExplorerGitCount] = useState(0);
   const [explorerIsRepo, setExplorerIsRepo] = useState(false);
   const fileExplorerRef = useRef<FileExplorerHandle>(null);
-  // Shared "show all files" pref: the toolbar button flips it, the explorer lists through it.
-  const { showAllFiles } = useShowAllFiles();
   const handleExplorerGitStatus = useCallback((changedCount: number, isRepo: boolean) => {
     setExplorerGitCount(changedCount);
     setExplorerIsRepo(isRepo);
@@ -3219,7 +3215,6 @@ export function AppShell({ appName }: { appName: string }) {
                       <div style={{ flex: 1, overflow: "hidden" }}>
                         <TabBar tabs={fileTabs} activeTabId={activeFileTabId ?? ""} onSelectTab={setActiveFileTabId} onCloseTab={handleCloseFileTab} />
                       </div>
-                      <ShowAllFilesButton variant="toolbar" side="bottom" />
                       <button
                         type="button"
                         onClick={() => {
@@ -3283,7 +3278,6 @@ export function AppShell({ appName }: { appName: string }) {
                       >
                         <Upload size={14} strokeWidth={1.8} aria-hidden="true" />
                       </button>
-                      <ShowAllFilesButton variant="toolbar" side="bottom" />
                     </div>
                   )}
                   <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
@@ -3298,7 +3292,6 @@ export function AppShell({ appName }: { appName: string }) {
                           cwd={activeCwd}
                           hostId={currentHostId ?? LOCAL_HOST_ID}
                           refreshKey={explorerRefreshKey}
-                          showHidden={showAllFiles}
                           onOpenFile={(path, name) => handleOpenFile(path, name, { hostId: currentHostId ?? LOCAL_HOST_ID, cwd: activeCwd, sessionId: null })}
                           onAtMention={handleAtMention}
                           onAtMentions={handleAtMentions}

@@ -11,8 +11,6 @@ import { DirectoryPicker } from "./DirectoryPicker";
 import { BackendStatusButton } from "./BackendDiagnostics";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
 import type { WorkspaceFileSource } from "@/lib/workspace-types";
-import { useShowAllFiles } from "@/hooks/useShowAllFiles";
-import { ShowAllFilesButton } from "./ShowAllFilesButton";
 import { Tooltip } from "./ui/primitives";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "@/components/ui/toast";
@@ -820,7 +818,6 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   const [wtConfirmRemove, setWtConfirmRemove] = useState<string | null>(null);
   const wtToggleRef = useRef<HTMLButtonElement>(null);
   const wtNewInputRef = useRef<HTMLInputElement>(null);
-  const { showAllFiles } = useShowAllFiles();
   const [explorerOpen, setExplorerOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -2934,7 +2931,6 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                 alignItems: "center",
               }}
             >
-              <ShowAllFilesButton variant="sidebar" />
               <Tooltip content={t("sessionSidebar.uploadFilesTitle")} side="top">
                 <button
                   onClick={() => fileExplorerRef.current?.openUploadPicker()}
@@ -3002,7 +2998,6 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                 ref={fileExplorerRef}
                 cwd={selectedCwd ?? selectedCwdProp!}
                 hostId={selectedHostId ?? LOCAL_HOST_ID}
-                showHidden={showAllFiles}
                 onOpenFile={onOpenFile ? (filePath, fileName) => onOpenFile(filePath, fileName, { hostId: selectedHostId ?? LOCAL_HOST_ID, cwd: selectedCwd ?? selectedCwdProp ?? null, sessionId: null }) : () => {}}
                 refreshKey={explorerKey}
                 onAtMention={onAtMention}
