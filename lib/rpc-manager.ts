@@ -2342,6 +2342,11 @@ export class AgentSessionWrapper {
     this.onDestroyCallback = cb;
   }
 
+  /** Record an id this conversation was reached by before omp moved it; tabs still on it are still viewing it. */
+  keepMovedFromId(id: string): void {
+    if (!this.movedFromIds.includes(id)) this.movedFromIds.push(id);
+  }
+
   /**
    * Wait for the next `terminalEndsNeeded` terminal turn ends after this
    * call (terminal agent_end, prompt_result, or prompt_error). The caller
@@ -4046,23 +4051,34 @@ export async function startRpcSession(
     }
 
     const realSessionId = created.sessionId;
-    // 会话分裂检测：--resume <file> 后 omp 返回了不同的会话 id，说明该会话
-    // 文件正被另一个 omp/ompweb 实例占用（旧实例的孤儿进程持有锁/待定工具
-    // 调用）——继续发消息会落到新会话里，UI 看不到任何响应。此时明确报错，
-    // 并计入 RPC 健康信号，让顶栏横幅提示用户清理旧实例。
+    // 会话分裂检测（refined by upstream #341）：--resume <file> 后 omp 返回了
+    // 不同的会话 id，多数情况就是 omp 自己的所有权移动（会话此前已被移动过，
+    // 旧 id 仍在侧栏里）——按 #341 在下方把请求 id 登记为别名，保持可路由。
+    // 只有当请求的文件仍被另一个实例的活进程持有时才是真正的分裂：继续发消息
+    // 会落到新副本里，UI 看不到任何响应。此时明确报错，并计入 RPC 健康信号，
+    // 让顶栏横幅提示用户清理旧实例。holder gate 已在 spawn 前拦截大多数此类
+    // 持有者；这里是 spawn 与首写之间竞态的兜底（/proc 扫描仅 Linux 有效）。
     // 仅对真正的 resume（sessionFile 非空）检测。新建会话（sessionFile === "")
     // 时 sessionId 是 __new__<uuid> 临时键、omp 必然生成全新 id，二者不同是
-    // 正常现象；若也套用本检测会把每一次新建会话都误判为 session split。
+    // 正常现象。
     if (sessionFile && sessionId && realSessionId && realSessionId !== sessionId) {
-      const detail = `session split: requested ${sessionId}, omp resumed as ${realSessionId}`;
-      recordRpcFailure(detail);
-      await created.destroyAndWait();
-      throw new WebRpcError(
-        "This session is already in use by another omp instance and cannot be resumed. Close other ompweb/omp instances first (the banner at the top can clean them up in one click), then retry.",
-        "session_split",
-      );
+      const blocked = partitionSessionHolders(findSessionFileHolders(sessionFile)).blocked;
+      if (blocked) {
+        const detail = `session split: requested ${sessionId}, omp resumed as ${realSessionId} (holder pid ${blocked.pid})`;
+        recordRpcFailure(detail);
+        await created.destroyAndWait();
+        throw new WebRpcError(
+          "This session is already in use by another omp instance and cannot be resumed. Close other ompweb/omp instances first (the banner at the top can clean them up in one click), then retry.",
+          "session_split",
+        );
+      }
     }
     registerSession(created);
+    // omp can move a resumed session during startup, before identity is known; keep the requested id routable.
+    if (sessionFile && realSessionId !== sessionId) {
+      registry.set(sessionId, created);
+      created.keepMovedFromId(sessionId);
+    }
     // A successful respawn supersedes the crash record.
     clearExitedRpcSession(sessionId);
     if (realSessionId !== sessionId) clearExitedRpcSession(realSessionId);
@@ -4109,8 +4125,9 @@ function registerSession(created: AgentSessionWrapper): void {
     // Drop every key (current id, original id, moved-from aliases).
     for (const [key, wrapper] of registry) if (wrapper === created) registry.delete(key);
   });
-  created.onIdentityChange((oldId, newId, options) => {
-    if (!options?.keepOldId && registry.get(oldId) === created) registry.delete(oldId);
+  created.onIdentityChange((_oldId, newId, options) => {
+    // A move keeps the old ids routable; a branch/new/switch serves another conversation, so every old key goes.
+    if (!options?.keepOldId) for (const [key, wrapper] of registry) if (wrapper === created) registry.delete(key);
     registry.set(newId, created);
   });
   registry.set(created.sessionId, created);

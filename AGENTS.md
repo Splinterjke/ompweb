@@ -797,13 +797,15 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
 - Only the first omp process to write a session file owns it; a non-owner moves
   to a sibling file with a new id on its first write and emits a
   `notice` with `source: "session-persistence"`. `handleFrame` answers it with
-  `followSessionMove()`: the pending flag makes the next `applyIdentity` re-key
-  as the same conversation (stream/run state kept, **old id kept as a registry
-  alias**, new id registered via `onIdentityChange({keepOldId})`). Genuine
-  switches (branch/new/switch) re-key through `refreshIdentityAfterSessionChange`
-  and still drop the old key — a move is the only implicit re-key.
+  `followSessionMove()`: the pending flag makes the next `applyIdentity` treat
+  the id change as the same conversation (stream/run state kept, **old id kept
+  as a registry alias**, new id registered via `onIdentityChange({keepOldId})`).
+  Branch/new/switch drop every key the wrapper had (aliases included), since it
+  now serves another conversation — a move is the only implicit re-key.
   `startRpcSession` also reuses any live wrapper reporting the requested session
   file instead of spawning a second `--resume` child (which would fork again).
+  A move during startup (before the first `get_state`) is aliased too, so the
+  requested id stays routable.
   `onDestroy` removes every key that points at the wrapper.
 - **Pre-spawn holder gate** (`releaseStaleSessionHolders` in `lib/rpc-manager.ts`,
   finder/classifier in `lib/session-watcher.ts`): a second live process resuming an
