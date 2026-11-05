@@ -208,7 +208,7 @@ interface Props {
   thinkingLevelMap?: Record<string, string | null> | null;
   /** Display name for the current model when the catalog does not know it. */
   modelNameOverride?: string | null;
-  retryInfo?: { attempt: number; maxAttempts: number; errorMessage?: string } | null;
+  retryInfo?: { attempt: number; maxAttempts: number; delayMs?: number; startedAt?: number; errorMessage?: string } | null;
   onAbortRetry?: () => void;
   queuedMessages?: QueuedMessages | null;
   inputHistory?: string[];
@@ -802,6 +802,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   // Ring top (scale-compensated CSS px) measured on open — the mobile
   // composer placement anchors its fixed popover above the ring with it.
   const [contextRingTop, setContextRingTop] = useState<number>();
+  const [retryNow, setRetryNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!retryInfo?.delayMs || !retryInfo?.startedAt) return;
+    setRetryNow(Date.now());
+    const interval = setInterval(() => {
+      setRetryNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [retryInfo?.delayMs, retryInfo?.startedAt]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -2641,44 +2650,55 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         <ModelErrorBanner error={modelError} />
         <ComposerModeStatus goal={activeGoal} goalInfo={goalInfo} onGoalCommand={onGoalCommand} onTrackGoal={onTrackGoal} showGoalTokenBudget={showGoalTokenBudget} plan={activePlan} onOpenPlan={onOpenPlan} />
         {/* Retry banner */}
-        {retryInfo && (
-          <div style={{
-            marginBottom: 8, padding: "5px 10px",
-            background: "color-mix(in srgb, var(--status-warning) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--status-warning) 25%, transparent)",
-            borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-warning)",
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
-            {t("chatInput.retrying", { attempt: retryInfo.attempt, maxAttempts: retryInfo.maxAttempts })}{retryInfo.errorMessage && <span style={{ opacity: 0.7, marginLeft: 4 }}>— {retryInfo.errorMessage}</span>}
-            {onAbortRetry && (
-              <Tooltip content="Stop the automatic retry and leave the failed turn as-is">
-                <button
-                type="button"
-                onClick={onAbortRetry}
-                style={{
-                  marginLeft: "auto",
-                  padding: "3px 9px",
-                  fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
-                  color: "var(--status-warning)",
-                  background: "transparent",
-                  border: "1px solid color-mix(in srgb, var(--status-warning) 45%, transparent)",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "background var(--dur-fast) var(--ease-out-warm)",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--status-warning) 12%, transparent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-              >
-                Abort retry
-              </button>
-              </Tooltip>
-            )}
-          </div>
-        )}
+        {retryInfo && (() => {
+          const remainingSec = (retryInfo.delayMs !== undefined && retryInfo.startedAt !== undefined)
+            ? (() => {
+                const effectiveNow = Math.max(retryNow, retryInfo.startedAt);
+                const maxSec = Math.ceil(retryInfo.delayMs / 1000);
+                return Math.max(0, Math.min(maxSec, Math.ceil((retryInfo.startedAt + retryInfo.delayMs - effectiveNow) / 1000)));
+              })()
+            : undefined;
+          return (
+            <div style={{
+              marginBottom: 8, padding: "5px 10px",
+              background: "color-mix(in srgb, var(--status-warning) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--status-warning) 25%, transparent)",
+              borderRadius: 6, fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", color: "var(--status-warning)",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              {remainingSec !== undefined
+                ? t("chatInput.retryingWithCountdown", { attempt: retryInfo.attempt, maxAttempts: retryInfo.maxAttempts, seconds: remainingSec })
+                : t("chatInput.retrying", { attempt: retryInfo.attempt, maxAttempts: retryInfo.maxAttempts })}{retryInfo.errorMessage && <span style={{ opacity: 0.7, marginLeft: 4 }}>— {retryInfo.errorMessage}</span>}
+              {onAbortRetry && (
+                <Tooltip content="Stop the automatic retry and leave the failed turn as-is">
+                  <button
+                  type="button"
+                  onClick={onAbortRetry}
+                  style={{
+                    marginLeft: "auto",
+                    padding: "3px 9px",
+                    fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
+                    color: "var(--status-warning)",
+                    background: "transparent",
+                    border: "1px solid color-mix(in srgb, var(--status-warning) 45%, transparent)",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    transition: "background var(--dur-fast) var(--ease-out-warm)",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--status-warning) 12%, transparent)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  Abort retry
+                </button>
+                </Tooltip>
+              )}
+            </div>
+          );
+        })()}
         {compactResultText && (
           <div style={{
             marginBottom: 8, padding: "5px 10px",

@@ -830,7 +830,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // Queue delivery modes (set_steering_mode / set_follow_up_mode).
   const [steeringMode, setSteeringMode] = useState<"all" | "one-at-a-time">("all");
   const [followUpMode, setFollowUpMode] = useState<"all" | "one-at-a-time">("all");
-  const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; errorMessage?: string } | null>(null);
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; delayMs?: number; startedAt?: number; errorMessage?: string } | null>(null);
   const retryInfoRef = useRef(retryInfo);
   retryInfoRef.current = retryInfo;
   const [contextUsage, setContextUsage] = useState<{ percent: number | null; contextWindow: number; tokens: number | null } | null>(null);
@@ -3119,9 +3119,18 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "todo_auto_clear":
         if (sessionIdRef.current) void reconcileAgentState(sessionIdRef.current);
         break;
-      case "auto_retry_start":
-        setRetryInfo({ attempt: event.attempt as number, maxAttempts: event.maxAttempts as number, errorMessage: event.errorMessage as string | undefined });
+      case "auto_retry_start": {
+        const msg = event.errorMessage as string | undefined;
+        const delayMs = typeof event.delayMs === "number" && Number.isFinite(event.delayMs) && event.delayMs > 0 ? event.delayMs : undefined;
+        setRetryInfo({
+          attempt: event.attempt as number,
+          maxAttempts: event.maxAttempts as number,
+          delayMs,
+          startedAt: delayMs !== undefined ? Date.now() : undefined,
+          errorMessage: msg,
+        });
         break;
+      }
       case "auto_retry_end":
         setRetryInfo(null);
         break;
