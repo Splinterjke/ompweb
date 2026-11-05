@@ -1,14 +1,17 @@
 "use client";
 
-import { Children, cloneElement, isValidElement, useMemo, useContext, type ComponentProps, type MouseEvent, type ReactElement, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
+import { Children, cloneElement, isValidElement, useContext, useMemo, type ComponentProps, type MouseEvent, type ReactElement, type ReactNode } from "react";
+import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
+import { AgentLinkContext, agentAwareUrlTransform, agentLinkIds } from "../lib/agent-links";
 import { remarkInlineCodeFileLinks, resolveLocalFileHref } from "@/lib/file-links";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 import { normalizeDisplayMath, useMarkdownPlugins, type MarkdownPlugins } from "../lib/markdown";
 import { markdownCodeRenderer } from "./MarkdownCode";
 import { ClickableImage } from "./ImageLightbox";
 import { TableChart } from "./TableChart";
+
+// The default sanitizer reads `C:` as a scheme; a drive path (`\` arrives as `%5C`) is a local file the `a` renderer opens.
+const urlTransform: UrlTransform = (url, key, node) => (/^[A-Za-z]:(?:\/|%5C)/i.test(url) ? url : agentAwareUrlTransform(url, key, node));
 
 interface MarkdownBodyProps {
   children: string;
@@ -126,18 +129,20 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
         const anchor = <a href={href} {...props} onClick={handleClick} onAuxClick={(event) => event.preventDefault()}>{textParts}</a>;
         return imageParts.length > 0 ? <>{anchor}{imageParts}</> : anchor;
       }
-      const filePath = onOpenFile ? resolveLocalFileHref(href, cwd) : null;
-      const openFile = onOpenFile;
-      if (filePath && openFile) {
+      const filePath = resolveLocalFileHref(href, cwd);
+      if (filePath) {
+        // Without a file panel (a remote host's session, a dialog) a path link has nowhere to go: show its text.
+        if (!onOpenFile) return <>{textParts}{imageParts}</>;
+        const openFile = onOpenFile;
         const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+          // No modifier escape hatch: the href is a filesystem path, which the browser cannot open in a new tab.
           if (event.defaultPrevented || event.button !== 0) return;
-          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           const target = event.currentTarget.getAttribute("target");
           if (target && target !== "_self") return;
           event.preventDefault();
           openFile(filePath);
         };
-        const anchor = <a {...props} href={href} onClick={handleClick}>{textParts}</a>;
+        const anchor = <a href={href} {...props} onClick={handleClick} onAuxClick={(event) => event.preventDefault()}>{textParts}</a>;
         return imageParts.length > 0 ? <>{anchor}{imageParts}</> : anchor;
       }
 
@@ -167,13 +172,7 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={components}
-        // `agent://` handles are opened in-app via AgentLinkContext (chat) or
-        // shown as plain text elsewhere; the write-only broadcast address is
-        // dropped entirely. All other hrefs stay as written: react-markdown's
-        // default transform would blank unknown schemes and break drive-letter/UNC
-        // local path resolution. rehype-sanitize still blocks dangerous protocols
-        // (javascript:, data:) via its attribute schema.
-        urlTransform={(url) => (url.startsWith("agent://") ? (agentLinkIds(url).length > 0 ? url : undefined) : url)}
+        urlTransform={urlTransform}
       >
         {normalizedMarkdown}
       </ReactMarkdown>

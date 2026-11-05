@@ -56,7 +56,7 @@ export function splitPathTokens(text: string): PathToken[] {
 
   const matches: { start: number; end: number; text: string }[] = [];
 
-  const addMatches = (re: RegExp, source: string) => {
+  const addMatches = (re: RegExp, source: string, rooted: boolean) => {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(source)) !== null) {
@@ -67,6 +67,13 @@ export function splitPathTokens(text: string): PathToken[] {
       if (/https?:$/.test(prefix) || /^https?:\/\//.test(m[0])) continue;
       // A lone "/" (e.g. inside `("/`) is punctuation, not a path.
       if (m[0].length < 2) continue;
+      // A path clipped before `(` or `[` (directly or after one space) is not
+      // the full name: "a (1) #2 … .txt", "[z] b.bin" — an Attached files
+      // line's parenthesized path. Linking the clipped prefix would open the
+      // wrong target; those names are already linked by the inline-code
+      // plugin. Rooted matches only: an extension-final relative match is
+      // already the complete name ("docs/a.md (new)").
+      if (rooted && /^\s?[[(\[]/.test(source.slice(end))) continue;
       // Regex literals in tool output (/https?:$/.test) look like rooted
       // paths; real paths almost never contain regex metacharacters.
       if (/[?$^*()[\]{}|]/.test(m[0])) continue;
@@ -80,8 +87,8 @@ export function splitPathTokens(text: string): PathToken[] {
 
   // Collect from both regexes, then merge in document order so an earlier
   // relative match is never shadowed by a later rooted one (and vice versa).
-  addMatches(ROOTED_PATH_RE, text);
-  addMatches(RELATIVE_PATH_RE, text);
+  addMatches(ROOTED_PATH_RE, text, true);
+  addMatches(RELATIVE_PATH_RE, text, false);
   matches.sort((a, b) => a.start - b.start || a.end - b.end);
 
   const tokens: PathToken[] = [];
