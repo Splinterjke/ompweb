@@ -1,11 +1,13 @@
 "use client";
 
 import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useContext, type ComponentProps } from "react";
-import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot } from "lucide-react";
-import { useSpeechContext } from "@/hooks/useSpeechSynthesis";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot, FileText, Search, FileEdit, Terminal, CheckSquare, Code2, Globe, MessagesSquare, Wrench } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
-import { useToolExpansionStore } from "./tool-expansion";
+import { WorkspaceFileContext } from "@/lib/workspace-file-context";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";
+import { MessageCopyActions } from "./MessageCopyActions";
+import { useSpeechContext } from "@/hooks/useSpeechSynthesis";
+import { useToolExpansionStore } from "./tool-expansion";
 import { ClickableImage } from "./ImageLightbox";
 import { translate, useI18n, type Locale } from "@/lib/i18n";
 import { parseCompactionSummary } from "@/lib/compaction-summary";
@@ -17,7 +19,6 @@ import { splitPathTokens } from "@/lib/markdown-path-links";
 import { resolveLocalFileHref } from "@/lib/file-links";
  import { Tooltip, Collapsible, CollapsibleTrigger } from "./ui/primitives";
 import { ConfirmDialog } from "./ui/field";
- import { MessageCopyActions } from "./MessageCopyActions";
 import type { MessageTimeFormat } from "./AppShell";
  import { useCopyFeedback } from "@/hooks/useCopyFeedback";
  import { HubResultPanel } from "./MessageView-hub-panel";
@@ -2568,6 +2569,8 @@ function getToolResultMeta(result: ToolResultMessage | undefined): string | null
 
 function BashExecutionView({ message, sessionId, entryId }: { message: BashExecutionMessage; sessionId?: string; entryId?: string }) {
   const { t } = useI18n();
+  const fileSource = useContext(WorkspaceFileContext);
+  const hostQuery = fileSource ? `&hostId=${encodeURIComponent(fileSource.hostId)}` : "";
   const [fullOutput, setFullOutput] = useState<{ phase: "loading" } | { phase: "error"; message: string } | { phase: "ready"; output: string } | null>(null);
   // Bumped on every message change; an in-flight fetch from the previous
   // message must not write into the reused component instance.
@@ -2578,7 +2581,7 @@ function BashExecutionView({ message, sessionId, entryId }: { message: BashExecu
   useEffect(() => {
     fullOutputGenRef.current += 1;
     setFullOutput(null);
-  }, [message.command, message.fullOutputPath, message.output, message.timestamp]);
+  }, [message.command, message.fullOutputPath, message.output, message.timestamp, sessionId, hostQuery]);
   const isPending = !message.output && message.exitCode === undefined && !message.cancelled;
   const failed = message.cancelled || (message.exitCode !== undefined && message.exitCode !== 0);
   // Starts collapsed, as user-run bash always has; the header toggles it.
@@ -2595,7 +2598,7 @@ function BashExecutionView({ message, sessionId, entryId }: { message: BashExecu
     const gen = fullOutputGenRef.current;
     setFullOutput({ phase: "loading" });
     try {
-      const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}`);
+      const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}${hostQuery}`);
       const data = await res.json() as { success?: boolean; data?: { output?: string }; error?: string };
       if (fullOutputGenRef.current !== gen) return;
       if (!res.ok || !data.success) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -2604,10 +2607,10 @@ function BashExecutionView({ message, sessionId, entryId }: { message: BashExecu
       if (fullOutputGenRef.current !== gen) return;
       setFullOutput({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [message.fullOutputPath, sessionId, fullOutput?.phase]);
+  }, [message.fullOutputPath, sessionId, fullOutput?.phase, hostQuery]);
 
   const downloadUrl = message.fullOutputPath && sessionId
-    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}&download=1`
+    ? `/api/agent/${encodeURIComponent(sessionId)}/bash-output?path=${encodeURIComponent(message.fullOutputPath)}&download=1${hostQuery}`
     : null;
 
   return (

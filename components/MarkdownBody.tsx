@@ -4,7 +4,9 @@ import { Children, cloneElement, isValidElement, useContext, useMemo, type Compo
 import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import { AgentLinkContext, agentAwareUrlTransform, agentLinkIds } from "../lib/agent-links";
 import { remarkInlineCodeFileLinks, resolveLocalFileHref } from "@/lib/file-links";
-import { encodeFilePathForApi } from "@/lib/file-paths";
+import { getFileApiUrl } from "@/lib/file-paths";
+import { WorkspaceFileContext } from "@/lib/workspace-file-context";
+import { GithubRepoContext, remarkGithubRefs } from "../lib/github-refs";
 import { normalizeDisplayMath, useMarkdownPlugins, type MarkdownPlugins } from "../lib/markdown";
 import { markdownCodeRenderer } from "./MarkdownCode";
 import { ClickableImage } from "./ImageLightbox";
@@ -19,10 +21,12 @@ interface MarkdownBodyProps {
   isStreaming?: boolean;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
+  /** Replace images with their alt text (print/export renderers). */
+  suppressImages?: boolean;
   autoCharts?: boolean;
 }
 
-export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile, autoCharts = false }: MarkdownBodyProps) {
+export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile, suppressImages = false, autoCharts = false }: MarkdownBodyProps) {
   // Skip normalizeDisplayMath while streaming: it scans the entire document
   // on every token batch but math content almost never arrives mid-stream.
   // The normalization runs once on the final committed message instead.
@@ -30,27 +34,34 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
     () => (isStreaming ? children : normalizeDisplayMath(children)),
     [children, isStreaming],
   );
+  const fileSource = useContext(WorkspaceFileContext);
   const { remarkPlugins: baseRemarkPlugins, rehypePlugins } = useMarkdownPlugins(isStreaming ? "" : normalizedMarkdown, isStreaming);
+  const githubRepo = useContext(GithubRepoContext);
   // Inline-code paths link only where a click can open them. The plugin runs
   // before the shared remarkPathLinks so its `<code>`-keeping link wins for
   // the path shapes it recognizes (that legacy plugin clips `:line` suffixes
   // and drops the code styling).
   const remarkPlugins = useMemo<MarkdownPlugins["remarkPlugins"]>(
-    () => (onOpenFile ? [[remarkInlineCodeFileLinks, { cwd }], ...baseRemarkPlugins] : baseRemarkPlugins),
-    [baseRemarkPlugins, onOpenFile, cwd],
+    () => {
+      // GitHub refs run first: `agent://Foo#12` must not become an issue link.
+      const plugins: MarkdownPlugins["remarkPlugins"] = [...baseRemarkPlugins, [remarkGithubRefs, { repo: githubRepo }]];
+      return onOpenFile ? [[remarkInlineCodeFileLinks, { cwd }] as MarkdownPlugins["remarkPlugins"][number], ...plugins] : plugins;
+    },
+    [baseRemarkPlugins, githubRepo, onOpenFile, cwd],
   );
   const openAgentLink = useContext(AgentLinkContext);
 
   // Rebuilt only when its captured props change, not on every render.
   const components = useMemo<Components>(() => {
     const imgComponent = ({ src, alt, ...imgProps }: ComponentProps<"img"> & { node?: unknown }) => {
+      if (suppressImages) return alt ?? null;
       // `node` is react-markdown metadata, not a DOM attribute.
       delete (imgProps as { node?: unknown }).node;
       // react-markdown URL-encodes drive-letter srcs; resolveLocalFileHref
       // decodes them back before resolving.
       const filePath = typeof src === "string" ? resolveLocalFileHref(src, cwd) : null;
       const imageSrc = filePath
-        ? `/api/files/${encodeFilePathForApi(filePath)}?type=read`
+        ? getFileApiUrl(filePath, "read", fileSource?.hostId ?? "local", fileSource?.sessionId)
         : src;
       // Dynamic local paths are served directly by the file API.
       return <ClickableImage src={imageSrc} alt={alt ?? ""} loading="lazy" {...imgProps} />;
@@ -164,7 +175,7 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
       );
     },
     };
-  }, [isStreaming, cwd, onOpenFile, openAgentLink, autoCharts]);
+  }, [isStreaming, cwd, onOpenFile, suppressImages, openAgentLink, autoCharts, fileSource]);
 
   return (
     <div className={["markdown-body", className].filter(Boolean).join(" ")}>

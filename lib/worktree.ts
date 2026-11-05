@@ -1,9 +1,8 @@
 import { execFile } from "child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import { promisify } from "util";
-import { allowFileRoot } from "./file-access";
 import { normalizeForComparison, samePath, toNativePath } from "./paths";
 import { loadProjectRegistry } from "./project-registry";
 import { readNativeSettings } from "./omp/settings-config";
@@ -337,6 +336,7 @@ export async function addWorktree(cwd: string, branch: string): Promise<{ path: 
     throw new Error(`Directory already exists: ${worktreePath}`);
   }
   mkdirSync(baseDir, { recursive: true });
+  if (lstatSync(baseDir).isSymbolicLink() || !samePath(realPathOrSelf(baseDir), baseDir)) throw new Error("Worktree directory must not be a symbolic link");
 
   // Reuse the branch if it already exists, otherwise create it at HEAD.
   let branchExists = false;
@@ -359,7 +359,6 @@ export async function addWorktree(cwd: string, branch: string): Promise<{ path: 
   }
 
   repairWorktreeGitdirs(repoRoot);
-  allowFileRoot(worktreePath);
   invalidateProjectCache();
   return { path: worktreePath, branch: trimmed };
 }

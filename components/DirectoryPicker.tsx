@@ -7,6 +7,8 @@ import { useModalDialog } from "@/hooks/useModalDialog";
 import { useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { appendProgress, cloneDirectoryName } from "@/lib/git-clone";
+import type { ProjectLaunchConfig } from "@/lib/types";
+import { newUploadId as newCloneId } from "@/lib/event-stream";
 
 interface DirectoryEntry {
   name: string;
@@ -22,9 +24,10 @@ interface BrowseResponse {
   code?: string;
 }
 
-async function loadDirectories(directory?: string): Promise<BrowseResponse> {
-  const query = directory ? `?path=${encodeURIComponent(directory)}` : "";
-  const response = await fetch(`/api/cwd/browse${query}`);
+async function loadDirectories(directory: string | undefined, hostId: string, signal: AbortSignal): Promise<BrowseResponse> {
+  const query = new URLSearchParams({ hostId });
+  if (directory) query.set("path", directory);
+  const response = await fetch(`/api/cwd/browse?${query}`, { signal });
   const data = await response.json() as BrowseResponse;
   if (!response.ok || data.error) {
     throw new Error(formatApiError({ ...data, error: data.error ?? `HTTP ${response.status}` }));
@@ -56,15 +59,13 @@ function isWindowsDriveRoot(directory: string): boolean {
 
 interface Props {
   onCancel: () => void;
-  onSelect: (path: string) => void;
+  onSelect: (path: string, launchConfig?: ProjectLaunchConfig) => void;
   busy?: boolean;
   error?: string | null;
-  /** A remote host the workspace is added on. Its folders cannot be browsed from
-   *  here yet: the path is typed and validated by that host when selected. */
-  host?: { name: string } | null;
+  host: { id: string; name: string };
 }
 
-export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host = null }: Props) {
+export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host }: Props) {
   const { t } = useI18n();
   const remote = host !== null;
   const [nativePref, setNativePref] = useState(() => {
@@ -92,14 +93,18 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
   const [directories, setDirectories] = useState<DirectoryEntry[]>([]);
   const [drives, setDrives] = useState<DirectoryEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!remote);
+  const [profile, setProfile] = useState("");
+  const [advisor, setAdvisor] = useState(false);
+  const [extraArgs, setExtraArgs] = useState("");
+  const [loading, setLoading] = useState(true);
   const [cloneUrl, setCloneUrl] = useState("");
   const [cloneId, setCloneId] = useState<string | null>(null);
   const [cloneLog, setCloneLog] = useState("");
   const [cloneStatus, setCloneStatus] = useState<string | null>(null);
   const cloneAbortRef = useRef<AbortController | null>(null);
-  const cloneRespondedRef = useRef(false);
+  const cloneRequestedRef = useRef(false);
   const cloneLogRef = useRef<HTMLPreElement>(null);
+  const browseAbortRef = useRef<AbortController | null>(null);
   const cloning = cloneId !== null;
   const locked = busy || cloning;
   const dialogRef = useModalDialog<HTMLDivElement>({
@@ -108,10 +113,14 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
   });
 
   const navigateTo = useCallback(async (directory?: string) => {
+    browseAbortRef.current?.abort();
+    const controller = new AbortController();
+    browseAbortRef.current = controller;
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await loadDirectories(directory);
+      const data = await loadDirectories(directory, host.id, controller.signal);
+      if (controller.signal.aborted) return;
       const nextPath = data.path ?? directory ?? "/";
       setCurrentPath(nextPath);
       setParentDirectory(data.parentPath ?? null);
@@ -119,19 +128,19 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
       setDirectories(data.directories ?? []);
       setDrives(data.drives ?? null);
     } catch (cause) {
-      setLoadError(cause instanceof Error ? cause.message : String(cause));
+      if (!controller.signal.aborted) setLoadError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [host.id]);
 
   useEffect(() => {
     setPortalTarget(document.body);
-    if (!remote) void navigateTo();
-  }, [navigateTo, remote]);
+    void navigateTo();
+    return () => browseAbortRef.current?.abort();
+  }, [navigateTo]);
 
-  // Unmounting mid-clone drops the stream; the server cancels and cleans up.
-  useEffect(() => () => cloneAbortRef.current?.abort(), []);
+  useEffect(() => () => { cloneAbortRef.current?.abort(); cloneAbortRef.current = null; }, []);
 
   useEffect(() => {
     const log = cloneLogRef.current;
@@ -141,34 +150,47 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
   const handlePathSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const candidate = pathInput.trim();
-    if (candidate && !remote) void navigateTo(candidate);
+    if (candidate && !locked) void navigateTo(candidate);
   };
-  const hasUncommittedPath = !remote && pathInput.trim() !== currentPath;
+  const hasUncommittedPath = pathInput.trim() !== currentPath;
   const cloneName = cloneUrl.trim() ? cloneDirectoryName(cloneUrl) : null;
   const cloneTarget = cloneName && currentPath ? `${currentPath.replace(/[\\/]+$/, "")}${currentPath.includes("\\") ? "\\" : "/"}${cloneName}` : null;
-  const canSelect = Boolean(remote ? pathInput.trim() : currentPath) && !hasUncommittedPath && !locked && (!cloneUrl.trim() || cloneName !== null);
-  const goDisabled = loading || remote || !pathInput.trim();
-  const canNavigateUp = !remote && (Boolean(parentDirectory) || isWindowsDriveRoot(currentPath));
+  const canSelect = Boolean(currentPath) && !loading && !hasUncommittedPath && !locked && (!cloneUrl.trim() || cloneName !== null);
+  const goDisabled = loading || locked || !pathInput.trim();
+  const canNavigateUp = !locked && (Boolean(parentDirectory) || isWindowsDriveRoot(currentPath));
   const submitSelection = async () => {
+    if (locked || cloneAbortRef.current) return;
+    const args = extraArgs.split("\n").map((arg) => arg.trim()).filter(Boolean);
+    const launchConfig = { profile: profile.trim() || undefined, advisor: advisor || undefined, extraArgs: args.length ? args : undefined };
     if (!cloneUrl.trim()) {
-      onSelect(remote ? pathInput.trim() : currentPath);
+      onSelect(currentPath, launchConfig);
       return;
     }
-    const id = crypto.randomUUID();
+    const id = newCloneId();
     const abort = new AbortController();
     cloneAbortRef.current = abort;
-    cloneRespondedRef.current = false;
+    cloneRequestedRef.current = false;
     setCloneId(id);
     setCloneLog("");
     setCloneStatus(t("directoryPicker.cloning"));
+    let requested = false;
     try {
+      const validation = await fetch("/api/cwd/validate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cwd: currentPath, hostId: host.id }), signal: abort.signal,
+      });
+      const selected = await validation.json() as { cwd?: string; error?: string; code?: string };
+      if (abort.signal.aborted) return;
+      if (!validation.ok || !selected.cwd) throw new Error(formatApiError(selected));
+      requested = true;
+      cloneRequestedRef.current = true;
       const response = await fetch("/api/projects/clone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, parent: currentPath, url: cloneUrl.trim() }),
+        body: JSON.stringify({ id, parent: selected.cwd, url: cloneUrl.trim(), hostId: host.id }),
         signal: abort.signal,
       });
-      cloneRespondedRef.current = true;
+      if (abort.signal.aborted) return;
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({})) as { error?: string; code?: string };
         setCloneStatus(formatApiError({ ...data, error: data.error ?? `HTTP ${response.status}` }));
@@ -179,13 +201,14 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
+        if (abort.signal.aborted) return;
         buffered += value;
         const lines = buffered.split("\n");
         buffered = lines.pop() ?? "";
         for (const line of lines) {
           if (!line) continue;
-          const frame = JSON.parse(line) as { type: string; text?: string; path?: string; error?: string; code?: string };
-          if (frame.type === "output") setCloneLog((log) => appendProgress(log, frame.text ?? ""));
+          const frame = JSON.parse(line) as { type: string; text?: string; path?: string; error?: string; code?: string; reset?: boolean };
+          if (frame.type === "output") setCloneLog((log) => appendProgress(frame.reset ? "" : log, frame.text ?? ""));
           else if (frame.type === "done" && frame.path) {
             setCloneStatus(t("directoryPicker.cloneSucceeded", { path: frame.path }));
             // If registering fails, "Select this folder" can retry on the clone.
@@ -197,33 +220,35 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
             setCloneStatus(t("directoryPicker.cloneCancelled", { path: frame.path ?? "" }));
             return;
           } else if (frame.type === "error") {
-            setCloneStatus(formatApiError(frame));
+            setCloneStatus(frame.code === "clone_cleanup_failed" ? `${formatApiError(frame)} ${frame.error ?? ""}` : formatApiError(frame));
             return;
           }
         }
       }
       setCloneStatus(t("directoryPicker.cloneInterrupted"));
     } catch (cause) {
-      if (!abort.signal.aborted) setCloneStatus(cause instanceof Error ? cause.message : String(cause));
+      if (!abort.signal.aborted) setCloneStatus(requested ? t("errors.clone_uncertain") : cause instanceof Error ? cause.message : String(cause));
     } finally {
-      cloneAbortRef.current = null;
-      setCloneId(null);
+      if (cloneAbortRef.current === abort) { cloneAbortRef.current = null; setCloneId(null); }
     }
   };
   const cancelClone = () => {
     if (!cloneId) return;
+    const operation = cloneAbortRef.current;
+    if (!cloneRequestedRef.current) {
+      operation?.abort();
+      cloneAbortRef.current = null;
+      setCloneId(null);
+      setCloneStatus(t("directoryPicker.cloneCancelledBeforeStart"));
+      return;
+    }
     setCloneStatus(t("directoryPicker.cloneCancelling"));
-    const dropStream = () => {
-      // Nothing was created yet (or the server cleans up on disconnect).
-      setCloneStatus(t("directoryPicker.cloneCancelled", { path: cloneTarget ?? "" }));
-      cloneAbortRef.current?.abort();
-    };
-    // Once the POST has responded, the stream stays open to report the cleanup
-    // (a 404 then means the clone is already finishing and reports itself).
-    // A 404 before that means the server has not registered the clone yet, so
-    // drop the POST: the server cancels it on disconnect before or during git.
-    void fetch("/api/projects/clone", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cloneId }) })
-      .then((response) => { if (response.status === 404 && !cloneRespondedRef.current) dropStream(); }, dropStream);
+    void fetch("/api/projects/clone", {
+      method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: cloneId, hostId: host.id }),
+    }).then(async (response) => {
+      if (response.ok || cloneAbortRef.current !== operation) return;
+      setCloneStatus(t("errors.clone_uncertain"));
+    }, () => { if (cloneAbortRef.current === operation) setCloneStatus(t("errors.clone_uncertain")); });
   };
 
   if (!portalTarget) return null;
@@ -240,6 +265,7 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ color: "var(--text)", fontWeight: 700, fontSize: "calc(15px * var(--ui-font-scale-lg, 1))" }}>{t("directoryPicker.selectDirectory")}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{host.name}</div>
           </div>
           {typeof window !== "undefined" && (window as Window & { piDesktop?: { isDesktop?: boolean } }).piDesktop?.isDesktop && (
             <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))", color: "var(--text-muted)", cursor: "pointer", marginRight: 8 }}>
@@ -281,6 +307,7 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
             aria-label={t("directoryPicker.pathPlaceholder") || "Directory path"}
             placeholder={t("directoryPicker.pathPlaceholder")}
             autoFocus
+            disabled={locked}
             autoComplete="off"
             spellCheck={false}
             onChange={(event) => {
@@ -305,12 +332,7 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
         </form>
 
         <div className="directory-picker-list" style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "8px 10px" }}>
-          {remote ? (
-            <div role="status" style={{ padding: 8, color: "var(--text-dim)", fontSize: 11, lineHeight: 1.6 }}>
-              <div style={{ color: "var(--text-muted)", fontWeight: 600 }}>{t("hosts.notAvailableRemote")}</div>
-              <div>{t("hosts.remotePathHint", { host: host.name })}</div>
-            </div>
-          ) : loading ? (
+          {loading ? (
             <div style={{ display: "grid", gap: 6, padding: 8 }} aria-busy="true" aria-label={t("directoryPicker.loadingDirectories")}>
               {Array.from({ length: 7 }).map((_, i) => (
                 <div

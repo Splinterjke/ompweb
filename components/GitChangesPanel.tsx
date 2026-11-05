@@ -7,6 +7,7 @@ import { getFileIcon } from "./FileIcons";
 import { DiffViewer } from "./diff/DiffViewer";
 import { GIT_STATUS_COLORS, GIT_STATUS_LABEL_KEYS } from "./FileExplorer";
 import { translate, useI18n } from "@/lib/i18n";
+import { formatApiError } from "@/lib/i18n/api-error";
 import {
   getFileDirectory,
   getFileName,
@@ -28,31 +29,34 @@ const GIT_POLL_INTERVAL_MS = 5000;
 interface Props {
   cwd: string;
   active?: boolean;
+  hostId: string;
   refreshKey?: number;
   onOpenFile: (filePath: string, fileName: string) => void;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
   onRefreshDone?: () => void;
 }
 
-async function fetchStatus(cwd: string): Promise<GitStatusResponse> {
-  const params = new URLSearchParams({ cwd });
+async function fetchStatus(cwd: string, hostId: string): Promise<GitStatusResponse> {
+  const params = new URLSearchParams({ cwd, hostId });
   const res = await fetch(`/api/git/status?${params.toString()}`);
   if (!res.ok) {
-    throw new Error(translate("gitChanges.loadFailed", { status: res.status }));
+    const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
+    throw new Error(formatApiError({ ...body, error: body.error ?? translate("gitChanges.loadFailed", { status: res.status }) }));
   }
   return res.json() as Promise<GitStatusResponse>;
 }
 
-async function fetchPatch(cwd: string, filePath: string): Promise<GitFileDiffResponse> {
-  const params = new URLSearchParams({ cwd, path: filePath, contents: "1" });
+async function fetchPatch(cwd: string, filePath: string, hostId: string): Promise<GitFileDiffResponse> {
+  const params = new URLSearchParams({ cwd, path: filePath, hostId, contents: "1" });
   const res = await fetch(`/api/git/diff?${params.toString()}`);
   if (!res.ok) {
-    throw new Error(translate("gitChanges.diffLoadFailed", { status: res.status }));
+    const body = await res.json().catch(() => ({})) as { error?: string; code?: string };
+    throw new Error(formatApiError({ ...body, error: body.error ?? translate("gitChanges.diffLoadFailed", { status: res.status }) }));
   }
   return res.json() as Promise<GitFileDiffResponse>;
 }
 
-export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, onAtMention, onRefreshDone }: Props) {
+export function GitChangesPanel({ cwd, hostId, active = true, refreshKey, onOpenFile, onAtMention, onRefreshDone }: Props) {
   const { t, tn } = useI18n();
   const [files, setFiles] = useState<GitStatusResponse["files"]>([]);
   const [isRepo, setIsRepo] = useState(false);
@@ -100,7 +104,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
         setLoading(true);
         setError(null);
       }
-      fetchStatus(cwd)
+      fetchStatus(cwd, hostId)
         .then((status) => {
           if (cancelled) return;
           const nextFiles = status.isGitRepository ? status.files : [];
@@ -155,7 +159,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [cwd, refreshToken, active]);
+  }, [cwd, hostId, refreshToken, active]);
 
   useEffect(() => {
     if (!selectedPath) {
@@ -168,7 +172,7 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
     const requestId = ++patchRequestRef.current;
     setPatchLoading(true);
     setPatchError(null);
-    fetchPatch(cwd, selectedPath)
+    fetchPatch(cwd, selectedPath, hostId)
       .then((diff) => {
         if (requestId !== patchRequestRef.current) return;
         setPatchSupported(diff.supported);
@@ -188,7 +192,8 @@ export function GitChangesPanel({ cwd, active = true, refreshKey, onOpenFile, on
       .finally(() => {
         if (requestId === patchRequestRef.current) setPatchLoading(false);
       });
-  }, [cwd, selectedPath, refreshToken, statusVersion]);
+    return () => { patchRequestRef.current = requestId + 1; };
+  }, [cwd, hostId, selectedPath, refreshToken, statusVersion]);
 
   const [primaryFiles, attributeFiles] = useMemo(() => {
     const q = filter.trim().toLowerCase();

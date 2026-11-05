@@ -1,58 +1,11 @@
-import fs from "fs";
-import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
-import { recordBackendError } from "@/lib/backend-errors";
-import { isNonRepositoryError } from "@/lib/git-nonrepo";
-import { getGitStatus } from "@/lib/git-changes";
-import { withGitReadCache } from "@/lib/git-cache";
-import { applyPerFileStats } from "@/lib/git-numstat";
-
-// Short-TTL cache: the git tab, the composer git bar and the sidebar badges
-// all poll this endpoint for the same repo; the cache collapses them into a
-// single `git status` (single-flight) and serves repeats without spawning git.
-const STATUS_TTL_MS = 5000;
+import { apiErrorResponse, opErrorResponse, resolveWorkspaceHost } from "@/lib/api-utils";
 
 export async function GET(request: Request) {
   try {
-    const cwd = new URL(request.url).searchParams.get("cwd")?.trim() ?? "";
-    if (!cwd || (!cwd.startsWith("/") && !isWindowsAbsolutePath(cwd))) {
-      return Response.json({ error: "cwd must be an absolute path", code: "cwd_must_be_absolute" }, { status: 400 });
-    }
-
-    const allowedRoots = await getAllowedFileRoots();
-    if (!isFilePathAllowed(cwd, allowedRoots)) {
-      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
-    }
-
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(cwd);
-    } catch {
-      return Response.json({ error: "Directory not found", code: "directory_not_found" }, { status: 404 });
-    }
-    if (!stat.isDirectory()) {
-      return Response.json({ error: "Not a directory", code: "not_a_directory" }, { status: 400 });
-    }
-    if (!isExistingFilePathAllowed(cwd, allowedRoots)) {
-      return Response.json({ error: "Access denied", code: "access_denied" }, { status: 403 });
-    }
-
-    // ?refresh=1 bypasses the cache (manual refresh / right after a commit).
-    const refresh = new URL(request.url).searchParams.get("refresh") === "1";
-    // Per-file +/- stats are augmented inside the cache window, so the extra
-    // `git diff --numstat` collapses with the pollers like the status call
-    // itself.
-    const loadStatus = () => getGitStatus(cwd).then(applyPerFileStats);
-    const status = refresh
-      ? await loadStatus()
-      : await withGitReadCache(`status:${cwd}`, STATUS_TTL_MS, loadStatus);
-    return Response.json(status);
-  } catch (error) {
-    // A non-repo is a normal situation, not a backend failure — recording
-    // it would degrade the whole app for every non-git workspace.
-    if (!isNonRepositoryError(error)) {
-      recordBackendError("git_status_failed", error instanceof Error ? error.message : String(error));
-    }
-    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "git_status_failed";
-    return Response.json({ error: error instanceof Error ? error.message : String(error), code }, { status: 500 });
-  }
+    const params = new URL(request.url).searchParams;
+    const resolved = await resolveWorkspaceHost(params.get("hostId") ?? undefined, null);
+    if ("response" in resolved) return resolved.response;
+    const result = await resolved.host.workspaceOps.gitStatus(params.get("cwd")?.trim() ?? "");
+    return result.ok ? Response.json(result.value) : opErrorResponse(result);
+  } catch (error) { return apiErrorResponse(error); }
 }

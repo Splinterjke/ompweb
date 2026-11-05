@@ -11,6 +11,7 @@ import { GitChangesPanel } from "../GitChangesPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { NotificationListView } from "../NotificationList";
 import { useUnreadNotificationCount } from "@/lib/notification-history";
+import { LOCAL_HOST_ID } from "@/lib/project-ordering";
 import { matchMobileViewport, useIsMobile } from "@/hooks/useIsMobile";
 export type WorkbenchView = "notifications" | "files" | "agents" | "git" | "worktrees" | "sidechat" | "browser" | "memory" | "connection";
 // The workbench intentionally has one axis only.  A second axis (or a
@@ -246,6 +247,7 @@ function BrowserView() {
 export function RightWorkbench({
   storageKey,
   cwd,
+  hostId,
   remoteHost,
   files,
   agents,
@@ -258,6 +260,8 @@ export function RightWorkbench({
 }: {
   storageKey?: string;
   cwd: string | null;
+  /** The workspace's host (the Git view's status/diff polls address it). */
+  hostId?: string;
   /** The workspace lives on a remote host: Files, Git and Worktrees are not available there yet. */
   remoteHost: boolean;
   files: ReactNode;
@@ -372,12 +376,12 @@ export function RightWorkbench({
     if (view === "worktrees") return worktrees;
     if (view === "git") return remoteHost
       ? <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>{t("hosts.notAvailableRemote")}</div>
-      : cwd && onOpenFile ? <GitChangesPanel cwd={cwd} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
+      : cwd && onOpenFile ? <GitChangesPanel cwd={cwd} hostId={hostId ?? LOCAL_HOST_ID} active={active} onOpenFile={onOpenFile} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 20, color: "var(--text-dim)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))", textAlign: "center" }}>Select a workspace first.</div>;
     if (view === "sidechat") return <SideChatView cwd={cwd} />;
     if (view === "memory") return <MemoryPanel cwd={cwd} />;
     if (view === "connection") return connection ? connection(active) : null;
     return <BrowserView />;
-  }, [agents, connection, cwd, files, onOpenFile, remoteHost, t, worktrees]);
+  }, [agents, connection, cwd, hostId, files, onOpenFile, remoteHost, t, worktrees]);
 
   // The Notifications entry belongs to the top-bar bell on desktop (upstream 351237d7);
   // the Connection entry belongs to this browser's diagnostics setting.

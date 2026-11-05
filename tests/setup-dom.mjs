@@ -26,6 +26,8 @@ const globals = {
   localStorage: dom.window.localStorage,
   sessionStorage: dom.window.sessionStorage,
   matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  // Consumers call `window.matchMedia(...)` (useTheme/useIsMobile); jsdom
+  // lacks it, so the global alias above is not enough — stamp it on the window.
   getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
   requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
   cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window),
@@ -34,3 +36,6 @@ const globals = {
 for (const [key, value] of Object.entries(globals)) {
   Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
 }
+// Consumers reach it as `window.matchMedia` (useTheme's system-theme effect);
+// jsdom does not implement matchMedia, so define it on the window itself.
+dom.window.matchMedia = globals.matchMedia;

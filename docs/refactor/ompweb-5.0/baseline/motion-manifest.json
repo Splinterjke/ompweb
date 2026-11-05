@@ -46,50 +46,50 @@
       "dur:dur-slow": "320ms",
       "dur:dur-theme": "450ms"
     },
-    "transitionDeclarations": 47,
+    "transitionDeclarations": 48,
     "reducedMotionBlocks": [
       {
-        "line": 2726,
+        "line": 2834,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 2956,
+        "line": 3064,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3728,
+        "line": 3836,
         "rules": 1,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 3833,
+        "line": 3941,
         "rules": 2,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 4031,
+        "line": 4208,
         "rules": 4,
         "disables": [
           "none"
         ]
       },
       {
-        "line": 4202,
+        "line": 4388,
         "rules": 1,
         "disables": []
       },
       {
-        "line": 4814,
+        "line": 5000,
         "rules": 1,
         "disables": [
           "none"
@@ -98,6 +98,12 @@
     ]
   },
   "components": {
+    "components/agents/SubagentCard.tsx": {
+      "inlineTransitions": 2
+    },
+    "components/AppErrorBoundary.tsx": {
+      "inlineTransitions": 1
+    },
     "components/AppShell.tsx": {
       "inlineTransitions": 3,
       "inlineAnimations": [
@@ -123,6 +129,9 @@
       "inlineTransitions": 2
     },
     "components/BtwPanel.tsx": {
+      "inlineTransitions": 2
+    },
+    "components/ChatInput-uploads.tsx": {
       "inlineTransitions": 2
     },
     "components/ChatInput.tsx": {
@@ -191,6 +200,15 @@
         "state"
       ]
     },
+    "components/panels/ResizeHandles.tsx": {
+      "inlineTransitions": 1
+    },
+    "components/panels/RightPanelTabs.tsx": {
+      "inlineTransitions": 1
+    },
+    "components/panels/RightWorkbench.tsx": {
+      "inlineTransitions": 2
+    },
     "components/PluginsConfig.tsx": {
       "inlineTransitions": 2
     },
@@ -219,7 +237,7 @@
       "reducedMotionHook": true
     },
     "components/SessionSidebar.tsx": {
-      "inlineTransitions": 28,
+      "inlineTransitions": 30,
       "reducedMotionHook": true,
       "smil": {
         "animate": 2,
@@ -253,38 +271,11 @@
     "components/TodoList.tsx": {
       "inlineTransitions": 1
     },
-    "components/UsageSidebarPanel.tsx": {
-      "inlineTransitions": 3
-    },
-    "components/WorkspaceSelector.tsx": {
-      "inlineTransitions": 1
-    },
-    "components/WorktreesPanel.tsx": {
-      "inlineTransitions": 1
-    },
-    "components/agents/SubagentCard.tsx": {
-      "inlineTransitions": 2
-    },
-    "components/panels/ResizeHandles.tsx": {
-      "inlineTransitions": 1
-    },
-    "components/panels/RightPanelTabs.tsx": {
-      "inlineTransitions": 1
-    },
-    "components/panels/RightWorkbench.tsx": {
-      "inlineTransitions": 2
-    },
     "components/ui/field.tsx": {
       "inlineTransitions": 4
     },
-    "components/usage/UsageDashboardModal.tsx": {
+    "components/ui/ToggleSwitch.tsx": {
       "inlineTransitions": 2
-    },
-    "components/usage/UsageTabLogs.tsx": {
-      "inlineTransitions": 4
-    },
-    "components/usage/UsageTabModels.tsx": {
-      "inlineTransitions": 1
     },
     "components/usage/charts/CountUpNumber.tsx": {
       "inlineTransitions": 0,
@@ -301,6 +292,24 @@
     "components/usage/charts/SvgStackedBarChart.tsx": {
       "inlineTransitions": 2,
       "reducedMotionHook": true
+    },
+    "components/usage/UsageDashboardModal.tsx": {
+      "inlineTransitions": 2
+    },
+    "components/usage/UsageTabLogs.tsx": {
+      "inlineTransitions": 4
+    },
+    "components/usage/UsageTabModels.tsx": {
+      "inlineTransitions": 1
+    },
+    "components/UsageSidebarPanel.tsx": {
+      "inlineTransitions": 3
+    },
+    "components/WorkspaceSelector.tsx": {
+      "inlineTransitions": 1
+    },
+    "components/WorktreesPanel.tsx": {
+      "inlineTransitions": 1
     },
     "hooks/useAgentSession.ts": {
       "inlineTransitions": 0,

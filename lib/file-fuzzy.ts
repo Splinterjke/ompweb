@@ -64,7 +64,6 @@ function getEntryMeta(entry: FileIndexEntry): { lowerPath: string; depth: number
   }
   return meta;
 }
-
 /**
  * Build the entry list from the server's flat file list, deriving directory
  * entries from file paths (the index API only returns files). Base order is
@@ -131,6 +130,20 @@ function scoreEntry(entry: FileIndexEntry, lowerQuery: string): number {
 }
 
 export const AT_RESULT_LIMIT = 20;
+
+/**
+ * Upper bound a caller may ask for. The `@` menu shows a short popup list, but
+ * the explorer search panel is a scrollable tree where a 20-row cap silently
+ * hides most matches: "route" alone matches 52 paths in this repo.
+ */
+export const MAX_RESULT_LIMIT = 200;
+
+/** Clamp a client-supplied result limit; falls back to the `@` menu default. */
+export function parseResultLimit(raw: string | null | undefined): number {
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1) return AT_RESULT_LIMIT;
+  return Math.min(parsed, MAX_RESULT_LIMIT);
+}
 
 export function filterFileEntries(
   entries: FileIndexEntry[],

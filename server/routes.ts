@@ -31,6 +31,7 @@ import * as gitCommit from "@/app/api/git/commit/route";
 import * as gitDiff from "@/app/api/git/diff/route";
 import * as gitPush from "@/app/api/git/push/route";
 import * as gitStatus from "@/app/api/git/status/route";
+import * as githubRepo from "@/app/api/github-repo/route";
 import * as githubStatus from "@/app/api/github/status/route";
 import * as health from "@/app/api/health/route";
 import * as home from "@/app/api/home/route";
@@ -171,6 +172,7 @@ export const ROUTE_MODULES: Record<string, RouteModule> = {
   "git/diff": gitDiff,
   "git/push": gitPush,
   "git/status": gitStatus,
+  "github-repo": githubRepo,
   "github/status": githubStatus,
   "health": health,
   "home": home,

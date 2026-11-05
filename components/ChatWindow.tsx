@@ -48,6 +48,9 @@ import {
 } from "@/lib/chat-groups";
 import { isLinkUp, type HostStatus } from "@/lib/hosts/host";
 import { newChatDraftKey, remoteHostId } from "@/lib/project-ordering";
+import { WorkspaceFileContext } from "@/lib/workspace-file-context";
+import type { WorkspaceFileSource } from "@/lib/workspace-types";
+import { getFileName } from "@/lib/file-paths";
 
 interface Props {
   session: SessionInfo | null;
@@ -115,7 +118,7 @@ interface Props {
   composerAccentBg?: ComposerAccentBg;
   /** Opens the Git tab in the right workbench (from the composer git bar). */
   onOpenGitTab?: () => void;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, name: string, source: WorkspaceFileSource) => void;
   /** Handles the open_url host tool; may confirm with the user first. */
   onOpenUrl?: (url: string) => string;
   /** Open a subagent from the composer's SubagentHub in the right panel. */
@@ -716,15 +719,18 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
-
-
-
-
+export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile: onOpenWorkspaceFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
   const { t, tn } = useI18n();
+  const fileSource = useMemo<WorkspaceFileSource>(() => ({
+    hostId: session?.hostId ?? newSessionHostId ?? "local",
+    cwd: session?.cwd ?? newSessionCwd, sessionId: session?.id ?? null,
+  }), [session?.hostId, session?.cwd, session?.id, newSessionHostId, newSessionCwd]);
+  const onOpenFile = useMemo(() => onOpenWorkspaceFile
+    ? (filePath: string) => onOpenWorkspaceFile(filePath, getFileName(filePath), fileSource)
+    : undefined, [onOpenWorkspaceFile, fileSource]);
+  const { playDoneSound, unlockAudio } = useAudio();
   const isMobile = useIsMobile();
   const chatColumnPadding = `0 ${CHAT_COLUMN_GUTTER}`;
-  const { playDoneSound, unlockAudio } = useAudio();
   const internalChatInputRef = useRef<ChatInputHandle | null>(null);
   const composerRef = chatInputRef ?? internalChatInputRef;
   const [composerIdentityMove, setComposerIdentityMove] = useState<{ from: string; to: string; sourceDraft?: ChatDraft }>();
@@ -790,7 +796,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
   } = useAgentSession({
     session, newSessionCwd, newSessionHostId, onAgentEnd: wrappedOnAgentEnd, onSessionCreated, onSessionForked, onSessionMoved: handleSessionMoved,
     modelsRefreshKey, chatInputRef: composerRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange,
-    onOpenFile, onOpenUrl,
+    onOpenFile: onOpenWorkspaceFile, onOpenUrl,
   });
   // The restore dialog re-opens on every fresh failure; dismissing one stays
   // dismissed until a new sendPrompt failure produces a new record.
@@ -1423,6 +1429,18 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
     return () => controller.abort();
   }, [advisorEnabled]);
 
+  // GitHub repo of the session checkout, so bare `#123` in messages links to it.
+  const [githubRepo, setGithubRepo] = useState<string | null>(null);
+  useEffect(() => {
+    setGithubRepo(null);
+    if (!messageCwd) return;
+    const controller = new AbortController();
+    fetch(`/api/github-repo?${new URLSearchParams({ cwd: messageCwd, hostId: fileSource.hostId })}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<{ repo?: string | null }> : null)
+      .then((data) => { if (!controller.signal.aborted) setGithubRepo(data?.repo ?? null); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [messageCwd, fileSource.hostId]);
 
   const advisorModelMeta = useMemo(() => {
     if (!advisorRoleSelector) return null;
@@ -1565,8 +1583,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       onAudioUnlock={unlockAudio}
       draftKey={draftKey}
       uploadHostId={session ? session.hostId : newSessionHostId}
-      // @-mentions and skill lookups read this machine's disk: not for a remote workspace yet.
-      cwd={remoteWorkspace ? null : session?.cwd ?? newSessionCwd}
+      cwd={session?.cwd ?? newSessionCwd}
       narrowColumn={isEmptyNew}
     />
   );
@@ -1600,6 +1617,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
   return (
     <SpeechSynthesisProvider value={tts}>
     <AgentLinkContext.Provider value={openAgentLink}>
+    <WorkspaceFileContext.Provider value={fileSource}>
     <div
       className="relative flex h-full flex-col overflow-hidden aurora-flow-bg"
       onDragEnter={handleDragEnter}
@@ -1938,7 +1956,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
         cwd={messageCwd}
         onOpenFile={onOpenFile}
       />
-    </div>
+      </div>
+    </WorkspaceFileContext.Provider>
     </AgentLinkContext.Provider>
     </SpeechSynthesisProvider>
   );
