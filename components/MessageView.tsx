@@ -1184,6 +1184,10 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   // `history://`, `proc://`, `local://`, ... are resolved by omp, not files the viewer can open.
   const hasUrlScheme = rawFilePath !== null && /^[a-z][a-z0-9+.-]*:\/\//i.test(rawFilePath);
   const webUrl = hasUrlScheme && /^https?:\/\//i.test(rawFilePath) ? readTargetWebUrl(rawFilePath) : null;
+  // Strip only a trailing :<line> suffix. Splitting on the first ":" broke
+  // every Windows absolute path (C:\... -> "C") and POSIX filenames
+  // containing a colon; a drive-letter colon is never a line suffix.
+  const cleanFilePath = rawFilePath && !hasUrlScheme ? rawFilePath.replace(/:\d+$/, "") : null;
   return (
     <div className="activity-row" data-activity-operation="true">
         <Collapsible open={expanded} onOpenChange={setUserToggled}>
@@ -1206,6 +1210,25 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
                   if (e.key === "Enter") {
                     e.stopPropagation();
                     openAgentLink(agentIds);
+                  }
+                }}
+                title={hubPreview ?? getToolPreview(block)}
+              >
+                {hubPreview ?? getToolPreview(block)}
+              </span>
+            ) : cleanFilePath && onOpenFile ? (
+              <span
+                role="button"
+                tabIndex={0}
+                className="activity-file-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFile(cleanFilePath);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    onOpenFile(cleanFilePath);
                   }
                 }}
                 title={hubPreview ?? getToolPreview(block)}

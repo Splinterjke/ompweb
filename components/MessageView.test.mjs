@@ -76,6 +76,28 @@ test("expanded tool calls show the compact command header", () => {
   assert.match(html, /\$<\/span><code>read foo\.ts<\/code>/);
 });
 
+test("tool-row file links keep Windows drive paths and colon filenames intact", () => {
+  const cases = [
+    // Drive-letter colon is not a line suffix: splitting on ":" opened "C".
+    ["C:\\Users\\me\\proj\\src\\file.ts", "C:\\Users\\me\\proj\\src\\file.ts"],
+    ["C:/Users/me/proj/src/file.ts:42", "C:/Users/me/proj/src/file.ts"],
+    ["src/my:file.txt", "src/my:file.txt"],
+  ];
+  for (const [path, expected] of cases) {
+    const openedFiles = [];
+    const { container } = render(React.createElement(MessageView, {
+      onOpenFile(file) { openedFiles.push(file); },
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path } }],
+      },
+    }));
+    // File links render as a clickable span (role="button"), unlike web URLs.
+    fireEvent.click(container.querySelector(".activity-file-link"));
+    assert.deepEqual(openedFiles, [expected], path);
+    cleanup();
+  }
+});
 test("expanded read output uses compact terminal text without line gutters", () => {
   const html = renderToStaticMarkup(React.createElement(MessageView, {
     isStreaming: true,
