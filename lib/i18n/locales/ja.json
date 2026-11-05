@@ -1157,6 +1157,7 @@
   "sessionSidebar.removeWorktreeTitle": "ワークツリーのチェックアウト {path} を削除します。ブランチは保持されます",
   "sessionSidebar.rename": "名前を変更",
   "sessionSidebar.resizeSection": "{name} のサイズをドラッグで調整、ダブルクリックでリセット",
+  "sessionSidebar.unsentDraft": "未送信の下書き",
   "sessionSidebar.selectProjectFirst": "先にプロジェクトを選択してください",
   "sessionSidebar.switchWorktree": "ワークツリーを切り替え",
   "sessionSidebar.switchWorktreeTo": "ワークツリーを切り替え: {path}",

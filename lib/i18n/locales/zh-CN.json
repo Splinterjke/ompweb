@@ -1157,6 +1157,7 @@
   "sessionSidebar.removeWorktreeTitle": "移除工作树检出 {path}；分支会被保留",
   "sessionSidebar.rename": "重命名",
   "sessionSidebar.resizeSection": "拖动调整 {name} 大小，双击恢复默认",
+  "sessionSidebar.unsentDraft": "未发送的草稿",
   "sessionSidebar.selectProjectFirst": "请先选择一个项目",
   "sessionSidebar.switchWorktree": "切换工作树",
   "sessionSidebar.switchWorktreeTo": "切换工作树：{path}",

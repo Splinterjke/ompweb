@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type Ref, type RefObject, type SetStateAction } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, useSyncExternalStore, type CSSProperties, type Dispatch, type ReactNode, type Ref, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { Popover } from "@base-ui/react/popover";
 import type { AgentMessage, ExitedRpcSession, ManagedProject, RunningSessionMeta, SessionInfo } from "@/lib/types";
@@ -17,6 +17,7 @@ import { Tooltip } from "./ui/primitives";
 import { ConfirmDialog } from "./ui/field";
 import { toast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
+import { hasDraft, subscribeDrafts } from "@/lib/draft-store";
 import { transcriptToMarkdown } from "@/lib/transcript";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -29,7 +30,7 @@ import { HOST_STATUS_COLOR, hostName, hostStatusText } from "./host-status";
 import { comparableProjectPath } from "@/lib/comparable-path";
 import { SessionSearchMatches, type SearchMatchTarget } from "./SessionSearchMatches";
 import { compileSearchQuery, FIRST_MESSAGE_WEIGHT, scoreSearchFields, searchField, TITLE_WEIGHT } from "@/lib/session-search";
-import { AlertTriangle, Archive, ArrowDownUp, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, Loader2, MoreHorizontal, PanelsTopLeft, Pin, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowDownUp, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, FileUp, Folder, FolderTree, GitBranch, Loader2, MoreHorizontal, PanelsTopLeft, Pencil, Pin, Plus, RefreshCw, Search, Settings2, SlidersHorizontal, Smartphone, Trash2, Upload, X } from "lucide-react";
 import { openEventStream } from "@/lib/event-stream";
 import {
   loadRecentRuns,
@@ -4502,6 +4503,8 @@ export const SessionItem = memo(function SessionItem({
   const contentButtonRef = useRef<HTMLButtonElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const title = session.name || session.firstMessage.slice(0, 50) || session.id.slice(0, 12);
+  // A session's composer draft is keyed by its id (ChatWindow's `draftKey`).
+  const hasUnsentDraft = useSyncExternalStore(subscribeDrafts, () => hasDraft(session.id), () => false);
   // omp >= 18.8.1 generated titles may carry a title card (`🧪 FLAKY: …`);
   // the card is part of the stored title string — split it out for display.
   const titleCard = parseTitleCard(session.name);
@@ -4709,6 +4712,11 @@ export const SessionItem = memo(function SessionItem({
               {titleCard ? titleCard.title : title}
             </span>
             </Tooltip>
+            {hasUnsentDraft && (
+              <span role="img" title={t("sessionSidebar.unsentDraft")} aria-label={t("sessionSidebar.unsentDraft")} style={{ display: "inline-flex", flexShrink: 0, marginLeft: 5, color: "var(--accent)" }}>
+                <Pencil size={11} strokeWidth={2.2} aria-hidden="true" />
+              </span>
+            )}
           </button>
           {session.worktreeBranch && <Tooltip content={t("sessionSidebar.worktreeTitle", { path: session.cwd })}>
             <span style={{ display: "flex", alignItems: "center", gap: 3, maxWidth: 56, minWidth: 0, overflow: "hidden", color: "var(--text-dim)", fontSize: "calc(10px * var(--ui-font-scale-sm, 1))", flexShrink: 1 }}><GitBranch size={10} strokeWidth={2.4} aria-hidden="true" /><span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.worktreeBranch}</span></span>

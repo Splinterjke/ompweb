@@ -1157,6 +1157,7 @@
   "sessionSidebar.removeWorktreeTitle": "Remove worktree checkout {path}; the branch is kept",
   "sessionSidebar.rename": "Rename",
   "sessionSidebar.resizeSection": "Drag to resize {name}; double-click to reset",
+  "sessionSidebar.unsentDraft": "Unsent draft",
   "sessionSidebar.selectProjectFirst": "Select a project first",
   "sessionSidebar.switchWorktree": "Switch worktree",
   "sessionSidebar.switchWorktreeTo": "Switch worktree: {path}",
