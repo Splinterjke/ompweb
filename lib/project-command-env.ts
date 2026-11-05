@@ -30,6 +30,10 @@ export const OMP_WEB_SECRET_ENV_VARS: readonly string[] = [
   "OMP_WEB_TRUSTED_HEADER_SECRET",
   "OMP_WEB_TRUSTED_HEADER_SHA256",
   "OMPWEB_PEER_SECRET", // fork: request-peer proof HMAC key (bin/request-peer.js, stamped by server/app.ts)
+  // Server-side STT credential (read only by lib/stt.ts): no child ever
+  // needs it, and an agent running `env` would otherwise print it into its
+  // transcript and off to the model provider, as with the password hash.
+  "OMP_WEB_STT_KEY",
 ];
 
 function comparableName(name: string, platform: NodeJS.Platform): string {

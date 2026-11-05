@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { resolveOmpBin, wrapWindowsScript } from "./omp/omp-cli";
+import { createChildProcessEnvironment } from "./project-command-env";
 import { asNumber, isRecord } from "./type-guards";
 import type {
   ProviderUsageReport,
@@ -208,6 +209,9 @@ async function fetchProviderUsage(refresh = false): Promise<string> {
       timeout: USAGE_TIMEOUT_MS,
       maxBuffer: USAGE_MAX_BUFFER,
       windowsHide: true,
+      // No `env` option would inherit the server's full environment,
+      // including omp-web's own secrets, into this child.
+      env: createChildProcessEnvironment(),
     });
   }
   // Unredacted so accounts show their real email; only the parsed label, plan
@@ -217,6 +221,7 @@ async function fetchProviderUsage(refresh = false): Promise<string> {
     timeout: USAGE_TIMEOUT_MS,
     maxBuffer: USAGE_MAX_BUFFER,
     windowsHide: true,
+    env: createChildProcessEnvironment(),
   });
   return stdout;
 }
