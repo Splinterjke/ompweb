@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useId, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, type CSSProperties, type Dispatch, type ReactNode, type Ref, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
+import { Popover } from "@base-ui/react/popover";
 import type { AgentMessage, ExitedRpcSession, ManagedProject, RunningSessionMeta, SessionInfo } from "@/lib/types";
 import type { GitStatsPlacement } from "./AppShell";
 import { formatExitedSessionNotice, useI18n } from "@/lib/i18n";
@@ -703,7 +704,12 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
   } as const;
   // Mobile: the brand doubles as the drawer's collapse button — the hover
   // state makes it read as a button, not a logo. On desktop it is a
-  // static label (no click behavior, no animation).
+  // static label (no click behavior, no animation), except for untagged
+  // (source) builds: those embed their commit identity (#404), and clicking
+  // the brand reveals it. Tagged releases carry a version only and stay static.
+  const commitHash = process.env.OMP_WEB_PUBLIC_COMMIT_HASH;
+  const commitDate = process.env.OMP_WEB_PUBLIC_COMMIT_DATE;
+  const hasCommitDetails = Boolean(commitHash && commitDate);
   return isMobile && onMobileClick ? (
     <button
       type="button"
@@ -716,6 +722,28 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     >
       {brand}
     </button>
+  ) : hasCommitDetails ? (
+    <Popover.Root>
+      <Popover.Trigger
+        aria-label="omp web"
+        className="ui-focus-ring"
+        title="Show build commit"
+        style={{ ...style, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: "2px 6px", borderRadius: 6 }}
+      >
+        {brand}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="bottom" align="start" sideOffset={8} collisionPadding={8} style={{ zIndex: 220 }}>
+          <Popover.Popup
+            className="picker-panel ui-focus-ring"
+            style={{ padding: 12, width: 280, maxWidth: "calc((100vw - 16px) / var(--ui-scale, 1))", fontFamily: "var(--font-mono)", fontSize: 12 }}
+          >
+            <Popover.Title style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)" }}>{commitDate}</Popover.Title>
+            <Popover.Description style={{ margin: 0, overflowWrap: "anywhere", color: "var(--text)" }}>{commitHash}</Popover.Description>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   ) : (
     <span aria-label="omp web" style={style}>
       {brand}
