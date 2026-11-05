@@ -1,7 +1,7 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 
-import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useSyncExternalStore, forwardRef, memo, KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Ban, ChevronDown, ClipboardPaste, Clock3, CornerDownRight, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
@@ -26,6 +26,7 @@ import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
 import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraft, type ChatDraftImage } from "@/lib/draft-store";
+import { getPendingSends, retargetPendingSends, subscribePendingSends, trackPendingSend } from "@/lib/pending-sends";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, buildSlashInsertText, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import type { AttachedImage, AttachedTextFile } from "./ChatInput-draft-attachments";
@@ -285,7 +286,7 @@ export interface ChatInputHandle {
   insertText: (text: string) => void;
   insertIfEmpty: (text: string) => void;
   prependText: (text: string) => void;
-  /** Retarget captured queue recoveries before a confirmed move can render. */
+  /** Retarget pending sends and captured queue recoveries before a confirmed move can render. */
   retargetPendingRecovery: (from: string, to: string) => void;
   addFiles: (files: File[]) => void;
   /** Open the Session Info popover (e.g. from the /session command). */
@@ -822,7 +823,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   const fileIndexFetchingRef = useRef<string | null>(null);
   const draftKeyRef = useRef(draftKey);
   const consumedIdentityMoveRef = useRef<typeof draftIdentityMove>(undefined);
-  // Pending queue edits retain this identity across confirmed moves only.
+  // Pending queue recoveries retain this identity across confirmed moves only.
   // Navigation starts a new identity, even when a draft key is later reused.
   const draftRecoveryIdentityRef = useRef({ key: draftKey });
   const persistedDraftRef = useRef<ChatDraft | null>(null);
@@ -1014,6 +1015,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     retargetPendingRecovery(from, to) {
       const identity = draftRecoveryIdentityRef.current;
       if (identity.key === from) identity.key = to;
+      retargetPendingSends(from, to);
     },
   }));
   const patchUpload = useCallback((id: string, patch: Partial<AttachedUpload>) => {
@@ -1935,6 +1937,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
     });
   }, [slashMatch, value]);
+  const sendingQueued = useSyncExternalStore(subscribePendingSends, getPendingSends, getPendingSends);
 
   const sendQueued = useCallback((mode: "steer" | "followup", overrideText?: string) => {
     if (submissionBlockedRef.current) return;
@@ -1954,12 +1957,15 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     // The queue callbacks resolve false when omp refused the message: it goes
     // back, text and attachments together, to the draft it was sent from, even
     // if the user has typed or switched sessions since.
-    const key = draftKeyRef.current;
+    const recoveryIdentity = draftRecoveryIdentityRef.current;
     const kept = { images: images?.map(imageToDraftImage), ...uploadRecovery(attachedUploads) };
-    const recoverOnFailure = (queued: Promise<boolean>, text: string) => {
-      void Promise.resolve(queued).then((ok) => {
-        if (ok === false && key) recoverDraft(key, { text, ...kept });
+    // Until omp answers, the message shows as "Sending…" above the composer:
+    // it is neither in the composer nor in omp's queue yet.
+    const trackSend = (queued: Promise<boolean>, text: string) => {
+      const reply = Promise.resolve(queued).then((ok) => {
+        if (ok === false && recoveryIdentity.key) recoverDraft(recoveryIdentity.key, { text, ...kept });
       });
+      trackPendingSend(recoveryIdentity, text, reply);
     };
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
@@ -1983,7 +1989,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           setAttachError(validationError);
           return;
         }
-        recoverOnFailure(onPromptWithStreamingBehavior(prompt, streamingBehavior, images, ...uploads), prompt);
+        trackSend(onPromptWithStreamingBehavior(prompt, streamingBehavior, images, ...uploads), prompt);
         setAttachError(null);
         clearInput();
         return;
@@ -2001,7 +2007,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
         setAttachError(validationError);
         return;
       }
-      recoverOnFailure(onPromptWithStreamingBehavior(prompt, streamingBehavior, images, ...uploads), prompt);
+      trackSend(onPromptWithStreamingBehavior(prompt, streamingBehavior, images, ...uploads), prompt);
       setAttachError(null);
       clearInput();
       return;
@@ -2013,9 +2019,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       return;
     }
     if (mode === "steer" && onSteer) {
-      recoverOnFailure(onSteer(composedMessage, images, ...uploads), composedMessage);
+      trackSend(onSteer(composedMessage, images, ...uploads), composedMessage);
     } else if (mode === "followup" && onFollowUp) {
-      recoverOnFailure(onFollowUp(composedMessage, images, ...uploads), composedMessage);
+      trackSend(onFollowUp(composedMessage, images, ...uploads), composedMessage);
     }
     setAttachError(null);
     clearInput();
@@ -2054,6 +2060,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   ];
   const firstQueued = queuedEntries[0] ?? null;
   const queuedCount = queuedEntries.length;
+  const sendingEntries = sendingQueued.filter((entry) => entry.key === draftKey);
+  const queueBarShown = queuedCount > 0 || sendingEntries.length > 0;
   const [queueExpanded, setQueueExpanded] = useState(false);
   // Invalidate the pending confirmation when delivery or navigation changes the queue.
   const activeDeleteTarget = queuedDeleteTarget?.draftKey === draftKey
@@ -3139,7 +3147,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
           })()}
         {/* Queued prompts panel / bar — attached to composer's top edge.
             When 1 item: compact single row. When multiple items: compact row with expand toggle, or full list when expanded. */}
-        {queuedCount > 0 && (
+        {queueBarShown && (
           <div
             aria-label={t("chatInput.queuedPrompts")}
             style={{
@@ -3150,7 +3158,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               overflow: "hidden",
             }}
           >
-            {queuedCount === 1 ? (
+            {queuedCount === 0 ? null : queuedCount === 1 ? (
               <div style={{
                 padding: "5px 8px 5px 12px",
                 display: "flex",
@@ -3344,6 +3352,17 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 )}
               </div>
             )}
+            {sendingEntries.length > 0 && <div style={{ maxHeight: 120, overflowY: "auto" }}>{sendingEntries.map((entry) => (
+              <div key={entry.id} style={{ padding: "5px 8px 5px 12px", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <Loader2 size={12} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0, color: "var(--text-muted)", animation: "spin 0.8s linear infinite" }} />
+                <span role="status" style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+                  {t("chatInput.queuedSending")}
+                </span>
+                <span title={entry.text} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {entry.text}
+                </span>
+              </div>
+            ))}</div>}
           </div>
         )}
           <div
