@@ -362,6 +362,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   // System & Updates
   { id: "auto-resume-sessions", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.autoResumeSessions", descKey: "settingsConfig.autoResumeSessionsDesc", fallbackSection: "System", fallbackLabel: "Resume running sessions after a restart", fallbackDesc: "When omp-web restarts while agents are working, restart those sessions and ask each agent to continue the same task from the persisted session context without repeating completed side effects. Work in progress at the moment of the restart, such as a running command, is lost.", scope: "UI" },
   { id: "agent-tools-cross-session", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentTools", descKey: "settingsConfig.agentToolsDesc", fallbackSection: "System", fallbackLabel: "Agent tools (cross-session)", fallbackDesc: "Allow agents to call list_sessions, new_session and send_to_session to reach other omp-web sessions, even with no browser tab open. Delivered messages are prefixed with the sending session's ID." },
+  { id: "upload-retention", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.uploadRetention", descKey: "settingsConfig.uploadRetentionDesc", fallbackSection: "System", fallbackLabel: "Delete sent uploads after", fallbackDesc: "Files attached As file are deleted from each session's local://uploads folder on every host, archived sessions included, once they are this old. Never keeps them for ever." },
   { id: "agent-env", tab: "system", sectionKey: "settingsConfig.systemUpdates", labelKey: "settingsConfig.agentEnv", descKey: "settingsConfig.agentEnvDesc", fallbackSection: "System", fallbackLabel: "Agent environment variables", fallbackDesc: "Extra environment variables passed to the omp process, one KEY=VALUE per line. Applied to sessions started after saving.", scope: "UI" },
   // Notifications
   { id: "notifications-enable", tab: "notifications", sectionKey: "notifications.title", labelKey: "notifications.enable", descKey: "notifications.enableDesc", fallbackSection: "Notifications", fallbackLabel: "Enable notifications", fallbackDesc: "Asks the browser for permission to show notifications.", scope: "UI" },
@@ -543,6 +544,61 @@ function AutoSessionTitlesSetting() {
   return (
     <NativeSetting searchId="auto-session-titles" label={t("settingsConfig.autoSessionTitles")} description={t("settingsConfig.autoSessionTitlesDesc")} scope="UI">
       <ToggleSwitch checked={enabled === true} disabled={enabled === null} onChange={(next) => void change(next)} />
+    </NativeSetting>
+  );
+}
+
+const UPLOAD_RETENTION_CHOICES: readonly (number | null)[] = [null, 7, 30, 90];
+
+/** Server-side omp-web setting (lib/web-settings.ts): every host's daemon applies it to its own sessions' uploads. */
+function UploadRetentionSetting() {
+  const { t, tn } = useI18n();
+  // undefined until loaded; null is "Never".
+  const [days, setDays] = useState<number | null | undefined>(undefined);
+  // Blocks a second change until the save lands: two PUTs in flight could finish out of order and leave the older one saved.
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/web-settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { uploadRetentionDays?: number | null } | null) => { if (alive && data && data.uploadRetentionDays !== undefined) setDays(data.uploadRetentionDays); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const change = async (next: number | null) => {
+    const previous = days;
+    setDays(next);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/web-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadRetentionDays: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      setDays(previous);
+      toast.error(t("settingsConfig.uploadRetentionSaveFailed"), error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+  // A value set through the API (14 days) stays visible as its own choice.
+  const choices = days === undefined || UPLOAD_RETENTION_CHOICES.includes(days) ? UPLOAD_RETENTION_CHOICES : [...UPLOAD_RETENTION_CHOICES, days];
+  return (
+    <NativeSetting searchId="upload-retention" label={t("settingsConfig.uploadRetention")} description={t("settingsConfig.uploadRetentionDesc")}>
+      <select
+        style={nativeSelectStyle}
+        value={days === undefined ? "30" : String(days)}
+        disabled={days === undefined || saving}
+        onChange={(event) => void change(event.target.value === "null" ? null : Number(event.target.value))}
+      >
+        {choices.map((choice) => (
+          <option key={String(choice)} value={String(choice)} style={nativeOptionStyle}>
+            {choice === null ? t("settingsConfig.uploadRetentionNever") : tn("settingsConfig.uploadRetentionDays", choice, { count: choice })}
+          </option>
+        ))}
+      </select>
     </NativeSetting>
   );
 }
@@ -2273,6 +2329,8 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                 <AutoResumeSessionsSetting />
 
                 <AgentToolsSetting />
+
+                <UploadRetentionSetting />
 
                 <AgentEnvSetting />
 

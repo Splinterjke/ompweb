@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { resolve } from "path";
 import { getAgentDir } from "./omp/paths";
 import { BROWSER_TRANSPORTS, type BrowserTransport, type BrowserTransportState } from "./event-stream-protocol";
+import { DEFAULT_UPLOAD_RETENTION_DAYS, isUploadRetentionDays } from "./upload-limits";
 import { isRecord } from "./type-guards";
 
 /** omp-web's own server-side settings (omp's config.yml stays omp's). */
@@ -32,6 +33,8 @@ export interface WebServerSettings {
   agentEnv: Record<string, string>;
   /** Live-event transport the browser uses; "ws" unless the file says "sse" (a missing or unknown value, the experiment's ws-* values included, reads as "ws"). */
   browserTransport: BrowserTransport;
+  /** Days a sent upload stays in its session's `local://uploads/` on every host; `null` keeps them for ever (docs/specs/2026-11-02-file-uploads-design.md, U6). */
+  uploadRetentionDays: number | null;
 }
 
 // auto-resume defaults ON (it preserves the previous always-on behavior —
@@ -43,6 +46,7 @@ const DEFAULTS: WebServerSettings = {
   autoGenerateSessionTitles: false,
   agentEnv: {},
   browserTransport: "ws",
+  uploadRetentionDays: DEFAULT_UPLOAD_RETENTION_DAYS,
 };
 
 /** What every hello and `transport` frame tells the browser. */
@@ -84,6 +88,7 @@ export function loadWebServerSettings(): WebServerSettings {
           autoGenerateSessionTitles: raw.autoGenerateSessionTitles === true,
           agentEnv: readAgentEnvRecord(raw.agentEnv),
           browserTransport: BROWSER_TRANSPORTS.find((transport) => transport === raw.browserTransport) ?? "ws",
+          uploadRetentionDays: isUploadRetentionDays(raw.uploadRetentionDays) ? raw.uploadRetentionDays : DEFAULT_UPLOAD_RETENTION_DAYS,
         };
       }
     }
