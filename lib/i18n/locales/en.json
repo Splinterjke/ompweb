@@ -2111,6 +2111,7 @@
   "appShell.githubStatus": "Open GitGraph",
   "appShell.closeGitGraph": "Close GitGraph",
   "appShell.githubStatusNotGit": "This workspace is not a git repository",
+  "appShell.githubStatusUnavailable": "Git status unavailable — the host or this workspace folder could not be read",
   "rightPanel.tabs": "Workspace panels",
   "rightPanel.files": "Files",
   "rightPanel.agents": "Agents",

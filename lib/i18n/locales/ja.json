@@ -2111,6 +2111,7 @@
   "appShell.githubStatus": "Open GitGraph",
   "appShell.closeGitGraph": "GitGraph を閉じる",
   "appShell.githubStatusNotGit": "このワークスペースは git リポジトリではありません",
+  "appShell.githubStatusUnavailable": "Git 状態を取得できません — ホストまたはこのワークスペースフォルダを読み取れません",
   "rightPanel.tabs": "ワークスペースパネル",
   "rightPanel.files": "ファイル",
   "rightPanel.agents": "サブエージェント",

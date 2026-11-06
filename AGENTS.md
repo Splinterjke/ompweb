@@ -2064,6 +2064,15 @@ stored `omp-web:submit-during-run` choice overrides it.
 - **Diff modes** on `/api/git/diff`: working tree (`path`), commit-vs-parent (`hash`+`file`), and ref compare (`from`+`to`+`file`, `to="*"` = working tree) — the compare mode's refs pass `isSafeGitRef` + `git rev-parse --verify` before reaching `git diff`.
 
 ### Git health and background polling
+- **The GitGraph workspace probe** (`hooks/useGitWorkspace.ts`, `AppShell`'s top-bar button) distinguishes an
+  ANSWER from a FAILURE. `/api/git/status` runs on the owning host behind the workspace-root authorization gate
+  (`authorizeWorkspaceDirectory`), so it answers 403 for a folder the daemon has not authorized, 503 while the host
+  link is down, and an error for a folder that no longer exists — none of which says anything about git. A failed
+  probe therefore leaves `isRepository: null` + `unavailable: true`: the button stays disabled but reads "Git status
+  unavailable", and the probe retries with backoff (2 s → 30 s, 5 tries; a cwd change restarts the budget). Mapping
+  every non-2xx to `false` is what made a perfectly good repository show "This workspace is not a git repository".
+  Pinned by `hooks/useGitWorkspace.test.mjs`; the retry tick is separate from the attempt counter so clearing the
+  count on a recovered answer cannot re-trigger the probe.
 - Read-only git failures (`git_status_failed`, `git_branches_failed`, `git_diff_failed`) are fired automatically by background polling (composer bar, Git tab, sidebar badges all poll `/api/git/status` every 5 s) and their failure is always visible at the point of use (empty bar, inline panel error). They therefore MUST NOT degrade app health or appear in the diagnostics error list — `lib/git-nonrepo.ts` `filterBenignGitEntries()` is applied in both `healthOf` and the BackendDiagnostics views so the badge and the list can never disagree. Write operations (checkout/commit/push) are explicit user actions and still degrade.
 - The pollers' `git diff/status` children refresh the index stat-cache and briefly hold `.git/index.lock`, so index-writing commands (`git commit`, `reset`, `add`, `read-tree`) can fail transiently with "index.lock: File exists" while a dev server is serving this repo. It is NOT a stale lock: retry (a short sequence rarely collides twice), and never delete the lock while a live git child exists (the pollers appear under the next-server pid). A `set -e` multi-step git sequence stops mid-sequence on a collision with the next step's tree already staged — inspect `git log`/`git status`/`git write-tree` and finish only the remaining commits, never re-run the whole script.
 - The raw backend-error ring keeps git read entries (the diagnostics report is a support artifact where git noise is informative) — do not "clean" them out of the ring.

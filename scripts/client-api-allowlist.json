@@ -3,7 +3,7 @@
   "files": {
     "app/remote-client.tsx": 1,
     "components/AgentsConfig.tsx": 5,
-    "components/AppShell.tsx": 16,
+    "components/AppShell.tsx": 15,
     "components/ArchiveBrowser.tsx": 2,
     "components/BackendDiagnostics.tsx": 12,
     "components/ChatInput.tsx": 4,
@@ -38,6 +38,7 @@
     "components/usage/UsageTabLogs.tsx": 1,
     "hooks/useAgentSession.ts": 23,
     "hooks/useDictation.ts": 6,
+    "hooks/useGitWorkspace.ts": 1,
     "hooks/useHostRows.ts": 1,
     "hooks/useNotifications.ts": 2,
     "lib/agent-client.ts": 1,

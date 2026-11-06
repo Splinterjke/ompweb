@@ -2111,6 +2111,7 @@
   "appShell.githubStatus": "Open GitGraph",
   "appShell.closeGitGraph": "关闭 GitGraph",
   "appShell.githubStatusNotGit": "该工作区不是 git 仓库",
+  "appShell.githubStatusUnavailable": "无法获取 Git 状态——无法读取主机或此工作区文件夹",
   "rightPanel.tabs": "工作区面板",
   "rightPanel.files": "文件",
   "rightPanel.agents": "子代理",

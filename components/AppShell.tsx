@@ -40,6 +40,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { translate, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useGitWorkspace } from "@/hooks/useGitWorkspace";
 import { copyText } from "@/lib/clipboard";
 import { getFileName, joinFilePath } from "@/lib/file-paths";
 import { setFrameDragGuard } from "@/lib/drag-frames";
@@ -257,10 +258,10 @@ export function AppShell({ appName }: { appName: string }) {
     if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
     return loadSidebarWidth();
   });
-  // Whether the active workspace is a git repository. `null` means not probed
-  // yet; the GitGraph button stays disabled until the probe confirms a repo, so
-  // a fresh page load never shows it as enabled for a non-repo workspace.
-  const [gitWorkspace, setGitWorkspace] = useState<boolean | null>(null);
+  // Whether the active workspace is a git repository, probed by useGitWorkspace
+  // below once the cwd is known (`gitWorkspace === null` keeps the GitGraph
+  // button disabled until the probe answers, so a fresh load never lights it up
+  // for a non-repo workspace).
   // The git-graph bottom panel's host state: the panel is always docked,
   // so AppShell tracks only open/closed plus the layout mirror of its
   // expanded state (owned by the panel, see onExpandedChange below).
@@ -1986,6 +1987,7 @@ export function AppShell({ appName }: { appName: string }) {
   // button can be disabled (with an explanatory tooltip) when it is not.
   // The probe runs whenever the resolved cwd changes; the latest result wins.
   const gitProbeCwd = activeCwd ?? selectedSession?.cwd ?? newSessionCwd;
+  const { isRepository: gitWorkspace, unavailable: gitProbeFailed } = useGitWorkspace(gitProbeCwd);
 
   // The file explorer follows the OPEN session's repository (upstream 54d488df):
   // clicking another workspace in the sidebar no longer re-points the panel
@@ -1995,26 +1997,6 @@ export function AppShell({ appName }: { appName: string }) {
   const workspaceHostId = currentHostId ?? LOCAL_HOST_ID;
   const sidebarCwd = (activeHostId ?? LOCAL_HOST_ID) === workspaceHostId ? activeCwd : null;
   const explorerCwd = selectedSession ? (sessionWorktreeRemoved ? sidebarCwd : sessionCwd) : newSessionCwd ?? sidebarCwd;
-  useEffect(() => {
-    if (!gitProbeCwd) {
-      setGitWorkspace(null);
-      return;
-    }
-    let cancelled = false;
-    const params = new URLSearchParams({ cwd: gitProbeCwd });
-    fetch(`/api/git/status?${params.toString()}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        setGitWorkspace(Boolean((data as { isGitRepository?: boolean }).isGitRepository));
-      })
-      .catch(() => {
-        if (!cancelled) setGitWorkspace(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gitProbeCwd]);
-
   useEffect(() => {
     const syncWindowTitle = () => {
       if (document.title !== windowTitle) document.title = windowTitle;
@@ -2440,7 +2422,7 @@ export function AppShell({ appName }: { appName: string }) {
                 <History size={16} strokeWidth={1.8} aria-hidden="true" />
               </button>
               </Tooltip>
-              <Tooltip content={gitWorkspace === false ? t("appShell.githubStatusNotGit") : gitGraphOpen ? t("appShell.closeGitGraph") : t("appShell.githubStatus")} side="bottom">
+              <Tooltip content={gitWorkspace === false ? t("appShell.githubStatusNotGit") : gitProbeFailed ? t("appShell.githubStatusUnavailable") : gitGraphOpen ? t("appShell.closeGitGraph") : t("appShell.githubStatus")} side="bottom">
                 <button
                   type="button"
                   // aria-disabled (not the native disabled attribute): a natively
