@@ -53,6 +53,9 @@ $StateDir = Join-Path $env:USERPROFILE '.omp\agent\ompweb-rebuild'
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 $PendingAsset = Join-Path $StateDir 'pending-asset.txt'
 $LogPath = Join-Path $StateDir 'rebuild.log'
+# Set by Stop-Instance when a kill was REFUSED and the listener still holds the port. The
+# verbs must not report a hand-off in that case: nothing was bounced and nothing relaunches.
+$InstanceStuck = $false
 
 function Log([string] $m) {
     $line = "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))  $m"
@@ -75,7 +78,8 @@ function Get-Supervisor([string] $role) { @(Get-Supervisors | Where-Object { $_.
 function Stop-Tree([int] $processId, [string] $why) {
     Log ('stop: taskkill /T /F pid ' + $processId + '  ' + $why)
     # taskkill writes its result in the console codepage, which lands as mojibake in a
-    # UTF-8 log; the exit code is the signal (128 = already gone, harmless).
+    # UTF-8 log; the exit code is only a hint -- 128 is BOTH "already gone" and "Access
+    # denied" -- which is why Stop-Instance proves the kill against the port instead.
     & taskkill /pid $processId /t /f *> $null
     Log ('  exit ' + $LASTEXITCODE)
 }
@@ -103,13 +107,47 @@ function Get-Instance {
     return @($targets | Sort-Object { $_.CommandLine.Length } -Descending)
 }
 
+# The pids holding $Port right now. The port is the only real proof a kill took: an instance
+# started from an ELEVATED shell can never be killed from a normal one, and taskkill's exit
+# code cannot tell that apart from a process that was already gone.
+function Get-ListenerPids {
+    @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique)
+}
+
+# Is this script itself running INSIDE the instance it is about to kill? The seeded
+# "OmpWeb Rebuild & Restart" task is a child of the web server, so its own tree burns with
+# the target -- anything it launches after the kill never happens.
+function Test-InsideInstance {
+    $targets = @(Get-Instance)
+    if (-not $targets) { return $false }
+    $current = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $PID) -ErrorAction SilentlyContinue
+    $guard = 0
+    while ($current -and $current.ParentProcessId -and $guard -lt 30) {
+        if (@($targets).ProcessId -contains $current.ParentProcessId) { return $true }
+        $current = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $current.ParentProcessId) -ErrorAction SilentlyContinue
+        $guard++
+    }
+    return $false
+}
+
 # Bounce the instance and leave the supervisor ALIVE: it is what relaunches the process and
 # verifies the served bundle, so killing it would leave nothing to bring the instance back.
 function Stop-Instance {
-    $targets = Get-Instance
+    $script:InstanceStuck = $false
+    $targets = @(Get-Instance)
     if (-not $targets) { Log ('stop: nothing running on port ' + $Port); return $false }
     foreach ($p in $targets) { Stop-Tree $p.ProcessId ('[' + $p.Name + '] ' + $p.CommandLine) }
-    return $true
+    for ($i = 0; $i -lt 8; $i++) {
+        if (-not @(Get-ListenerPids)) { return $true }
+        Start-Sleep -Milliseconds 400
+    }
+    $left = @(Get-ListenerPids)
+    Log ('FAILED: port ' + $Port + ' is still held by pid ' + ($left -join ', ') +
+         ' -- the kill was refused, nothing was bounced. An instance started from an elevated' +
+         ' shell needs an elevated ' + $PSCommandPath + ' stop.')
+    $script:InstanceStuck = $true
+    return $false
 }
 
 # `stop` also ends the supervisor -- otherwise it simply relaunches what was killed. The
@@ -149,6 +187,68 @@ function Get-Supervised([string] $role) {
 function Start-Supervisor([string] $role) {
     Start-Process powershell -WindowStyle Minimized -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, 'supervise', $role) | Out-Null
     Log ('start: ' + $role + ' supervisor launched (log: ' + (Join-Path $StateDir ('run-' + $role + '.log')) + ')')
+}
+
+# A supervisor launched for a bounce has to OUTLIVE it. Win32_Process.Create starts the
+# process outside the caller's tree, so a `taskkill /T` on the instance cannot reach it --
+# that is the only way a rebuild run from INSIDE the web server can leave a relauncher
+# behind. It needs elevation (which the elevated path already has); Start-Process is the
+# fallback, correct whenever the caller survives the kill.
+function Start-SupervisorDetached([string] $role) {
+    $line = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" supervise ' + $role
+    $created = $null
+    try {
+        $created = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ErrorAction Stop -Arguments @{
+            CommandLine = $line; CurrentDirectory = $Repo }
+    } catch { $created = $null }
+    if ($created -and $created.ReturnValue -eq 0) {
+        Log ('start: ' + $role + ' supervisor launched outside this process tree (pid ' + $created.ProcessId +
+             ', log: ' + (Join-Path $StateDir ('run-' + $role + '.log')) + ')')
+        return
+    }
+    Log ('start: the detached launch was refused; the supervisor will not survive a kill of this process')
+    Start-Supervisor $role
+}
+
+# Make sure something will bring the instance back. An instance whose supervisor died earlier
+# (or that was started by hand -- see `status`) has nothing to relaunch it, and the hand-off
+# would then wait for a verification that can never run. Never start a SECOND host daemon:
+# two daemons would run competing children on one agent dir.
+function Ensure-Supervisor([string] $role) {
+    if (@(Get-Supervisor $role).Count -gt 0) { return $true }
+    if ($role -eq 'host' -and @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'omp-web\.js host' })) {
+        Log 'start: a host daemon is running without a supervisor -- left alone (never run two daemons)'
+        return $false
+    }
+    Log ('start: no ' + $role + ' supervisor -- launching one so the instance comes back')
+    Start-SupervisorDetached $role
+    return $true
+}
+
+# One bounce, honestly reported. The relauncher is put in place BEFORE the kill when this
+# script runs inside the instance (a supervisor launched afterwards would die with the tree);
+# otherwise after it, so a refused kill cannot leave a supervisor crash-looping on a busy
+# port. Returns $true only when a process was actually stopped.
+function Restart-Instance {
+    $inside = Test-InsideInstance
+    if ($inside) {
+        Ensure-Supervisor 'server' | Out-Null
+        if ($All) { Ensure-Supervisor 'host' | Out-Null }
+    }
+    $wasRunning = Stop-Instance
+    if ($script:InstanceStuck) { return $false }
+    if (-not $inside) {
+        if (@(Get-ListenerPids)) {
+            # Nothing ompweb-owned was running, yet the port is taken: starting a supervisor
+            # would only spawn a child that fails to bind every 3 seconds forever.
+            Log ('FAILED: port ' + $Port + ' is held by a process that is not this instance; no supervisor started')
+            $script:InstanceStuck = $true
+            return $false
+        }
+        Ensure-Supervisor 'server' | Out-Null
+        if ($All) { Ensure-Supervisor 'host' | Out-Null }
+    }
+    return $wasRunning
 }
 
 function Start-Stack {
@@ -217,6 +317,16 @@ function Show-Status {
     foreach ($listenerPid in $listenerPids) {
         $p = Get-CimInstance Win32_Process -Filter "ProcessId=$listenerPid" -ErrorAction SilentlyContinue
         if ($p) {
+            # A process running at a HIGHER elevation is visible only as a bare pid: its
+            # command line reads back empty and no supervisor/child of it can be listed, so
+            # the roles above say "not running" while the port is served. Say what is going on
+            # instead of letting the reader conclude the instance was started by hand.
+            if (-not $p.CommandLine) {
+                Log ('  listener: pid ' + $p.ProcessId + ' [' + $p.Name + '] -- this shell cannot read it:' +
+                     ' the instance runs elevated, so run ' + $PSCommandPath + ' from an elevated shell' +
+                     ' to see and control it')
+                continue
+            }
             $note = if (@(Get-Supervisor 'server').Count -gt 0) { '' } else { '  (no ompweb.ps1 supervisor: started by hand?)' }
             Log ('  listener: pid ' + $p.ProcessId + ' [' + $p.Name + '] ' + $p.CommandLine + $note)
         }
@@ -235,8 +345,10 @@ switch ($Command) {
 
     'stop' {
         if (-not (Stop-Supervisor 'server')) { Stop-Instance | Out-Null }
+        if ($All) { Stop-Host }
+        # A refused kill must not be reported as a stopped stack.
+        if ($script:InstanceStuck) { exit 1 }
         if ($All) {
-            Stop-Host
             Log 'stop: server and host stopped'
         } else {
             Log 'stop: the host daemon was left running so agent sessions survive; use -All to stop it too'
@@ -247,7 +359,9 @@ switch ($Command) {
         if ($All) { Log 'restart: bouncing the server and the host daemon (running sessions will resume)' }
         else { Log 'restart: bouncing the server' }
         # -All makes Get-Instance include the daemon, so one bounce covers both roles.
-        if (-not (Stop-Instance)) { exit 1 }
+        $wasRunning = Restart-Instance
+        if ($script:InstanceStuck) { exit 1 }
+        if (-not $wasRunning) { Log 'restart: nothing was running; the supervisor brings the instance up' }
         Log 'restart: issued; the supervisors relaunch and the server verifies the served bundle'
     }
 
@@ -289,7 +403,9 @@ switch ($Command) {
         if ($asset -eq $preAsset) { Log ('build: entry chunk unchanged (' + $asset + '); nothing client-side to pick up') }
         Set-Content -Path $PendingAsset -Value $asset -Encoding ascii -NoNewline
         Log ('hand-off: expecting ' + $asset + ' (the server supervisor verifies it in run-server.log)')
-        if (-not (Stop-Instance)) { exit 1 }
+        $wasRunning = Restart-Instance
+        if ($script:InstanceStuck) { exit 1 }
+        if (-not $wasRunning) { Log 'rebuild: nothing was running; the supervisor brings the fresh build up' }
         Log ('rebuild: issued; the supervisor relaunches the instance and verifies ' + $asset)
     }
 

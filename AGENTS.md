@@ -780,6 +780,21 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
   `-All` stops it, because that ends every agent session it owns. Stopping is scoped to the
   process listening on the port plus its launcher/Bun-child pair, so a second ompweb on the
   machine is never touched; `rebuild -DryRun` prints the targets and builds nothing.
+- **Elevation is part of the process model.** An instance started from an ELEVATED shell is
+  invisible to a normal one except as a bare pid: `Get-CimInstance Win32_Process` reads no command
+  line for it, `taskkill`/`Stop-Process` answer Access denied, and neither its supervisor nor its
+  children can be listed (so the roles read "not running" while the port is served). Because
+  taskkill's exit code cannot tell "already gone" from "refused" (both surface as a nonzero),
+  `Stop-Instance` proves the kill against the listening port and logs `FAILED: port … still held
+  by pid …` + exit 1 rather than announcing a hand-off; `status` names the elevation instead of
+  guessing "started by hand". Bouncing an elevated instance needs an elevated `ompweb.ps1`.
+- **A bounce must always leave a relauncher behind.** `Restart-Instance` ensures a server
+  supervisor exists: after the kill for a normal caller, and BEFORE it when the caller runs
+  inside the instance (`Test-InsideInstance` — the seeded "OmpWeb Rebuild & Restart" task is a
+  child of the web server), where the relauncher is started through `Win32_Process.Create` so it
+  sits outside the killed tree. A supervisor launched afterwards from inside would die with the
+  tree and leave the port empty forever. `rebuild`/`restart` on a stopped stack now bring it up
+  instead of exiting; a port held by a non-ompweb process is reported and never supervised.
 - **Machine settings live in `ompweb.local.ps1`** (git-ignored; see `ompweb.local.example.ps1`):
   port, bind, `OMP_WEB_PASSWORD_HASH`, `OMP_WEB_ALLOWED_HOSTS`, `NODE_EXTRA_CA_CERTS`, and
   prepending `C:\Program Files\Git\bin` so an explicitly invoked `bash` is Git bash rather than
