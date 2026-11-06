@@ -3,11 +3,12 @@
 import { memo, useEffect, useId, useLayoutEffect, useState, useCallback, useRef, useMemo, useDeferredValue, useSyncExternalStore, type CSSProperties, type Dispatch, type ReactNode, type Ref, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { Popover } from "@base-ui/react/popover";
-import type { AgentMessage, ExitedRpcSession, ManagedProject, RunningSessionMeta, SessionInfo } from "@/lib/types";
+import type { AgentMessage, ExitedRpcSession, ManagedProject, ProjectLaunchConfig, RunningSessionMeta, SessionInfo } from "@/lib/types";
 import type { GitStatsPlacement } from "./AppShell";
 import { formatExitedSessionNotice, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { DirectoryPicker } from "./DirectoryPicker";
+import { ProjectLaunchConfigDialog } from "./ProjectLaunchConfigDialog";
 import { BackendStatusButton } from "./BackendDiagnostics";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
 import type { WorkspaceFileSource } from "@/lib/workspace-types";
@@ -1479,7 +1480,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       .then((d) => { if (!cancelled) storeWorktreeState(requestedCwd, requestedHost, d); })
       .catch((error: unknown) => { if (!cancelled) storeWorktreeState(requestedCwd, requestedHost, { error: error instanceof Error ? error.message : String(error) }); });
     return () => { cancelled = true; };
-  }, [selectedCwd, selectedHostId, wtRefreshKey, refreshKey]);
+  }, [selectedCwd, selectedHostId, wtRefreshKey, refreshKey, storeWorktreeState]);
 
   // Keep a just-created session and its project visible while omp is still
   // flushing the JSONL file. The server list remains authoritative once it
@@ -1949,7 +1950,11 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     if (expandedProjects === null) expandProject(project, selectedHostId);
   }, [selectedProject, selectedHostId, expandedProjects, expandProject]);
 
-  const commitAddProject = useCallback(async (candidate?: string) => {
+  /** The workspace whose OMP launch configuration (profile / advisor / extra args)
+   *  the dialog edits; null while closed. */
+  const [launchConfigProject, setLaunchConfigProject] = useState<ManagedProject | null>(null);
+
+  const commitAddProject = useCallback(async (candidate?: string, launchConfig?: ProjectLaunchConfig) => {
     const path = (candidate ?? "").trim();
     if (!path || addProjectBusy) return;
 
@@ -1959,7 +1964,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: path, hostId: remoteHostId(addProjectHostId) }),
+        body: JSON.stringify({ cwd: path, launchConfig, hostId: remoteHostId(addProjectHostId) }),
       });
       const data = await res.json().catch(() => ({})) as { project?: ManagedProject; error?: string; code?: string };
       if (!res.ok || data.error || !data.project) {
@@ -1979,7 +1984,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     }
   }, [addProjectBusy, addProjectHostId, loadProjects, expandProject, setAddProjectOpen]);
 
-  const handleUpdateProjectPresentation = useCallback(async (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }) => {
+  const handleUpdateProjectPresentation = useCallback(async (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }) => {
     try {
       const response = await fetch("/api/projects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: project.path, hostId: remoteHostId(hostOf(project)), ...updates }) });
       if (!response.ok) throw new Error(t("projects.updateFailed"));
@@ -2179,7 +2184,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
     }
     setWtRefreshKey((k) => k + 1);
     return "removed";
-  }, [selectedProject, selectedHostId, worktreeStateByProject, selectedCwd, loadProjects, loadSessions, t]);
+  }, [selectedProject, selectedHostId, worktreeStateByProject, selectedCwd, t]);
 
   // Inline-chip wrappers: keep the project row's transient dropdown state
   // (busy/error/confirm/dropdown close) around the shared promise actions.
@@ -2449,7 +2454,19 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
             setAddProjectOpen(false);
             setAddProjectError(null);
           }}
-          onSelect={(path) => void commitAddProject(path)}
+          onSelect={(path, launchConfig) => void commitAddProject(path, launchConfig)}
+        />
+      )}
+      {launchConfigProject && (
+        <ProjectLaunchConfigDialog
+          projectPath={launchConfigProject.path}
+          initialConfig={launchConfigProject.launchConfig}
+          onClose={() => setLaunchConfigProject(null)}
+          onSave={async (launchConfig) => {
+            await handleUpdateProjectPresentation(launchConfigProject, { launchConfig });
+            setLaunchConfigProject(null);
+            toast.info(t("sessionSidebar.launchConfigSaved"));
+          }}
         />
       )}
       {/* Header: branding + quiet utilities + New Session */}
@@ -2811,6 +2828,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                   onToggleExpand={toggleProjectExpanded}
                   onRemoveProject={handleRemoveProject}
                   onUpdatePresentation={handleUpdateProjectPresentation}
+                  onEditLaunchConfig={setLaunchConfigProject}
                   onDragProjectChange={setDraggedProject}
                   onDropProject={(target) => void handleProjectDrop(target)}
                   onMoveProject={(target, delta) => void handleMoveProject(target, delta)}
@@ -3213,7 +3231,8 @@ interface ProjectRowProps {
   onActivate: (project: ManagedProject) => void;
   onToggleExpand: (project: ManagedProject) => void;
   onRemoveProject: (project: ManagedProject) => Promise<void>;
-  onUpdatePresentation: (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null }) => void;
+  onUpdatePresentation: (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }) => void;
+  onEditLaunchConfig: (project: ManagedProject) => void;
   onDragProjectChange: (project: ManagedProject | null) => void;
   onDropProject: (project: ManagedProject) => void;
   onMoveProject: (project: ManagedProject, delta: -1 | 1) => void;
@@ -3270,6 +3289,7 @@ function ProjectRow({
   onToggleExpand,
   onRemoveProject,
   onUpdatePresentation,
+  onEditLaunchConfig,
   onDragProjectChange,
   onDropProject,
   onMoveProject,
@@ -3772,6 +3792,9 @@ function ProjectRow({
               </>
             ) : (
               <>
+                <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { onEditLaunchConfig(project); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: 11 }}>
+                  {project.launchConfig ? t("sessionSidebar.editLaunchConfig") : t("sessionSidebar.configureLaunchConfig")}
+                </button>
                 <button type="button" role="menuitem" className="sidebar-menu-item" onClick={() => { startAliasEdit(); setActionMenuOpen(false); }} style={{ display: "block", width: "100%", padding: "6px 9px", border: "none", borderRadius: 6, background: "transparent", color: "var(--text)", cursor: "pointer", textAlign: "left", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>
                   {project.alias ? t("projects.editAlias") : t("projects.nameAlias")}
                 </button>

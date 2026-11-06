@@ -214,7 +214,7 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
             // If registering fails, "Select this folder" can retry on the clone.
             setCloneUrl("");
             void navigateTo(frame.path);
-            onSelect(frame.path);
+            onSelect(frame.path, launchConfig);
             return;
           } else if (frame.type === "cancelled") {
             setCloneStatus(t("directoryPicker.cloneCancelled", { path: frame.path ?? "" }));
@@ -402,6 +402,9 @@ export function DirectoryPicker({ onCancel, onSelect, busy = false, error, host 
               {cloneLog.replace(/\r/g, "")}
             </pre>
           )}
+          <input className="directory-picker-profile" value={profile} disabled={cloning} onChange={(event) => setProfile(event.target.value)} placeholder={t("directoryPicker.profilePlaceholder")} aria-label={t("directoryPicker.profileLabel")} style={{ width: "100%", height: 30, boxSizing: "border-box", marginBottom: 7, padding: "0 8px", background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }} />
+          <label className="directory-picker-launch" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, color: "var(--text-muted)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}><input type="checkbox" checked={advisor} disabled={cloning} onChange={(event) => setAdvisor(event.target.checked)} />{t("projectLaunchConfig.advisorLabel")}</label>
+          <textarea className="directory-picker-extra-args" value={extraArgs} disabled={cloning} onChange={(event) => setExtraArgs(event.target.value)} placeholder={t("directoryPicker.extraArgsPlaceholder")} aria-label={t("directoryPicker.extraArgsLabel")} rows={2} style={{ width: "100%", boxSizing: "border-box", resize: "vertical", padding: "6px 8px", background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }} />
         </div>
         <div className="directory-picker-footer" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexShrink: 0, padding: "10px 18px", borderTop: "1px solid var(--border)" }}>
           {cloning ? (

@@ -94,13 +94,14 @@ export async function PATCH(req: Request) {
       alias?: unknown;
       sortOrder?: unknown;
       pinOrder?: unknown;
+      launchConfig?: unknown;
       updates?: unknown;
       hostId?: unknown;
     };
     const rawUpdates: unknown[] = Array.isArray(body.updates)
       ? body.updates
-      : body.cwd !== undefined || body.alias !== undefined || body.sortOrder !== undefined || body.pinOrder !== undefined
-        ? [{ cwd: body.cwd, alias: body.alias, sortOrder: body.sortOrder, pinOrder: body.pinOrder }]
+      : body.cwd !== undefined || body.alias !== undefined || body.sortOrder !== undefined || body.pinOrder !== undefined || body.launchConfig !== undefined
+        ? [{ cwd: body.cwd, alias: body.alias, sortOrder: body.sortOrder, pinOrder: body.pinOrder, launchConfig: body.launchConfig }]
         : [];
     if (rawUpdates.length === 0) {
       return Response.json({ error: "Path is required", code: "path_required" }, { status: 400 });
