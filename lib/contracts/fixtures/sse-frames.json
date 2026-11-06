@@ -43,6 +43,26 @@
       }
     },
     {
+      "type": "outbox_update",
+      "payload": {
+        "entries": [
+          {
+            "id": "0f2a6b7c-1a2b-4c9d-9e0f-1a2b3c4d5e6g",
+            "sessionId": "0f2a6b7c",
+            "scope": "install-scope",
+            "advisor": false,
+            "mode": "prompt",
+            "message": "ship it after this step",
+            "state": "waiting_host",
+            "createdAt": 1762300800000
+          }
+        ],
+        "settledIds": [
+          "0f2a6b7c-1a2b-4c9d-9e0f-1a2b3c4d5e6f"
+        ]
+      }
+    },
+    {
       "type": "skill_diagnostics_update",
       "payload": {
         "cwd": "/workspace",

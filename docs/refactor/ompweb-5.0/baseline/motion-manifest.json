@@ -250,9 +250,6 @@
     "components/SettingsTabs.tsx": {
       "inlineTransitions": 3
     },
-    "components/ShowAllFilesButton.tsx": {
-      "inlineTransitions": 1
-    },
     "components/SkillsConfig.tsx": {
       "inlineTransitions": 5
     },
