@@ -43,9 +43,10 @@ function fakeSettings(t, stored) {
 
 test("the upload retention control offers Never, 7, 30 and 90 days, saves a change and restores a failed one", async (t) => {
   const { puts, failPuts } = fakeSettings(t, { uploadRetentionDays: 30 });
-  const { container } = render(createElement(SettingsConfig, settingsProps));
+  render(createElement(SettingsConfig, settingsProps));
   await settle();
-  const select = within(container).getByRole("combobox", { name: "Delete sent uploads after" });
+  // The fork portals the settings dialog to document.body.
+  const select = within(document.body).getByRole("combobox", { name: "Delete sent uploads after" });
   assert.deepEqual([...select.options].map((option) => [option.value, option.textContent]), [["null", "Never"], ["7", "7 days"], ["30", "30 days"], ["90", "90 days"]]);
   assert.equal(select.value, "30");
 
@@ -63,9 +64,10 @@ test("the upload retention control offers Never, 7, 30 and 90 days, saves a chan
 
 test("a retention set through the API stays visible as its own choice", async (t) => {
   fakeSettings(t, { uploadRetentionDays: 14 });
-  const { container } = render(createElement(SettingsConfig, settingsProps));
+  render(createElement(SettingsConfig, settingsProps));
   await settle();
-  const select = within(container).getByRole("combobox", { name: "Delete sent uploads after" });
+  // The fork portals the settings dialog to document.body.
+  const select = within(document.body).getByRole("combobox", { name: "Delete sent uploads after" });
   assert.equal(select.value, "14");
   assert.equal([...select.options].at(-1).textContent, "14 days");
 });

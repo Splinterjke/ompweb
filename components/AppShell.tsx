@@ -41,7 +41,7 @@ import { translate, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { copyText } from "@/lib/clipboard";
-import { getFileApiUrl, getFileName, getRelativeFilePath, joinFilePath } from "@/lib/file-paths";
+import { getFileName, joinFilePath } from "@/lib/file-paths";
 import { setFrameDragGuard } from "@/lib/drag-frames";
 import { parseTitleCard } from "@/lib/title-card";
 import { TitleCardBadge } from "./TitleCardBadge";

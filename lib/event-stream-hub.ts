@@ -6,7 +6,7 @@ import { isLinkUp } from "./hosts/host";
 import { HostOpError } from "./hosts/link-protocol";
 import type { WorkspaceFileEvent } from "./workspace-types";
 import { attachNotificationClient } from "./notification-hub";
-import { getExitedRpcSessions, getRpcSession, getRunningRpcSessionIds, getRunningRpcSessionMeta, getRunningRpcSessions, subscribeHostToolCalls, subscribeRunningSessions, type AgentSessionWrapper } from "./rpc-manager";
+import { getExitedRpcSessions, getRpcSession, getRunningRpcSessionIds, getRunningRpcSessionMeta, subscribeHostToolCalls, subscribeRunningSessions, type AgentSessionWrapper } from "./rpc-manager";
 import { onOutboxChange, outboxEntries, outboxSettledIds } from "./message-outbox";
 import { getExternallyActiveIds, heldSessionsWithPendingTurn, subscribeSessionFileChanges } from "./session-watcher";
 import { subscribeChatEventActions } from "./chat-event-action-bus";

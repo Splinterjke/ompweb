@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useState, useId, useRef, useEffect, useLayoutEffect, useMemo, useCallback, useContext, type ComponentProps } from "react";
-import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, Clock, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot, FileText, Search, FileEdit, Terminal, CheckSquare, Code2, Globe, MessagesSquare, Wrench, Trash2, Paperclip } from "lucide-react";
+import { Copy, Check, GitFork, CornerUpLeft, ChevronRight, ChevronDown, Brain, EyeOff, CircleAlert, CircleSlash, Clock, LoaderCircle, Archive, BookOpenText, Volume2, Square, Bot, Trash2, Paperclip } from "lucide-react";
 import { MarkdownBody } from "./MarkdownBody";
 import { WorkspaceFileContext } from "@/lib/workspace-file-context";
 import { AgentLinkContext, agentLinkIds } from "../lib/agent-links";

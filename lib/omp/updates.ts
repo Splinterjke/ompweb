@@ -1,7 +1,6 @@
 import { execFile, execFileSync, spawn } from "child_process";
 import { chmodSync, copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-import { ProxyAgent, request } from "undici";
 import { resolveOmpBin, wrapWindowsScript } from "./omp-cli";
 import { proxyEnv, readProxyConfig, resolveEffectiveProxy } from "../proxy-config";
 import { isUpdateDisabled } from "../update-policy";
