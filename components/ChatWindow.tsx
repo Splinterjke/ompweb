@@ -2,6 +2,7 @@
 import { Dialog, DialogClose, DialogContent, DialogTitle, Tooltip } from "./ui/primitives";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
+import { GithubRepoContext } from "../lib/github-refs";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
@@ -337,8 +338,6 @@ interface CommittedTranscriptProps {
   thinkingAutoFollow?: boolean;
   /** omp `hideThinkingBlock`: omit thinking from the transcript. */
   hideThinkingBlock?: boolean;
-  /** UI pref: every turn renders flat, no Process details rows. */
-  neverFoldActivity: boolean;
   /** UI pref: tool call rows stay out of Process details. */
   showToolCallsUnfolded: boolean;
   messageActionsVisible?: boolean;
@@ -363,7 +362,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isCompacting, isNew, forkingEntryId, editingEntryId,
   handleFork, handleEdit, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
-  toolCallsDefaultCollapsed, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, hideToolActivity = true, showToolCallsUnfolded = false, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // The user's expand/collapse choice per process-details group, keyed by the
@@ -925,7 +924,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
     const built = buildChatGroups(messages, (m: unknown) => isGroupAnchor(m as AgentMessage), { neverFold: neverFoldActivity });
     groupsRef.current = { key: groupsKey, groups: built };
     return built;
-  }, [messages, groupsKey]);
+  }, [messages, groupsKey, neverFoldActivity]);
   // On rebuild, seed the previous cache's MEASURED heights into the new one,
   // keyed by the anchor's ENTRY id: streaming growth / tool-result commits
   // then no longer revert every group to its estimate (the full-transcript
@@ -1584,7 +1583,8 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       onAudioUnlock={unlockAudio}
       draftKey={draftKey}
       uploadHostId={session ? session.hostId : newSessionHostId}
-      cwd={session?.cwd ?? newSessionCwd}
+      // @-mentions and skill lookups read this machine's disk: not for a remote workspace yet.
+      cwd={remoteWorkspace ? null : session?.cwd ?? newSessionCwd}
       narrowColumn={isEmptyNew}
     />
   );
@@ -1620,6 +1620,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
 
   return (
     <SpeechSynthesisProvider value={tts}>
+    <GithubRepoContext.Provider value={githubRepo}>
     <AgentLinkContext.Provider value={openAgentLink}>
     <WorkspaceFileContext.Provider value={fileSource}>
     <div
@@ -1784,7 +1785,6 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
               hideToolActivity={hideToolActivity}
               thinkingDisplayMode={thinkingDisplayMode}
               thinkingAutoFollow={thinkingAutoFollow}
-              neverFoldActivity={neverFoldActivity}
               showToolCallsUnfolded={showToolCallsUnfolded}
               hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
@@ -1976,6 +1976,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       </div>
     </WorkspaceFileContext.Provider>
     </AgentLinkContext.Provider>
+    </GithubRepoContext.Provider>
     </SpeechSynthesisProvider>
   );
 }

@@ -847,7 +847,7 @@ function TextFileViewer({ filePath, hostId, cwd, sourceSessionId, onOpenFile, on
         if (generation === contentRequestRef.current) setError(String(e));
       })
       .finally(() => setLoadingMore(false));
-  }, [data, loadingMore, filePath, sourceSessionId]);
+  }, [data, loadingMore, filePath, sourceSessionId, hostId]);
 
   const fetchGitDiff = useCallback(async (targetPath: string) => {
     const requestId = ++gitDiffRequestRef.current;

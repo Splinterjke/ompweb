@@ -2020,17 +2020,6 @@ async function mountEditableSession(sid, options = {}) {
 
 // A live but idle wrapper supplies the observer connection without inventing
 // an agent run just to deliver history notifications.
-async function mountObservedEditableSession(sid, options = {}) {
-  world.agents.set(sid, { running: true, state: { isStreaming: false, isPromptRunning: false } });
-  const w = await mountEditableSession(sid, options);
-  const stream = lastEs();
-  assert.ok(stream, "the mounted hook must attach an idle history observer");
-  assert.deepEqual(stream.channel, { kind: "session", sessionId: sid });
-  await act(async () => { stream.open(); });
-  await settle();
-  assert.equal(w.latest.agentRunning, false);
-  return { w, stream };
-}
 
 for (const order of ["identity/history before HTTP", "HTTP before history delivery"]) {
   test(`native Edit relocation keeps the prefix, composer and resend (${order})`, async (t) => {
@@ -2965,7 +2954,8 @@ async function streamRecorded(frames) {
   }
   await settle(90);
   // The fork's optimistic user rows carry the wall-clock send instant; the two runs differ there by construction.
-  const messages = structuredClone(w.latest.messages).map(({ timestamp, ...rest }) => rest);
+  const messages = structuredClone(w.latest.messages);
+  for (const message of messages) delete message.timestamp;
   return { shown, toolArguments, messages };
 }
 

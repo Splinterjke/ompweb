@@ -57,7 +57,6 @@ import {
 import {
   attachedImageBytes,
   MAX_ATTACHED_IMAGES,
-  isBase64ImageWithinLimits,
   MAX_TOTAL_ATTACHED_IMAGE_BYTES,
   validateOutgoingPrompt,
 } from "@/lib/image-attachments";
@@ -295,6 +294,12 @@ export interface ChatInputHandle {
 }
 
 const COMPOSITION_END_ENTER_GRACE_MS = 100;
+// #403: a queued send that the browser store refused goes back to the draft it
+// was sent from. Each in-flight send registers its own recovery identity here,
+// so `retargetPendingRecovery` follows a confirmed conversation move even when
+// the composer remounted in between — a fresh mount owns a fresh identity ref,
+// and the late refusal must still land in the conversation the user moved to.
+const inflightSendRecoveries = new Set<{ key: string }>();
 const COMPOSER_MODELS_STORAGE_KEY = "omp-composer-models";
 
 function readVisibleModelKeys(): Set<string> | null {
@@ -1026,6 +1031,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     retargetPendingRecovery(from, to) {
       const identity = draftRecoveryIdentityRef.current;
       if (identity.key === from) identity.key = to;
+      for (const pending of inflightSendRecoveries) if (pending.key === from) pending.key = to;
     },
   }));
   const patchUpload = useCallback((id: string, patch: Partial<AttachedUpload>) => {
@@ -1053,10 +1059,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       patchUpload(id, patch);
     };
     handle.promise.then(
-      () => settle({ status: "done", received: size, error: null }),
+      ({ proof }) => settle({ status: "done", received: size, error: null, proof }),
       // 410: the worker already cancelled it on its host (the page went into the back/forward cache). A Retry under a
-      // new id starts over, so the cancel still pending for this one can never reach it.
-      (error: unknown) => settle({ status: "error", error: uploadErrorMessage(error), ...(error instanceof UploadFailedError && error.status === 410 ? { id: newUploadId() } : {}) }),
+      // new id starts over, so the cancel still pending for this one can never reach it — and its old proof is gone
+      // with it, so the replacement can never be credited with it.
+      (error: unknown) => settle({ status: "error", error: uploadErrorMessage(error), ...(error instanceof UploadFailedError && error.status === 410 ? { id: newUploadId(), proof: undefined } : {}) }),
     );
   }, [patchUpload]);
 
@@ -1517,19 +1524,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     };
   }, []);
 
-  /** The routes reject an oversized prompt with 413, but the session hook has
-   * already shown the optimistic user bubble and Waiting for model by then, and
-   * the composer has been cleared. Refuse here instead, keeping text and
-   * images so the user can trim the message.
-   *
-   * The check owns the banner it raises: a dispatch that now fits clears it,
-   * because a text-only prompt has no attachment chip whose removal would. */
-  const rejectsOversizedPrompt = useCallback((message: string, images: AttachedImage[]): boolean => {
-    const error = validateOutgoingPrompt(message, images);
-    setAttachError(error);
-    return error !== null;
-  }, []);
-
   /** Send waits for every upload (spec U2): refused with a banner while one is in flight or failed. */
   const rejectsPendingUploads = useCallback((): boolean => {
     const uploads = attachedUploadsRef.current;
@@ -1986,8 +1980,11 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     // #403: the send waits for omp as a held bubble in the transcript; the
     // composer only needs to win back the text when the store refused it.
     const trackSend = (queued: Promise<boolean>, text: string) => {
+      const pending = { key: recoveryIdentity.key };
+      inflightSendRecoveries.add(pending);
       void Promise.resolve(queued).then((ok) => {
-        if (ok === false && recoveryIdentity.key) recoverDraft(recoveryIdentity.key, { text, ...kept });
+        inflightSendRecoveries.delete(pending);
+        if (ok === false && pending.key) recoverDraft(pending.key, { text, ...kept });
       });
     };
     onAudioUnlock?.();

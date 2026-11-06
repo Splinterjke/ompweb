@@ -1,15 +1,13 @@
 import "../tests/setup-dom.mjs";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach } from "node:test";
-import { existsSync, readFileSync } from "node:fs";
 import { mock } from "bun:test";
 
 // React ships `act` only in its development build; force NODE_ENV before any
 // React module loads so these tests work regardless of the environment's
 // default (production builds throw "act(...) is not supported").
 process.env.NODE_ENV = "test";
-const { act, cleanup, fireEvent, render, renderHook, within } = await import("@testing-library/react/pure.js");
-const React = (await import("react")).default;
+const { act, cleanup, renderHook } = await import("@testing-library/react/pure.js");
 
 // Message-outbox client port (#403) on this repo's monolithic
 // hooks/useAgentSession.ts: every existing-session send (prompt, steer,
@@ -101,21 +99,12 @@ mock.module("@/lib/event-stream", () => ({
   },
 }));
 
-const { useAgentSession, runHostTool } = await import("./useAgentSession.ts");
-// The real notification history mirror: recording is server-side now (`publishNotification`), so
-// the browser-side notify host tool must never touch it; no alias stub, same instance as the hook's import.
-const { notificationHistory } = await import("@/lib/notification-history");
-const { MessageView } = await import("@/components/MessageView");
-const { ChatWindow } = await import("@/components/ChatWindow");
-const { translate } = await import("@/lib/i18n");
-const { AgentSessionWrapper } = await import("@/lib/rpc-manager");
-const { SESSION_EDIT_COMMAND, SESSION_EDIT_RESPONSE_PREFIX } = await import("@/lib/omp/session-edit-extension.mjs");
+const { useAgentSession } = await import("./useAgentSession.ts");
 
 // The remote-host blocks below assert on toasts. Upstream spies through bun's
 // `mock.module`, which this harness has no equivalent of, so the real `toast`
 // object the hook imports is wrapped in place; calls land as [kind, title].
 const { toast } = await import("@/components/ui/toast");
-const { publishSessionsChanged } = await import("@/lib/session-change-bus");
 const toastCalls = [];
 for (const kind of ["success", "error", "info"]) {
   toast[kind] = (title) => { toastCalls.push([kind, title]); };
@@ -169,9 +158,6 @@ class FakeStream {
   }
 }
 
-/** The port of the worker the tab's transport started; tests flip its transport. */
-let workerPort = null;
-
 /** Speaks the tab<->worker protocol of lib/event-stream-worker.ts. */
 class FakeSharedWorker {
   constructor() {
@@ -200,7 +186,6 @@ class FakeSharedWorker {
         }
       },
     };
-    workerPort = this.port;
   }
 }
 
@@ -376,23 +361,6 @@ afterEach(() => {
   }
 });
 
-// Edit only opens a confirm dialog; the edit starts from its confirm button.
-async function confirmEdit(view, button) {
-  await act(async () => { fireEvent.click(button); });
-  await act(async () => { fireEvent.click(view.getByRole("button", { name: translate("messageView.editFromHere") })); });
-}
-// Wrappers built directly need an online host: this machine's, as its daemon answers, minus spawning.
-const onlineHost = {
-  id: "local",
-  label: "This machine",
-  sessionOps: {},
-  status: () => "online",
-  onStatus: () => () => {},
-  spawnRpc: async () => { throw new Error("this test never spawns"); },
-  sessionFileExists: async (path) => existsSync(path),
-  invalidateSessionLists() {},
-  autoApproveExtension: () => false,
-};
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -432,9 +400,6 @@ async function mountSession(sid, onAgentEnd, options = {}, strictMode = false) {
   };
 }
 
-function lastEs() {
-  return world.esInstances[world.esInstances.length - 1];
-}
 
 function callsTo(method, urlPart) {
   return world.calls.filter((c) => c.method === method && c.url.includes(urlPart));
@@ -466,10 +431,6 @@ function primeSession(sid, messages) {
   world.agents.set(sid, { running: false, state: {} });
 }
 
-/** Rewrite an existing world session's transcript (same shape as primeSession). */
-function saveSession(sid, messages, entryIds = messages.map((_, i) => `e${i}`)) {
-  world.sessions.set(sid, { leafId: String(messages.length), messages, entryIds });
-}
 
 const userMsg = (id, text) => ({ role: "user", id, content: text, timestamp: 1 });
 const assistantMsg = (id, text) => ({

@@ -35,7 +35,6 @@ import { toastBtwError, useBtw } from "@/hooks/useBtw";
 import { isUnknownSlashCommand, slashCommandName } from "@/hooks/useAgentSession-commands";
 import { looksLikeRunningTurn } from "@/lib/chat-segments";
 import { createMessageUpdateCoalescer, type MessageUpdateCoalescer } from "@/lib/message-update-coalescer";
-import { displayMessage } from "@/lib/message-delta";
 import type { BashResultInfo } from "@/lib/pi-types";
 import { getToolNamesForPreset, type ToolPreset } from "@/lib/tool-presets";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
@@ -3480,7 +3479,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         handleExtensionUiRequest(event as unknown as IncomingExtensionUiRequest);
         break;
     }
-  }, [addNotice, applyGoal, applySkillDiagnosticsSnapshot, beginAuthoritativeModelSync, clearLiveToolResults, connectEvents, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, reloadActiveSessionHistory, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, updateQueuedMessages, applyQueueStateSnapshot]);
+  }, [addNotice, applyGoal, applySkillDiagnosticsSnapshot, beginAuthoritativeModelSync, clearLiveToolResults, connectEvents, finishPromptWithoutStream, handleExtensionUiRequest, handleHostToolCall, handleHostUriRequest, loadSession, reloadActiveSessionHistory, mergeSubagents, onAgentEnd, reconcileAgentState, refreshGoal, refreshLiveModelState, resetSubagentActivityState, applyAuthoritativeModel, setLiveToolResult, setCompacting, updateQueuedMessages, applyQueueStateSnapshot]);
   handleAgentEventRef.current = handleAgentEvent;
 
 
@@ -3620,6 +3619,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             message,
             ...(piImages?.length ? { images: piImages } : {}),
             ...(uploads?.length ? { uploads } : {}),
+            ...(uploadProofs ? { uploadProofs } : {}),
           }));
         }
       } else if (session) {
@@ -3654,6 +3654,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           message,
           ...(piImages?.length ? { images: piImages } : {}),
           ...(uploads?.length ? { uploads } : {}),
+          ...(uploadProofs ? { uploadProofs } : {}),
         }));
       }
       if (queuedBehindShell) { finishQueuedBehindShell(); return { status: "accepted" }; }
@@ -4654,15 +4655,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // the real user message when pi delivers it (user message_end event). An
   // optimistic chat bubble here would duplicate the queue panel and turn into
   // a ghost message if the queue is recalled.
-  const toPiImages = (images?: AttachedImage[]) => images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
-  /** A refused steer/follow-up: a stopped connection toasts (the composer keeps the text), anything else is a chat notice.
-   *  True when the send may have left before the connection stopped: it may still run, so the composer drops the text. */
-  const reportQueueFailure = useCallback((e: unknown): boolean => {
-    const mayHaveRun = toastStoppedSend(e);
-    if (mayHaveRun !== null) return mayHaveRun;
-    addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
-    return false;
-  }, [addNotice]);
   const handleSteer = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
@@ -5058,7 +5050,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // once that stream is open (#403).
   useEffect(() => {
     runningRecheckRef.current?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentRunning, bashRunning, isCompacting, editingEntryId, eventSourceRef.current?.isOpen]);
   // Load session on mount
   // React StrictMode re-invokes this effect for the freshly mounted keyed

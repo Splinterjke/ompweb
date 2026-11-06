@@ -21,6 +21,9 @@ export const SSE_FRAME_CLASSES: Readonly<Record<string, EventClass>> = Object.fr
   prompt_result: "reliable",
   prompt_error: "reliable",
   queue_update: "coalesced",
+  // The server's whole held list plus its accumulated settled ids on every
+  // change: a superseded snapshot loses nothing, so it folds like the queue.
+  outbox_update: "coalesced",
   skill_diagnostics_update: "coalesced",
   notice: "reliable",
   command_output: "reliable",
