@@ -2183,8 +2183,12 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
       setSelectedCwd(root);
     }
     setWtRefreshKey((k) => k + 1);
+    // The removed tree's sessions and its worktree-derived project rows must
+    // leave the sidebar at once, not on the next poll.
+    loadSessions(false);
+    void loadProjects();
     return "removed";
-  }, [selectedProject, selectedHostId, worktreeStateByProject, selectedCwd, t]);
+  }, [selectedProject, selectedHostId, worktreeStateByProject, selectedCwd, loadProjects, loadSessions, t]);
 
   // Inline-chip wrappers: keep the project row's transient dropdown state
   // (busy/error/confirm/dropdown close) around the shared promise actions.
