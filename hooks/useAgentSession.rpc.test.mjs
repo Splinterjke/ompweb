@@ -1626,6 +1626,179 @@ test("the notify host tool stays out of the Notifications tab, which lists only 
   assert.deepEqual(notificationHistory.get(), []);
 });
 
+test("an open_file local:// call asks the server for the calling session's file and opens the absolute path it names", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: async () => ({ value: { path: "/sessions/s1/local/note.md" } }),
+  });
+  const opened = [];
+  const { es } = await startRun("s1", "q1", false, { onOpenFile: (path, name, sessionId) => { opened.push([path, name, sessionId]); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "h1", toolCallId: "c1", toolName: "open_file", arguments: { path: "local://note.md" } });
+    await sleep(60);
+  });
+
+  const lookups = callsTo("GET", "/api/sessions/s1/local-file");
+  assert.equal(lookups.length, 1, "one lookup, for the session that asked");
+  assert.equal(new URL(lookups[0].url, "http://localhost").searchParams.get("uri"), "local://note.md");
+  assert.deepEqual(opened, [["/sessions/s1/local/note.md", "note.md", { sessionId: "s1", hostId: "local", cwd: "/workspace" }]]);
+  const answer = callsTo("POST", "/api/agent/s1").find((call) => call.body?.type === "host_tool_result");
+  assert.deepEqual([answer?.body.id, answer?.body.isError, answer?.body.result.content[0].text], ["h1", false, "Opened local://note.md"]);
+});
+
+test("an open_file local:// tab is owned by the session the server resolved, while the answer goes to the caller", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: async () => ({ value: { path: "/tmp/omp-local/s1-moved/note.md", sessionId: "s1-moved" } }),
+  });
+  const opened = [];
+  const { es } = await startRun("s1", "q1", false, { onOpenFile: (...args) => { opened.push(args); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "owned", toolName: "open_file", arguments: { path: "local://note.md" } });
+    await sleep(60);
+  });
+  assert.deepEqual(opened, [["/tmp/omp-local/s1-moved/note.md", "note.md", { sessionId: "s1-moved", hostId: "local", cwd: "/workspace" }]]);
+  const answer = callsTo("POST", "/api/agent/s1").find((call) => call.body?.type === "host_tool_result");
+  assert.deepEqual([answer?.body.id, answer?.body.isError], ["owned", false], "the caller still gets the answer");
+});
+
+test("a lookup pending when the chat's stream dies is withdrawn, not answered or opened later", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  let release;
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: () => new Promise(resolve => { release = () => resolve({ value: { path: "/sessions/s1/local/note.md" } }); }),
+  });
+  const opened = [];
+  const { es } = await startRun("s1", "q1", false, { onOpenFile: (...args) => { opened.push(args); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "dropped", toolName: "open_file", arguments: { path: "local://note.md" } });
+    await sleep(10);
+  });
+  assert.equal(typeof release, "function", "the lookup is pending");
+  // The stream closed for good, so the tab withdrew its own pending lookup; the answer the server never got reaches no one.
+  await act(async () => { es.failFatal(); });
+  await act(async () => { release(); await settle(); });
+  assert.deepEqual(opened, [], "no tab opens for a call the server already settled");
+  const answer = callsTo("POST", "/api/agent/s1").find(call => call.body?.type === "host_tool_result" && call.body.id === "dropped");
+  assert.equal(answer, undefined, "no late result for an already-rejected call");
+});
+
+test("an open_file local:// call whose lookup fails answers the agent with that error and opens nothing", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  const lookupError = "File not found in this session's local:// directory";
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: async () => ({ status: 404, value: { error: lookupError, code: "file_not_found" } }),
+  });
+  const opened = [];
+  const { es } = await startRun("s1", "q1", false, { onOpenFile: (path, name, sessionId) => { opened.push([path, name, sessionId]); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "h2", toolCallId: "c2", toolName: "open_file", arguments: { path: "local://absent.md" } });
+    await sleep(60);
+  });
+
+  assert.deepEqual(opened, [], "no tab opens for a file that is not there");
+  const answer = callsTo("POST", "/api/agent/s1").find((call) => call.body?.type === "host_tool_result");
+  assert.deepEqual([answer?.body.id, answer?.body.isError, answer?.body.result.content[0].text], ["h2", true, lookupError]);
+});
+
+test("canceling a pending file open leaves other requests and a later run untouched", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  let release;
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: () => new Promise(resolve => { release = () => resolve({ value: { path: "/sessions/s1/local/canceled.md" } }); }),
+  });
+  const opened = [];
+  const { w, es } = await startRun("s1", "q1", false, { onOpenFile: (...args) => { opened.push(args); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "canceled-open", toolName: "open_file", arguments: { path: "local://canceled.md" } });
+    await sleep(10);
+  });
+  assert.equal(typeof release, "function");
+  await act(async () => {
+    es.emit({ type: "host_tool_cancel", targetId: "canceled-open" });
+    es.emit({ type: "host_tool_call", id: "other-open", toolName: "open_file", arguments: { path: "/workspace/other.md" } });
+    es.emit({ type: "agent_start" });
+    release();
+    await settle();
+  });
+  assert.deepEqual(opened, [["/workspace/other.md", "other.md", { sessionId: "s1", hostId: "local", cwd: "/workspace" }]]);
+  assert.equal(w.latest.agentRunning, true);
+  const answers = callsTo("POST", "/api/agent/s1").filter(call => call.body?.type === "host_tool_result");
+  assert.ok(answers.some(call => call.body.id === "other-open" && !call.body.isError));
+  assert.ok(!answers.some(call => call.body.id === "canceled-open"), "a withdrawn request is not answered later");
+});
+
+test("a delayed local-file lookup cannot open a tab after its chat unmounts", async () => {
+  resetWorld();
+  primeSession("s1", [userMsg("u0", "q")]);
+  primeSession("s2", [userMsg("u0", "another chat")]);
+  let release;
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes("/api/sessions/s1/local-file"),
+    produce: () => new Promise(resolve => { release = () => resolve({ value: { path: "/sessions/s1/local/note.md" } }); }),
+  });
+  const opened = [];
+  const { w, es } = await startRun("s1", "q1", false, { onOpenFile: (...args) => { opened.push(args); } });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "late-open", toolName: "open_file", arguments: { path: "local://note.md" } });
+    await sleep(10);
+  });
+  assert.equal(typeof release, "function", "the original session's lookup is pending");
+  await act(async () => { w.unmount(); });
+  await mountSession("s2");
+  await act(async () => { release(); await settle(); });
+  assert.deepEqual(opened, [], "the previous chat cannot take over the new view");
+  const answer = callsTo("POST", "/api/agent/s1").find(call => call.body?.type === "host_tool_result");
+  assert.equal(answer, undefined, "leaving the chat must not send a late callback that could restart its child");
+});
+
+test("a delayed local-file lookup keeps the identity its call arrived under across an Edit move", async (t) => {
+  resetWorld();
+  const sid = "file-open-before-move";
+  const target = `${sid}-owned`;
+  const native = primeEditableHistory(sid);
+  native.moveTo = target;
+  await attachEditableWrapper(t, native);
+  const opened = [];
+  const w = await mountEditableSession(sid, { onOpenFile: (...args) => { opened.push(args); } });
+  // This fork attaches a session's stream with a run, so one turn happens before the tab can be sent a host tool call.
+  await act(async () => { fireEvent.change(w.view.getByRole("textbox"), { target: { value: "one turn" } }); });
+  let send;
+  await act(async () => { fireEvent.click(w.view.getByRole("button", { name: "Submit replacement" })); send = w.sending; });
+  await until(() => world.esInstances.some((stream) => stream.channel?.sessionId === sid), "the send attaches the session stream");
+  const es = lastEs();
+  await act(async () => { es.open(); await send; });
+  // The agent asks to open a session artifact and the lookup hangs; then the run ends.
+  let release;
+  world.holds.push({
+    match: (method, url) => method === "GET" && url.includes(`/api/sessions/${sid}/local-file`),
+    produce: () => new Promise(resolve => { release = () => resolve({ value: { path: `/sessions/${target}/local/note.md` } }); }),
+  });
+  await act(async () => {
+    es.emit({ type: "host_tool_call", id: "moved-open", toolName: "open_file", arguments: { path: "local://note.md" } });
+    await sleep(10);
+  });
+  assert.equal(typeof release, "function", "the lookup is pending");
+  await act(async () => { es.emit({ type: "agent_end", isTerminal: true }); await settle(); });
+  // Idle again, the conversation is edited, and the Edit relocates it to a new id.
+  await act(async () => { assert.equal(await w.latest.handleEdit("entry-u2", "U2-original"), true); });
+  await until(() => w.latest.sessionIdRef.current === target, "the confirmed Edit moves the conversation to the new id");
+  await act(async () => { release(); await settle(); });
+  assert.deepEqual(opened, [[`/sessions/${target}/local/note.md`, "note.md", { sessionId: sid, hostId: "local", cwd: "/workspace" }]], "the late open carries the identity the call arrived under");
+  const answer = callsTo("POST", `/api/agent/${sid}`).find(call => call.body?.type === "host_tool_result");
+  assert.equal(answer?.body.isError, false);
+});
+
 test("a reconcile tick during the cold-send window keeps the optimistic bubble and the running state", async () => {
   resetWorld();
   const sid = "cold-send-race";
@@ -1935,7 +2108,7 @@ async function attachEditableWrapper(t, native, { holdHistory = false } = {}) {
   };
 }
 
-async function mountMovableChat(initialId) {
+async function mountMovableChat(initialId, { onOpenFile } = {}) {
   const chatInputRef = React.createRef();
   let selectedId = initialId;
   let navigate;
@@ -1952,7 +2125,7 @@ async function mountMovableChat(initialId) {
       window.history.replaceState(null, "", `?session=${encodeURIComponent(id)}`);
     };
     return React.createElement(ChatWindow, {
-      key: navigationKey, session, newSessionCwd: null, chatInputRef, onBranchDataChange,
+      key: navigationKey, session, newSessionCwd: null, chatInputRef, onBranchDataChange, onOpenFile,
       onSessionMoved(oldId, newId) {
         if (selectedId !== oldId) return;
         selectedId = newId;

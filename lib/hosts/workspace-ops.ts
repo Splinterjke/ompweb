@@ -29,6 +29,8 @@ import { invalidateSessionListCache } from "../session-reader";
 import { grantWorkspaceRoot, invalidateWorkspaceRoots } from "./workspace-roots";
 import { getBrowseStartDirectory, getParentDirectory, listDirectories, listWindowsDrives, resolveDirectory, shouldShowWindowsDrivePicker } from "../directory-browser";
 import { WorkspaceClones } from "./workspace-clone";
+import { parseLocalUri } from "../local-uri";
+import { resolveSessionLocalFile } from "../session-local-files";
 import { filePathApiSegments } from "../file-paths";
 
 const invalid = () => new HostOpError(400, "invalid_request", "Invalid workspace request");
@@ -66,10 +68,11 @@ function fileInfo(filePath: string, stat: fs.Stats): WorkspaceFileInfo {
 }
 async function access(input: WorkspaceFileRequest, reference: boolean) {
   if (!isRecord(input) || !Array.isArray(input.segments) || !input.segments.every((part) => typeof part === "string")
-    || !(input.sessionId === null || typeof input.sessionId === "string")) throw invalid();
+    || !(input.sessionId === null || typeof input.sessionId === "string")
+    || !(input.sessionFile === undefined || input.sessionFile === null || typeof input.sessionFile === "string")) throw invalid();
   // Untrusted input: only an explicit `true` widens the gate, and only where
   // the caller already authorized the read paths (the route sets it for `read`).
-  const checked = await authorizeFileAccess(input.segments, input.sessionId, reference, await getWorkspaceRoots(), input.allowOmpGeneratedImageRead === true);
+  const checked = await authorizeFileAccess(input.segments, input.sessionId, reference, await getWorkspaceRoots(), input.allowOmpGeneratedImageRead === true, input.sessionFile);
   if (!checked.ok) throw new HostOpError(checked.status, checked.code, checked.error);
   return checked;
 }
@@ -146,6 +149,15 @@ export function createWorkspaceService(uploads: StagedUploads, emit: (id: string
     startClone: (id, parent, url) => result(() => clones.start(id, parent, url)),
     readClone: (id, cursor) => result(() => clones.read(id, cursor)),
     cancelClone: (id) => result(() => clones.cancel(id)),
+    resolveLocalFile: (id, uri, sessionFile) => result(async () => {
+      if (typeof id !== "string" || typeof uri !== "string" || !(sessionFile === null || typeof sessionFile === "string")) throw invalid();
+      // Parsed again here: this host's platform decides what an absolute or drive-lettered name is.
+      const parsed = parseLocalUri(uri);
+      if (!parsed.ok) throw new HostOpError(400, "invalid_local_uri", parsed.error);
+      const located = await resolveSessionLocalFile(id, parsed.relative, sessionFile);
+      if (!located.ok) throw new HostOpError(located.status, located.code, located.error);
+      return { path: located.path };
+    }),
     // Fork parity: per-file +/- stats are augmented inside the short-TTL read
     // cache, so the three pollers (Git tab, composer bar, sidebar badges) still
     // collapse into one `git status` on this machine.

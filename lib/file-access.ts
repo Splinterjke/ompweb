@@ -296,13 +296,25 @@ export async function getAllowedFileRoots(): Promise<Set<string>> {
   return roots;
 }
 
+/** Windows device paths (\\?\C:\... , \\?\UNC\server\share\...) come back from
+ *  realpathSync and defeat plain startsWith prefix checks against ordinary
+ *  drive/UNC roots, producing false 403s on long paths and junctions. */
+function stripLongPathPrefix(filePath: string): string {
+  if (filePath.startsWith("//?/UNC/")) return "//" + filePath.slice(8);
+  if (filePath.startsWith("//?/")) return filePath.slice(4);
+  if (filePath.startsWith("\\\\?\\UNC\\")) return "\\\\" + filePath.slice(8);
+  if (filePath.startsWith("\\\\?\\")) return filePath.slice(4);
+  return filePath;
+}
+
 export function isPathWithinRoots(target: string, roots: Set<string>): boolean {
   for (const root of roots) {
     const useWindowsRules = isWindowsAbsolutePath(target) || isWindowsAbsolutePath(root);
     const resolver = useWindowsRules ? path.win32 : path;
     const sep = useWindowsRules ? "\\" : path.sep;
-    const n = resolver.resolve(target);
-    const nr = resolver.resolve(root);
+    // `\\?\C:\x` and `C:\x` name the same file: compare without the namespace prefix on either side.
+    const n = resolver.resolve(useWindowsRules ? stripLongPathPrefix(target) : target);
+    const nr = resolver.resolve(useWindowsRules ? stripLongPathPrefix(root) : root);
     const c = useWindowsRules ? n.toLowerCase() : n;
     const cr = useWindowsRules ? nr.toLowerCase() : nr;
     const withSep = cr.endsWith(sep) ? cr : cr + sep;

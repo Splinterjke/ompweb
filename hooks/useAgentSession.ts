@@ -18,6 +18,7 @@ import type {
 } from "@/lib/types";
 import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
+import { isLocalUri } from "@/lib/local-uri";
 import { HostOfflineError, TransportLostError, getOutboxScope, rememberOutboxScope, sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
 import { addToOutbox, dropFromOutbox, newOutboxId, subscribeOutbox, type LocalOutboxEntry } from "@/lib/event-stream";
 import { EMPTY_SERVER_OUTBOX, applyOutboxSnapshot, mergeHeldMessages, type ServerOutbox } from "./useAgentSession-queue";
@@ -463,21 +464,57 @@ function isSafeOpenUrl(raw: unknown): boolean {
 export interface HostToolHandlers {
   /** Open a validated URL; returns the result text reported to the agent. */
   openUrl: (url: string) => string;
-  /** Open a file tab; may return the result text reported to the agent. */
-  openFile?: (path: string, name: string) => string | void;
+  /** Open a file tab; may return the result text reported to the agent. `ownerSessionId` is set when the server
+   * resolved a `local://` file for a session under another id (an alias): the tab belongs to that owner. */
+  openFile?: (path: string, name: string, ownerSessionId?: string) => string | void;
+}
+
+/** How long a `local://` lookup may take before the agent is told the server did not answer: the host ops behind it give
+ * up after 30 s themselves. */
+export const LOCAL_FILE_LOOKUP_TIMEOUT_MS = 30_000;
+
+/** A session's `local://` file as the absolute path the file viewer opens, found by the server that holds the session. */
+async function resolveLocalFile(sessionId: string | undefined, uri: string, signal?: AbortSignal): Promise<{ ok: true; path: string; sessionId?: string } | { ok: false; error: string }> {
+  if (!sessionId) return { ok: false, error: "A local:// file belongs to a session, and no session asked for it" };
+  const unanswered = { ok: false as const, error: `Could not open ${uri}: the server did not answer` };
+  // An AbortController and a timer, not AbortSignal.timeout (older browsers lack it): a stalled request must not leave
+  // the agent's tool call pending until the tab goes away.
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(() => controller.abort(), LOCAL_FILE_LOOKUP_TIMEOUT_MS);
+  try {
+    const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/local-file?uri=${encodeURIComponent(uri)}`, { signal: controller.signal });
+    const body = (await response.json().catch(() => ({}))) as { path?: unknown; sessionId?: unknown; error?: unknown };
+    if (controller.signal.aborted) return unanswered;
+    if (response.ok && typeof body.path === "string") return { ok: true, path: body.path, ...(typeof body.sessionId === "string" ? { sessionId: body.sessionId } : {}) };
+    return { ok: false, error: typeof body.error === "string" ? body.error : `Could not open ${uri} (HTTP ${response.status})` };
+  } catch {
+    return unanswered;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 
 /**
  * Execute an omp-web host tool (open_url / notify / open_file) and return the
  * toolResult text. Shared by the session's own stream and by tabs answering
- * calls for a session they are not viewing.
+ * calls for a session they are not viewing. `sessionId` is the session the
+ * call came from, which owns a `local://` file; required (undefined only when
+ * there is none), so a caller that forgets it fails the typecheck.
  */
 export async function runHostTool(
   toolName: string,
   args: Record<string, unknown>,
   handlers: HostToolHandlers,
+  sessionId: string | undefined,
+  signal?: AbortSignal,
 ): Promise<{ text: string; isError: boolean }> {
   const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+  const canceled = { text: "Host tool request canceled", isError: true };
+  if (signal?.aborted) return canceled;
   switch (toolName) {
     case "open_url": {
       const raw = str(args.url) ?? "";
@@ -490,10 +527,12 @@ export async function runHostTool(
       if (typeof Notification !== "undefined") {
         try {
           const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+          if (signal?.aborted) return canceled;
           if (permission === "granted") {
             const options = { body: message, icon: "/favicon-192x192.png", badge: "/badge-96.png" };
             // Chrome on Android only allows notifications through a service worker.
             const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+            if (signal?.aborted) return canceled;
             if (registration) await registration.showNotification(title, options);
             else new Notification(title, options);
           }
@@ -504,17 +543,26 @@ export async function runHostTool(
       return { text: "Notification shown", isError: false };
     }
     case "open_file": {
-      const path = str(args.path) ?? "";
-      if (!path) return { text: "No path provided", isError: true };
+      const requested = str(args.path) ?? "";
+      if (!requested) return { text: "No path provided", isError: true };
+      let path = requested;
+      let owner: string | undefined;
+      if (isLocalUri(requested)) {
+        const resolved = await resolveLocalFile(sessionId, requested, signal);
+        if (signal?.aborted) return canceled;
+        if (!resolved.ok) return { text: resolved.error, isError: true };
+        path = resolved.path;
+        owner = resolved.sessionId;
+      }
       let text: string | void = undefined;
       if (handlers.openFile) {
         try {
-          text = handlers.openFile(path, path.split(/[\\/]/).pop() || path);
-        } catch {
-          // ignore navigation failures
+          text = handlers.openFile(path, path.split(/[\\/]/).pop() || path, owner);
+        } catch (error) {
+          return { text: error instanceof Error ? error.message : `Could not open ${requested}`, isError: true };
         }
       }
-      return { text: text || `Opened ${path}`, isError: false };
+      return { text: text || `Opened ${requested}`, isError: false };
     }
     default:
       return { text: `Host tool "${toolName}" is not available in omp-web`, isError: true };
@@ -811,6 +859,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // False once this hook instance unmounts: background loops (prompt/bash
   // settlement polling) must not keep firing on a dead instance.
   const hookAliveRef = useRef(true);
+  const pendingHostToolControllersRef = useRef(new Map<string, AbortController>());
   const [modelNames, setModelNames] = useState<Record<string, string>>({});
   const [modelList, setModelList] = useState<ModelEntry[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -2070,6 +2119,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       },
       onDown: ({ fatal }) => {
         if (!fatal) return;
+        // The server rejected this chat's pending host tools when its subscription left
+        // (rejectPendingHostTools), and the cancel it emitted may have had no listener:
+        // withdraw the calls here so nothing answers or opens a settled one. A
+        // recoverable down keeps them -- the worker reconnects and the server still
+        // holds the calls, and an explicit host_tool_cancel frame aborts a single one.
+        for (const controller of pendingHostToolControllersRef.current.values()) controller.abort();
         // Fatal error (404/500/content-type mismatch): browser won't
         // auto-reconnect. Settle the Promise and manually reconnect for
         // already-running sessions. Keep the timer in a ref so unmount or a
@@ -2217,7 +2272,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       description: "Open a file in the workspace file viewer.",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "Absolute or workspace-relative file path." } },
+        properties: { path: { type: "string", description: "Absolute or workspace-relative file path, or a local:// URL for a file in this session's local:// directory." } },
         required: ["path"],
       },
     },
@@ -2276,17 +2331,26 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
   const handleHostToolCall = useCallback(async (id: string, toolName: string, args: Record<string, unknown>) => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
-    const { text, isError } = await runHostTool(toolName, args, {
-      openUrl: onOpenUrl ?? ((url) => {
-        window.open(url, "_blank", "noopener,noreferrer")?.focus?.();
-        return `Opened ${url}`;
-      }),
-      openFile: onOpenFile ? (path, name) => onOpenFile(path, name, {
-        sessionId: sid, hostId: session?.hostId ?? newSessionHostId ?? "local", cwd: session?.cwd ?? newSessionCwd,
-      }) : undefined,
-    });
-    await respondHostTool(sid, id, text, isError);
+    if (!sid || pendingHostToolControllersRef.current.has(id)) return;
+    const controller = new AbortController();
+    pendingHostToolControllersRef.current.set(id, controller);
+    try {
+      const { text, isError } = await runHostTool(toolName, args, {
+        openUrl: onOpenUrl ?? ((url) => {
+          window.open(url, "_blank", "noopener,noreferrer")?.focus?.();
+          return `Opened ${url}`;
+        }),
+        openFile: onOpenFile ? (path, name, owner) => {
+          if (!hookAliveRef.current) throw new Error("File not opened: the requesting chat is no longer active");
+          onOpenFile(path, name, {
+            sessionId: owner ?? sid, hostId: session?.hostId ?? newSessionHostId ?? "local", cwd: session?.cwd ?? newSessionCwd,
+          });
+        } : undefined,
+      }, sid, controller.signal);
+      if (!controller.signal.aborted) await respondHostTool(sid, id, text, isError);
+    } finally {
+      pendingHostToolControllersRef.current.delete(id);
+    }
   }, [onOpenFile, onOpenUrl, respondHostTool, session?.hostId, session?.cwd, newSessionHostId, newSessionCwd]);
 
   /** Answer a host_uri_request (agent read/write of a registered scheme). */
@@ -3356,6 +3420,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         const toolName = typeof event.toolName === "string" ? event.toolName : "";
         const args = isRecord(event.arguments) ? event.arguments : {};
         if (id && toolName) void handleHostToolCall(id, toolName, args);
+        break;
+      }
+      case "host_tool_cancel": {
+        if (typeof event.targetId === "string") pendingHostToolControllersRef.current.get(event.targetId)?.abort();
         break;
       }
       case "host_uri_request": {
@@ -5183,8 +5251,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // This lifetime cleanup must survive the mount-load latch's early return
     // on StrictMode replay. The observer may attach after that first cleanup.
     hookAliveRef.current = true;
+    const pendingHostTools = pendingHostToolControllersRef.current;
     return () => {
       hookAliveRef.current = false;
+      for (const controller of pendingHostTools.values()) controller.abort();
       bashRecoveryIdRef.current += 1;
       eventCoalescerRef.current?.reset();
       cancelPendingConnectRef.current?.();
