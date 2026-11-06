@@ -1,7 +1,7 @@
 "use client";
 import { Tooltip } from "./ui/primitives";
 
-import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useSyncExternalStore, forwardRef, memo, KeyboardEvent } from "react";
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, memo, KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Ban, ChevronDown, ClipboardPaste, Clock3, CornerDownRight, ListChecks, Loader2, Mic, Paperclip, Pause, Play, Plus, Radar, RotateCw, Search, Shrink, Snail, Sparkles, Target, Wrench, X, Zap } from "lucide-react";
  import { ContextDetailPanel } from "./ComposerPanels";
@@ -26,7 +26,6 @@ import { toastBtwError } from "@/hooks/useBtw";
 import { RecordingDeck } from "./RecordingDeck";
 import { ConfirmDialog } from "@/components/ui/field";
 import { clearDraft, getDraft, mergeRecoveredText, recoverDraft, setDraft, subscribeDraftRecovery, type ChatDraft, type ChatDraftImage } from "@/lib/draft-store";
-import { getPendingSends, retargetPendingSends, subscribePendingSends, trackPendingSend } from "@/lib/pending-sends";
 import { WEB_SLASH_COMMANDS, expandWebSlashCommand, extractSlashQuery, buildSlashInsertText, type SlashQueryMatch } from "@/lib/web-slash-commands";
 import { CHAT_COLUMN_GUTTER, CHAT_COLUMN_MAX_WIDTH } from "@/lib/chat-layout";
 import type { AttachedImage, AttachedTextFile } from "./ChatInput-draft-attachments";
@@ -163,15 +162,15 @@ interface ModelOption {
 interface Props {
   /** Only a rejected submission is restored; completed/superseded runs must not be replayed. `uploads`: the ids of
    *  files sent As file, passed only when there are some. */
-  onSend: (message: string, images?: AttachedImage[], uploads?: string[]) => Promise<PromptSubmissionResult>;
+  onSend: (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => Promise<PromptSubmissionResult>;
   /** Ghost-text word completion for the draft (omp `predict_word`); absent = no ghost text. */
   onPredictWord?: PredictWord;
   onPredictWordFeedback?: PredictWordFeedback;
   onAbort: () => void;
   /** Steer/follow-up callbacks resolve false when omp refused the message. */
-  onSteer?: (message: string, images?: AttachedImage[], uploads?: string[]) => Promise<boolean>;
-  onFollowUp?: (message: string, images?: AttachedImage[], uploads?: string[]) => Promise<boolean>;
-  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[], uploads?: string[]) => Promise<boolean>;
+  onSteer?: (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => Promise<boolean>;
+  onFollowUp?: (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => Promise<boolean>;
+  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp", images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => Promise<boolean>;
   isStreaming: boolean;
   /** Refuse submission without treating a pending history edit as a model run. */
   submissionBlocked?: boolean;
@@ -1027,7 +1026,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     retargetPendingRecovery(from, to) {
       const identity = draftRecoveryIdentityRef.current;
       if (identity.key === from) identity.key = to;
-      retargetPendingSends(from, to);
     },
   }));
   const patchUpload = useCallback((id: string, patch: Partial<AttachedUpload>) => {
@@ -1964,7 +1962,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
       el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
     });
   }, [slashMatch, value]);
-  const sendingQueued = useSyncExternalStore(subscribePendingSends, getPendingSends, getPendingSends);
 
   const sendQueued = useCallback((mode: "steer" | "followup", overrideText?: string) => {
     if (submissionBlockedRef.current) return;
@@ -1986,13 +1983,12 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     // if the user has typed or switched sessions since.
     const recoveryIdentity = draftRecoveryIdentityRef.current;
     const kept = { images: images?.map(imageToDraftImage), ...uploadRecovery(attachedUploads) };
-    // Until omp answers, the message shows as "Sending…" above the composer:
-    // it is neither in the composer nor in omp's queue yet.
+    // #403: the send waits for omp as a held bubble in the transcript; the
+    // composer only needs to win back the text when the store refused it.
     const trackSend = (queued: Promise<boolean>, text: string) => {
-      const reply = Promise.resolve(queued).then((ok) => {
+      void Promise.resolve(queued).then((ok) => {
         if (ok === false && recoveryIdentity.key) recoverDraft(recoveryIdentity.key, { text, ...kept });
       });
-      trackPendingSend(recoveryIdentity, text, reply);
     };
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
@@ -2087,8 +2083,9 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   ];
   const firstQueued = queuedEntries[0] ?? null;
   const queuedCount = queuedEntries.length;
-  const sendingEntries = sendingQueued.filter((entry) => entry.key === draftKey);
-  const queueBarShown = queuedCount > 0 || sendingEntries.length > 0;
+  // #403: a send waiting for omp is a held bubble in the transcript, not a
+  // queue row; the bar lists only what omp's own queue holds.
+  const queueBarShown = queuedCount > 0;
   const [queueExpanded, setQueueExpanded] = useState(false);
   // Invalidate the pending confirmation when delivery or navigation changes the queue.
   const activeDeleteTarget = queuedDeleteTarget?.draftKey === draftKey
@@ -3390,17 +3387,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 )}
               </div>
             )}
-            {sendingEntries.length > 0 && <div style={{ maxHeight: 120, overflowY: "auto" }}>{sendingEntries.map((entry) => (
-              <div key={entry.id} style={{ padding: "5px 8px 5px 12px", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <Loader2 size={12} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0, color: "var(--text-muted)", animation: "spin 0.8s linear infinite" }} />
-                <span role="status" style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)" }}>
-                  {t("chatInput.queuedSending")}
-                </span>
-                <span title={entry.text} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {entry.text}
-                </span>
-              </div>
-            ))}</div>}
           </div>
         )}
           <div

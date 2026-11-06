@@ -10,13 +10,17 @@ import type {
   ExtensionStatusItem,
   ExtensionUiRequest,
   ExtensionWidgetItem,
+  OutboxEntry,
+  OutboxMode,
   SessionInfo,
   SessionTreeNode,
   ToolResultMessage,
 } from "@/lib/types";
 import { normalizeToolCalls } from "@/lib/normalize";
 import type { ThinkingModelMeta } from "@/lib/thinking-levels";
-import { HostOfflineError, TransportLostError, sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
+import { HostOfflineError, TransportLostError, getOutboxScope, rememberOutboxScope, sendAgentCommand, setSessionAdvisorSpawn } from "@/lib/agent-client";
+import { addToOutbox, dropFromOutbox, newOutboxId, subscribeOutbox, type LocalOutboxEntry } from "@/lib/event-stream";
+import { EMPTY_SERVER_OUTBOX, applyOutboxSnapshot, mergeHeldMessages, type ServerOutbox } from "./useAgentSession-queue";
 import type { HostStatus } from "@/lib/hosts/host";
 import type { WorkspaceFileSource } from "@/lib/workspace-types";
 import { newChatDraftKey, remoteHostId } from "@/lib/project-ordering";
@@ -63,6 +67,9 @@ import {
 // SubagentInfo lives in lib/subagent-types (shared with the server-side
 // history module); keep the export path stable for components.
 export type { SubagentInfo } from "@/lib/subagent-types";
+// The held-outbox bubble shape (docs/specs/2026-11-04-message-outbox-design.md
+// O1) lives with its merge helpers; ChatWindow/MessageView import it from here.
+export type { HeldMessage } from "./useAgentSession-queue";
 
 export interface SessionData {
   sessionId: string;
@@ -918,6 +925,24 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     queueAppliedSeqRef.current = seq;
     updateQueuedMessages(readQueueSnapshot(value) ?? EMPTY_QUEUE);
   }, [updateQueuedMessages]);
+  // The message outbox (docs/specs/2026-11-04-message-outbox-design.md): this
+  // browser's entries (the event-stream worker's IndexedDB), the server's view
+  // of this session (`outbox_update` frames / the state route's snapshot until
+  // the first frame lands), and the adds this browser got acknowledged but no
+  // snapshot has covered yet. Existing-session sends hold here as dimmed
+  // bubbles until omp's own frames show the message committed.
+  const [localOutbox, setLocalOutbox] = useState<LocalOutboxEntry[]>([]);
+  const [storedOutbox, setStoredOutbox] = useState<OutboxEntry[]>([]);
+  const [serverOutbox, setServerOutbox] = useState<ServerOutbox>(EMPTY_SERVER_OUTBOX);
+  const serverOutboxRef = useRef<ServerOutbox>(EMPTY_SERVER_OUTBOX);
+  // True from the first `outbox_update` frame on: an older state-route
+  // snapshot must never resurrect entries the dispatcher already settled.
+  const outboxFrameSeenRef = useRef(false);
+  const heldMessages = useMemo(
+    () => mergeHeldMessages(session?.id ?? null, localOutbox, storedOutbox, serverOutbox),
+    // Keyed on the viewed session: a switch must not bleed held bubbles over.
+    [session?.id, localOutbox, storedOutbox, serverOutbox],
+  );
   // Orders get_state responses, the setter reply, and SSE updates so a response
   // started before a newer frame cannot overwrite it.
   const skillDiagnosticsSeqRef = useRef(0);
@@ -1611,8 +1636,17 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         const queueRevision = ++queueSeqRef.current;
         const skillDiagnosticsRevision = ++skillDiagnosticsSeqRef.current;
         const stateRes = await fetch(`/api/sessions/${encodeURIComponent(sid)}/state`);
-        if (!stateRes.ok) throw new Error(`HTTP ${stateRes.status}`);
-        const agentState = await stateRes.json() as { running: boolean; state?: AgentStateResponse; external?: boolean; exited?: ExitedRpcSession };
+        if (!stateRes.ok) {
+          // #403: a host outage answers 503 with the session's held messages
+          // in the body — the held bubbles must survive the outage (O2).
+          if (stateRes.status === 503) {
+            const body = await stateRes.json().catch(() => ({})) as { outbox?: OutboxEntry[]; outboxScope?: string; outboxSettledIds?: string[] };
+            if (typeof body.outboxScope === "string") rememberOutboxScope(body.outboxScope);
+            if (Array.isArray(body.outbox)) applyStateOutboxRef.current(sid, body.outbox, body.outboxSettledIds ?? []);
+          }
+          throw new Error(`HTTP ${stateRes.status}`);
+        }
+        const agentState = await stateRes.json() as { running: boolean; state?: AgentStateResponse; external?: boolean; exited?: ExitedRpcSession; outbox?: OutboxEntry[]; outboxScope?: string; outboxSettledIds?: string[] };
         if (!hookAliveRef.current) return null;
         if (sessionIdRef.current !== sid) {
           if (showLoading) setLoading(false);
@@ -1622,6 +1656,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (showLoading) setLoading(false);
           return null;
         }
+        // #403: the outbox answer arrives even when the host is offline (the
+        // route's 503 body carries it), so the held bubbles survive an outage.
+        if (typeof agentState.outboxScope === "string") rememberOutboxScope(agentState.outboxScope);
+        if (Array.isArray(agentState.outbox)) applyStateOutboxRef.current(sid, agentState.outbox, agentState.outboxSettledIds ?? []);
 
         const liveState = agentState.state;
         applySkillDiagnosticsSnapshot(skillDiagnosticsRevision, liveState?.skillDiagnostics);
@@ -1978,6 +2016,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       clearTimeout(timeout);
       if (eventSourceConnectRef.current === promise) eventSourceConnectRef.current = null;
       if (cancelPendingConnectRef.current === cancel) cancelPendingConnectRef.current = null;
+      // The running-frame lookup held a reported run back while this stream
+      // was connecting (#403: a held message's send opens it); its settle
+      // releases the block, so recheck at once — the hub never replays an
+      // older run's `agent_start` to a late stream.
+      runningRecheckRef.current?.();
       resolveStream({ status, source: subscription });
     };
     const cancel = () => settle("closed");
@@ -2069,6 +2112,41 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (!hookAliveRef.current || sessionIdRef.current !== sid || eventSourceRef.current) return;
     void connectEvents(sid);
   };
+
+  // The state route's held messages (its answer can arrive before any frame
+  // exists, e.g. a cold visit to a session with an undispatched outbox).
+  const applyStateOutboxRef = useRef<(sid: string, entries: OutboxEntry[], settledIds: string[]) => void>(() => {});
+  applyStateOutboxRef.current = (sid, entries, settledIds) => {
+    if (!hookAliveRef.current || sessionIdRef.current !== sid) return;
+    if (!outboxFrameSeenRef.current) {
+      serverOutboxRef.current = applyOutboxSnapshot(serverOutboxRef.current, entries, settledIds);
+      setServerOutbox(serverOutboxRef.current);
+    }
+    // Held messages open the session channel even without a wrapper: follow
+    // their delivery instead of showing a bubble that never resolves.
+    if (entries.length > 0 && !eventSourceRef.current) void connectEvents(sid);
+  };
+
+  // The worker's outbox mirrored into React: `{entries}` is the full snapshot
+  // of this browser's entries (every add/drop), `{stored}` an add the server
+  // has accepted into its own outbox (still rendered until a snapshot lists
+  // or settles it).
+  useEffect(() => subscribeOutbox((event) => {
+    if ("entries" in event) {
+      setLocalOutbox(event.entries);
+      return;
+    }
+    const { stored } = event;
+    const sid = sessionIdRef.current;
+    if (stored.sessionId !== sid) return;
+    // An add reply may arrive after the frame that removed its already-
+    // delivered entry: never resurrect it.
+    if (!serverOutboxRef.current.seen.has(stored.id)) {
+      setStoredOutbox((current) => [...current.filter((entry) => entry.id !== stored.id), stored]);
+    }
+    // The server holds it now, so the channel opens even without a wrapper.
+    if (hookAliveRef.current && sid && !eventSourceRef.current) void connectEvents(sid);
+  }), [connectEvents]);
 
   const respondToExtensionUi = useCallback(async (
     request: ExtensionUiDialogRequest,
@@ -2284,6 +2362,45 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       },
     });
   }, []);
+
+  /** Holds a message in the outbox (docs/specs/2026-11-04-message-outbox-design.md):
+   * true once this browser has durably stored it, after which omp-web delivers it
+   * whatever this tab does next. It shows as a held bubble until omp has it. */
+  const holdMessage = useCallback(async (
+    sid: string,
+    mode: OutboxMode,
+    message: string,
+    images?: AttachedImage[],
+    uploads?: string[],
+    uploadProofs?: Record<string, string>,
+  ): Promise<boolean> => {
+    try {
+      await addToOutbox({
+        id: newOutboxId(),
+        sessionId: sid,
+        scope: await getOutboxScope(sid),
+        advisor: advisorEnabled,
+        mode,
+        message,
+        ...(images?.length ? { images: images.map(({ data, mimeType }) => ({ type: "image" as const, data, mimeType })) } : {}),
+        ...(uploads?.length ? { uploads } : {}),
+        ...(uploadProofs ? { uploadProofs } : {}),
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      addNotice({ type: "error", message: translate("agentSession.sendFailed", { detail: e instanceof Error ? e.message : String(e) }) });
+      return false;
+    }
+    if (hookAliveRef.current && sessionIdRef.current === sid) {
+      // Follow the held bubble to the end of the transcript, and open the
+      // channel so the delivery frames reach this view.
+      pendingScrollToUserRef.current = true;
+      completionScrollAllowedRef.current = true;
+      if (!eventSourceRef.current) void connectEvents(sid);
+    }
+    return true;
+  }, [addNotice, advisorEnabled, connectEvents]);
+
 
   // True when this session is being written by an external omp/harness:
   // RPC write commands (compact, steer, model/thinking changes, ...) must be
@@ -2801,6 +2918,25 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       case "host_status":
         setHostFrame({ sessionId: sessionIdRef.current, status: event.status as HostStatus });
         break;
+      case "outbox_update": {
+        // The server's whole held list for this session (or a settle-only
+        // delta): replace the snapshot view, accumulate the settled ids, and
+        // retire this browser's stored copies the server has confirmed.
+        if (!Array.isArray(event.entries)) break;
+        outboxFrameSeenRef.current = true;
+        const next = applyOutboxSnapshot(
+          serverOutboxRef.current,
+          event.entries as OutboxEntry[],
+          Array.isArray(event.settledIds) ? (event.settledIds as string[]) : [],
+        );
+        serverOutboxRef.current = next;
+        setServerOutbox(next);
+        setStoredOutbox((current) => {
+          const kept = current.filter((entry) => !next.seen.has(entry.id));
+          return kept.length === current.length ? current : kept;
+        });
+        break;
+      }
       case "queue_update": {
         const snapshot = readQueueSnapshot(event);
         if (snapshot) {
@@ -3348,7 +3484,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   handleAgentEventRef.current = handleAgentEvent;
 
 
-  const handleSend = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]): Promise<PromptSubmissionResult> => {
+  const handleSend = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>): Promise<PromptSubmissionResult> => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage && !images?.length && !uploads?.length) return { status: "rejected" };
     if (bashRunningRef.current || editInFlightRef.current) {
@@ -3390,6 +3526,21 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (promptError) {
       addNotice({ type: "error", message: promptError });
       return { status: "rejected" };
+    }
+
+    // #403 message outbox: an existing session's send belongs to the outbox.
+    // This browser stores it durably (the event-stream worker's IndexedDB, so
+    // closing the tab or dying offline keeps it), and the web server delivers
+    // it per-session FIFO when the session's host can take it — the run state
+    // then starts from omp's own frames, not from this click. Two deliberate
+    // bypasses stay on the direct path: a new chat (its first POST is what
+    // mints the session id the entry would have to name) and a session whose
+    // saved model needs an explicit rebind (the dialog flow below reacts to
+    // the RPC error the direct send raises; an outbox entry cannot carry the
+    // startup binding and would only surface a flat "Not sent" bubble).
+    if (!isNew && session && !modelRestoreFailure) {
+      const held = await holdMessage(sessionIdRef.current ?? session.id, "prompt", message, images, uploads, uploadProofs);
+      return held ? { status: "accepted" } : { status: "rejected" };
     }
 
     eventCoalescerRef.current?.reset();
@@ -3599,7 +3750,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       // the catch settled the UI); reconcile may treat idle as authoritative.
       promptDispatchPendingRef.current = false;
     }
-  }, [isNew, newSessionCwd, newSessionHostId, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, onSessionCreated, waitForPromptSettlement, addNotice, refreshSubagentRoster, registerHostTools, registerHostUriSchemes, clearLiveToolResults]);
+  }, [isNew, newSessionCwd, newSessionHostId, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, onSessionCreated, waitForPromptSettlement, addNotice, holdMessage, modelRestoreFailure, refreshSubagentRoster, registerHostTools, registerHostUriSchemes, clearLiveToolResults]);
 
   /** Abort the running agent and send the message as a fresh prompt
    * (abort_and_prompt). Only valid mid-run; the old turn's agent_end is
@@ -4512,75 +4663,61 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
     return false;
   }, [addNotice]);
-  const handleSteer = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]) => {
+  const handleSteer = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
     if (!sid || editInFlightRef.current) return false;
-    const piImages = toPiImages(images);
-    try {
-      const reply = await sendAgentCommand(sid, {
-        type: "steer",
-        message,
-        ...(piImages?.length ? { images: piImages } : {}),
-        ...(uploads?.length ? { uploads } : {}),
-      });
-      // A web shell command (`!`) owned the session: the agent route put the
-      // text into omp's follow-up queue instead of steering a (nonexistent)
-      // turn.
-      if (isQueuedWhileShellRunning(reply)) addNotice({ type: "info", message: translate("agentSession.queuedWhileShellRunning") });
-      return true;
-    } catch (e) {
-      console.error("Failed to steer:", e);
-      return reportQueueFailure(e);
-    }
-  }, [addNotice, rejectIfExternallyRunning, reportQueueFailure]);
+    // #403: through the outbox like every existing-session send. While the
+    // session is mid-turn the server's dispatcher holds it as a follow-up
+    // (omp cannot be steered between a tool result and the next call), so the
+    // old "queued while a web shell runs" reply the route used to answer is
+    // simply how every busy-session delivery looks now.
+    return holdMessage(sid, "steer", message, images, uploads, uploadProofs);
+  }, [holdMessage, rejectIfExternallyRunning]);
 
   const handlePromptWithStreamingBehavior = useCallback(async (
     message: string,
     behavior: "steer" | "followUp",
     images?: AttachedImage[],
     uploads?: string[],
+    uploadProofs?: Record<string, string>,
   ) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
     if (!sid || editInFlightRef.current) return false;
-    const piImages = toPiImages(images);
-    try {
-      const reply = await sendAgentCommand(sid, {
-        type: "prompt",
-        message,
-        streamingBehavior: behavior,
-        ...(piImages?.length ? { images: piImages } : {}),
-        ...(uploads?.length ? { uploads } : {}),
-      });
-      // Same degradation as `handleSteer`: queued behind the running shell
-      // command rather than delivered into this run.
-      if (isQueuedWhileShellRunning(reply)) addNotice({ type: "info", message: translate("agentSession.queuedWhileShellRunning") });
-      return true;
-    } catch (e) {
-      console.error("Failed to queue prompt:", e);
-      return reportQueueFailure(e);
-    }
-  }, [addNotice, rejectIfExternallyRunning, reportQueueFailure]);
+    return holdMessage(sid, behavior, message, images, uploads, uploadProofs);
+  }, [holdMessage, rejectIfExternallyRunning]);
 
-  const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[]) => {
+  const handleFollowUp = useCallback(async (message: string, images?: AttachedImage[], uploads?: string[], uploadProofs?: Record<string, string>) => {
     if (rejectIfExternallyRunning()) return false;
     const sid = sessionIdRef.current;
     if (!sid || editInFlightRef.current) return false;
-    const piImages = toPiImages(images);
+    return holdMessage(sid, "followUp", message, images, uploads, uploadProofs);
+  }, [holdMessage, rejectIfExternallyRunning]);
+
+  const heldMessagesRef = useRef(heldMessages);
+  heldMessagesRef.current = heldMessages;
+  const heldDeletionsRef = useRef(new Set<string>());
+  /** Delete of a held bubble: one this browser still holds leaves IndexedDB;
+   * the server's only until dispatched (omp may have it from then on, answered
+   * 409 `outbox_dispatched`). The only editing the outbox allows — nothing
+   * omp may already have can be unsent. */
+  const deleteHeldMessage = useCallback(async (id: string) => {
+    const sid = sessionIdRef.current;
+    const held = heldMessagesRef.current.find((entry) => entry.id === id);
+    if (!sid || !held || held.state === "sending" || held.state === "delivering" || heldDeletionsRef.current.has(id)) return;
+    heldDeletionsRef.current.add(id);
     try {
-      await sendAgentCommand(sid, {
-        type: "follow_up",
-        message,
-        ...(piImages?.length ? { images: piImages } : {}),
-        ...(uploads?.length ? { uploads } : {}),
-      });
-      return true;
+      if (held.local) await dropFromOutbox(id);
+      else await sendAgentCommand(sid, { type: "outbox_remove", id });
     } catch (e) {
-      console.error("Failed to follow up:", e);
-      return reportQueueFailure(e);
+      if (hookAliveRef.current && sessionIdRef.current === sid) {
+        addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      }
+    } finally {
+      heldDeletionsRef.current.delete(id);
     }
-  }, [rejectIfExternallyRunning, reportQueueFailure]);
+  }, [addNotice]);
 
   const handleAbortCompaction = useCallback(async () => {
     const sid = sessionIdRef.current;
@@ -4757,8 +4894,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // Attach to a run omp has going for `sid` when this chat has no stream yet: on
   // load, and when the running channel reports a run that started after the load
   // (another tab or device, or a send from a chat instance the user left).
-  const attachLiveRun = useCallback((sid: string, agentState: { running?: boolean; external?: boolean; state?: AgentStateResponse }, compactionGen: number) => {
-    if (!agentState.running || eventSourceRef.current) return;
+  const attachLiveRun = useCallback((sid: string, agentState: { running?: boolean; external?: boolean; state?: AgentStateResponse }, compactionGen: number, lateStream = false) => {
+    if (!agentState.running) return;
+    // The attach owns the session only while no stream carries it. The owed
+    // #403 read is the one exception: its stream is open but subscribed after
+    // the run started (the hub never replays the run's start frame), so the
+    // state is applied on that stream — connectEvents no-ops for an open source.
+    if (eventSourceRef.current && !(lateStream && eventSourceRef.current.isOpen)) return;
     // A terminal/adopted external omp owns the session file: an RPC attach
     // would fork it. Hand it to the external-mode watcher instead.
     if (agentState.external) {
@@ -4800,9 +4942,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   }, [applyNativeCompacting, connectEvents, refreshSubagentRoster, registerHostTools, registerHostUriSchemes, waitForBashSettlement, waitForPromptSettlement]);
   // The running-frame attach has no loadSession behind it: the run (maybe from another
   // device) can use another model or thinking level, so sync them as a command does.
-  const attachStartedRunRef = useRef<(sid: string, agentState: { running?: boolean; external?: boolean; state?: AgentStateResponse }, compactionGen: number) => void>(() => {});
-  attachStartedRunRef.current = (sid, agentState, compactionGen) => {
-    attachLiveRun(sid, agentState, compactionGen);
+  const attachStartedRunRef = useRef<(sid: string, agentState: { running?: boolean; external?: boolean; state?: AgentStateResponse }, compactionGen: number, lateStream?: boolean) => void>(() => {});
+  attachStartedRunRef.current = (sid, agentState, compactionGen, lateStream) => {
+    attachLiveRun(sid, agentState, compactionGen, lateStream);
     if (agentState.running && !agentState.external) void refreshLiveModelState(sid);
   };
 
@@ -4814,6 +4956,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     let active = true;
     // The latest running frame named this session and no lookup has settled it yet.
     let wanted = false;
+    // Whether the frame that set `wanted` arrived while no open stream could
+    // have carried the run's start (connecting, mount load, or no stream at
+    // all). Such a frame stays owed even after a stream opens: the hub never
+    // replays an older run's `agent_start` to a late subscriber (#403).
+    let seenWhileUncovered = false;
     let checking = false;
     let frames = 0;
     let failures = 0;
@@ -4825,7 +4972,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // The mount's first load, a stream still connecting, and a local send, shell, Edit or compaction own
     // the session until they settle; the frame stays wanted and their release rechecks it (runningRecheckRef).
     // An externally-held session is never attached over RPC (the file watcher owns it).
-    const blocked = () => mountLoadingRef.current === sid || Boolean(eventSourceRef.current) || agentRunningRef.current
+    // An owed frame (below) is the one lookup an already-open stream does not
+    // own: it starts the read that attaches the run the late stream missed.
+    const owedToOpenStream = () => Boolean(eventSourceRef.current?.isOpen) && seenWhileUncovered;
+    const blocked = () => mountLoadingRef.current === sid || (Boolean(eventSourceRef.current) && !owedToOpenStream()) || agentRunningRef.current
       || bashRunningRef.current || Boolean(editInFlightRef.current) || localCompactionsRef.current > 0 || externalRunningRef.current;
     // Any local operation that started meanwhile makes a lookup stale.
     const localGeneration = () => `${promptRunIdRef.current}:${bashRecoveryIdRef.current}:${editGenRef.current}:${compactionGenRef.current}`;
@@ -4833,12 +4983,19 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       clearTimeout(retryTimer);
       retryTimer = undefined;
       if (!wanted || !current()) return;
-      if (covered()) {
+      // An open stream carries the run only when it could have seen its
+      // start. A frame that landed while no stream was open (a held
+      // message's send was still connecting its observer) stays owed: the
+      // lookup runs once the stream is open, and the attach re-registers
+      // what the late subscriber missed (#403).
+      if (covered() && !seenWhileUncovered) {
         wanted = false;
         return;
       }
       // A lookup in flight rechecks when it settles.
       if (blocked() || checking) return;
+      // Remember that this read is the owed attach an open stream cannot skip.
+      const owedAttach = covered();
       checking = true;
       const generation = localGeneration();
       const compactionGen = compactionGenRef.current;
@@ -4852,11 +5009,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             return;
           }
           // A newer frame without this session means the run this snapshot saw has ended.
-          if (!wanted || !current() || localGeneration() !== generation || covered() || blocked()) return;
+          // The owed read answers past the open stream's own coverage; any
+          // other read yields to a stream or a local operation that owns it.
+          if (!wanted || !current() || localGeneration() !== generation) return;
+          if (!owedAttach && (covered() || blocked())) return;
           failures = 0;
           // A frame that arrived meanwhile may report a run this snapshot predates.
           if (frames === framesBefore) wanted = false;
-          attachStartedRunRef.current(sid, data, compactionGen);
+          seenWhileUncovered = false;
+          attachStartedRunRef.current(sid, data, compactionGen, owedAttach);
         })
         .catch(() => {
           failed = true;
@@ -4876,6 +5037,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const subscription = client.agent.subscribeRunningSessions({
       onIds: (ids) => {
         wanted = ids.includes(sid);
+        // A frame the chat's open stream could not have missed proves
+        // nothing; one that landed while nothing was open owes an attach.
+        seenWhileUncovered = wanted && !covered();
         frames += 1;
         failures = 0;
         checkRunning();
@@ -4888,10 +5052,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       subscription.close();
     };
   }, [client, session?.id]);
-  // A local operation releasing the session rechecks a running frame it held back.
+  // A local operation releasing the session, or the send's stream finishing
+  // its connect, rechecks a running frame it held back: a run another tab
+  // started while the held message's stream was still connecting is adopted
+  // once that stream is open (#403).
   useEffect(() => {
     runningRecheckRef.current?.();
-  }, [agentRunning, bashRunning, isCompacting, editingEntryId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentRunning, bashRunning, isCompacting, editingEntryId, eventSourceRef.current?.isOpen]);
   // Load session on mount
   // React StrictMode re-invokes this effect for the freshly mounted keyed
   // <ChatWindow> (setup → cleanup → setup), which made every session switch
@@ -5001,7 +5169,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     }
   }, [session?.id]);
   useLayoutEffect(() => {
-    const hasContent = messages.length > 0 || streamState.isStreaming;
+    const hasContent = messages.length > 0 || streamState.isStreaming || heldMessages.length > 0;
     if (!hasContent) return;
     if (pendingScrollToUserRef.current) {
       pendingScrollToUserRef.current = false;
@@ -5019,7 +5187,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } else if (completionScrollAllowedRef.current && computeFollowAllowed()) {
       scrollToBottom(agentRunningRef.current || streamState.isStreaming ? "instant" : "smooth");
     }
-  }, [messages, streamState, liveToolResults, pendingBash, agentRunning, agentPhase, extensionWidgets, isCompacting, retryInfo, activeSubagentCount, todoPhases, scrollToBottom, loading, computeFollowAllowed]);
+  }, [messages, streamState, liveToolResults, pendingBash, agentRunning, agentPhase, extensionWidgets, isCompacting, retryInfo, activeSubagentCount, todoPhases, scrollToBottom, loading, computeFollowAllowed, heldMessages]);
   useEffect(() => {
     // This lifetime cleanup must survive the mount-load latch's early return
     // on StrictMode replay. The observer may attach after that first cleanup.
@@ -5101,6 +5269,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     retryInfo, contextUsage, systemPrompt, skillDiagnostics, forkingEntryId, editingEntryId, modelSwitching, modelRestoreFailure,
     isCompacting, compactError, compactResult, tokensPerSecond, currentModel, displayModel, isAutoModelSelection: !displayModel, sessionStats, agentPhase,
     slashCommands, slashCommandsLoading, queuedMessages, hostStatus,
+    heldMessages, deleteHeldMessage,
     notices: noticeState.visible, extensionDialog, extensionCustomUi, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     advisorActive: advisorActiveAt > 0, advisorEnabled, handleAdvisorChange,
     subagents, subagentEvents, subagentTranscriptVersions, activeSubagentCount, currentTodoPhase, todoPhases,

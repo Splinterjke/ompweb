@@ -92,9 +92,12 @@ class FakeStream {
     const sid = this.channel?.sessionId;
     const web = sid ? world.streamWeb.get(sid) ?? { streamId: `stream-${sid}`, sequence: 0 } : undefined;
     this.deliver({ type: "message", data: JSON.stringify({ type: "connected", ...(web ? { web } : {}) }) });
+    void dispatchOutbox();
   }
   emit(event) {
     if (this.closedByCaller) return;
+    if (event.type === "agent_start") this.running = true;
+    else if (event.type === "agent_end" && event.isTerminal !== false) this.running = false;
     // The session channel stamps every frame with its transport sequence (lib/event-stream-hub.ts): the
     // coalescer orders deltas against it, so the fake stream must stamp exactly like the hub does.
     const sid = this.channel?.sessionId;
@@ -141,6 +144,43 @@ class FakeSharedWorker {
           stream.readyState = FakeStream.CLOSED;
         } else if (message.op === "cmd") {
           void answerCommand(this.port, message);
+        } else if (message.op === "outbox_add") {
+          // The worker's IndexedDB commit, then the server's dispatcher
+          // (lib/message-outbox.ts) once omp is observed. The add's answer
+          // lands with the commit; `world.holdAdd` defers both so a test
+          // can exercise an uncommitted entry (`world.lastAdd()` commits).
+          world.lastOutboxAdd = message;
+          const commit = () => {
+            world.outbox.push(message.entry);
+            this.port.onmessage?.({ data: { outbox: world.outbox.map((entry) => ({ ...entry, state: "sending" })) } });
+            void dispatchOutbox();
+          };
+          if (world.holdAdd) {
+            world.lastAdd = () => {
+              world.lastAdd = null;
+              commit();
+              this.port.onmessage?.({ data: { outboxAdded: message.n } });
+            };
+            return;
+          }
+          const acked = () => {
+            commit();
+            this.port.onmessage?.({ data: { outboxAdded: message.n } });
+          };
+          if (world.outboxCommit) world.outboxCommit(acked);
+          else acked();
+        } else if (message.op === "outbox_drop") {
+          const commit = (error) => {
+            if (!error) {
+              world.outbox = world.outbox.filter((entry) => entry.id !== message.id);
+              this.port.onmessage?.({ data: { outbox: world.outbox.map((entry) => ({ ...entry, state: entry.state ?? "sending" })) } });
+            }
+            this.port.onmessage?.({ data: { outboxDropped: message.n, ...(error ? { error } : {}) } });
+          };
+          if (world.outboxDrop) world.outboxDrop(commit);
+          else commit();
+        } else if (message.op === "metric") {
+          // Sampled telemetry: acknowledged silently, like the worker does.
         }
       },
     };
@@ -184,7 +224,69 @@ const world = {
   streams: new Map(), // sid -> last wrapper event bridged onto that session's observers
   streamWeb: new Map(), // sid -> the fake stream's last web cursor { streamId, sequence } (hub-style stamping)
   btwHistory: new Map(), // sid -> BtwRecord[] served by get_btw_history
+  // #403 outbox: the worker's IndexedDB ledger, the dispatcher's gates and
+  // the last add (shape {op, n, entry}) the fake worker saw.
+  outbox: [],
+  outboxHold: false,
+  outboxCommit: null,
+  outboxDrop: null,
+  lastOutboxAdd: null,
+  /** Commit the last un-ACKed add, as the worker's IndexedDB write would. */
+  lastAdd: null,
+  /** Keep adds un-ACKed (uncommitted-entry tests). */
+  holdAdd: false,
+  /** The entry the fake dispatcher is delivering (kept in the ledger, like
+   * the server's `delivering` state keeps the worker's copy). */
+  outboxInflight: null,
+  /** GET /state answers the host-outage 503 whose body carries the held
+   * entries (`serverOutboxFor(sid)`, else this raw list). */
+  hostOffline: false,
+  serverOutboxFor: null,
 };
+
+/** The web server's dispatcher (lib/message-outbox.ts), as the harness sees
+ * it: each held entry goes, oldest first, as the omp command its mode maps
+ * to once the session's stream is open (`world.outboxHold` keeps them held). */
+async function dispatchOutbox(withoutTab = false) {
+  while (!world.outboxHold) {
+    const entry = world.outbox.find((held) => held !== world.outboxInflight);
+    if (!entry) return;
+    const stream = world.esInstances.findLast(
+      (es) => es.channel?.sessionId === entry.sessionId && es.readyState === FakeStream.OPEN && !es.closedByCaller,
+    );
+    if (!stream && !withoutTab) return;
+    // The browser copy leaves the ledger only when the delivery settles
+    // (the worker deletes the entry on the dispatcher's accepted answer);
+    // while the command is in flight it stays listed, state "delivering".
+    world.outboxInflight = entry;
+    workerPort?.onmessage?.({ data: { outbox: world.outbox.map((held) => (held === entry ? { ...held, state: "delivering" } : { ...held, state: "sending" })) } });
+    const running = stream?.running === true;
+    const slash = running && entry.message.startsWith("/");
+    const type = slash || (entry.mode === "prompt" && !running) ? "prompt" : entry.mode === "steer" && running ? "steer" : "follow_up";
+    const body = {
+      type,
+      message: entry.message,
+      ...(slash ? { streamingBehavior: entry.mode === "steer" ? "steer" : "followUp" } : {}),
+      ...(entry.images ? { images: entry.images } : {}),
+      ...(entry.uploads ? { uploads: entry.uploads } : {}),
+      ...(entry.uploadProofs ? { uploadProofs: entry.uploadProofs } : {}),
+      ...(entry.scope ? { scope: entry.scope } : {}),
+    };
+    const res = await fetchStub(`/api/agent/${encodeURIComponent(entry.sessionId)}`, { method: "POST", body: JSON.stringify(body) });
+    if (res.ok) {
+      world.outbox = world.outbox.filter((held) => held !== entry);
+      world.outboxInflight = null;
+      continue;
+    }
+    // The dispatcher keeps the entry as permanently failed and stops the
+    // session's queue (the client hears it on `outbox_update`).
+    const failed = { ...entry, state: "failed", error: `HTTP ${res.status}` };
+    world.outbox = world.outbox.map((held) => (held === entry ? failed : held));
+    world.outboxInflight = null;
+    stream?.emit({ type: "outbox_update", entries: [failed], settledIds: [] });
+    break;
+  }
+}
 
 async function fetchStub(url, init = {}) {
   const method = (init.method ?? "GET").toUpperCase();
@@ -235,11 +337,26 @@ async function fetchStub(url, init = {}) {
   }
   if ((m = u.match(/\/api\/agent\/([^/?#]+)/))) {
     const sid = decodeURIComponent(m[1]);
+    // Exception (spec O2): the outbox scope is the INSTALLATION's — the real
+    // route answers it for any id, even one it cannot resolve.
+    if (body?.type === "outbox_scope") {
+      return jsonResponse(200, { success: true, data: { scope: "harness-scope" } });
+    }
     if (method === "GET") {
       // Faithful to the real route: an id with neither a live wrapper nor an
       // on-disk file is not found (a6ebcc7e review; the stub here keeps the
       // live wrapper in world.agents, so an unknown id means both are gone).
+      // Exception (spec O2): the outbox scope is the INSTALLATION's — the
+      // real route answers it without resolving the session.
       const a = world.agents.get(sid);
+      if (world.hostOffline) {
+        // The real route's host outage answer (O2): a 503 whose body still
+        // carries this session's held messages.
+        return jsonResponse(503, {
+          error: "Build box is offline", code: "host_offline", hostOffline: true,
+          outbox: world.serverOutboxFor?.(sid) ?? world.hostOffline.body ?? [],
+        });
+      }
       if (!a) return jsonResponse(404, { error: "Session not found", code: "session_not_found" });
       return jsonResponse(200, { running: a.running, state: a.state });
     }
@@ -392,6 +509,16 @@ function resetWorld() {
   world.streamWeb.clear();
   world.btwHistory.clear();
   world.abortRestoreQueue = null;
+  world.outbox.length = 0;
+  world.outboxHold = false;
+  world.outboxCommit = null;
+  world.outboxDrop = null;
+  world.lastOutboxAdd = null;
+  world.lastAdd = null;
+  world.holdAdd = false;
+  world.hostOffline = false;
+  world.serverOutboxFor = null;
+  world.outboxInflight = null;
   sessionStorage.clear();
 }
 
@@ -418,7 +545,22 @@ const assistantMsg = (id, text) => ({
   content: [{ type: "text", text }],
 });
 
-/** Mount + hydrate, then send a prompt and open the stream. Returns the ES. */
+/** The worker's accepted-add handling: the entry leaves the browser ledger
+ * and the tab hears the `stored` event (the merge keeps the bubble until a
+ * snapshot settles the id). */
+function fakeStoreDrop(id) {
+  const entry = world.outbox.find((held) => held.id === id);
+  if (!entry) return;
+  world.outbox = world.outbox.filter((held) => held.id !== id);
+  workerPort?.onmessage?.({ data: { outbox: world.outbox.map((held) => ({ ...held, state: "sending" })) } });
+  workerPort?.onmessage?.({
+    data: { outboxStored: { ...entry, mode: entry.mode ?? "prompt", state: "held", createdAt: entry.createdAt ?? 1 } },
+  });
+}
+
+/** Mount + hydrate, then hold a prompt (#403: the send goes to the worker's
+ * outbox, the server's dispatcher delivers it once this view's stream is
+ * open) and start the run from omp's own `agent_start`. Returns the ES. */
 async function startRun(sid, message, strictMode = false, options = {}) {
   const w = await mountSession(sid, undefined, options, strictMode);
   assert.equal(w.latest.loading, false, "hydration must complete");
@@ -427,17 +569,26 @@ async function startRun(sid, message, strictMode = false, options = {}) {
   let sendPromise;
   await act(async () => {
     sendPromise = w.latest.handleSend(message);
-    await sleep(30); // let the pre-connect get_state POST settle
+    await sleep(30); // the hold awaits its IndexedDB commit
   });
   const es = lastEs();
-  assert.ok(es, "an event stream must have been opened");
+  assert.ok(es, "a held message opens an event stream");
   assert.deepEqual(es.channel, { kind: "session", sessionId: sid });
   await act(async () => {
-    es.open(); // connect settles → prompt POST fires
-    await sendPromise;
+    es.open(); // the dispatcher sees the session observed → the entry goes
+    assert.deepEqual(await sendPromise, { status: "accepted" });
+    await sleep(30); // the dispatcher's POST settles
   });
-  assert.equal(w.latest.agentRunning, true, "optimistic running state");
+  // The dispatcher delivers the held entry as the prompt command; the
+  // browser copy leaves the held list with the worker's stored event.
+  await settle(60);
   assert.equal(callsTo("POST", "/api/agent/").some((c) => c.body?.type === "prompt" && c.body?.message === message), true, "prompt command must be sent");
+  if (world.lastOutboxAdd) fakeStoreDrop(world.lastOutboxAdd.entry.id);
+  await act(async () => {
+    es.emit({ type: "agent_start" });
+    await Promise.resolve();
+  });
+  assert.equal(w.latest.agentRunning, true, "omp's agent_start starts the run");
   return { w, es };
 }
 
@@ -472,13 +623,15 @@ test("send tolerates a missing session file (local-only slash commands) and stil
   await act(async () => {
     es.open();
     await sendPromise;
+    await settle(60); // the dispatcher's POST settles
   });
   assert.equal(
     callsTo("POST", "/api/agent/fileless").some((c) => c.body?.type === "prompt" && c.body?.message === "hello after skill"),
     true,
     "prompt must be dispatched despite the boundary 404",
   );
-  assert.equal(w.latest.agentRunning, true, "run starts optimistically");
+  assert.equal(w.latest.agentRunning, false, "the run state comes from omp's frames, not from the click");
+  assert.equal(w.latest.heldMessages.length, 1, "the held bubble shows until the delivery settles");
   assert.equal(w.latest.notices.length, 0, "no failed-send notice");
 });
 
@@ -541,39 +694,30 @@ test("REVIEW #165: a fileless LIVE session already gets an empty baseline, so ma
     "unfixed main already dispatches when the live wrapper answers the baseline",
   );
   assert.equal(w.latest.notices.length, 0, "no failed-send notice");
-  assert.equal(w.latest.agentRunning, true);
+  assert.equal(w.latest.agentRunning, false, "#403: the run state waits for omp's agent_start");
 });
 
 // Port of upstream a6ebcc7e (guardrail): a vanished session with neither a
 // wrapper nor a file must still fail loudly — the fileless tolerance must
 // not swallow a real error. The faithful GET /api/agent 404 for unknown ids
 // makes the hydration probe bail exactly like the real route.
-test("REVIEW a vanished session with no wrapper still fails loudly (real failure not swallowed)", async () => {
+test("a vanished session's permanent outbox refusal remains a failed held bubble, not a recovered composer draft", async () => {
   resetWorld();
-  // The real agent route resolves the id against the on-disk file whenever
-  // no wrapper is alive (app/api/agent/[id]/route.ts), so this 404 is what
-  // a genuinely missing session produces.
-  world.holds.push({
-    match: (method, url) => method === "POST" && url.includes("/api/agent/gone"),
-    produce: async () => ({ status: 404, value: { error: "Session not found", code: "session_not_found" } }),
-  });
+  primeSession("gone", [userMsg("u0", "q")]);
   const w = await mountSession("gone");
-  let ok;
-  await act(async () => {
-    ok = await w.latest.handleSend("anyone there?");
-    await sleep(30);
-  });
-  assert.equal(ok.status, "rejected", "the send must not report success");
-  assert.equal(w.latest.agentRunning, false, "the optimistic run state is rolled back");
-  assert.equal(w.latest.notices.length, 1, "the failure is surfaced, not swallowed");
-  assert.equal(w.latest.notices[0].type, "error");
-  assert.equal(
-    callsTo("POST", "/api/agent/gone").some((c) => c.body?.type === "prompt"),
-    false,
-    "no prompt is dispatched into a vanished session",
-  );
+  await act(async () => { assert.deepEqual(await w.latest.handleSend("anyone there?"), { status: "accepted" }); });
+  const entry = world.outbox[0];
+  await act(() => workerPort.onmessage({ data: { outbox: [] } }));
+  await act(() => lastEs().emit({ type: "outbox_update", entries: [{ ...entry, mode: "prompt", state: "failed", error: "Session not found", createdAt: entry.createdAt }] }));
+  assert.equal(w.latest.agentRunning, false);
+  assert.equal(w.latest.heldMessages[0].state, "failed");
+  assert.equal(w.latest.heldMessages[0].error, "Session not found");
+  assert.deepEqual(w.latest.notices, [], "the held bubble owns permanent delivery errors");
+  w.unmount();
 });
 
+// Guardrail: a session that exists on disk still dispatches through the
+// outbox even when its file route 404s — see the 404-wrapper test below.
 // Port of upstream a6ebcc7e (REVIEW #183): an EXISTING but unresolvable
 // session file 404s the file route while the wrapper still takes commands —
 // aborting the send there loses the message. Adaptation: the boundary hold
@@ -756,11 +900,11 @@ test("upload ids ride the prompt and follow-up bodies; a files-only prompt is se
   assert.deepEqual(callsTo("POST", "/api/agent/").find((call) => call.body?.type === "follow_up")?.body.uploads, [id]);
 });
 
-test("a prompt queued behind a running shell command drops the phantom turn and reports it", async () => {
+test("a shell-queued outbox prompt and steer use queue_update without a phantom turn or reply notice", async () => {
   resetWorld();
   primeSession("bash-queue", [userMsg("u0", "q")]);
-  // The agent route answers a prompt/steer with this while a web shell command
-  // owns the session (see lib/rpc-manager.ts).
+  // The agent route answers a prompt/steer with this while a `!` shell command
+  // owns the session (see lib/rpc-manager.ts queueWhileShellRunning).
   const queuedReply = { success: true, data: { queued: true, queue: "followUp", reason: "shellRunning" } };
   const holdReply = () => world.holds.push({
     match: (method, _url, body) => method === "POST" && (body?.type === "prompt" || body?.type === "steer"),
@@ -774,26 +918,22 @@ test("a prompt queued behind a running shell command drops the phantom turn and 
     sending = w.latest.handleSend("after the shell finishes");
     await sleep(30);
   });
-  lastEs()?.open();
-  await act(async () => { await sending; });
+  await act(async () => { lastEs()?.open(); await sending; await settle(60); });
   assert.equal((await sending).status, "accepted");
   assert.equal(w.latest.agentRunning, false, "no turn started behind the shell command");
   assert.deepEqual(
     w.latest.messages.filter((message) => message.role === "user").map((message) => message.content),
     ["q"],
-    "the text lives in omp's queue, not in an optimistic bubble",
+    "the text lives in omp's queue, not in a transcript bubble",
   );
-  const queuedNotices = () => w.latest.notices.filter((notice) => /still running, so the message was queued/.test(notice.message));
-  assert.equal(queuedNotices().length, 1, "the user is told the message was queued");
-  // A steer degrades exactly the same way instead of erroring.
-  await act(async () => { await w.latest.handleSteer("steer instead"); });
-  assert.equal(queuedNotices().length, 2);
+  assert.deepEqual(w.latest.notices, [], "the dispatcher reply never creates a tab-owned queue notice");
+  await act(async () => { await w.latest.handleSteer("steer instead"); await settle(30); });
+  await act(() => lastEs().emit({ type: "queue_update", steering: [], followUp: ["after the shell finishes", "steer instead"] }));
+  assert.deepEqual(w.latest.queuedMessages, { steering: [], followUp: ["after the shell finishes", "steer instead"] });
+  assert.deepEqual(w.latest.notices, []);
 });
 
-// The incident behind abort_and_restore_queue: a promoted steer was still in
-// omp when Stop landed but missing from this client's snapshot, so nothing
-// withdrew it and omp ran it as a new turn after the abort. omp's atomic Esc
-// takes back everything it holds, listed here or not.
+
 test("Stop takes queued input back through omp in one step, including a steer the snapshot missed", async () => {
   const { getDraft, clearDraft } = await import("@/lib/draft-store");
   resetWorld();
@@ -951,7 +1091,7 @@ test("opening a session past its Claude usage limit shows the badge, and an idle
   assert.equal(w.latest.usageLimit, undefined, "the idle slash refresh clears the badge");
 });
 
-test("unmount during the send connection still delivers the prompt", async () => {
+test("an outbox message survives unmount and is dispatched without its tab", async () => {
   resetWorld();
   primeSession("connecting-unmount", [userMsg("u0", "q")]);
   const w = await mountSession("connecting-unmount");
@@ -961,8 +1101,7 @@ test("unmount during the send connection still delivers the prompt", async () =>
     await sleep(30);
   });
   const source = lastEs();
-  assert.ok(source, "the actual send must await a real observer subscription");
-  assert.equal(source.readyState, FakeStream.CONNECTING);
+  assert.ok(source, "the held message opens an observer, but delivery does not wait for it");
   let result;
   await act(async () => {
     w.unmount();
@@ -970,6 +1109,9 @@ test("unmount during the send connection still delivers the prompt", async () =>
   });
   assert.equal(source.closedByCaller, true);
   assert.equal(result.status, "accepted");
+  assert.equal(world.outbox[0]?.message, "switched chats mid-send", "the worker retains the message after its tab unmounts");
+  await dispatchOutbox(true);
+  assert.deepEqual(world.outbox, []);
   assert.equal(world.calls.filter((call) => call.body?.type === "prompt").length, 1);
   assert.equal(world.esInstances.length, 1, "no observer is opened for the unmounted chat");
   for (const type of ["set_host_tools", "set_host_uri_schemes", "get_subagents"]) {
@@ -977,13 +1119,13 @@ test("unmount during the send connection still delivers the prompt", async () =>
   }
 });
 
-test("a send connection that fails while the chat is mounted rejects without dispatching the prompt", async () => {
+test("a failed observer connection leaves the accepted message held in the outbox", async () => {
   resetWorld();
   primeSession("connecting-fails", [userMsg("u0", "q")]);
   const w = await mountSession("connecting-fails");
   let sending;
   await act(async () => {
-    sending = w.latest.handleSend("stays in the composer");
+    sending = w.latest.handleSend("stays held");
     await sleep(30);
   });
   let result;
@@ -991,42 +1133,47 @@ test("a send connection that fails while the chat is mounted rejects without dis
     lastEs().failFatal();
     result = await sending;
   });
-  assert.equal(result.status, "rejected");
-  assert.equal(world.calls.some((call) => call.body?.type === "prompt"), false);
+  assert.equal(result.status, "accepted");
+  assert.equal(world.outbox[0]?.message, "stays held");
+  assert.deepEqual(w.latest.notices, []);
+  assert.equal(world.calls.some((call) => call.body?.type === "prompt"), false, "a closed observer dispatches nothing");
+  w.unmount();
 });
 
-for (const operation of ["prompt", "btw"]) {
-  test(`unmount during ${operation} RPC startup cannot create an observer after teardown`, async (t) => {
-    resetWorld();
-    const sid = `startup-unmount-${operation}`;
-    primeSession(sid, [userMsg("u0", "q")]);
-    const w = await mountSession(sid);
-    let release;
-    t.after(() => release?.());
-    world.holds.push({
-      match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "get_state",
-      produce: () => new Promise((resolve) => { release = () => resolve({ value: { success: true, data: {} } }); }),
-    });
-    let pending;
-    await act(async () => {
-      pending = operation === "prompt" ? w.latest.handleSend("must stay unsent") : w.latest.askBtw("must stay unasked");
-      await sleep(20);
-    });
-    assert.equal(typeof release, "function", "the supported startup RPC must be awaiting its response");
-    assert.equal(world.esInstances.length, 0, "startup has not yet acquired its observer");
-    let result;
-    await act(async () => {
-      w.unmount();
-      release();
-      result = await pending;
-    });
-    // (renderHook's unmount already completed the root's cleanup here.)
-    assert.equal(world.esInstances.length, 0, "a late RPC response cannot create an observer its owner cannot close");
-    assert.equal(operation === "prompt" ? result.status : result, operation === "prompt" ? "accepted" : false);
-    // The user's prompt still goes out (they switched chats); a side question has no UI left to answer into.
-    assert.equal(world.calls.some((call) => call.body?.type === operation), operation === "prompt");
+// The prompt half of this teardown guard is upstream's "an outbox message
+// survives unmount and is dispatched without its tab" (ported above): a held
+// send owns no startup RPC anymore. The side question still starts its
+// wrapper through `get_state`, so that path keeps the fence.
+test("unmount during btw RPC startup cannot create an observer after teardown", async (t) => {
+  resetWorld();
+  const sid = "startup-unmount-btw";
+  primeSession(sid, [userMsg("u0", "q")]);
+  const w = await mountSession(sid);
+  let release;
+  t.after(() => release?.());
+  world.holds.push({
+    match: (method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "get_state",
+    produce: () => new Promise((resolve) => { release = () => resolve({ value: { success: true, data: {} } }); }),
   });
-}
+  let pending;
+  await act(async () => {
+    pending = w.latest.askBtw("must stay unasked");
+    await sleep(20);
+  });
+  assert.equal(typeof release, "function", "the supported startup RPC must be awaiting its response");
+  assert.equal(world.esInstances.length, 0, "startup has not yet acquired its observer");
+  let result;
+  await act(async () => {
+    w.unmount();
+    release();
+    result = await pending;
+  });
+  // (renderHook's unmount already completed the root's cleanup here.)
+  assert.equal(world.esInstances.length, 0, "a late RPC response cannot create an observer its owner cannot close");
+  assert.equal(result, false);
+  // A side question has no UI left to answer into.
+  assert.equal(world.calls.some((call) => call.body?.type === "btw"), false);
+});
 
 /** Mount + hydrate, start the run, and stream one assistant delta. */
 async function startStreamingRun(sid) {
@@ -1505,30 +1652,37 @@ test("a reconcile tick during the cold-send window keeps the optimistic bubble a
     window.dispatchEvent(new Event("online")); // immediate reconcile trigger
     await sleep(30);
   });
-  const tail = w.latest.messages[w.latest.messages.length - 1];
-  assert.equal(tail?.role, "user", "the optimistic user bubble survives the reconcile tick");
-  assert.equal(tail?.content, "second question");
-  assert.equal(w.latest.agentRunning, true, "the run stays active through the cold-start window");
+  // #403: the send is browser-held while its stream connects; a reconcile
+  // tick during that window must keep the held bubble and start no run.
+  const held = w.latest.heldMessages;
+  assert.equal(held.length, 1, "the held bubble survives the reconcile tick");
+  assert.equal(held[0].message, "second question");
+  assert.equal(w.latest.agentRunning, false, "the run state waits for omp's frames");
 
-  // The normal flow still converges unchanged afterwards.
+  // The normal flow still converges: the dispatcher delivers, omp echoes.
   await act(async () => {
     es.open();
     await sendPromise;
+    await settle(60);
   });
-  assert.equal(w.latest.agentRunning, true);
+  assert.equal(callsTo("POST", "/api/agent/").some((c) => c.body?.type === "prompt" && c.body?.message === "second question"), true, "the held prompt is dispatched");
+  assert.equal(w.latest.agentRunning, false, "dispatch alone starts no run");
   await act(async () => {
     es.emit({ type: "agent_start" });
     es.emit({ type: "message_end", message: { role: "user", content: "second question" } });
   });
   const userRows = w.latest.messages.filter((m) => m.role === "user");
-  assert.equal(userRows.length, 2, "the delivered prompt consumes the optimistic bubble, never duplicates it");
+  assert.equal(userRows.length, 2, "omp's echo lands the prompt exactly once");
+  await act(async () => {
+    es.emit({ type: "outbox_update", entries: [], settledIds: [held[0].id] });
+  });
+  assert.deepEqual(w.latest.heldMessages, [], "the settle snapshot retires the held bubble");
   await act(async () => {
     es.emit({ type: "agent_end", isTerminal: true });
   });
   assert.equal(w.latest.agentRunning, false);
   w.unmount();
 });
-
 test("a failed model switch is shown as a notice instead of failing silently (#277)", async () => {
   resetWorld();
   primeSession("s1", [userMsg("u0", "q")]);
@@ -2395,21 +2549,19 @@ test("host_status frames report the session's host going offline and coming back
   w.unmount();
 });
 
-test("a send to an offline host toasts and leaves the draft to the composer without an error notice", async () => {
+test("a send to an offline host is accepted and held without a toast or recovered draft", async () => {
   resetWorld();
   toastCalls.length = 0;
   primeSession("remote-off", [userMsg("u0", "q")]);
+  world.outboxHold = true;
   const w = await mountSession("remote-off");
-  world.holds.push({
-    match: (method, url) => method === "POST" && url.includes("/api/agent/remote-off"),
-    produce: async () => ({ status: 503, value: { error: "Build box is offline", code: "host_offline", hostOffline: true } }),
-  });
-  let receipt;
-  await act(async () => { receipt = await w.latest.handleSend("keep me"); await sleep(30); });
-  assert.deepEqual(receipt, { status: "rejected", recoveryKey: "remote-off" });
+  await act(async () => { assert.deepEqual(await w.latest.handleSend("keep me"), { status: "accepted" }); });
+  assert.equal(w.latest.heldMessages[0].message, "keep me");
+  assert.equal(w.latest.heldMessages[0].state, "sending");
   assert.equal(w.latest.agentRunning, false);
-  assert.deepEqual(toastCalls, [["error", translate("agentSession.hostOfflineSend", { detail: "Build box is offline" })]]);
-  assert.equal(w.latest.notices.length, 0, "the toast replaces the chat notice");
+  assert.deepEqual(toastCalls, []);
+  assert.deepEqual(w.latest.notices, []);
+  assert.equal(callsTo("POST", "/api/agent/").some((call) => call.body?.type === "prompt"), false, "the offline hold dispatches nothing");
   w.unmount();
 });
 
@@ -2468,16 +2620,13 @@ test("a fresh local chat sends no host id and keeps the pre-hosts draft key", as
   w.unmount();
 });
 
-for (const [name, method, command] of [["steer", "handleSteer", "steer"], ["follow-up", "handleFollowUp", "follow_up"], ["streaming-behavior prompt", "handlePromptWithStreamingBehavior", "prompt"]]) {
-  test(`a ${name} to an offline host toasts and reports the refusal so the composer keeps its draft`, async () => {
+for (const [name, method] of [["steer", "handleSteer"], ["follow-up", "handleFollowUp"], ["streaming-behavior prompt", "handlePromptWithStreamingBehavior"]]) {
+  test(`a ${name} to an offline host is accepted into the outbox without a toast`, async () => {
     resetWorld();
     toastCalls.length = 0;
-    primeSession(`remote-queue-${command}`, [userMsg("u0", "q")]);
-    const w = await mountSession(`remote-queue-${command}`);
-    world.holds.push({
-      match: (httpMethod, url, body) => httpMethod === "POST" && url.includes(`/api/agent/remote-queue-${command}`) && body?.type === command,
-      produce: async () => ({ status: 503, value: { error: "Build box is offline", code: "host_offline", hostOffline: true } }),
-    });
+    primeSession(`remote-queue-${name}`, [userMsg("u0", "q")]);
+    world.outboxHold = true;
+    const w = await mountSession(`remote-queue-${name}`);
     let accepted;
     await act(async () => {
       accepted = method === "handlePromptWithStreamingBehavior"
@@ -2485,46 +2634,43 @@ for (const [name, method, command] of [["steer", "handleSteer", "steer"], ["foll
         : await w.latest[method]("queued text");
       await sleep(30);
     });
-    assert.equal(accepted, false);
-    assert.deepEqual(toastCalls, [["error", translate("agentSession.hostOfflineSend", { detail: "Build box is offline" })]]);
-    assert.equal(w.latest.notices.length, 0);
+    assert.equal(accepted, true, "the composer drops the text into the outbox");
+    assert.deepEqual(toastCalls, [], "an accepted hold is not a failure");
+    assert.deepEqual(w.latest.notices, []);
+    assert.equal(w.latest.heldMessages[0].message, "queued text");
+    assert.equal(callsTo("POST", "/api/agent/").some((call) => ["prompt", "steer", "follow_up"].includes(call.body?.type)), false, "the offline hold dispatches nothing");
     w.unmount();
   });
 }
 
-test("a prompt the dropped link may have delivered toasts that it may still run and leaves no draft to restore", async () => {
+
+test("an unknown delivery outcome stays in the server outbox as failed and never returns to the composer", async () => {
   resetWorld();
   toastCalls.length = 0;
   primeSession("remote-maybe", [userMsg("u0", "q")]);
+  world.outboxHold = true;
   const w = await mountSession("remote-maybe");
-  world.holds.push({
-    match: (method, url, body) => method === "POST" && url.includes("/api/agent/remote-maybe") && body?.type === "prompt",
-    produce: async () => ({ status: 503, value: { error: "Build box is offline", code: "host_offline", hostOffline: true, delivery: "unknown" } }),
-  });
-  let receipt;
-  await act(async () => { receipt = w.latest.handleSend("maybe sent"); await sleep(30); });
-  await act(async () => { lastEs()?.open(); receipt = await receipt; });
-  w.unmount();
-  assert.notEqual(receipt.status, "rejected", "the composer must not bring the text back: it may run twice");
+  await act(async () => { assert.deepEqual(await w.latest.handleSend("maybe sent"), { status: "accepted" }); });
+  const entry = world.outbox[0];
+  await act(() => workerPort.onmessage({ data: { outbox: [] } }));
+  await act(() => lastEs().emit({ type: "outbox_update", entries: [{ ...entry, mode: "prompt", state: "failed", error: "Build box is offline", mayHaveBeenSent: true, createdAt: entry.createdAt }] }));
+  assert.equal(w.latest.heldMessages[0].state, "failed");
+  assert.equal(w.latest.heldMessages[0].mayHaveBeenSent, true);
   assert.equal(w.latest.agentRunning, false);
-  assert.deepEqual(toastCalls, [["info", translate("agentSession.hostOfflineMaybeSent", { detail: "Build box is offline" })]]);
-  assert.equal(w.latest.notices.length, 0);
+  assert.deepEqual(toastCalls, [], "no toast: the held bubble owns the failure");
+  assert.deepEqual(w.latest.notices, []);
+  w.unmount();
 });
 
-test("a streaming-behavior prompt the dropped link may have delivered is reported as taken", async () => {
+test("a slash command held during a run dispatches as a prompt with its streaming behavior", async () => {
   resetWorld();
-  toastCalls.length = 0;
-  primeSession("remote-maybe-queue", [userMsg("u0", "q")]);
-  const w = await mountSession("remote-maybe-queue");
-  world.holds.push({
-    match: (method, url, body) => method === "POST" && url.includes("/api/agent/remote-maybe-queue") && body?.type === "prompt",
-    produce: async () => ({ status: 503, value: { error: "Build box is offline", code: "host_offline", hostOffline: true, delivery: "unknown" } }),
-  });
-  let accepted;
-  await act(async () => { accepted = await w.latest.handlePromptWithStreamingBehavior("queued text", "followUp"); await sleep(30); });
-  assert.equal(accepted, true);
-  assert.deepEqual(toastCalls, [["info", translate("agentSession.hostOfflineMaybeSent", { detail: "Build box is offline" })]]);
-  w.unmount();
+  primeSession("slash-outbox", [userMsg("u0", "q")]);
+  const { w, es } = await startRun("slash-outbox", "run");
+  await act(async () => { await w.latest.handleSteer("/skill queued text"); await settle(30); });
+  const command = callsTo("POST", "/api/agent/slash-outbox").find((call) => call.body?.message === "/skill queued text");
+  assert.equal(command?.body?.type, "prompt", "a held slash goes as a prompt command");
+  assert.equal(command?.body?.streamingBehavior, "steer", "carrying the behavior omp is owed mid-run");
+  void es;
 });
 
 // What the worker answers when the session socket dropped after sending a command (spec D5).
@@ -2543,22 +2689,21 @@ async function inWebSocketMode(run) {
   }
 }
 
-test("a prompt whose session socket dropped before the answer toasts that it may have run and leaves no draft to restore", async () => {
+test("a prompt is stored in the outbox even when the session socket cannot answer commands", async () => {
   await inWebSocketMode(async () => {
     resetWorld();
     toastCalls.length = 0;
-    world.socketAnswer = (command) => command.type === "prompt" ? { status: 503, body: SOCKET_LOST } : null;
-    primeSession("socket-lost", [userMsg("u0", "q")]); // the viewed conversation exists on disk: the cold get_state may spawn
+    primeSession("socket-lost", [userMsg("u0", "q")]);
+    world.outboxHold = true;
+    world.socketAnswer = () => ({ status: 503, body: SOCKET_LOST });
     const w = await mountSession("socket-lost");
-    let receipt;
-    await act(async () => { receipt = w.latest.handleSend("maybe sent"); await sleep(30); });
-    await act(async () => { lastEs()?.open(); receipt = await receipt; });
-    w.unmount();
-    assert.notEqual(receipt.status, "rejected", "the composer must not bring the text back: it may run twice");
+    await act(async () => { assert.deepEqual(await w.latest.handleSend("maybe sent"), { status: "accepted" }); });
+    assert.equal(w.latest.heldMessages[0].message, "maybe sent");
     assert.equal(w.latest.agentRunning, false);
-    assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
-    assert.equal(w.latest.notices.length, 0);
-    assert.equal(callsTo("POST", "/api/agent/socket-lost").some((call) => call.body?.type === "prompt"), false, "the prompt went over the socket");
+    assert.deepEqual(toastCalls, []);
+    assert.deepEqual(w.latest.notices, []);
+    assert.equal(callsTo("POST", "/api/agent/socket-lost").some((call) => call.body?.type === "prompt"), false, "the tab stores, not dispatches");
+    w.unmount();
   });
 });
 
@@ -2685,35 +2830,42 @@ test("Stop during a run with a `!` command beside it stops the turn, not the com
   });
 });
 
-test("a steer whose session socket dropped before the answer is reported as taken", async () => {
+test("a steer is stored without consulting the session socket", async () => {
   await inWebSocketMode(async () => {
     resetWorld();
     toastCalls.length = 0;
     primeSession("socket-lost-steer", [userMsg("u0", "q")]);
+    world.outboxHold = true;
     const w = await mountSession("socket-lost-steer");
     world.socketAnswer = (command) => command.type === "steer" ? { status: 503, body: SOCKET_LOST } : null;
     let accepted;
     await act(async () => { accepted = await w.latest.handleSteer("steer text"); await sleep(30); });
-    assert.equal(accepted, true, "the composer drops the text: it may run");
-    assert.deepEqual(toastCalls, [["info", translate("agentSession.transportLostMaybeSent")]]);
+    assert.equal(accepted, true, "the composer drops the text into the outbox");
+    assert.deepEqual(toastCalls, []);
+    assert.equal(w.latest.heldMessages[0].mode, "steer");
+    assert.equal(w.latest.heldMessages[0].message, "steer text");
     assert.equal(w.latest.notices.length, 0);
+    w.unmount();
   });
 });
 
-test("a get_state whose reply was lost before the prompt went out gives the draft back: no prompt ran", async () => {
+test("an existing-session send never waits for a pre-prompt get_state reply", async () => {
   await inWebSocketMode(async () => {
     resetWorld();
     toastCalls.length = 0;
     primeSession("socket-lost-state", [userMsg("u0", "q")]);
+    world.outboxHold = true;
     const w = await mountSession("socket-lost-state");
     world.socketAnswer = (command) => command.type === "get_state" ? { status: 503, body: SOCKET_LOST } : null;
     let receipt;
     await act(async () => { receipt = await w.latest.handleSend("never sent"); await sleep(30); });
-    assert.deepEqual(receipt, { status: "rejected", recoveryKey: "socket-lost-state" });
-    assert.deepEqual(toastCalls, [], "no prompt was sent, so nothing may have been delivered");
-    assert.deepEqual(w.latest.notices.map((notice) => notice.type), ["error"]);
+    assert.deepEqual(receipt, { status: "accepted" });
+    assert.deepEqual(toastCalls, []);
+    assert.deepEqual(w.latest.notices, []);
+    assert.equal(w.latest.heldMessages[0].message, "never sent");
     assert.equal(w.latest.agentRunning, false);
     assert.equal(callsTo("POST", "/api/agent/socket-lost-state").some((call) => call.body?.type === "prompt"), false);
+    w.unmount();
   });
 });
 
@@ -3063,30 +3215,27 @@ for (const stopped of [false, true]) {
   });
 }
 
-test("a delayed running lookup cannot resurrect a run after a newer prompt fails startup", async () => {
+test("a delayed running lookup cannot attach after a newer send went to the outbox", async () => {
   resetWorld();
-  primeSession("failed-new-prompt", [userMsg("u0", "q")]);
-  const w = await mountSession("failed-new-prompt");
+  primeSession("held-new-prompt", [userMsg("u0", "q")]);
+  const w = await mountSession("held-new-prompt");
   let release;
   world.holds.push({
-    match: (method, url) => method === "GET" && url === "/api/agent/failed-new-prompt",
+    match: (method, url) => method === "GET" && url === "/api/agent/held-new-prompt",
     produce: () => new Promise((resolve) => { release = () => resolve({ value: { running: true, state: { isStreaming: true } } }); }),
-  }, {
-    match: (method, url, body) => method === "POST" && url === "/api/agent/failed-new-prompt" && body?.type === "get_state",
-    produce: async () => ({ status: 500, value: { error: "Startup failed" } }),
   });
   await act(async () => {
-    world.runningStreams.at(-1).deliver({ type: "message", data: JSON.stringify({ type: "running", runningSessionIds: ["failed-new-prompt"] }) });
+    world.runningStreams.at(-1).deliver({ type: "message", data: JSON.stringify({ type: "running", runningSessionIds: ["held-new-prompt"] }) });
     await Promise.resolve();
   });
+  world.outboxHold = true;
   await act(async () => {
     const receipt = await w.latest.handleSend("new prompt");
-    assert.equal(receipt.status, "rejected");
+    assert.equal(receipt.status, "accepted");
   });
-  assert.equal(w.latest.agentRunning, false);
-  assert.equal(world.esInstances.length, 0, "startup failed before opening an observer");
+  assert.equal(world.esInstances.length, 1, "the held message opened the chat's stream");
   await act(async () => { release(); await settle(); });
-  assert.equal(world.esInstances.length, 0, "a lookup from an older prompt generation cannot attach");
+  assert.equal(world.esInstances.length, 1, "a lookup from an older prompt generation cannot attach a second stream");
   assert.equal(w.latest.agentRunning, false);
 });
 
@@ -3311,24 +3460,24 @@ test("a manual compaction settling during an auto-compaction leaves Stop to the 
   assert.equal(w.latest.isCompacting, false);
 });
 
-test("a run reported while a send's stream connects is attached once that stream times out", async (t) => {
+test("a run reported while a sent message waits in the outbox is adopted once its stream attaches", async () => {
   resetWorld();
-  const sid = "connect-then-remote";
+  const sid = "held-then-remote";
   primeSession(sid, [userMsg("u0", "q")]);
   const w = await mountSession(sid);
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  let sending;
-  await act(async () => { sending = w.latest.handleSend("mine"); for (let i = 0; i < 30; i++) await Promise.resolve(); });
-  assert.equal(lastEs()?.readyState, FakeStream.CONNECTING, "the send's stream is still connecting");
+  world.outboxHold = true;
+  await act(async () => { assert.equal((await w.latest.handleSend("mine")).status, "accepted"); });
+  assert.equal(world.outbox.length, 1, "the message waits in the outbox, not in a local startup");
+  // Another tab's run starts while this held message's stream is still connecting.
   world.agents.set(sid, { running: true, state: { isStreaming: true } });
   await deliverRunning([sid]);
-  await act(async () => {
-    t.mock.timers.tick(60_001);
-    for (let i = 0; i < 30; i++) await Promise.resolve();
-    assert.equal((await sending).status, "rejected");
-  });
-  assert.equal(world.esInstances.length, 2, "a new observer attaches the other tab's run");
+  await settle();
+  assert.equal(world.esInstances.length, 1, "the held message's stream is the chat's only observer");
+  assert.equal(w.latest.agentRunning, false, "nothing is adopted before the stream attaches");
+  await act(async () => { lastEs().open(); lastEs().emit({ type: "connected" }); await settle(); });
+  assert.equal(world.esInstances.length, 1, "the run is adopted on that stream, not a second one");
   assert.equal(w.latest.agentRunning, true);
+  w.unmount();
 });
 
 test("a chat promoted from a new chat attaches a run reported after its first send failed", async (t) => {
@@ -3430,23 +3579,16 @@ test("the first load's idle state cannot overwrite a compaction a later lookup f
   assert.equal(callsTo("POST", `/api/agent/${sid}`).some((call) => call.body?.type === "compact"), false, "and the guard agrees with the control");
 });
 
-test("a run reported while a local send starts is attached once that send fails", async () => {
+test("an idle session's held-message stream adopts no run", async () => {
   resetWorld();
-  const sid = "send-then-remote";
+  const sid = "held-idle";
   primeSession(sid, [userMsg("u0", "q")]);
   const w = await mountSession(sid);
-  const startup = holdNext((method, url, body) => method === "POST" && url === `/api/agent/${sid}` && body?.type === "get_state");
-  let sending;
-  await act(async () => { sending = w.latest.handleSend("mine"); await sleep(30); });
-  world.agents.set(sid, { running: true, state: { isStreaming: true } });
-  await deliverRunning([sid]);
-  await act(async () => {
-    startup.release({ error: "Startup failed" }, 500);
-    assert.equal((await sending).status, "rejected");
-  });
-  await settle();
-  assert.equal(world.esInstances.length, 1, "the other tab's run is attached");
-  assert.equal(w.latest.agentRunning, true);
+  world.outboxHold = true;
+  await act(async () => { assert.equal((await w.latest.handleSend("mine")).status, "accepted"); });
+  await act(async () => { lastEs().open(); lastEs().emit({ type: "connected" }); await settle(); });
+  assert.equal(w.latest.agentRunning, false);
+  w.unmount();
 });
 
 test("a running lookup is dropped when the session left the running set meanwhile", async () => {

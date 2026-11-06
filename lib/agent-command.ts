@@ -4,7 +4,8 @@ import { sessionSpawnTarget } from "@/lib/hosts/session-index";
 import { RpcCommandError } from "@/lib/omp/rpc-process";
 import { RequestBodyTooLargeError } from "@/lib/bounded-form-data";
 import { modelSwitchRepairBinding, parseSessionStartupBinding } from "@/lib/session-model-check";
-import { attachUploads, forgetUploads, takeUploads } from "@/lib/uploads";
+import { attachUploads, forgetUploads, takeUploads, type OutboxUploadReceipt } from "@/lib/uploads";
+import { runOutboxCommand } from "@/lib/message-outbox";
 
 // Commands that ride whatever child is alive and never spawn or replace one:
 // keystroke predictions, and the side-question reads/cancel omp-web sends in
@@ -66,7 +67,7 @@ function sendFences(): Map<string, Promise<void>> {
  * the browser socket. `owner`: the caller's web session (lib/web-auth.ts
  * `requestOwner`), whose uploads a prompt may attach. Never throws: failures
  * become `commandErrorResponse`. */
-export async function runAgentCommand(id: string, body: unknown, advisor: boolean, owner: string): Promise<Response> {
+export async function runAgentCommand(id: string, body: unknown, advisor: boolean, owner: string, trustedUploads?: OutboxUploadReceipt[]): Promise<Response> {
   let release = () => {}; // frees this command's send fence; idempotent
   try {
     const command = body as { type?: unknown; [key: string]: unknown } | null;
@@ -74,6 +75,8 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
       return Response.json({ error: "command type is required", code: "command_type_required" }, { status: 400 });
     }
     const type = command.type;
+    // Held messages: stored and answered here; the outbox's dispatcher sends them to omp (lib/message-outbox.ts).
+    if (type === "outbox_add" || type === "outbox_remove" || type === "outbox_scope") return await runOutboxCommand(id, command, advisor, owner);
     // Optional spawn-time binding ({ modelOverride } rebinds an unrestorable
     // saved model, { forceModelCheck } skips the pre-flight; a bare set_model
     // carries its own rebind). omp must never see it: it is stripped before
@@ -81,7 +84,7 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
     const startup = parseSessionStartupBinding(command.startup) ?? modelSwitchRepairBinding(command);
     delete command.startup;
     // Attached files go to the session's host first; nothing reaches omp when one fails (spec U3).
-    const uploads = takeUploads(command, owner);
+    const uploads = takeUploads(command, owner, trustedUploads);
     // Hold later wrapper selection as well as dispatch behind attachment preparation, so an
     // advisor toggle cannot replace the child and a Stop cannot overtake the preparing prompt.
     // A moved session answers to several ids: a command through any of them waits.
@@ -101,13 +104,13 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
       return session.withPendingCommand(async () => {
         let sending: Promise<unknown>;
         try {
-          await attachUploads(uploads, owner, session, command);
+          await attachUploads(uploads.ids, owner, session, command, uploads.receipts);
           sending = session.send(command);
         } finally {
           release();
         }
         const result = await sending;
-        if (uploads) forgetUploads(uploads);
+        if (uploads) forgetUploads(uploads.ids, owner, uploads.receipts);
         return result;
       });
     };

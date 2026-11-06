@@ -6,7 +6,8 @@ import { isLinkUp } from "./hosts/host";
 import { HostOpError } from "./hosts/link-protocol";
 import type { WorkspaceFileEvent } from "./workspace-types";
 import { attachNotificationClient } from "./notification-hub";
-import { getExitedRpcSessions, getRpcSession, getRunningRpcSessionIds, getRunningRpcSessionMeta, subscribeHostToolCalls, subscribeRunningSessions } from "./rpc-manager";
+import { getExitedRpcSessions, getRpcSession, getRunningRpcSessionIds, getRunningRpcSessionMeta, getRunningRpcSessions, subscribeHostToolCalls, subscribeRunningSessions, type AgentSessionWrapper } from "./rpc-manager";
+import { onOutboxChange, outboxEntries, outboxSettledIds } from "./message-outbox";
 import { getExternallyActiveIds, heldSessionsWithPendingTurn, subscribeSessionFileChanges } from "./session-watcher";
 import { subscribeChatEventActions } from "./chat-event-action-bus";
 import { subscribeUiRefresh, wasUiUpdated } from "./ui-refresh-bus";
@@ -46,10 +47,8 @@ const SUBSCRIBED: SubscribeResult = { ok: true };
 class Subscription {
   active = true;
   detach: (() => void) | null = null;
-  // Backpressure queue (session channels): while the socket is behind,
-  // `message_update` frames wait here and merge (see queueUpdate) instead of
-  // being written. Every other frame flushes it first, so per-subscription
-  // order is preserved.
+  // Session backpressure queue: message updates merge and consecutive outbox
+  // snapshots replace each other. Other frames flush it first to preserve order.
   pendingUpdates: QueuedUpdate[] = [];
 
   constructor(readonly id: string, readonly coalescesMessageUpdates: boolean) {}
@@ -286,10 +285,18 @@ export class EventStreamConnection {
     return this.write(subscription.id, text, at);
   }
 
-  private flush(subscription: Subscription): boolean {
+  private flush(subscription: Subscription, force = false): boolean {
+    if (!force && this.sink.backpressured()) return true;
     const queued = subscription.pendingUpdates;
     subscription.pendingUpdates = [];
-    for (const { data, at } of queued) if (!this.writeFrame(subscription, data, at)) return false;
+    for (let i = 0; i < queued.length; i++) {
+      if (!force && this.sink.backpressured()) {
+        subscription.pendingUpdates = queued.slice(i);
+        return true;
+      }
+      const { data, at } = queued[i];
+      if (!this.writeFrame(subscription, data, at)) return false;
+    }
     return true;
   }
 
@@ -308,13 +315,13 @@ export class EventStreamConnection {
     if (
       subscription.coalescesMessageUpdates
       && isRecord(data)
-      && data.type === "message_update"
-      && this.sink.backpressured()
+      && (data.type === "outbox_update" || (data.type === "message_update" && this.sink.backpressured()))
     ) {
       queueUpdate(subscription.pendingUpdates, data, Date.now());
+      if (data.type === "outbox_update") this.flush(subscription);
       return;
     }
-    if (this.flush(subscription)) this.writeFrame(subscription, data);
+    if (this.flush(subscription, true)) this.writeFrame(subscription, data);
   }
 }
 
@@ -331,8 +338,21 @@ type QueuedUpdate = { data: Record<string, unknown>; at: number };
  * and break the sequence fence the browser relies on.
  */
 function queueUpdate(queue: QueuedUpdate[], data: Record<string, unknown>, at: number): void {
+  if (data.type === "outbox_update") {
+    const last = queue.at(-1);
+    if (last?.data.type === "outbox_update") {
+      last.data = data;
+      last.at = at;
+    } else {
+      queue.push({ data, at });
+    }
+    return;
+  }
   if (!isDeltaUpdate(data)) {
-    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].data.messageId === data.messageId) queue.splice(i, 1);
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i].data.type === "outbox_update") break;
+      if (queue[i].data.messageId === data.messageId) queue.splice(i, 1);
+    }
     queue.push({ data, at });
     return;
   }
@@ -481,31 +501,58 @@ function openHostsChannel(handle: SubscriptionHandle): SubscribeResult {
   return SUBSCRIBED;
 }
 
-// Agent events of one live omp wrapper.
+// Agent events of one live omp wrapper, and the session's held messages (`outbox_update`, lib/message-outbox.ts).
 function openSessionChannel(sessionId: string, handle: SubscriptionHandle): SubscribeResult {
   // Observer-only: opening a saved session must not create another omp
   // process for a terminal-owned session. Explicit commands use
   // POST /api/agent/[id], which starts the wrapper before this attaches.
   const existing = getRpcSession(sessionId);
-  const session = existing?.isAlive() ? existing : undefined;
-  if (!session) return { ok: false, status: 409, error: "Session is not managed by omp-web", code: "session_not_managed" };
+  let session = existing?.isAlive() ? existing : undefined;
+  // Held messages show before omp runs (a host offline): the channel attaches to the wrapper the dispatcher starts.
+  if (!session && outboxEntries(sessionId).length === 0) {
+    return { ok: false, status: 409, error: "Session is not managed by omp-web", code: "session_not_managed" };
+  }
 
   handle.open();
-  // onEvent can synchronously replay pending UI requests. Subscribe before
-  // announcing readiness so catch-up has no event gap. The local wrapper has
-  // no stream cursor (live catch-up rides the /state reconciliation), so the
-  // connected frame keeps the retired per-session route's exact shape.
-  handle.setDetach(session.onEvent((event) => {
-    handle.send(event);
+  let detachSession = () => {};
+  const attach = (live: AgentSessionWrapper) => {
+    // onEvent can synchronously replay pending UI requests. Subscribe before
+    // sampling the cursor/announcing readiness so catch-up has no event gap.
     // A destroyed wrapper can never emit again: end the subscription so the
     // worker reconnects it (hello/resubscribe re-attaches to a respawned
     // wrapper, or a 409 closes it so the next send cold-starts one). Without
     // this the client keeps an OPEN subscription on the zombie wrapper, the
     // send path trusts `isOpen`, skips the cold get_state, and every frame of
     // the new wrapper emits to zero listeners — the frozen chat after idle.
-    if (event.type === "session_destroyed") handle.end();
-  }));
-  handle.send({ type: "connected", sessionId });
+    detachSession = live.onEvent((event) => {
+      handle.send(event);
+      if (event.type === "session_destroyed" || event.type === "process_exit") handle.end();
+    });
+    handle.send({ type: "connected", sessionId });
+  };
+  if (session) attach(session);
+  const rebind = () => {
+    const existing = getRpcSession(sessionId);
+    const live = existing?.isAlive() ? existing : undefined;
+    if (live !== session) {
+      detachSession();
+      detachSession = () => {};
+      session = live;
+      if (live) attach(live);
+    }
+  };
+  const detachRunning = subscribeRunningSessions(rebind);
+  const detachOutbox = onOutboxChange(sessionId, (entries) => {
+    rebind();
+    handle.send({ type: "outbox_update", entries, settledIds: outboxSettledIds(sessionId) });
+  });
+  rebind();
+  handle.setDetach(() => {
+    detachOutbox();
+    detachRunning();
+    detachSession();
+  });
+  if (handle.active) handle.send({ type: "outbox_update", entries: outboxEntries(sessionId), settledIds: outboxSettledIds(sessionId) });
   return SUBSCRIBED;
 }
 

@@ -2,6 +2,7 @@ import { clearExitedRpcSession, getExitedRpcSession, getRpcSession } from "@/lib
 import { apiErrorResponse, opErrorResponse, resolveSessionHostOr404 } from "@/lib/api-utils";
 import { LOCAL_HOST_ID } from "@/lib/hosts/registry";
 import { isExternallyActive, heldSessionsWithLivePendingTurn, EXTERNAL_ACTIVITY_WINDOW_MS } from "@/lib/session-watcher";
+import { outboxEntries, outboxScope, outboxSettledIds } from "@/lib/message-outbox";
 
 // An external omp goes quiet while the model is thinking or a long tool runs
 // (no session-file writes). Silence alone must not idle the page: a LIVE
@@ -9,11 +10,23 @@ import { isExternallyActive, heldSessionsWithLivePendingTurn, EXTERNAL_ACTIVITY_
 // authority (heldSessionsWithLivePendingTurn), or a visiting tab would show
 // an idle composer with a running tool call in the transcript until the next
 // write. The stale-holder silence cut applies to the sidebar badge only.
+/** Every answer, an offline host's 503 included, carries the session's held messages (`outbox`): a tab opening a
+ * session with no omp running learns from it that there is an outbox to subscribe to. */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const response = await sessionState(id);
+  return Response.json({
+    ...(await response.json() as object),
+    outbox: outboxEntries(id),
+    outboxScope: outboxScope(),
+    outboxSettledIds: outboxSettledIds(id),
+  }, { status: response.status });
+}
+
+async function sessionState(id: string): Promise<Response> {
   try {
     // A live web-owned process is the authority for this session: its own
     // writes to the session file (the just-finished turn) must never make

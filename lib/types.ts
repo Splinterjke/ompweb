@@ -560,3 +560,31 @@ export interface RunningSessionMeta {
   cwd: string;
   prompt?: string;
 }
+
+/** How a held message goes to omp (docs/specs/2026-11-04-message-outbox-design.md O3). */
+export type OutboxMode = "prompt" | "followUp" | "steer";
+
+/** A message omp-web holds for a session until omp has it (the web server's outbox, lib/message-outbox.ts). */
+export interface OutboxEntry {
+  id: string;
+  sessionId: string;
+  mode: OutboxMode;
+  message: string;
+  images?: { type: "image"; data: string; mimeType: string }[];
+  uploads?: string[];
+  state: "held" | "waiting_host" | "delivering" | "failed" | "delivered";
+  error?: string;
+  /** A lost reply: omp may have it; never resent by itself. */
+  mayHaveBeenSent?: boolean;
+  /** Only while delivering: authoritative persisted history captured before dispatch, never retained in tombstones. */
+  previousEntryIds?: string[];
+  createdAt: number;
+}
+
+/** The session channel's outbox snapshot: every entry not yet delivered, in submission order. */
+export interface OutboxUpdateFrame {
+  type: "outbox_update";
+  entries: OutboxEntry[];
+  /** Recent delivered/removed ids: a late first subscription can retire browser copies without seeing their removal. */
+  settledIds: string[];
+}

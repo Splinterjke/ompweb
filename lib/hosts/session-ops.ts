@@ -66,6 +66,11 @@ export interface SessionReadOptions {
 export interface ContextReadOptions extends SessionReadOptions {
   /** Read-only transcript mode: include entries omitted from the active agent context. */
   includePreCompaction: boolean;
+  /** Outbox dispatch boundary (#403): answer `{ entryIds }` — the active
+   * context's entry ids, no messages, no blob hydration. (Upstream serves
+   * this from its paged history index; this fork builds it from the cached
+   * entry list with the cheapest display mode instead.) */
+  boundary?: boolean;
 }
 
 /** `GET /api/sessions/[id]` minus the route's `sessionId` and live `agent`. */
@@ -324,12 +329,22 @@ export const sessionOps: SessionOps = {
     }
   },
 
-  async readContext(id, leafId, { deferThinking, deferMedia: deferToolResultImages, includePreCompaction }) {
+  async readContext(id, leafId, { deferThinking, deferMedia: deferToolResultImages, includePreCompaction, boundary }) {
     const filePath = await resolveSessionPath(id);
     if (!filePath) return sessionNotFound();
     try {
       const header = readSessionHeader(filePath);
       if (header === null) return unreadableSession(filePath);
+      if (boundary) {
+        // #403: the dispatcher's pre-send snapshot — entry ids only.
+        const entries = await getSessionEntriesForDisplayAsync(filePath, { skipToolResultImages: true });
+        const context = buildSessionContext(entries, undefined, {
+          deferThinking: true,
+          deferToolResultImages: true,
+          includePreCompaction: false,
+        });
+        return ok({ entryIds: context.entryIds });
+      }
       // Deduplicated cached read; blob resolution on per-entry deep copies.
       const entries = await getSessionEntriesForDisplayAsync(filePath, { skipToolResultImages: deferToolResultImages });
       const context = buildSessionContext(entries, leafId, {

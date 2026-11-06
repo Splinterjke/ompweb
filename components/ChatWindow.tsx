@@ -11,7 +11,7 @@ import { translate, useI18n } from "@/lib/i18n";
 import { planTurnSegments, isGroupAnchor, type ActivityPiece, type PlanOptions, type TranscriptSegment } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
 import { isReplyBlock } from "@/lib/message-display";
-import { MessageView } from "./MessageView";
+import { HeldMessageView, MessageView } from "./MessageView";
 import { ToolExpansionProvider } from "./tool-expansion";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
 import { resolveForkTargets } from "@/lib/chat-fork";
@@ -788,6 +788,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
     sessionIdRef, messagesEndRef, scrollContainerRef, holdScrollPosition,
     handleSend, handleAbort, handleFork, handleEdit, handleModelChange, retrySession, scrollToBottom,
     handleSteer, handleFollowUp, handlePromptWithStreamingBehavior, handleAbortCompaction, handleCompact,
+    heldMessages, deleteHeldMessage,
     toolPreset, handleToolPresetChange,
     removeQueuedMessage, promoteQueuedToSteer,
     handleBuiltinSlashCommand, togglePreCompactionHistory,
@@ -1595,7 +1596,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
     return <SessionLoading label={t("chatWindow.loadingSession")} />;
   }
 
-  if (error) {
+  // A load failure may still leave a conversation to show: held outbox
+  // messages (their bubbles must survive an outage that fails the transcript
+  // read) and an offline host (the banner + retry below own that case).
+  if (error && heldMessages.length === 0 && !(currentHostStatus && !isLinkUp(currentHostStatus))) {
     return (
       <WorkspaceState
         kind="error"
@@ -1710,6 +1714,14 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
             <div style={{ maxWidth: CHAT_COLUMN_MAX_WIDTH, margin: "0 auto" }}>
               <ExtensionStatusBar statuses={extensionStatuses} />
               <ExtensionWidgets widgets={aboveEditorWidgets} />
+              {error && (
+                <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", color: "var(--status-error)" }}>
+                  <span>{error}</span>
+                  <button type="button" className="load-retry-button" onClick={retrySession} style={{ flexShrink: 0, padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius-control)", background: "var(--bg-panel)", color: "var(--text)", cursor: "pointer" }}>
+                    {t("chatWindow.retry")}
+                  </button>
+                </div>
+              )}
 
             {hasCompaction && (
               <div
@@ -1854,6 +1866,11 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
                 sessionId={session?.id ?? sessionIdRef.current ?? undefined}
               />
             )}
+
+            {/* After the live turn, in submission order: what omp does not have yet. */}
+            {heldMessages.map((held) => (
+              <HeldMessageView key={held.id} held={held} hostLabel={hostLabel} timeFormat={messageTimeFormat} onDelete={deleteHeldMessage} />
+            ))}
 
             <div ref={messagesEndRef} />
             </div>
