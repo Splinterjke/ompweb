@@ -1903,6 +1903,18 @@ stored `omp-web:submit-during-run` choice overrides it.
   project rows are cards matching the session items' height/margins/accent
   treatment, and the active project's worktree selector renders directly
   below its row.
+- **OMP launch configuration** (`ProjectLaunchConfig` in `lib/types.ts`,
+  `components/ProjectLaunchConfigDialog.tsx`): a registered project may carry
+  `{ profile, advisor, extraArgs[] }` — the omp launch profile, the `--advisor`
+  flag and extra CLI arguments — stored on the registry record and applied when
+  a session spawns in that workspace. Set it two ways: the Add-workspace
+  `DirectoryPicker` exposes the three controls inline (its `onSelect` carries the
+  config to `POST /api/projects`), or the project row's menu
+  (`sessionSidebar.editLaunchConfig` / `configureLaunchConfig`) opens the dialog,
+  which prefills the stored shape and saves `null` for an empty form to clear it.
+  Both write paths run through `handleUpdateProjectPresentation` /
+  `commitAddProject`; `PATCH /api/projects` forwards `launchConfig` alongside the
+  alias/presentation keys.
 
 ### Clone a repository as a new workspace (`/api/projects/clone`)
 - The Add-workspace `DirectoryPicker` takes an optional Git URL; "Clone here"
