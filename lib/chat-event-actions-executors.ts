@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 import { getAgentDir } from "./omp/paths";
 import { repairedChildPath } from "./omp/omp-cli";
-import { triggerManualRun } from "./scheduler-engine";
+import { scriptInvocation, triggerManualRun } from "./scheduler-engine";
 import { recordActionRun } from "./chat-event-action-store";
 import { broadcastChatActionRun, broadcastChatEventAction } from "./chat-event-action-bus";
 import type { ActionSpec, ChatActionRun, ChatEventAction } from "./chat-event-action-types";
@@ -214,8 +214,11 @@ function executeBash(action: ChatEventAction, payload: ChatEventPayload): void {
   };
 
   if (spec.scriptPath) {
-    const shell = /\.(sh|bash|zsh)$/i.test(path.basename(spec.scriptPath)) ? "bash" : "exec";
-    spawnChild(shell === "bash" ? "bash" : spec.scriptPath, shell === "bash" ? [spec.scriptPath] : [], path.dirname(spec.scriptPath));
+    // Same interpreter resolution as script schedulers: a chat action pointed at the
+    // same file as an automation task must run it the same way (and a `.ps1` cannot be
+    // spawned as a process image at all).
+    const invocation = scriptInvocation(spec.scriptPath, []);
+    spawnChild(invocation.file, invocation.args, path.dirname(spec.scriptPath));
   } else if (spec.scriptText) {
     // Inline text: write to a temp file under the agent dir, run via bash,
     // delete after. (bash -c would work too, but the file path keeps the

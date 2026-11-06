@@ -98,3 +98,8 @@ vendor/ompweb-host/
 # graphify: track only the graph; each clone rebuilds the rest
 graphify-out/*
 !graphify-out/graph.json
+
+# machine-specific Windows runner settings (copy ompweb.local.example.ps1)
+ompweb.local.ps1
+# the local CA that ompweb.local.ps1 points NODE_EXTRA_CA_CERTS at
+ca.cer

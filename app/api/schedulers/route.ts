@@ -23,8 +23,9 @@ export async function GET() {
 // body (script): { name?, script, args?, schedule, enabled?, timeoutMs? }
 // body (prompt): { name, kind: "prompt", prompt, provider?, modelId?,
 //                  thinkingLevel?, noSession?, clearContext?, compactContext?, schedule, enabled?, timeoutMs? }
-// Script entries validate the script path (exists + regular file; .sh via
-// bash, others must be executable). Prompt entries validate the prompt text
+// Script entries validate the script path (exists + regular file; the bit check
+// applies only to paths spawned as their own image — see `scriptRunner` for what
+// gets an interpreter instead). Prompt entries validate the prompt text
 // (non-empty) and the clear/compact mutual exclusion. 400 on any validation
 // failure with a stable `code`.
 export async function POST(req: Request) {

@@ -1,11 +1,38 @@
 import crypto from "crypto";
 import fs from "fs";
-import * as pty from "node-pty";
-import type { IPty } from "node-pty";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import type { IPty, spawn as ptySpawn } from "node-pty";
 import { resolveTerminalShell } from "./terminal-shell";
 import { proxyEnv } from "./proxy-config";
 import { getAllowedFileRoots } from "./file-access";
 import { createChildProcessEnvironment } from "./project-command-env";
+
+/**
+ * Lazy node-pty loading. A static namespace import would break the compiled
+ * `ompweb` binary (scripts/build-binary.ts): the bundler inlines node-pty's
+ * JS loader into the virtual `$bunfs` module, where its dynamic
+ * `require("./prebuilds/…/pty.node")` cannot reach the real filesystem. The
+ * real package — with its platform prebuild on disk — is loaded on first
+ * spawn instead: from node_modules next to the executable for the standalone
+ * binary (build-binary.ts ships it there), and from this module's real file
+ * path for repo/npm installs and the jiti-loaded daemon.
+ */
+let nodePtyModule: { spawn: typeof ptySpawn } | null = null;
+function loadNodePty(): { spawn: typeof ptySpawn } {
+  if (nodePtyModule) return nodePtyModule;
+  // Bun exposes isStandaloneExecutable on its global; the module also runs under Node (the jiti-loaded daemon), where Bun is undefined.
+  const bunRuntime: { isStandaloneExecutable?: boolean } | undefined = (globalThis as { Bun?: { isStandaloneExecutable?: boolean } }).Bun;
+  // The compiled binary resolves neither bare specifiers nor package directories from the real filesystem — require
+  // the package entry file beside the executable (its relative requires and prebuild dlopen run on the real fs).
+  // Outside the binary, resolve from this module's own path so the repo/npm node_modules is found.
+  if (bunRuntime?.isStandaloneExecutable === true) {
+    nodePtyModule = createRequire(process.execPath)(join(dirname(process.execPath), "node_modules", "node-pty", "lib", "index.js")) as { spawn: typeof ptySpawn };
+  } else {
+    nodePtyModule = createRequire(import.meta.url)("node-pty") as { spawn: typeof ptySpawn };
+  }
+  return nodePtyModule;
+}
 
 /** Process surface of one terminal session. */
 export interface TerminalProcessLike {
@@ -67,7 +94,7 @@ function toPtyEnv(env: NodeJS.ProcessEnv): { [key: string]: string } {
 function spawnShellPty(cwd: string, env: NodeJS.ProcessEnv): IPty {
   const { shell, args } = resolveTerminalShell(process.platform, env);
 
-  return pty.spawn(shell, args, {
+  return loadNodePty().spawn(shell, args, {
     name: "xterm-256color",
     cols: DEFAULT_COLS,
     rows: DEFAULT_ROWS,

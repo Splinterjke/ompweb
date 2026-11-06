@@ -303,25 +303,50 @@ export function deleteSchedulerEntry(id: string): SchedulerFile {
   return { version: 1, schedulers };
 }
 
-/** Default seed: the repo's rebuild script as a manual-launch scheduler.
+/** Default seed: the repo's rebuild workflow as a manual-launch scheduler.
  * Seeded once at boot (instrumentation) so "Script schedulers" ships with the
  * rebuild workflow instead of requiring a hand entry. Manual launch: no
  * schedule slots, the user triggers runs from the UI. Resolves from the
  * server cwd (dev repo root / the /opt/ompweb install — the deploy mirror
- * ships the script at the install root too). Skips when the script is missing
- * (e.g. a packaged install without it) or an entry is already present. */
+ * ships the script at the install root too). Skips when the workflow script is
+ * missing (e.g. a packaged install without it) or an entry is already present.
+ *
+ * `platform` is a parameter only so the seed is testable off-Windows; production calls
+ * take the default. */
 const REBUILD_SEED_NAME = "OmpWeb Rebuild & Restart";
 const LEGACY_REBUILD_SEED_NAME = "Rebuild & restart";
 
-export function ensureSeedSchedulers(now = new Date()): string | null {
+/** The rebuild workflow for this machine, or null when it has no runnable script.
+ * The container flow runs the shell script from the install root. On Windows that
+ * script cannot run (it needs `python3`, `setsid` and a `/proc` tree walk), so the seed
+ * points at the same workflow through `ompweb.ps1 rebuild` and the engine resolves the
+ * interpreter itself (see `scriptInvocation`) — the entry then names the script the user
+ * can see, edit and delete, which is also what the create/PATCH existence check looks at.
+ * The run's cwd is `dirname(script)`, i.e. the checkout, which is what the script wants. */
+export function rebuildSeedSpec(
+  cwd = process.cwd(),
+  platform = process.platform,
+): { script: string; args: string[] } | null {
+  if (platform === "win32") {
+    const runner = path.join(cwd, "ompweb.ps1");
+    return existsSync(runner) ? { script: runner, args: ["rebuild"] } : null;
+  }
+  const script = path.join(cwd, "ompweb-rebuild-restart.sh");
+  return existsSync(script) ? { script, args: [] } : null;
+}
+
+export function ensureSeedSchedulers(
+  now = new Date(),
+  platform = process.platform,
+): string | null {
   const file = loadSchedulerFile();
-  const script = path.join(process.cwd(), "ompweb-rebuild-restart.sh");
-  if (!existsSync(script)) return null;
+  const spec = rebuildSeedSpec(process.cwd(), platform);
+  if (!spec) return null;
   // A pre-existing entry may carry the original display name (renamed in
   // the UI or seeded before the name change). Reclaim it so the seed stays
   // unique instead of adding a second rebuild entry.
   const legacyIdx = file.schedulers.findIndex(
-    (e) => e.script === script && e.name === LEGACY_REBUILD_SEED_NAME,
+    (e) => e.script === spec.script && e.name === LEGACY_REBUILD_SEED_NAME,
   );
   if (legacyIdx >= 0) {
     const schedulers = [...file.schedulers];
@@ -337,10 +362,14 @@ export function ensureSeedSchedulers(now = new Date()): string | null {
     }
     return null;
   }
-  if (file.schedulers.some((e) => e.name === REBUILD_SEED_NAME && e.script === script)) return null;
+  // Any entry under the seed name counts: pointing the entry at another script by
+  // hand (the Windows runner, a wrapper) must not make the next boot add a second
+  // "OmpWeb Rebuild & Restart" next to it -- the entry the user sees is what matters.
+  if (file.schedulers.some((e) => e.name === REBUILD_SEED_NAME)) return null;
   const { entry } = createSchedulerEntry({
     name: REBUILD_SEED_NAME,
-    script,
+    script: spec.script,
+    args: spec.args,
     schedule: { kind: "manual" },
     enabled: true,
     // A full npm build comfortably exceeds the default 10 minutes.
@@ -428,17 +457,40 @@ function nextRunIso(spec: ScheduleSpec, from: Date): string | null {
 
 /* ─────────────────────────── script validation ─────────────────────────── */
 
+export type ScriptRunner = "bash" | "powershell" | "cmd" | "exec";
+
+/** How a stored script path gets launched, decided from the extension alone:
+ *  - `*.sh|bash|zsh` → bash. A spawned file is never run through its shebang, and on
+ *    Windows a `*.sh` has no process image at all.
+ *  - on Windows, `*.ps1` → PowerShell and `*.cmd|bat` → cmd. These are not process images
+ *    either, so the interpreter has to be named for them; doing it here keeps the stored
+ *    entry the script the user typed (visible, editable, and what the existence check sees)
+ *    instead of a `powershell.exe -File …` command line.
+ *  - anything else, on any platform → the image the user named.
+ *
+ * `platform` is a parameter only so the rule is testable off-Windows. */
+export function scriptRunner(script: string, platform: NodeJS.Platform = process.platform): ScriptRunner {
+  const base = path.basename(script);
+  if (/\.(sh|bash|zsh)$/i.test(base)) return "bash";
+  if (platform === "win32") {
+    if (/\.ps1$/i.test(base)) return "powershell";
+    if (/\.(cmd|bat)$/i.test(base)) return "cmd";
+  }
+  return "exec";
+}
+
 export interface ScriptValidation {
   ok: boolean;
   path: string;
-  shell: "bash" | "exec";
+  shell: ScriptRunner;
   error?: string;
 }
 
 /** Expand `~` and validate a user-supplied script path: it must exist and be
- *  a regular file. `.sh`/`.bash`/`.zsh` run via bash; anything else is
- *  exec'd directly and therefore must carry the executable bit. */
-export function validateScriptPath(raw: string): ScriptValidation {
+ *  a regular file. Only a path that is spawned as its own process image needs
+ *  the executable bit; a script the engine hands to an interpreter (see
+ *  `scriptRunner`) cannot carry one and must not be asked for it. */
+export function validateScriptPath(raw: string, platform: NodeJS.Platform = process.platform): ScriptValidation {
   const trimmed = (raw ?? "").trim();
   if (!trimmed) return { ok: false, path: "", shell: "exec", error: "script_required" };
   const expanded = trimmed.startsWith("~/")
@@ -456,7 +508,7 @@ export function validateScriptPath(raw: string): ScriptValidation {
   if (!stat.isFile()) {
     return { ok: false, path: abs, shell: "exec", error: "script_not_found" };
   }
-  const shell: "bash" | "exec" = /\.(sh|bash|zsh)$/i.test(path.basename(abs)) ? "bash" : "exec";
+  const shell = scriptRunner(abs, platform);
   if (shell === "exec") {
     try {
       accessSync(abs, constants.X_OK);

@@ -261,7 +261,7 @@ export function routePattern(key: string): { pattern: string; rest: { name: stri
   // no optional wildcard, so both map to `*` (the bare prefix without a
   // trailing segment reaches `*` only as `/…/` — no client in this app calls
   // it that way; every skill-hub call carries a subpath).
-  const wildcard = (segment: string) => segment.match(/^\[+\.\.\.(\w+)\]$/) ?? null;
+  const wildcard = (segment: string) => segment.match(/^\[+\.\.\.(\w+)\]+$/) ?? null;
   const restAt = segments.findIndex((segment) => wildcard(segment) !== null);
   const pattern = `/api/${segments.map((segment) => (wildcard(segment) ? "*" : segment.replace(/^\[(\w+)\]$/, ":$1"))).join("/")}`;
   // pathname.split("/") is ["", "api", ...segments].

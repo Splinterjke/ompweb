@@ -45,8 +45,10 @@ export type HttpActionSpec = {
 
 export type BashActionSpec = {
   type: "bash";
-  /** Reuses the scheduler's path validation (exists + regular file; .sh via
-   * bash, else must be executable). Wins over scriptText when both are set. */
+  /** Reuses the scheduler's path validation (exists + regular file; the
+   * executable bit only for files the engine spawns itself) and the scheduler's
+   * interpreter resolution, so the same file runs identically here and as an
+   * automation task. Wins over scriptText when both are set. */
   scriptPath?: string;
   /** Inline script text, run via bash from a temp file. */
   scriptText?: string;

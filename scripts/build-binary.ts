@@ -2,7 +2,7 @@
 // release/ompweb-<os>-<arch>/ompweb (ompweb.exe for Windows) next to the files it serves and hands to omp and the
 // licenses of what it redistributes, then archives that directory as release/ompweb-<os>-<arch>.tar.gz (.zip for
 // Windows). Default target: this machine.
-import { cpSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { bundledPackageDirs, writeLicenses } from "./licenses";
@@ -50,6 +50,16 @@ for (const file of ["dist", "public", "LICENSE", "lib/omp/session-edit-extension
 for (const file of new Bun.Glob("app/fonts/*-{OFL.txt,LICENSE.*}").scanSync(root)) copy(path.join(root, file), file);
 const katex = path.dirname(Bun.resolveSync("katex/package.json", root));
 for (const file of ["package.json", "LICENSE", "dist/katex.min.css", "dist/fonts"]) copy(path.join(katex, file), `node_modules/katex/${file}`);
+// node-pty ships as a real package beside the exe: its native pty.node / conpty.node cannot be dlopened from the
+// virtual $bunfs bundle, so lib/terminal-session-manager.ts lazily createRequires it from the executable's directory
+// on first spawn. Only this target's prebuild is kept. (Copy then prune, not cpSync's filter: Bun's filter argument
+// form dropped package files here.)
+const ptyPlatform = (target.includes("windows") ? "win32" : target.includes("darwin") ? "darwin" : "linux") + "-" + (target.includes("arm64") ? "arm64" : "x64");
+copy(path.join(root, "node_modules/node-pty"), "node_modules/node-pty");
+const ptyPrebuilds = path.join(out, "node_modules/node-pty/prebuilds");
+for (const dir of readdirSync(ptyPrebuilds, { withFileTypes: true })) {
+  if (dir.isDirectory() && dir.name !== ptyPlatform) rmSync(path.join(ptyPrebuilds, dir.name), { recursive: true, force: true });
+}
 const clientPackages = (JSON.parse(readFileSync(clientPackagesFile, "utf8")) as string[]).map((dir) => path.resolve(root, dir));
 writeLicenses(out, [...new Set([...bundledPackageDirs(result.metafile!, process.cwd()), ...clientPackages])].sort(), bunLicense);
 

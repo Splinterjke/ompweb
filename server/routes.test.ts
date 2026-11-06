@@ -24,6 +24,14 @@ test("routePattern maps dynamic and catch-all segments onto Bun's router", () =>
     pattern: "/api/sessions/:id/entries/:entryId/thinking",
     rest: null,
   });
+  // Next's optional catch-all `[[...x]]` must fold into the same wildcard; a leftover
+  // literal segment matches nothing and the whole route 404s behind the gate.
+  assert.deepEqual(routePattern("skill-hub/[[...slug]]"), { pattern: "/api/skill-hub/*", rest: { name: "slug", index: 3 } });
+  const skillHub = new URLPattern({ pathname: routePattern("skill-hub/[[...slug]]").pattern });
+  assert.deepEqual(skillHub.exec({ pathname: "/api/skill-hub/catalog" })?.pathname.groups, { "0": "catalog" });
+  assert.deepEqual(skillHub.exec({ pathname: "/api/skill-hub/groups/main/skills" })?.pathname.groups, { "0": "groups/main/skills" });
+  // A dynamic segment that is not a catch-all keeps its name.
+  assert.deepEqual(routePattern("files/[id]/[...rest]"), { pattern: "/api/files/:id/*", rest: { name: "rest", index: 4 } });
 });
 
 test("dispatch answers missing methods, OPTIONS and HEAD as Next did, and passes the params", async () => {

@@ -698,6 +698,49 @@ The table is static imports, not a runtime glob, so `bun build --compile` (`scri
 - **Local daemon banner** (`components/LocalDaemonBanner.tsx`). In production, when the local row stays offline with `hostVersion === null` (no daemon has linked since this server started) for 90 s of a page view (well past the daemon's redial wait, at most 3 s on loopback, so a restarting daemon does not trip it), it shows the foreground `ompweb host` command to keep the daemon running in another terminal (Settings → Hosts shows it, and the copyable `npx @kahme247/ompweb@latest host` form, for an offline local row). Dismissal is kept in `localStorage`. Main never installs services or starts the daemon itself.
 - **No direct local path.** `local-host.ts` is the daemon's; `lib/hosts/no-direct-local.test.mjs` fails when anything outside its allow-list spawns omp or imports it. The utility omp (`rpc-utility.ts`, login) is the one deliberate exception: it is not a session.
 
+#### Windows source-run deploy (`ompweb.ps1`)
+- **One entry point.** `ompweb.ps1 start|stop|restart|rebuild|status|logs` (verbs are positional,
+  only `-All` and `-DryRun` exist). `start` is idempotent: a role already supervised is left
+  alone, so double-clicking the launcher twice cannot produce two servers fighting for the port
+  or a second daemon. A double-click launcher is a two-line `.cmd` that calls `ompweb.ps1 start`.
+- **The checkout is the install dir.** `node bin\omp-web.js` (`bin/bun-runtime.js` resolves
+  `node_modules\bun\bin\bun.exe`) runs `server/main.ts` against `dist/`, so a deploy is
+  `rebuild` -- build the client bundle, record what must be served, stop the instance; the
+  supervisor relaunches it from the same checkout (~4 s of downtime, ~1 s incremental build).
+- **The supervisor is the reaper.** `ompweb.ps1 supervise server|host` (what `start` launches)
+  keeps its process running, 3 s between restarts -- the job `entrypoint.sh`'s loops do in the
+  container. Because it is the *parent*, `taskkill /T /F` on the instance never reaches it, so no
+  detached watchdog is needed (`Win32_Process.Create` would be the Windows analogue of `setsid`,
+  but it needs elevation). The supervisors' command lines carry the `supervise` verb, which is
+  what keeps them out of every kill list.
+- **Post-restart verification lives in the server supervisor.** `rebuild` writes the fresh entry
+  chunk to `<agent dir>\ompweb-rebuild\pending-asset.txt`; after the respawn the supervisor polls
+  `/login` (gate-exempt, serves the same `index.html`) and logs `OK:`/`FAILED:` -- the marker is
+  single-use, so an unrelated restart never re-verifies an old build. Logs: `run-server.log`,
+  `run-host.log`, `rebuild.log`; `status` prints who runs what and which bundle is served.
+- **A server bounce leaves the daemon alone** (the daemon redials, omp children survive); only
+  `-All` stops it, because that ends every agent session it owns. Stopping is scoped to the
+  process listening on the port plus its launcher/Bun-child pair, so a second ompweb on the
+  machine is never touched; `rebuild -DryRun` prints the targets and builds nothing.
+- **Machine settings live in `ompweb.local.ps1`** (git-ignored; see `ompweb.local.example.ps1`):
+  port, bind, `OMP_WEB_PASSWORD_HASH`, `OMP_WEB_ALLOWED_HOSTS`, `NODE_EXTRA_CA_CERTS`, and
+  prepending `C:\Program Files\Git\bin` so an explicitly invoked `bash` is Git bash rather than
+  the `System32` WSL launcher.
+- **Windows PowerShell 5.1 reads these files as ANSI**, so keep them ASCII-only. Other 5.1 traps
+  paid for here: `$MyInvocation.MyCommand.Path` is empty during parameter binding (use
+  `$PSScriptRoot`), `Start-Process -PassThru` yields `.Id` not `.ProcessId`, `$pid` is read-only,
+  `Start-Process -ArgumentList` must not wrap to the next line, and `taskkill`'s localized output
+  is console-codepage text -- discard it and log `$LASTEXITCODE`.
+- The container flow (`entrypoint.sh` + `ompweb-rebuild-restart.sh`) is unchanged and does not run
+  on Windows: it needs `python3`, `setsid`, a `/proc` tree walk and an `/opt/ompweb` deploy target.
+- **And not a bash runner either** (tried and retired): under Git bash a child's `$!` is an
+  MSYS job id, not its Win32 pid, `ps` lists only the current session, `wmic` (the only
+  bash-reachable pid+command-line source) is deprecated, `tasklist`/`wmic` speak UTF-16,
+  `netstat`/`taskkill` output is localized, `mawk` has no `\b`, and MSYS rewrites `/PID` into
+  `C:/Program Files/Git/PID` in a child shell but not the parent one. `Get-CimInstance
+  Win32_Process` answers the same question natively, which is what the supervisors' kill lists
+  are built from.
+
 ### Session moves (omp >= 18.5 ownership) and title generation
 - Only the first omp process to write a session file owns it; a non-owner moves
   to a sibling file with a new id on its first write and emits a
@@ -1690,9 +1733,13 @@ stored `omp-web:submit-during-run` choice overrides it.
   tabs: **Scheduled scripts** (terminal icon) and **Scheduled prompts** (chat icon).
   Entries share one store, `~/.omp/agent/schedulers.json`, and are distinguished by
   `kind: "script" | "prompt"` (absent = script, backward compatible).
-- **Script entries** (unchanged behavior): `{ name, kind, script, args[], schedule,
-  enabled, timeoutMs }` — runs the script via bash (`.sh/.bash/.zsh`) or directly
-  (executable bit required).
+- **Script entries**: `{ name, kind, script, args[], schedule, enabled, timeoutMs }` —
+  `scriptRunner()` (`scheduler-store.ts`) decides how the path is launched: `*.sh|.bash|.zsh`
+  run through bash; on Windows `*.ps1` runs through `powershell.exe -NoProfile -ExecutionPolicy
+  Bypass -File` and `*.cmd|.bat` through `cmd.exe /d /c`; anything else is spawned as the image
+  the user named. The engine builds that argv in `scriptInvocation()` from the same rule, and
+  only the last group needs the executable bit — a Windows script file has no such bit, so
+  asking for one would reject the seeded `ompweb.ps1`.
 - **Prompt entries**: `{ name, kind: "prompt", prompt, provider?, modelId?,
   thinkingLevel?, cwd?, noSession?, clearContext?, compactContext?, schedule,
   enabled, timeoutMs }`. `name` is REQUIRED for prompts (store + API reject an
@@ -1732,14 +1779,22 @@ stored `omp-web:submit-during-run` choice overrides it.
   sessions with `automation: <name>` and `SessionItem` renders a clock icon with a
   "Created by automation task …" tooltip. The run log links the session id
   (panel `onOpenSession` → opens the session in the chat).
-- **Default seed** (`ensureSeedSchedulers`, `instrumentation.ts`): the repo's
-  `ompweb-rebuild-restart.sh` is added at boot as a **Manual launch** scheduler
-  (`schedule: { kind: "manual" }`, 20 min timeout) if not already present —
-  idempotent and best-effort (a packaged install without the script is a no-op).
+- **Default seed** (`ensureSeedSchedulers`, `instrumentation.ts`): the repo's rebuild workflow is
+  added at boot as a **Manual launch** scheduler (`schedule: { kind: "manual" }`, 20 min timeout)
+  if not already present — idempotent and best-effort (an install without the workflow script is a
+  no-op). `rebuildSeedSpec(cwd, platform)` picks it per platform: the container flow
+  runs `<cwd>/ompweb-rebuild-restart.sh`; on Windows that script cannot run (`python3`, `setsid`,
+  `/proc`), so the seed stores `<cwd>\ompweb.ps1` with `args: ["rebuild"]` and the engine supplies
+  the interpreter at run time (`scriptRunner`/`scriptInvocation`) — the entry then names the very
+  script the user sees, edits and deletes, and that path is what the create/PATCH existence check
+  looks at. Skipped when **any** entry already carries the seed name:
+  repointing the entry by hand must not make the next boot add a second "OmpWeb Rebuild & Restart".
+  A run of the rebuild task is a self-bounce — the child dies with the server it stops, so its run
+  record is not persisted; `run-server.log`'s `OK:` line is the proof it worked.
   triggers them via `POST /api/schedulers/[id]/run` (the panel's run button).
   `ensureSeedSchedulers` resolves the script from `process.cwd()` (the dev repo
-  root or the `/opt/ompweb` install root), matching the engine's
-  `spawn` cwd (`path.dirname(script)`).
+  root or the `/opt/ompweb` install root), while the engine spawns with cwd
+  `path.dirname(script)` — so a seeded script must not depend on the caller's cwd.
 - **API** (JSON; 400 with a stable `code` on validation failure — `instructions_required`,
   `context_mode_conflict`, `script_required`, `invalid_schedule`, `invalid_cwd`,
   `name_required`, …):

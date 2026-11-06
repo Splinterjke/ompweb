@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { spawn, type ChildProcess } from "child_process";
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import path from "path";
 import {
@@ -8,6 +8,7 @@ import {
   OUTPUT_TAIL_MAX,
   recordRun,
   saveSchedulerFile,
+  scriptRunner,
   setNextRunAt,
   setSchedulerSessionId,
   type RunRecord,
@@ -285,11 +286,9 @@ function startRun(entry: SchedulerEntry, opts: StartOptions): void {
       cap = PROMPT_OUTPUT_TAIL_MAX;
       child = spawn(bin, promptSpawnArgs(entry), spawnOptions(cwd));
     } else {
-      const shell = /\.(sh|bash|zsh)$/i.test(path.basename(entry.script!)) ? "bash" : "exec";
+      const invocation = scriptInvocation(entry.script!, entry.args);
       cwd = path.dirname(entry.script!);
-      child = shell === "bash"
-        ? spawn("bash", [entry.script!, ...entry.args], spawnOptions(cwd))
-        : spawn(entry.script!, entry.args, spawnOptions(cwd));
+      child = spawn(invocation.file, invocation.args, spawnOptions(cwd));
     }
   } catch (err) {
     persistRun(entry.id, spawnErrorRun(entry.id, opts, err));
@@ -362,6 +361,51 @@ function startRun(entry: SchedulerEntry, opts: StartOptions): void {
       }
     }
   });
+}
+
+/** What a script entry really spawns.
+ *
+ * A shell script can be spawned as a process image (the kernel reads its shebang), so
+ * `*.sh|bash|zsh` go through bash — needed on Windows too, where a `*.sh` has no image at all.
+ * Windows script files are the opposite: `*.ps1|cmd|bat` are not process images either, so
+ * spawning the path directly fails and the entry would have to name the interpreter itself
+ * (`powershell.exe -File …`), which makes the UI's *script* field a lie and hides the real
+ * target from the "does this script exist" check. Hence the interpreter is resolved here:
+ * PowerShell gets the same flags a scheduled task would (`-NoProfile` for speed, `-ExecutionPolicy
+ * Bypass` because the default policy blocks unsigned local scripts), `cmd.exe` gets `/d` so an
+ * AutoRun hook cannot rewrite the command. Anything else (or any of these on another platform)
+ * is spawned as given.
+ *
+ * The entry's `args` reach the interpreter's own parser, so quoting is the interpreter's business:
+ * `cmd.exe` re-parses its command line, which is why the script path is passed as one argument
+ * before the entry's own arguments.
+ *
+ * `platform`/`systemRoot` are parameters only so this is testable off-Windows. */
+export function scriptInvocation(
+  script: string,
+  args: string[],
+  platform: NodeJS.Platform = process.platform,
+  systemRoot = process.env.SystemRoot,
+): { file: string; args: string[] } {
+  const runner = scriptRunner(script, platform);
+  if (runner === "bash") return { file: "bash", args: [script, ...args] };
+  if (platform === "win32") {
+    // Prefer the absolute System32 path (a GUI-launched server can carry a minimal PATH);
+    // fall back to the bare name when SystemRoot is not a real Windows root -- spawning a
+    // relative path under System32 could never work.
+    const system32 = (relative: string, fallback: string) => {
+      const absolute = path.join(systemRoot || "C:\\Windows", "System32", relative);
+      return existsSync(absolute) ? absolute : fallback;
+    };
+    if (runner === "powershell") {
+      return {
+        file: system32("WindowsPowerShell/v1.0/powershell.exe", "powershell.exe"),
+        args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, ...args],
+      };
+    }
+    if (runner === "cmd") return { file: system32("cmd.exe", "cmd.exe"), args: ["/d", "/c", script, ...args] };
+  }
+  return { file: script, args };
 }
 
 function spawnOptions(cwd: string) {

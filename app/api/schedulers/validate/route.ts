@@ -7,8 +7,9 @@ const MAX_REQUEST_BYTES = 4_096;
 // body: { script }
 // → { ok: true, path, shell } | 400 { ok: false, error }
 // The modal checks the typed script path against the server filesystem
-// (exists + regular file; .sh via bash, others need the executable bit) so
-// the error surfaces before the user saves.
+// (exists + regular file; the executable bit only where the engine spawns the
+// file itself, not where it hands it to an interpreter) so the error surfaces
+// before the user saves. The `shell` answer is that same decision.
 export async function POST(req: Request) {
   try {
     const body = await parseJsonWithinLimit<{ script?: unknown }>(req, MAX_REQUEST_BYTES);
