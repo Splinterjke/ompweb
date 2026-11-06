@@ -1689,7 +1689,10 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       ) : (
       <>
       {hostBanner}
-      <div className="relative flex flex-1 overflow-hidden">
+      {/* clip, not just hidden: scrollIntoView (scroll to bottom, search jumps) also
+          scrolls a hidden-overflow box, which shifted the transcript up and left a blank
+          band above the composer. The class stays as the fallback where clip is unknown. */}
+      <div className="relative flex flex-1 overflow-hidden" style={{ overflow: "clip" }}>
         <div
           style={{
             position: "absolute",
@@ -1697,6 +1700,9 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
             left: 0,
             right: 0,
             zIndex: 40,
+            // Scrolls inside the clipped area, so a focused dismiss button below a short chat area stays reachable.
+            maxHeight: "calc(100% - 12px)",
+            overflowY: "auto",
             padding: chatColumnPadding,
             pointerEvents: "none",
           }}
