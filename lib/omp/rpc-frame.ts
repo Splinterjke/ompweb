@@ -16,6 +16,27 @@ export const MAX_RPC_REASSEMBLED_BYTES = 64 * 1024 * 1024;
  * silently truncates or strands a command mid-line.
  */
 export const MAX_IPC_FRAME_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Physical JSONL record for one command on OMP's stdin.
+ *
+ * Always a single unchunked line, however large: `maxFrameBytes` bounds omp's
+ * OUTBOUND physical frames, not the host's commands (issue #105). Base64
+ * attachment payloads routinely exceed 1 MiB and used to be split into
+ * `rpc_chunk` records that OMP rejected. The shared-daemon channel writer
+ * (lib/hosts/daemon-channels.ts) uses this directly; the bound is the same
+ * `MAX_IPC_FRAME_BYTES` every other stdin writer preflights against, so no
+ * path can strand a command mid-line.
+ */
+export function encodeRpcCommand(frame: RpcFrameRecord): string {
+  const json = JSON.stringify(frame);
+  const byteLength = Buffer.byteLength(json, "utf8") + 1;
+  if (byteLength > MAX_IPC_FRAME_BYTES) {
+    throw new Error(`RPC command exceeds the ${MAX_IPC_FRAME_BYTES}-byte inbound transport limit`);
+  }
+  return `${json}\n`;
+}
+
 const RPC_CHUNK_PAYLOAD_BYTES = 256 * 1024;
 
 export type RpcProtocolVersion = 1 | 2;

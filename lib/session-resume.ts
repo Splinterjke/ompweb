@@ -2,21 +2,12 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, wri
 import { uptime } from "os";
 import { resolve } from "path";
 import { isLinkUp } from "./hosts/host";
-import { adoptedChild, getHost, onHostHello } from "./hosts/hub";
+import { adoptedChild, getHost, hostOwnsLifecycle, onHostHello } from "./hosts/hub";
 import { getAgentDir } from "./omp/paths";
 import { isValidSessionId } from "./session-file-references-core";
 import { isRecord } from "./type-guards";
 import { loadWebServerSettings } from "./web-settings";
 
-// Kept from the local restoreActiveRpcSessions wording (side-effect aware)
-// rather than upstream's generic "continue as you would have" prompt: after a
-// restart the model may have already run side effects before the crash, so it
-// must verify state instead of blindly repeating work.
-export const RESUME_PROMPT = [
-  "The omp-web server restarted while your previous turn was active.",
-  "Continue the same task from the persisted session context. Do not repeat completed side effects.",
-  "If an operation may have completed before the restart, verify its current state before acting.",
-].join(" ");
 
 /** How long a session whose omp process died stays recorded. A stop signal
  * reaches every process in the service at once, so a child can die just
@@ -180,7 +171,7 @@ export function recordRunningSessions(running: InterruptibleSession[], isAlive: 
   }
   let changed = false;
   const runningIds = new Set<string>();
-  for (const session of running) {
+  for (const session of running.filter((entry) => !hostOwnsLifecycle(entry.hostId))) {
     runningIds.add(session.id);
     const drop = state.drops.get(session.id);
     if (drop) {
@@ -195,7 +186,7 @@ export function recordRunningSessions(running: InterruptibleSession[], isAlive: 
   }
   for (const id of state.sessions.keys()) {
     if (runningIds.has(id)) continue;
-    if (isAlive(id)) {
+    if (hostOwnsLifecycle(state.sessions.get(id)!.hostId) || isAlive(id)) {
       state.sessions.delete(id);
       changed = true;
     } else if (!state.drops.has(id)) {
@@ -224,7 +215,7 @@ export function takeInterruptedSessions(): InterruptibleSession[] {
   const state = tracker();
   const sessions = state.leftover;
   state.leftover = [];
-  return loadWebServerSettings().autoResumeSessions ? sessions : [];
+  return loadWebServerSettings().autoResumeSessions ? sessions.filter((entry) => !hostOwnsLifecycle(entry.hostId)) : [];
 }
 
 /**
@@ -236,7 +227,10 @@ export function takeInterruptedSessions(): InterruptibleSession[] {
  */
 export function resumeOnHostLink(entries: InterruptibleSession[], resume: (entry: InterruptibleSession) => Promise<void>): void {
   // An unhandled rejection stops the server (instrumentation.node.ts).
-  const start = (entry: InterruptibleSession) => void adoptedChild(entry.hostId, entry.id).then((adopted) => adopted ? undefined : resume(entry)).catch(() => {});
+  const start = (entry: InterruptibleSession) => {
+    if (hostOwnsLifecycle(entry.hostId)) return;
+    void adoptedChild(entry.hostId, entry.id).then((adopted) => adopted ? undefined : resume(entry)).catch(() => {});
+  };
   const waiting = new Map<string, InterruptibleSession[]>();
   for (const entry of entries) {
     const status = getHost(entry.hostId)?.status();

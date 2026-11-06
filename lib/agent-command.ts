@@ -126,7 +126,8 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
       type === "goal" ? (command.op === "get" ? "goal_get" : undefined) : Object.hasOwn(NO_SPAWN_REPLIES, type) ? type : undefined;
     const liveOnly = LIVE_SESSION_ONLY.has(type);
     if (existing?.isAlive()) {
-      if (noSpawnKey || liveOnly || existing.advisorSpawned === advisor || existing.isRunning() || existing.isEditingHistory()) {
+      if (noSpawnKey || liveOnly || (existing.adopted && !existing.hostOwnedLifecycle)
+        || existing.advisorSpawned === (advisor === true || existing.launchAdvisor === true) || existing.isRunning() || existing.isEditingHistory()) {
         const result = await send(existing);
         return Response.json({ success: true, data: result });
       }
@@ -135,7 +136,7 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
       if (offline) return offline;
       resumeId = existing.sessionId;
       resumeHost = existing.host;
-      await existing.destroyAndWait();
+      if (!existing.hostOwnedLifecycle) await existing.destroyAndWait("advisor", true);
     }
     if (noSpawnKey) return Response.json({ success: true, data: NO_SPAWN_REPLIES[noSpawnKey] });
     if (liveOnly) {
@@ -160,32 +161,34 @@ export async function runAgentCommand(id: string, body: unknown, advisor: boolea
     // so the spawn is already bound and omp skips that restore check. Live
     // children never reach this path (they take the fast path above), and any
     // other command keeps the previous spawn behavior.
-    const { session } = await startRpcSession(id, target.sessionFile, target.cwd, undefined, advisor, target.recordedCwd, startup, host);
-    if (startup?.modelOverride && type === "set_model") {
-      // Try the normal RPC first: when it succeeds it also records the new
-      // model in the session, so later spawns restore it without an override.
-      // But in omp 18.12.6 set_model can fail spuriously with "Model not
-      // found" for a catalog model whose provider has no credentials
-      // configured, even though the spawn already bound it. In that case the
-      // switch itself succeeded — verify from live state and report success
-      // rather than a false failure. A mismatch (e.g. an omp without --model
-      // precedence) rethrows the RPC error, so a real failure still surfaces.
-      try {
-        const result = await session.send(command);
-        return Response.json({ success: true, data: result });
-      } catch (error) {
-        const state = (await session.send({ type: "get_state" })) as {
-          model?: { id?: unknown; provider?: unknown };
-        } | null;
-        if (state?.model?.provider === command.provider && state?.model?.id === command.modelId) {
-          return Response.json({ success: true, data: { id: command.modelId, provider: command.provider } });
+    const { session } = await startRpcSession(id, target.sessionFile, target.cwd, undefined, advisor, target.recordedCwd, startup, host, true);
+    // This command inherits the open's preparation lease, so the shared child cannot idle out before it is sent.
+    return await session.withPendingCommand(async () => {
+      if (startup?.modelOverride && type === "set_model") {
+        // Try the normal RPC first: when it succeeds it also records the new
+        // model in the session, so later spawns restore it without an override.
+        // But in omp 18.12.6 set_model can fail spuriously with "Model not
+        // found" for a catalog model whose provider has no credentials
+        // configured, even though the spawn already bound it. In that case the
+        // switch itself succeeded — verify from live state and report success
+        // rather than a false failure. A mismatch (e.g. an omp without --model
+        // precedence) rethrows the RPC error, so a real failure still surfaces.
+        try {
+          const result = await session.send(command);
+          return Response.json({ success: true, data: result });
+        } catch (error) {
+          const state = (await session.send({ type: "get_state" })) as {
+            model?: { id?: unknown; provider?: unknown };
+          } | null;
+          if (state?.model?.provider === command.provider && state?.model?.id === command.modelId) {
+            return Response.json({ success: true, data: { id: command.modelId, provider: command.provider } });
+          }
+          throw error;
         }
-        throw error;
       }
-    }
-    const result = await send(session);
-
-    return Response.json({ success: true, data: result });
+      const result = await send(session);
+      return Response.json({ success: true, data: result });
+    }, true);
   } catch (error) {
     return commandErrorResponse(error);
   } finally {
