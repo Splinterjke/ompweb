@@ -936,9 +936,16 @@ function validResult(op: keyof SessionOps, result: unknown, args: unknown[]): bo
       return isRecord(value) && typeof value.html === "string" && typeof value.fileName === "string";
     case "readSession":
       return isRecord(value) && isRecord(value.info) && isRecord(value.context);
-    case "readContext":
-      // The fork has no boundary/sync history modes — always the full context.
+    case "readContext": {
+      // Two modes: the full context page, and the outbox dispatcher's pre-send
+      // boundary snapshot (#403), which answers entry ids only. Validate the
+      // shape the caller asked for — a boundary read has no `context`.
+      const options = args[2];
+      if (isRecord(options) && options.boundary === true) {
+        return isRecord(value) && Array.isArray(value.entryIds) && value.entryIds.every((id) => typeof id === "string");
+      }
       return isRecord(value) && isRecord(value.context);
+    }
     case "archiveSession":
       return isRecord(value) && typeof value.archivedPath === "string";
     // The route reads `projects` and iterates `newRoots`.
