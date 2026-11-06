@@ -1982,10 +1982,14 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     const trackSend = (queued: Promise<boolean>, text: string) => {
       const pending = { key: recoveryIdentity.key };
       inflightSendRecoveries.add(pending);
+      const settle = () => inflightSendRecoveries.delete(pending);
+      // The hook turns its own failures into `false`, so a rejection here is a
+      // contract break: drop the registry entry and stay quiet (the send path
+      // that broke owns its error surface), rather than leak it forever.
       void Promise.resolve(queued).then((ok) => {
-        inflightSendRecoveries.delete(pending);
+        settle();
         if (ok === false && pending.key) recoverDraft(pending.key, { text, ...kept });
-      });
+      }, settle);
     };
     onAudioUnlock?.();
     const streamingBehavior = mode === "steer" ? "steer" : "followUp";
