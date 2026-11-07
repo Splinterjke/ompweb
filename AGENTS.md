@@ -1757,6 +1757,18 @@ stored `omp-web:submit-during-run` choice overrides it.
   name row, both on a second line under the name, or neither shown (hidden
   workspaces are not polled, and the worktree dropdown loses its inline
   trigger).
+- **Workspace GitGraph button** ("Interface & Behavior" → Workspace GitGraph
+  button): `workspaceGitGraphButton` (`"auto" | "always" | "hidden"`, default
+  `"auto"`, AppShell → `SessionSidebar` → `ProjectRow`) drives the row's
+  GitGraph button. `ProjectRow` asks `hooks/useGitWorkspace.ts` — the same
+  probe as the top-bar button — so an ANSWER drives the button: `true` shows it,
+  `false` hides it, and a probe that could not be read (host offline, folder not
+  authorized, folder gone) keeps the button `aria-disabled` with the
+  `appShell.githubStatusUnavailable` tooltip instead of hiding it, which is what
+  made the icon look permanently "missing" on a workspace whose host was down.
+  `always` shows it for every workspace regardless of the probe and `hidden`
+  removes the button AND the probe (the hook gets a null cwd, so no
+  `/api/git/status` per row).
 - Subagent chips carry live state (pulsing dot while `started`, check/alert/ban
   for terminal states) fed by the same `subagent_lifecycle`/`subagent_progress`
   SSE frames; clicking a chip opens the transcript dialog. Non-running

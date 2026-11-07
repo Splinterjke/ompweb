@@ -30,7 +30,7 @@ import {
   updateNotificationPrefs,
   type NotificationSupport,
 } from "@/lib/notification-client";
-import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
+import type { GitStatsPlacement, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement, WorkspaceGitGraphButton } from "./AppShell";
 
 import { BROWSER_TRANSPORTS, type BrowserTransport } from "@/lib/event-stream-protocol";
 import { setConnectionDiagnosticsEnabled, useConnectionDiagnosticsEnabled } from "@/lib/connection-diagnostics-prefs";
@@ -318,6 +318,7 @@ const SETTING_INDEX: SettingIndexEntry[] = [
   // Interface & Behavior — Sidebar & Panels
   { id: "swap-side-panels", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.swapSidePanels", descKey: "settingsConfig.swapSidePanelsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Swap side panels", fallbackDesc: "Move the session sidebar to the right and the file panel to the left, including their toggle buttons.", scope: "UI" },
   { id: "session-git-stats", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.sessionGitStats", descKey: "settingsConfig.sessionGitStatsDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Workspace git stats", fallbackDesc: "Placement of git change counts in each workspace header in the sidebar. Hidden workspaces are not polled.", scope: "UI" },
+  { id: "workspace-git-graph-button", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.workspaceGitGraphButton", descKey: "settingsConfig.workspaceGitGraphButtonDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Workspace GitGraph button", fallbackDesc: "The GitGraph button on each workspace row in the sidebar. \"For git workspaces\" shows it while the host reports the folder is a Git repository — a folder whose host cannot be read keeps the button greyed out and names the reason. \"Always\" shows it for every workspace; \"Hidden\" removes the button and stops probing git status for the rows.", scope: "UI" },
   { id: "recent-runs-limit", tab: "general", sectionKey: "settingsConfig.sectionSidebarPanels", labelKey: "settingsConfig.recentRunsLimit", descKey: "settingsConfig.recentRunsLimitDesc", fallbackSection: "Sidebar & Panels", fallbackLabel: "Recent Runs Filter Limit", fallbackDesc: "Maximum number of recently completed sessions retained and displayed when filtering the sidebar", scope: "UI" },
   { id: "global-animations", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.globalAnimations", descKey: "settingsConfig.globalAnimationsDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Global Animations", fallbackDesc: "Enable or disable all UI animations across the application.", scope: "UI" },
   { id: "chat-border-beam", tab: "general", sectionKey: "settingsConfig.interfaceBehavior", labelKey: "settingsConfig.chatBorderBeam", descKey: "settingsConfig.chatBorderBeamDesc", fallbackSection: "Interface & Behavior", fallbackLabel: "Chat Border Flow", fallbackDesc: "Clockwise luminous beam on input border during active conversation.", scope: "UI" },
@@ -1018,7 +1019,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, workspaceGitGraphButton = "auto", onWorkspaceGitGraphButtonChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -1045,6 +1046,10 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
    *  (Interface & Behavior): inline, second line, or hidden. */
   gitStatsPlacement?: GitStatsPlacement;
   onGitStatsPlacementChange?: (placement: GitStatsPlacement) => void;
+  /** The GitGraph button on a sidebar workspace row (Interface & Behavior):
+   *  probe-driven (default), always shown, or hidden. */
+  workspaceGitGraphButton?: WorkspaceGitGraphButton;
+  onWorkspaceGitGraphButtonChange?: (mode: WorkspaceGitGraphButton) => void;
   contextRingMobile?: ContextRingMobilePlacement;
   onContextRingMobileChange?: (placement: ContextRingMobilePlacement) => void;
   /** Composer hub bar stacking: vertical column or horizontal row. */
@@ -1674,6 +1679,17 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                       <option value="inline" style={nativeOptionStyle}>{t("settingsConfig.gitStatsInline")}</option>
                       <option value="second" style={nativeOptionStyle}>{t("settingsConfig.gitStatsSecondLine")}</option>
                       <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.gitStatsHidden")}</option>
+                    </select>
+                  </NativeSetting>
+                  <NativeSetting searchId="workspace-git-graph-button" label={t("settingsConfig.workspaceGitGraphButton")} description={t("settingsConfig.workspaceGitGraphButtonDesc")} scope="UI">
+                    <select
+                      style={nativeSelectStyle}
+                      value={workspaceGitGraphButton}
+                      onChange={(event) => onWorkspaceGitGraphButtonChange?.(event.target.value as WorkspaceGitGraphButton)}
+                    >
+                      <option value="auto" style={nativeOptionStyle}>{t("settingsConfig.workspaceGitGraphAuto")}</option>
+                      <option value="always" style={nativeOptionStyle}>{t("settingsConfig.workspaceGitGraphAlways")}</option>
+                      <option value="hidden" style={nativeOptionStyle}>{t("settingsConfig.workspaceGitGraphHidden")}</option>
                     </select>
                   </NativeSetting>
                   <NativeSetting searchId="recent-runs-limit" label={t("settingsConfig.recentRunsLimit")} description={t("settingsConfig.recentRunsLimitDesc")} scope="UI">

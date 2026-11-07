@@ -4,7 +4,8 @@ import { memo, useEffect, useId, useLayoutEffect, useState, useCallback, useRef,
 import { createPortal } from "react-dom";
 import { Popover } from "@base-ui/react/popover";
 import type { AgentMessage, ExitedRpcSession, ManagedProject, ProjectLaunchConfig, RunningSessionMeta, SessionInfo } from "@/lib/types";
-import type { GitStatsPlacement } from "./AppShell";
+import type { GitStatsPlacement, WorkspaceGitGraphButton } from "./AppShell";
+import { useGitWorkspace } from "@/hooks/useGitWorkspace";
 import { formatExitedSessionNotice, useI18n } from "@/lib/i18n";
 import { formatApiError } from "@/lib/i18n/api-error";
 import { DirectoryPicker } from "./DirectoryPicker";
@@ -142,6 +143,11 @@ interface Props {
    *  & Behavior setting): inline (same row), second (line below the name),
    *  or hidden. */
   gitStatsPlacement?: GitStatsPlacement;
+  /** The GitGraph button on a workspace row (Interface & Behavior setting):
+   *  "auto" shows it while the host answers that the folder is a Git
+   *  repository, "always" shows it regardless of the probe, "hidden" removes
+   *  the button and its probe. */
+  workspaceGitGraphButton?: WorkspaceGitGraphButton;
   /** Closes the mobile sidebar drawer when the brand button is tapped. */
   onBrandClick?: () => void;
   /** Mobile full-screen drawer only: shows a top-left close control. */
@@ -757,7 +763,7 @@ function OmpWebTitle({ onMobileClick }: { onMobileClick?: () => void }) {
     </span>
   );
 }
-export function SessionSidebar({ selectedSessionId, optimisticSession, optimisticRename, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, selectedHostId: selectedHostIdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, addProjectHostId = LOCAL_HOST_ID, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", onClose, onSearchQueryChange, onOpenSearchMatch }: Props) {
+export function SessionSidebar({ selectedSessionId, optimisticSession, optimisticRename, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, selectedHostId: selectedHostIdProp, onCwdChange, onWorkspaceOptionsChange, onWorktreeContextChange, addProjectOpen, addProjectHostId = LOCAL_HOST_ID, setAddProjectOpen, onOpenFile, explorerRefreshKey, onExplorerRefresh, explorerRefreshing, onExplorerRefreshDone, onAtMention, onAtMentions, onOpenSettings, onOpenRemote, onOpenArchive, navigation, onServerRestarted, onUiUpdated, onChatEventAction, onOpenGitGraph, updateAvailable, settingsOpen, onBrandClick, gitStatsPlacement = "inline", workspaceGitGraphButton = "auto", onClose, onSearchQueryChange, onOpenSearchMatch }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2857,6 +2863,7 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
                   onOpenGitGraph={onOpenGitGraph}
                   gitStats={gitStatsByPath}
                   gitStatsPlacement={gitStatsPlacement}
+                  workspaceGitGraphButton={workspaceGitGraphButton}
                 />
               );
             });
@@ -3270,6 +3277,7 @@ interface ProjectRowProps {
   gitStats?: Record<string, CwdGitStats> | null;
   /** Placement of the git stats chip: inline, second line, or hidden. */
   gitStatsPlacement: GitStatsPlacement;
+  workspaceGitGraphButton: WorkspaceGitGraphButton;
 }
 
 /** One project in the sidebar: a card row matching the session items' visual
@@ -3317,6 +3325,7 @@ function ProjectRow({
   onOpenGitGraph,
   gitStats,
   gitStatsPlacement,
+  workspaceGitGraphButton,
 }: ProjectRowProps) {
   const { t, tn } = useI18n();
   const [hovered, setHovered] = useState(false);
@@ -3346,22 +3355,13 @@ function ProjectRow({
   const [aliasValue, setAliasValue] = useState("");
   const aliasInputRef = useRef<HTMLInputElement>(null);
   const aliasCancelRef = useRef(false);
-  // Whether this workspace is a Git repository. `null` = not probed yet.
-  // Probed lazily per row so the GitGraph button only shows for real repos.
-  const [isGitWorkspace, setIsGitWorkspace] = useState<boolean | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/git/status?cwd=${encodeURIComponent(project.path)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled) return;
-        setIsGitWorkspace(data ? Boolean(data.isGitRepository) : false);
-      })
-      .catch(() => {
-        if (!cancelled) setIsGitWorkspace(false);
-      });
-    return () => { cancelled = true; };
-  }, [project.path]);
+  // Whether this workspace is a Git repository, probed through the owning host
+  // so the GitGraph button follows the truth. A FAILED probe is not an answer
+  // about git — since the workspace operations moved to the host daemon, an
+  // offline host, a folder it has not authorized and a deleted folder all come
+  // back as errors, and treating those as "not a repository" is what made the
+  // button vanish with no explanation. "hidden" skips the probe with the button.
+  const gitWorkspace = useGitWorkspace(workspaceGitGraphButton === "hidden" ? null : project.path);
   const startAliasEdit = useCallback(() => {
     setAliasValue(project.alias ?? "");
     setAliasEditing(true);
@@ -3682,21 +3682,29 @@ function ProjectRow({
           )}
         </div>
         <div style={{ flex: 1 }} />
-        {/* Open GitGraph for this workspace (matches the top-panel GitGraph button).
-            Hidden once the workspace is confirmed not to be a Git repo. */}
-        {isGitWorkspace !== false && (
-        <Tooltip content={t("appShell.githubStatus")}>
-          <button
-            type="button"
-            className="sidebar-project-action"
-            onClick={() => onOpenGitGraph?.(project.path)}
-            aria-label={t("appShell.githubStatus")}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-dim)", cursor: "pointer", lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
-          >
-            <GitBranch size={13} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </Tooltip>
-        )}
+        {/* Open GitGraph for this workspace (matches the top-panel GitGraph
+            button). "auto" hides it only when the host ANSWERS that the folder
+            is not a Git repository; a probe that could not be answered leaves
+            the button in place, disabled and naming the reason, because an
+            offline host or an unauthorized folder is not a statement about Git.
+            The Interface & Behavior setting can also pin it on or remove it. */}
+        {workspaceGitGraphButton !== "hidden" && (workspaceGitGraphButton === "always" || gitWorkspace.isRepository === true || gitWorkspace.unavailable) && (() => {
+          const blocked = workspaceGitGraphButton === "auto" && gitWorkspace.unavailable;
+          return (
+            <Tooltip content={blocked ? t("appShell.githubStatusUnavailable") : t("appShell.githubStatus")}>
+              <button
+                type="button"
+                className="sidebar-project-action"
+                onClick={blocked ? undefined : () => onOpenGitGraph?.(project.path)}
+                aria-label={t("appShell.githubStatus")}
+                aria-disabled={blocked || undefined}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: "none", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--text-dim)", cursor: blocked ? "default" : "pointer", opacity: blocked ? 0.5 : 1, lineHeight: 0, transition: SIDEBAR_BUTTON_TRANSITION }}
+              >
+                <GitBranch size={13} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          );
+        })()}
         {/* Start a new session in this project (replaces Quick scripts). */}
         <Tooltip content={t("sessionSidebar.newSessionIn", { cwd: project.path })}>
           <button

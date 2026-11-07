@@ -104,6 +104,7 @@ const PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY = "omp-web:process-details-auto-ex
 const MESSAGE_TIME_FORMAT_STORAGE_KEY = "omp-web:message-time-format";
 const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
 const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
+const WORKSPACE_GIT_GRAPH_STORAGE_KEY = "omp-web:workspace-git-graph-button";
 const HUB_BAR_LAYOUT_STORAGE_KEY = "omp-web:hub-bar-layout";
 const LIVE_STATUS_PLACEMENT_STORAGE_KEY = "omp-web:live-status-placement";
 const HUB_BARS_VISIBLE_STORAGE_KEY = "omp-web:hub-bars-visible";
@@ -111,6 +112,9 @@ const COMPOSER_ACCENT_BG_STORAGE_KEY = "omp-web:composer-accent-bg";
 const CONTEXT_RING_MOBILE_STORAGE_KEY = "omp-web:context-ring-mobile";
 export type MessageTimeFormat = "24h" | "ampm";
 export type GitStatsPlacement = "inline" | "second" | "hidden";
+/** The GitGraph button on a sidebar workspace row: shown for folders that answer
+ *  they are a Git repository (default), shown for every workspace, or never. */
+export type WorkspaceGitGraphButton = "auto" | "always" | "hidden";
 export type HubBarLayout = "stack" | "row";
 export type LiveStatusPlacement = "bar" | "inline";
 export type ComposerAccentBg = "off" | "dimmed" | "themed";
@@ -325,6 +329,20 @@ export function AppShell({ appName }: { appName: string }) {
       return window.localStorage.getItem("omp-web:session-git-stats") === "false" ? "hidden" : "inline";
     } catch {
       return "inline";
+    }
+  });
+  // The GitGraph button on a sidebar workspace row (Interface & Behavior
+  // select). "auto" is the historical behavior — the row probes the folder
+  // through the owning host and shows the button while that answer says Git —
+  // "always" ignores the answer (a folder whose host is offline keeps its
+  // button) and "hidden" drops the button and the probe entirely.
+  const [workspaceGitGraphButton, setWorkspaceGitGraphButton] = useState<WorkspaceGitGraphButton>(() => {
+    if (typeof window === "undefined") return "auto";
+    try {
+      const raw = window.localStorage.getItem(WORKSPACE_GIT_GRAPH_STORAGE_KEY);
+      return raw === "always" || raw === "hidden" ? raw : "auto";
+    } catch {
+      return "auto";
     }
   });
   // Context info ring placement on phone screen sizes (Interface & Behavior
@@ -619,6 +637,14 @@ export function AppShell({ appName }: { appName: string }) {
     setGitStatsPlacement(placement);
     try {
       window.localStorage.setItem(GIT_STATS_PLACEMENT_STORAGE_KEY, placement);
+    } catch {
+      // The preference still applies for this page load.
+    }
+  }, []);
+  const handleWorkspaceGitGraphButtonChange = useCallback((mode: WorkspaceGitGraphButton) => {
+    setWorkspaceGitGraphButton(mode);
+    try {
+      window.localStorage.setItem(WORKSPACE_GIT_GRAPH_STORAGE_KEY, mode);
     } catch {
       // The preference still applies for this page load.
     }
@@ -2163,6 +2189,7 @@ export function AppShell({ appName }: { appName: string }) {
         updateAvailable={appUpdateAvailable}
         settingsOpen={settingsTab !== null}
         gitStatsPlacement={gitStatsPlacement}
+        workspaceGitGraphButton={workspaceGitGraphButton}
         onBrandClick={() => setSidebarOpen(false)}
         onClose={isMobile ? handleSidebarToggle : undefined}
         onSearchQueryChange={handleSearchQueryChange}
@@ -3370,6 +3397,8 @@ export function AppShell({ appName }: { appName: string }) {
         onPanelsSwappedChange={handlePanelsSwappedChange}
         gitStatsPlacement={gitStatsPlacement}
         onGitStatsPlacementChange={handleGitStatsPlacementChange}
+        workspaceGitGraphButton={workspaceGitGraphButton}
+        onWorkspaceGitGraphButtonChange={handleWorkspaceGitGraphButtonChange}
         contextRingMobile={contextRingMobile}
         onContextRingMobileChange={handleContextRingMobileChange}
         hubBarLayout={hubBarLayout}
