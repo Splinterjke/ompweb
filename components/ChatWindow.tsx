@@ -80,9 +80,9 @@ interface Props {
   hideThinkingBlock?: boolean;
   /** Show the copy/fork/edit buttons under messages (Interface & Behavior switch). */
   messageActionsVisible?: boolean;
-  /** Auto-expand all turns' process details instead of keeping them collapsed
-   *  (Interface & Behavior select). */
-  processDetailsAutoExpand?: boolean;
+  /** Show every tool call's full input without the "Show full input" press
+   *  (Interface & Behavior switch, off by default). */
+  toolInputExpanded?: boolean;
   /** Timestamp format for message times (Interface & Behavior switch). */
   messageTimeFormat?: MessageTimeFormat;
   onAgentEnd?: () => void;
@@ -341,7 +341,7 @@ interface CommittedTranscriptProps {
   /** UI pref: tool call rows stay out of Process details. */
   showToolCallsUnfolded: boolean;
   messageActionsVisible?: boolean;
-  processDetailsAutoExpand?: boolean;
+  toolInputExpanded?: boolean;
   messageTimeFormat?: MessageTimeFormat;
   /** Message-group index (doc 14 T2.1): O(n) pass, no JSX. */
   groups: ChatGroup[];
@@ -362,7 +362,7 @@ interface CommittedTranscriptProps {
 const CommittedTranscript = memo(function CommittedTranscript({
   messages, entryIds, conversationMeta, messageRefs, isStreaming, sessionBusy, isCompacting, isNew, forkingEntryId, editingEntryId,
   handleFork, handleEdit, modelNames, messageCwd, onOpenFile, onOpenSubagent, sessionId,
-  toolCallsDefaultCollapsed, hideToolActivity = true, showToolCallsUnfolded = false, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
+  toolCallsDefaultCollapsed, hideToolActivity = true, showToolCallsUnfolded = false, thinkingDisplayMode, thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, toolInputExpanded = false, messageTimeFormat = "24h", groups, layout, window: win, onLayoutChanged,
 }: CommittedTranscriptProps) {
   const { toolResultsMap, lastAnchorIdx, visibleRefIndexByMessage } = conversationMeta;
   // The user's expand/collapse choice per process-details group, keyed by the
@@ -428,6 +428,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
         prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
         sessionId={sessionId}
         toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+        toolInputExpanded={toolInputExpanded}
         thinkingDisplayMode={thinkingDisplayMode}
         thinkingAutoFollow={thinkingAutoFollow}
         hideThinking={hideThinkingBlock}
@@ -666,7 +667,7 @@ const CommittedTranscript = memo(function CommittedTranscript({
           <ProcessDetailsGroup
             messageCount={segment.stepCount}
             toolCallCount={segment.toolCallCount}
-            expanded={processExpanded[foldKey] ?? processDetailsAutoExpand}
+            expanded={processExpanded[foldKey] === true}
             onToggle={(next) => handleProcessToggle(foldKey, next)}
           >
             {renderActivityPieces(messages, segment.pieces, renderMessage, plan.activityOverrides.get(segmentIdx))}
@@ -718,7 +719,7 @@ const JUMP_TO_BOTTOM_THRESHOLD_PX = 80;
 // the bottom (matches the hook's FOLLOW_BOTTOM_TOLERANCE_PX follow rule);
 // a reader parked further above the bottom keeps their place.
 const BOTTOM_FOLLOW_TOLERANCE_PX = 24;
-export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, processDetailsAutoExpand = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile: onOpenWorkspaceFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
+export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatus: channelHostStatus, hostLabel, newSessionWorkspace, toolCallsDefaultCollapsed = true, hideToolActivity = true, neverFoldActivity = false, showToolCallsUnfolded = false, showGoalTokenBudget = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinkingBlock = false, messageActionsVisible = true, toolInputExpanded = false, messageTimeFormat = "24h", onAgentEnd, onSessionCreated, onSessionForked, onSessionMoved, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemPromptLoaderChange, onSessionStatsChange, onBusyChange, sessionInfoButtonVisible, sessionInfoContainer, contextRingMobile, showJumpToBottomButton = true, hubBarLayout = "stack", hubBarsVisible = { git: true, tasks: true, subagents: true }, liveStatusPlacement = "bar", composerAccentBg = "off", onOpenGitTab, onOpenFile: onOpenWorkspaceFile, onOpenUrl, onSelectSubagent, onOpenPlan, onSubagentsChange, searchQuery = "", searchTarget = null, onSearchTargetHandled }: Props) {
   const { t, tn } = useI18n();
   const fileSource = useMemo<WorkspaceFileSource>(() => ({
     hostId: session?.hostId ?? newSessionHostId ?? "local",
@@ -1794,7 +1795,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
               showToolCallsUnfolded={showToolCallsUnfolded}
               hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
-              processDetailsAutoExpand={processDetailsAutoExpand}
+              toolInputExpanded={toolInputExpanded}
               messageTimeFormat={messageTimeFormat}
               groups={groups}
               layout={layout}
@@ -1809,6 +1810,7 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
                 cwd={messageCwd}
                 onOpenFile={onOpenFile}
                 toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+                toolInputExpanded={toolInputExpanded}
                 toolResults={toolResultsWithLive}
                 thinkingDisplayMode={thinkingDisplayMode}
                 thinkingAutoFollow={thinkingAutoFollow}

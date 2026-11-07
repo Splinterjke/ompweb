@@ -1040,10 +1040,19 @@ wait for that commit:
   a reload never shows a stale snapshot.
 - `ToolCallBlock` renders a `partial` result as **running** (spinner, and
   "Running tool…" instead of the "(no output)" marker when nothing has been
-  printed yet), and opens the row while it runs when the "Keep tool calls
-  collapsed" setting is off — that is what that setting means. `AppShell` must
-  pass `toolCallsDefaultCollapsed` into `ChatWindow`; without it the setting is
-  inert (the chat then always collapses).
+  printed yet), and with the "Keep tool calls collapsed" setting off EVERY row
+  opens — the running one and every finished one, not just the active row; that
+  is what that setting means (a `read`/`grep` row on a skill path stays
+  collapsed, or a first prompt's skill body floods the transcript). `AppShell`
+  must pass `toolCallsDefaultCollapsed` into `ChatWindow`; without it the setting
+  is inert (the chat then always collapses).
+- "Show full tool input" (`omp-web:tool-input-expanded`, default off) drives
+  `ToolCallBlock`'s `defaultInputExpanded` through
+  `ChatWindow → MessageView → AssistantMessageView → BlockView`; the row starts
+  open instead of asking for a "Show full input" press. A preference change
+  re-applies the default to mounted rows (an effect on the prop), and the row's
+  own toggle still wins until the next change — both memo comparators
+  (`MessageView`, `ToolCallBlock`) compare the prop, so it actually arrives.
 - Two more UI switches shape the fold, both planned in
   `planTurnSegments` (`lib/chat-segments.ts`): `showThinking`
   (driven by the Thinking Blocks mode "expanded") and `showToolCalls` ("Show

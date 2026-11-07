@@ -139,6 +139,8 @@ interface Props {
   prevTimestamp?: number;
   sessionId?: string;
   toolCallsDefaultCollapsed?: boolean;
+  /** Show the full tool input without the "Show full input" press. */
+  toolInputExpanded?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   /** Follow the bottom of a streaming thinking block (Interface & Behavior). */
   thinkingAutoFollow?: boolean;
@@ -292,12 +294,12 @@ export function isInterruptedMessage(errorMessage?: string | null, stopReason?: 
   );
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSubagent, entryId, forkEntryId, forkEditsPrompt, onFork, forking, forkDisabled, onEdit, editing, editDisabled, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSubagent, entryId, forkEntryId, forkEditsPrompt, onFork, forking, forkDisabled, onEdit, editing, editDisabled, showTimestamp, prevTimestamp, sessionId, toolCallsDefaultCollapsed = true, toolInputExpanded = false, thinkingDisplayMode = "auto", thinkingAutoFollow = true, hideThinking = false, sourceBlockIndices, settled = false, liveTokensPerSecond, messageActionsVisible = true, timeFormat = "24h" }: Props) {
   if (message.role === "user") {
     return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} forkDisabled={forkDisabled} onEdit={onEdit} editing={editing} editDisabled={editDisabled} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "assistant") {
-    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} forkEditsPrompt={forkEditsPrompt} onFork={onFork} forking={forking} forkDisabled={forkDisabled} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} hideThinking={hideThinking} sourceBlockIndices={sourceBlockIndices} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
+    return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} forkEntryId={forkEntryId} forkEditsPrompt={forkEditsPrompt} onFork={onFork} forking={forking} forkDisabled={forkDisabled} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} toolInputExpanded={toolInputExpanded} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} hideThinking={hideThinking} sourceBlockIndices={sourceBlockIndices} settled={settled} liveTokensPerSecond={liveTokensPerSecond} messageActionsVisible={messageActionsVisible} timeFormat={timeFormat} />;
   }
   if (message.role === "toolResult") {
     // Rendered inline under its toolCall — skip standalone rendering if paired
@@ -348,6 +350,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.prevTimestamp === next.prevTimestamp
     && prev.sessionId === next.sessionId
     && prev.toolCallsDefaultCollapsed === next.toolCallsDefaultCollapsed
+    && prev.toolInputExpanded === next.toolInputExpanded
     && prev.thinkingDisplayMode === next.thinkingDisplayMode
     && prev.thinkingAutoFollow === next.thinkingAutoFollow
     && prev.hideThinking === next.hideThinking
@@ -626,6 +629,7 @@ function AssistantMessageView({
   forking,
   forkDisabled,
   toolCallsDefaultCollapsed,
+  toolInputExpanded = false,
   thinkingDisplayMode = "auto",
   thinkingAutoFollow = true,
   hideThinking,
@@ -652,6 +656,7 @@ function AssistantMessageView({
   forking?: boolean;
   forkDisabled?: boolean;
   toolCallsDefaultCollapsed: boolean;
+  toolInputExpanded?: boolean;
   thinkingDisplayMode?: "auto" | "collapsed" | "expanded";
   thinkingAutoFollow?: boolean;
   hideThinking: boolean;
@@ -927,7 +932,7 @@ function AssistantMessageView({
             state (the "thinking flash" bug). */}
         {blockItems.map(({ block, originalIndex }, index) => (
           <Fragment key={`${originalIndex}`}>
-            <BlockView block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} />
+            <BlockView block={block} toolResults={toolResults} isStreaming={isStreaming} streamingDuration={streamingDurations.get(originalIndex) ?? (block.type === "thinking" ? thinkingDurationFromFile : undefined)} toolCallDurations={toolCallDurations} cwd={cwd} onOpenFile={onOpenFile} sessionId={sessionId} entryId={entryId} blockIndex={originalIndex} isLatestBlock={originalIndex === latestBlockIndex} toolCallsDefaultCollapsed={toolCallsDefaultCollapsed} toolInputExpanded={toolInputExpanded} thinkingDisplayMode={thinkingDisplayMode} thinkingAutoFollow={thinkingAutoFollow} settled={settled} />
             {index === lastTextBlockIndex ? actionRow : null}
           </Fragment>
         ))}
@@ -959,7 +964,7 @@ function AssistantMessageView({
   );
 }
 
-function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, thinkingDisplayMode, thinkingAutoFollow = true, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; thinkingAutoFollow?: boolean; settled?: boolean }) {
+function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCallDurations, cwd, onOpenFile, sessionId, entryId, blockIndex, isLatestBlock, toolCallsDefaultCollapsed, toolInputExpanded = false, thinkingDisplayMode, thinkingAutoFollow = true, settled = false }: { block: AssistantContentBlock; toolResults?: Map<string, ToolResultMessage>; isStreaming?: boolean; streamingDuration?: number; toolCallDurations?: Map<string, number>; cwd?: string; onOpenFile?: (filePath: string) => void; sessionId?: string; entryId?: string; blockIndex: number; isLatestBlock?: boolean; toolCallsDefaultCollapsed: boolean; toolInputExpanded?: boolean; thinkingDisplayMode?: "auto" | "collapsed" | "expanded"; thinkingAutoFollow?: boolean; settled?: boolean }) {
   if (block.type === "text") {
     return <div data-message-text data-entry-id={entryId}><TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} /></div>;
   }
@@ -970,7 +975,7 @@ function BlockView({ block, toolResults, isStreaming, streamingDuration, toolCal
     const tc = block as ToolCallContent;
     const result = toolResults?.get(tc.toolCallId);
     const duration = toolCallDurations?.get(tc.toolCallId);
-    return <ToolCallBlock block={tc} result={result} duration={duration} isStreaming={isStreaming} defaultCollapsed={toolCallsDefaultCollapsed} onOpenFile={onOpenFile} cwd={cwd} settled={settled} />;
+    return <ToolCallBlock block={tc} result={result} duration={duration} defaultCollapsed={toolCallsDefaultCollapsed} defaultInputExpanded={toolInputExpanded} onOpenFile={onOpenFile} cwd={cwd} settled={settled} />;
   }
   return null;
 }
@@ -1193,11 +1198,15 @@ function readTargetWebUrl(target: string): string | null {
   }
 }
 
-const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isStreaming, defaultCollapsed = true, onOpenFile, cwd, settled = false }: { block: ToolCallContent; result?: ToolResultMessage; duration?: number; isStreaming?: boolean; defaultCollapsed?: boolean; onOpenFile?: (filePath: string) => void; cwd?: string; settled?: boolean }) {
+const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, defaultCollapsed = true, defaultInputExpanded = false, onOpenFile, cwd, settled = false }: { block: ToolCallContent; result?: ToolResultMessage; duration?: number; defaultCollapsed?: boolean; defaultInputExpanded?: boolean; onOpenFile?: (filePath: string) => void; cwd?: string; settled?: boolean }) {
   const { t } = useI18n();
   const openAgentLink = useContext(AgentLinkContext);
-  const [inputExpanded, setInputExpanded] = useState(false);
+  // The full input without the "Show full input" press (Interface & Behavior
+  // switch, off by default). A preference change re-applies the new default to
+  // every mounted row; the row's own toggle still wins until the next change.
+  const [inputExpanded, setInputExpanded] = useState(defaultInputExpanded);
   const inputId = useId();
+  useEffect(() => { setInputExpanded(defaultInputExpanded); }, [defaultInputExpanded]);
   // executing (see lib/types.ts); the committed toolResult replaces them.
   const isRunning = result?.partial === true;
   const resultText = result
@@ -1215,7 +1224,9 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
     ? result.content.filter((b): b is ImageContent => b.type === "image" && (imageSource(b as ImageContent) !== ""))
     : [];
   const skillContentTool = isSkillContentTool(block, resultText);
-  // skill 内容行强制收起（即使全局默认展开）；其余按 defaultCollapsed。
+  // skill 内容行强制收起（即使全局默认展开）。
+  // "Keep tool calls collapsed" OFF means EVERY tool call row opens — the one
+  // executing AND every finished one — not only the running row.
   // A nullable override lets a late-arriving tool result change a generic
   // read/grep/bash row to collapsed without taking control away from a user
   // who already explicitly opened or closed it. The choice lives in the
@@ -1232,7 +1243,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   };
   const expanded = userToggled !== null
     ? userToggled
-    : skillContentTool ? false : (Boolean(isStreaming) || isRunning) && !defaultCollapsed;
+    : skillContentTool ? false : !defaultCollapsed;
   const resultIsEmpty = resultText === null ? false : (resultText.trim() === "(no output)" || resultText.trim() === "");
   const isError = result?.isError ?? false;
   const resultDiff = expanded && result && !isError ? getResultDiff(result) : null;
@@ -1245,13 +1256,6 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   const isHub = block.toolName === "hub";
   const hubSend = isHub ? getHubSendSummary(block.input) : null;
   const hubJobs = isHub ? getHubJobs(result?.details) : null;
-  const hubReceiptOutcome = (() => {
-    const receipts = (result?.details as { receipts?: Array<{ outcome?: unknown }> } | undefined)?.receipts;
-    if (!Array.isArray(receipts) || receipts.length === 0) return null;
-    const outcomes = receipts.map((receipt) => (typeof receipt?.outcome === "string" ? receipt.outcome : null));
-    if (outcomes.some((outcome) => outcome === null || outcome !== outcomes[0])) return null;
-    return outcomes[0];
-  })();
   const hubTool = hubSend
     ? `IRC → ${hubSend.to.join(", ")}`
     : hubJobs
@@ -1453,6 +1457,7 @@ const ToolCallBlock = memo(function ToolCallBlock({ block, result, duration, isS
   && prev.result === next.result
   && prev.duration === next.duration
   && prev.defaultCollapsed === next.defaultCollapsed
+  && prev.defaultInputExpanded === next.defaultInputExpanded
   && prev.settled === next.settled
 ));
 

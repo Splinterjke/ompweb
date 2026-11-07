@@ -280,9 +280,9 @@ type SettingIndexEntry = {
 
 const SETTING_INDEX: SettingIndexEntry[] = [
 // Interface & Behavior — Messages & Transcript
-  { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Show only compact headers while tools execute.", scope: "UI" },
+  { id: "keep-tool-calls-collapsed", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.keepToolCallsCollapsed", descKey: "settingsConfig.keepToolCallsCollapsedDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Keep tool calls collapsed", fallbackDesc: "Keep every tool call folded to its compact header. Turn off to expand all tool calls — the running one and every finished one.", scope: "UI" },
+  { id: "tool-input-expanded", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.toolInputExpanded", descKey: "settingsConfig.toolInputExpandedDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Show full tool input", fallbackDesc: "Show each tool call's full arguments without pressing \"Show full input\". Off by default.", scope: "UI" },
   { id: "tool-output-max-height", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.toolOutputMaxHeight", descKey: "settingsConfig.toolOutputMaxHeightDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Limit tool output height", fallbackDesc: "Cap expanded tool-call output at a fixed height with an internal scroll.", scope: "UI" },
-  { id: "process-details-auto-expand", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.processDetailsAutoExpand", descKey: "settingsConfig.processDetailsAutoExpandDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Auto-expand process details", fallbackDesc: "Expand the process details of all turns when the session is opened, instead of keeping them collapsed.", scope: "UI" },
   { id: "hide-tool-activity", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.hideToolActivity", descKey: "settingsConfig.hideToolActivityDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Hide tool activity while working", fallbackDesc: "Fold a running turn's tool calls into one Process details row, the same way a finished turn folds them. Expand the row to see each call and its result.", scope: "UI" },
   { id: "show-tool-calls-unfolded", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.showToolCallsUnfolded", descKey: "settingsConfig.showToolCallsUnfoldedDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Show tool calls outside Process details", fallbackDesc: "Keep each tool call's row visible in the transcript instead of folding it into Process details. Whether the row opens is still set by \"Keep tool calls collapsed\".", scope: "UI" },
   { id: "never-fold-activity", tab: "general", sectionKey: "settingsConfig.sectionTranscript", labelKey: "settingsConfig.neverFoldActivity", descKey: "settingsConfig.neverFoldActivityDesc", fallbackSection: "Messages & Transcript", fallbackLabel: "Never fold tool activity", fallbackDesc: "Show thinking, tool calls and notices as their own rows in every turn instead of folding them into Process details. Overrides \"Hide tool activity while working\".", scope: "UI" },
@@ -1019,7 +1019,7 @@ function NativeSetting({ label, description, scope, searchId, children, controlS
   );
 }
 
-export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, workspaceGitGraphButton = "auto", onWorkspaceGitGraphButtonChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, processDetailsAutoExpand = false, onProcessDetailsAutoExpandChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onSelectTab, onClose }: {
+export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCallsDefaultCollapsedChange, hideToolActivity = true, onHideToolActivityChange, neverFoldActivity = false, onNeverFoldActivityChange, showToolCallsUnfolded = false, onShowToolCallsUnfoldedChange, showGoalTokenBudget = false, onShowGoalTokenBudgetChange, thinkingDisplayMode = "auto", onThinkingDisplayModeChange, extendedThinkingBlock = false, onExtendedThinkingBlockChange, extendedBlocks = false, onExtendedBlocksChange, onHideThinkingBlockChange, sessionInfoButtonVisible = true, onSessionInfoButtonChange, showJumpToBottomButton = true, onShowJumpToBottomButtonChange, gitStatsPlacement = "inline", onGitStatsPlacementChange, workspaceGitGraphButton = "auto", onWorkspaceGitGraphButtonChange, contextRingMobile = "topbar", onContextRingMobileChange, hubBarLayout = "stack", onHubBarLayoutChange, liveStatusPlacement = "bar", onLiveStatusPlacementChange, hubBarsVisible = { git: true, tasks: true, subagents: true }, onHubBarsVisibleChange, composerAccentBg = "off", onComposerAccentBgChange, toolOutputCapEnabled = true, onToolOutputCapChange, thinkingAutoFollowEnabled = true, onThinkingAutoFollowChange, messageActionsVisible = true, onMessageActionsVisibleChange, toolInputExpanded = false, onToolInputExpandedChange, messageTimeFormat = "24h", onMessageTimeFormatChange, panelsSwapped = false, onPanelsSwappedChange, openUrlAutomatically = false, onOpenUrlAutomaticallyChange, cwd, remoteHost, sessionId, onModelsSaved, onPluginsReloaded, onSelectTab, onClose }: {
   activeTab: SettingsTab;
   toolCallsDefaultCollapsed: boolean;
   onToolCallsDefaultCollapsedChange: (collapsed: boolean) => void;
@@ -1074,9 +1074,9 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
   /** Show the copy/fork/edit buttons under messages (Interface & Behavior). */
   messageActionsVisible?: boolean;
   onMessageActionsVisibleChange?: (visible: boolean) => void;
-  /** Auto-expand the last turn's process details before the compaction block (Interface & Behavior). */
-  processDetailsAutoExpand?: boolean;
-  onProcessDetailsAutoExpandChange?: (enabled: boolean) => void;
+  /** Show every tool call's full input without the "Show full input" press (Interface & Behavior). */
+  toolInputExpanded?: boolean;
+  onToolInputExpandedChange?: (enabled: boolean) => void;
   /** Timestamp format for chat messages: 24h (default) or 12h AM/PM (Interface & Behavior). */
   messageTimeFormat?: "24h" | "ampm";
   onMessageTimeFormatChange?: (format: "24h" | "ampm") => void;
@@ -1455,11 +1455,11 @@ export function SettingsConfig({ activeTab, toolCallsDefaultCollapsed, onToolCal
                   <NativeSetting searchId="keep-tool-calls-collapsed" label={t("settingsConfig.keepToolCallsCollapsed")} description={t("settingsConfig.keepToolCallsCollapsedDesc")} scope="UI">
                     <ToggleSwitch checked={toolCallsDefaultCollapsed} onChange={onToolCallsDefaultCollapsedChange} />
                   </NativeSetting>
+                  <NativeSetting searchId="tool-input-expanded" label={t("settingsConfig.toolInputExpanded")} description={t("settingsConfig.toolInputExpandedDesc")} scope="UI">
+                    <ToggleSwitch checked={toolInputExpanded} onChange={(next) => onToolInputExpandedChange?.(next)} />
+                  </NativeSetting>
                   <NativeSetting searchId="tool-output-max-height" label={t("settingsConfig.toolOutputMaxHeight")} description={t("settingsConfig.toolOutputMaxHeightDesc")} scope="UI">
                     <ToggleSwitch checked={toolOutputCapEnabled} onChange={(next) => onToolOutputCapChange?.(next)} />
-                  </NativeSetting>
-                  <NativeSetting searchId="process-details-auto-expand" label={t("settingsConfig.processDetailsAutoExpand")} description={t("settingsConfig.processDetailsAutoExpandDesc")} scope="UI">
-                    <ToggleSwitch checked={processDetailsAutoExpand} onChange={(next) => onProcessDetailsAutoExpandChange?.(next)} />
                   </NativeSetting>
                   <NativeSetting searchId="hide-tool-activity" label={t("settingsConfig.hideToolActivity")} description={t("settingsConfig.hideToolActivityDesc")} scope="UI">
                     <ToggleSwitch checked={hideToolActivity} onChange={(next) => onHideToolActivityChange?.(next)} />

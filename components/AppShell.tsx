@@ -100,7 +100,7 @@ const JUMP_TO_BOTTOM_BUTTON_STORAGE_KEY = "omp-web:jump-to-bottom-button";
 const TOOL_OUTPUT_CAP_STORAGE_KEY = "omp-web:tool-output-cap";
 const THINKING_AUTO_FOLLOW_STORAGE_KEY = "omp-web:thinking-auto-follow";
 const MESSAGE_ACTIONS_VISIBLE_STORAGE_KEY = "omp-web:message-actions-visible";
-const PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY = "omp-web:process-details-auto-expand";
+const TOOL_INPUT_EXPANDED_STORAGE_KEY = "omp-web:tool-input-expanded";
 const MESSAGE_TIME_FORMAT_STORAGE_KEY = "omp-web:message-time-format";
 const PANELS_SWAPPED_STORAGE_KEY = "omp-web:panels-swapped";
 const GIT_STATS_PLACEMENT_STORAGE_KEY = "omp-web:git-stats-placement";
@@ -444,13 +444,13 @@ export function AppShell({ appName }: { appName: string }) {
       return true;
     }
   });
-  // Auto-expand the "Process details" group of the last turn before a compaction
-  // block when the user opens the pre-compaction history (Interface & Behavior
-  // switch). Defaults to off; an absent/corrupt stored value keeps it collapsed.
-  const [processDetailsAutoExpand, setProcessDetailsAutoExpand] = useState<boolean>(() => {
+  // Full tool-call input (Interface & Behavior switch). Off by default: each row
+  // shows its command line and the "Show full input" control, and an absent or
+  // corrupt stored value keeps that collapsed default.
+  const [toolInputExpanded, setToolInputExpanded] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
-      return window.localStorage.getItem(PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY) === "true";
+      return window.localStorage.getItem(TOOL_INPUT_EXPANDED_STORAGE_KEY) === "true";
     } catch {
       return false;
     }
@@ -681,10 +681,10 @@ export function AppShell({ appName }: { appName: string }) {
       // The preference still applies for this page load.
     }
   }, []);
-  const handleProcessDetailsAutoExpandChange = useCallback((enabled: boolean) => {
-    setProcessDetailsAutoExpand(enabled);
+  const handleToolInputExpandedChange = useCallback((enabled: boolean) => {
+    setToolInputExpanded(enabled);
     try {
-      window.localStorage.setItem(PROCESS_DETAILS_AUTO_EXPAND_STORAGE_KEY, String(enabled));
+      window.localStorage.setItem(TOOL_INPUT_EXPANDED_STORAGE_KEY, String(enabled));
     } catch {
       // The preference still applies for this page load.
     }
@@ -3068,7 +3068,7 @@ export function AppShell({ appName }: { appName: string }) {
               showToolCallsUnfolded={showToolCallsUnfolded}
               hideThinkingBlock={hideThinkingBlock}
               messageActionsVisible={messageActionsVisible}
-              processDetailsAutoExpand={processDetailsAutoExpand}
+              toolInputExpanded={toolInputExpanded}
               messageTimeFormat={messageTimeFormat}
               hubBarLayout={hubBarLayout}
               hubBarsVisible={hubBarsVisible}
@@ -3389,8 +3389,8 @@ export function AppShell({ appName }: { appName: string }) {
         onThinkingAutoFollowChange={handleThinkingAutoFollowChange}
         messageActionsVisible={messageActionsVisible}
         onMessageActionsVisibleChange={handleMessageActionsVisibleChange}
-        processDetailsAutoExpand={processDetailsAutoExpand}
-        onProcessDetailsAutoExpandChange={handleProcessDetailsAutoExpandChange}
+        toolInputExpanded={toolInputExpanded}
+        onToolInputExpandedChange={handleToolInputExpandedChange}
         messageTimeFormat={messageTimeFormat}
         onMessageTimeFormatChange={handleMessageTimeFormatChange}
         panelsSwapped={panelsSwapped}

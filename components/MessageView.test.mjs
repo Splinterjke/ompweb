@@ -76,6 +76,51 @@ test("expanded tool calls show the compact command header", () => {
   assert.match(html, /\$<\/span><code>read foo\.ts<\/code>/);
 });
 
+// "Keep tool calls collapsed" off means nothing stays folded: a finished row
+// is as open as the running one (it used to expand only while it executed).
+test("a finished tool call expands as well when the preference keeps nothing collapsed", () => {
+  const message = {
+    role: "assistant",
+    content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "foo.ts" } }],
+  };
+  const toolResults = new Map([[
+    "call-1",
+    { role: "toolResult", toolCallId: "call-1", content: [{ type: "text", text: "the file" }] },
+  ]]);
+
+  const open = renderToStaticMarkup(React.createElement(MessageView, {
+    message, toolResults, toolCallsDefaultCollapsed: false,
+  }));
+  assert.match(open, /aria-expanded="true"/, "the committed row stays open");
+  assert.match(open, /the file/, "and its result is in the markup, not a collapsed header");
+
+  const closed = renderToStaticMarkup(React.createElement(MessageView, {
+    message, toolResults, toolCallsDefaultCollapsed: true,
+  }));
+  assert.match(closed, /aria-expanded="false"/, "the preference on keeps finished rows folded");
+});
+
+// "Show full tool input" (off by default) decides whether the row's arguments
+// are rendered at rest, instead of asking for a "Show full input" press.
+test("the full-input preference renders the arguments without a press", () => {
+  const message = {
+    role: "assistant",
+    content: [{ type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "foo.ts" } }],
+  };
+
+  const expanded = renderToStaticMarkup(React.createElement(MessageView, {
+    message, toolCallsDefaultCollapsed: false, toolInputExpanded: true,
+  }));
+  assert.match(expanded, /<dt>path<\/dt><dd><pre>foo\.ts<\/pre><\/dd>/);
+  assert.match(expanded, /Collapse input/);
+
+  const folded = renderToStaticMarkup(React.createElement(MessageView, {
+    message, toolCallsDefaultCollapsed: false,
+  }));
+  assert.doesNotMatch(folded, /<dt>path<\/dt>/, "off by default: the arguments wait for the press");
+  assert.match(folded, /Show full input/);
+});
+
 test("tool-row file links keep Windows drive paths and colon filenames intact", () => {
   const cases = [
     // Drive-letter colon is not a line suffix: splitting on ":" opened "C".
@@ -418,8 +463,9 @@ test("passive tool context from a session file renders on the batch's last tool 
     entry("a2", "d2", { role: "assistant", provider: "t", model: "m", content: [{ type: "text", text: "Done." }] }),
   ]);
   const toolResults = collectToolResults(messages);
-  const html = (message) => renderToStaticMarkup(React.createElement(MessageView, { message, toolResults, toolCallsDefaultCollapsed: false }));
-  // Expanded tool group, collapsed cards: one truncating row on the last card, the full text on hover.
+  const html = (message) => renderToStaticMarkup(React.createElement(MessageView, { message, toolResults, toolCallsDefaultCollapsed: true }));
+  // Collapsed cards (the preference's default): one truncating row on the last
+  // card, the full text on hover.
   const shown = html(messages[1]);
   assert.equal(shown.match(/>Context:/g)?.length, 1);
   assert.match(shown, /class="activity-row-secondary" title="Context: Treat\tthis result\nas authoritative\."><span aria-hidden="true">↳ <\/span>Context: Treat\tthis result\nas authoritative\./);
