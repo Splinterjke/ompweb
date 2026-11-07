@@ -3101,6 +3101,43 @@ test("an idle chat reconciles auto-compaction when its completion event is lost"
   assert.equal(w.latest.isCompacting, false, "the ref and rendered state share the same compaction lifecycle");
 });
 
+/** A compaction with no prompt behind it: busy enough to keep a run alive, never a run of its own. */
+test("a compaction-only snapshot starts no run and ends without an empty-reply error", async () => {
+  resetWorld();
+  toastCalls.length = 0;
+  const sid = "compaction-only-snapshot";
+  primeSession(sid, [userMsg("u0", "q")]);
+  world.agents.set(sid, { running: true, state: { isCompacting: true } });
+  // The mount load is this fork's catch-up snapshot: it reports a compaction and
+  // no prompt. Settling it as a run reported "The agent stopped without returning
+  // a response" once the compaction ended.
+  const w = await mountSession(sid);
+  assert.equal(w.latest.isCompacting, true, "the native compaction is shown");
+  assert.equal(w.latest.agentRunning, false, "a compaction runs no prompt");
+  // The same snapshot reached as the catch-up for a running-channel frame (the
+  // frame claims the session runs; the state says only a compaction) is no run
+  // either.
+  await act(async () => {
+    world.runningStreams.at(-1).deliver({
+      type: "message",
+      data: JSON.stringify({ type: "running", runningSessionIds: [sid] }),
+    });
+    await settle();
+  });
+  assert.equal(w.latest.agentRunning, false, "a running frame backed only by a compaction starts no run");
+  // The compaction ends: the chat stays idle and nothing reports a failed reply.
+  world.agents.set(sid, { running: true, state: { isCompacting: false } });
+  await act(async () => {
+    window.dispatchEvent(new Event("online"));
+    await settle();
+  });
+  assert.equal(w.latest.isCompacting, false);
+  assert.equal(w.latest.agentRunning, false);
+  assert.deepEqual(w.latest.notices.filter((notice) => notice.type === "error"), [],
+    "a finished compaction is not an empty prompt reply");
+  assert.deepEqual(toastCalls, []);
+});
+
 test("matching running frames received during an idle lookup trigger one fresh lookup", async () => {
   resetWorld();
   primeSession("late-start", [userMsg("u0", "q")]);
