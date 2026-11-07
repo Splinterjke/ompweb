@@ -2150,6 +2150,22 @@ stored `omp-web:submit-during-run` choice overrides it.
 - Client git pollers (`useGitStatus`, `useGitStats`, `GitChangesPanel`) carry an in-flight guard: never stack a new poll round while the previous one is still running — a slow repository outlives the 5 s interval and stacked rounds saturate the host and turn every git call into a timeout.
 - Server side: `getGitStatus` runs its four post-status calls (branch/upstream/counts/shortstat) concurrently (`Promise.all` in `lib/git-changes.ts`), and every git call runs in its own short-lived `git` child process with a timeout, so a slow repository call cannot block other routes.
 
+### Chat column height chain
+- The transcript row (`relative flex flex-1 overflow-hidden` in `ChatWindow`) carries
+  inline `overflow: clip` so `scrollIntoView` cannot scroll it, **and** an explicit
+  `minHeight: 0`. `clip` is not a scroll container, so Chromium keeps the flex item's
+  content-based automatic minimum size that `overflow: hidden` used to zero as a side
+  effect: without the explicit zero the row grows to the whole transcript (measured
+  5547px at a 1280×720 viewport, 9078px at 390×844), the composer block — hub bars,
+  goal bar, input shell — lands below the fold, and the transcript stops scrolling
+  entirely (its `clientHeight` equals its `scrollHeight`). With the zero the row is
+  clamped to the column and yields space to whatever the composer block needs, and the
+  `Conversation` scroller is the only box that scrolls. The ChatWindow column's own
+  `scrollHeight` then equals its `clientHeight`, which is what keeps the clip's
+  original promise (nothing for `scrollIntoView` to shift). Pinned by
+  `components/ChatWindow.layout.test.mjs`; the numbers are only observable in a real
+  layout, so a browser probe (not jsdom) is the verification.
+
 ### Chat scroll-follow
 - `useAgentSession` follows the conversation: the effect depends on both
   `messages` (boundaries) and `streamState` (every token batch) and throttles

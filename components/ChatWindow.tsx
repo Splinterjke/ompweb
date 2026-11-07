@@ -1692,8 +1692,13 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
       {hostBanner}
       {/* clip, not just hidden: scrollIntoView (scroll to bottom, search jumps) also
           scrolls a hidden-overflow box, which shifted the transcript up and left a blank
-          band above the composer. The class stays as the fallback where clip is unknown. */}
-      <div className="relative flex flex-1 overflow-hidden" style={{ overflow: "clip" }}>
+          band above the composer. The class stays as the fallback where clip is unknown.
+          min-height: 0 is not optional next to clip: `overflow: clip` is not a scroll
+          container, so Chromium keeps the flex item's content-based automatic minimum
+          size and the row grows to the whole transcript (measured 5547px at 1280x720),
+          pushing the hub bars, goal bar and composer out of the column. `hidden` zeroed
+          that minimum as a side effect; with clip the zero must be stated. */}
+      <div className="relative flex flex-1 overflow-hidden" style={{ overflow: "clip", minHeight: 0 }}>
         <div
           style={{
             position: "absolute",
