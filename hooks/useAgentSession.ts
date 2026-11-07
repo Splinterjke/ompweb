@@ -897,7 +897,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [currentModelOverride, setCurrentModelOverride] = useState<{ provider: string; modelId: string } | null>(null);
-  const [modelSwitching, setModelSwitching] = useState(false);
+  // A model pick shows in the composer at once (below), and `set_model` may wait
+  // for omp to start before it is answered. `modelPickSeqRef` names the newest
+  // pick so an older failure cannot roll a newer one back, and
+  // `modelSwitchesPending` counts the unanswered ones: it keeps the previous
+  // model's Slow-mode controls hidden for the wait and keeps the picker marked
+  // busy even when a second pick overtakes the first.
+  const modelPickSeqRef = useRef(0);
+  const [modelSwitchesPending, setModelSwitchesPending] = useState(0);
+  const modelSwitching = modelSwitchesPending > 0;
   // omp ≥ 18.6.3 fail-closes on resume when a session's saved model cannot
   // be restored (renamed, disabled, signed out). Holds the failed model id
   // until the user rebinds the session to a different model.
@@ -4225,40 +4233,57 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
 
   const handleModelChange = useCallback(async (provider: string, modelId: string) => {
     if (rejectIfExternallyRunning()) return;
-    if (modelSwitching) return;
+    // No re-entry guard: a newer pick simply supersedes the one in flight, and
+    // only the newest one's outcome is shown (see modelPickSeqRef).
     const selected = { provider, modelId };
     if (isNew) {
       setNewSessionModel(selected);
       setPendingModel(selected);
       const sid = sessionIdRef.current ?? await ensuringNewSessionRef.current;
       if (!sid) return;
-      setModelSwitching(true);
+      // Any newer switch supersedes an in-flight pick's rollback/refresh.
+      modelPickSeqRef.current += 1;
+      setModelSwitchesPending((count) => count + 1);
       try {
         await sendAgentCommand(sid, { type: "set_model", provider, modelId });
         // A spawned new session reports /slow support per model.
         await refreshLiveModelState(sid);
       } catch (e) {
+        // The pick never reached omp: the composer keeps the chosen model as the
+        // new session's intended model (it applies when the session starts) and
+        // the notice explains why the running model may differ.
         console.error("Failed to set model:", e);
         addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
       } finally {
-        setModelSwitching(false);
+        setModelSwitchesPending((count) => count - 1);
       }
       return;
     }
     const sid = sessionIdRef.current;
     if (!sid) return;
-    setModelSwitching(true);
+    const pick = ++modelPickSeqRef.current;
+    setModelSwitchesPending((count) => count + 1);
     try {
-      await sendAgentCommand(sid, { type: "set_model", provider, modelId });
+      // Show the pick at once: set_model may wait for omp to start.
       setCurrentModelOverride(selected);
-      void refreshLiveModelState(sid);
+      await sendAgentCommand(sid, { type: "set_model", provider, modelId });
+      await refreshLiveModelState(sid);
     } catch (e) {
+      // A cold-start failure (e.g. an unrestorable saved model, #277) must not
+      // keep claiming the new model: drop the optimistic pick unless a newer
+      // one replaced it, and explain why in a notice. The override is only ever
+      // dropped for this exact pick, so a newer successful switch survives.
+      setCurrentModelOverride((cur) => (cur === selected ? null : cur));
       console.error("Failed to set model:", e);
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
+      // The cached live model can predate an earlier successful pick whose
+      // refresh this pick superseded: re-read what omp runs. Only for the
+      // latest pick; a newer one's optimistic display would be cleared.
+      if (pick === modelPickSeqRef.current) await refreshLiveModelState(sid);
     } finally {
-      setModelSwitching(false);
+      setModelSwitchesPending((count) => count - 1);
     }
-  }, [addNotice, isNew, modelSwitching, refreshLiveModelState, setNewSessionModel, rejectIfExternallyRunning]);
+  }, [addNotice, isNew, refreshLiveModelState, rejectIfExternallyRunning, setNewSessionModel]);
 
   const handleFastModeChange = useCallback(async (enabled: boolean) => {
     if (rejectIfExternallyRunning()) return;
@@ -4419,6 +4444,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (rejectIfExternallyRunning()) return;
     const sid = sessionIdRef.current;
     if (!sid) return;
+    // The cycle changes the runtime model behind a pick's back: an in-flight
+    // pick must not refresh or roll back on top of the cycled result.
+    modelPickSeqRef.current += 1;
     try {
       await sendAgentCommand(sid, { type: "cycle_model" });
       void refreshLiveModelState(sid);
@@ -5325,7 +5353,12 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   return {
     // State
     data, loading, error, activeLeafId, messages, entryIds, showPreCompactionHistory, streamState,
-    agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive, slowModeSupported, slowModeEnabled, slowModeScope, usageLimit, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
+    agentRunning, turnStarting, historyToggling, modelNames, modelList, modelsLoading, modelError, modelThinkingLevels, modelThinkingLevelMaps, newSessionModel, toolPreset, thinkingLevel, fastModeEnabled, fastModeActive,
+    // While a pick waits for its set_model reply, the reported support belongs
+    // to the model the session is leaving: the Slow control would otherwise
+    // offer /slow for a model that has none.
+    slowModeSupported: modelSwitchesPending === 0 && slowModeSupported,
+    slowModeEnabled, slowModeScope, usageLimit, autoRetryEnabled, interruptMode, autoCompactionEnabled, steeringMode, followUpMode,
     liveModelMeta,
     retryInfo, contextUsage, systemPrompt, skillDiagnostics, forkingEntryId, editingEntryId, modelSwitching, modelRestoreFailure,
     isCompacting, compactError, compactResult, tokensPerSecond, currentModel, displayModel, isAutoModelSelection: !displayModel, sessionStats, agentPhase,
