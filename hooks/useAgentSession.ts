@@ -477,8 +477,9 @@ export const LOCAL_FILE_LOOKUP_TIMEOUT_MS = 30_000;
 async function resolveLocalFile(sessionId: string | undefined, uri: string, signal?: AbortSignal): Promise<{ ok: true; path: string; sessionId?: string } | { ok: false; error: string }> {
   if (!sessionId) return { ok: false, error: "A local:// file belongs to a session, and no session asked for it" };
   const unanswered = { ok: false as const, error: `Could not open ${uri}: the server did not answer` };
-  // An AbortController and a timer, not AbortSignal.timeout (older browsers lack it): a stalled request must not leave
-  // the agent's tool call pending until the tab goes away.
+  // An AbortController plus a timer, not the platform's one-call timeout helper
+  // (missing in older mobile browsers, which the gate in scripts/audit-client-api.mjs watches for): a stalled
+  // request must not leave the agent's tool call pending until the tab goes away.
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });

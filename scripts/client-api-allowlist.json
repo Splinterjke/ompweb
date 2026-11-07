@@ -36,7 +36,7 @@
     "components/panels/RightWorkbench.tsx": 1,
     "components/usage/UsageDashboardModal.tsx": 2,
     "components/usage/UsageTabLogs.tsx": 1,
-    "hooks/useAgentSession.ts": 23,
+    "hooks/useAgentSession.ts": 24,
     "hooks/useDictation.ts": 6,
     "hooks/useGitWorkspace.ts": 1,
     "hooks/useHostRows.ts": 1,
