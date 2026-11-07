@@ -312,6 +312,12 @@
       }
     },
     {
+      "type": "host_tool_cancel",
+      "payload": {
+        "targetId": "hc_1"
+      }
+    },
+    {
       "type": "host_uri_request",
       "payload": {
         "requestId": "ur_1",

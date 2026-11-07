@@ -52,6 +52,7 @@
     "invalid_json",
     "invalid_key",
     "invalid_limit",
+    "invalid_local_uri",
     "invalid_locale",
     "invalid_mode",
     "invalid_older_than",
