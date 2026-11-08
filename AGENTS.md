@@ -250,6 +250,8 @@ app/api/
   sessions/[id]/matches/route.ts  GET ?q=&limit= — best `limit` search hits in the active conversation (best match, then newest); Load more asks for a longer prefix
   sessions/[id]/export/route.ts   GET exported HTML for a session
   sessions/[id]/local-file/route.ts GET ?uri=local://<file> → `{ path, sessionId }`: the absolute path of a file in the session's own local:// directory, resolved on the owning host's daemon, and the canonical session that owns it (a live alias resolves to its current id; the tab must store that, since the alias goes with its wrapper). The open_file host tool then reads it through /api/files with that `sessionId`; 400 `invalid_local_uri` / `not_a_file`, 404 `session_not_found` / `file_not_found`, 403 on a symlink out, 501 `workspace_unsupported` for a host daemon that predates `resolveLocalFile`
+  sessions/archive/route.ts         GET every host's archives (this machine read on main, linked hosts through `listArchives`, entries tagged `hostId`, offline/older hosts in `unavailableHosts`) | POST { key, hostId } restore on that host through a claim the daemon reserves, spends and can fence; 503 `host_sessions_unavailable` when any host's strict active-ID inventory is incomplete, 409 `archive_restore_unconfirmed` while an earlier restore of that id has an unknown outcome
+  sessions/[id]/archive/route.ts    POST archive one session and its artifacts on the session's own host
   agent/new/route.ts              POST { cwd, message, toolNames?, provider?, modelId? }
   agent/[id]/route.ts             GET state | POST any RPC command
   events/route.ts                 GET multiplexed SSE | POST subscribe/unsubscribe channels (running/notifications/host-tools/session/file)
