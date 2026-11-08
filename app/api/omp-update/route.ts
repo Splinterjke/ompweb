@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { checkOmpUpdate, runOmpUpdateNow, runOmpUpdateStream } from "@/lib/omp/updates";
+import { pidOnPort, terminateInstanceProcess, waitForPortRelease } from "@/lib/instance-stop";
 import { invalidateOmpCliCache } from "@/lib/omp/omp-cli";
 import { clearRpcFailures, restartAllRpcSessions } from "@/lib/rpc-manager";
 import { isUpdateDisabled } from "@/lib/update-policy";
@@ -79,8 +79,9 @@ export async function POST(request: Request, { disableIdleTimeout }: { disableId
       });
     }
     if (body.action === "stop-instance") {
-      // 关闭本机其他 ompweb 端口上的旧实例（残留的开发服务/旧 app），
-      // 消除会话锁冲突。只允许关闭非自身端口。
+      // Close stale local ompweb instances (leftover dev servers / old app)
+      // on other ports of this machine, clearing session-lock contention.
+      // Only a port other than this server's own may be stopped.
       const port = Number(body.port);
       if (!Number.isInteger(port) || port < 1024 || port > 65535) {
         return Response.json({ error: "invalid port", code: "invalid_port" }, { status: 400 });
@@ -95,18 +96,29 @@ export async function POST(request: Request, { disableIdleTimeout }: { disableId
       if (pid === null) {
         return Response.json({ success: true, stopped: false, reason: "nothing listening" });
       }
+      if (pid === process.pid) {
+        return Response.json({ error: "refusing to stop self", code: "stop_self" }, { status: 400 });
+      }
       try {
-        process.kill(pid, "SIGTERM");
-        // 给进程一个优雅退出窗口，之后仍未退出则强杀。
-        const { promise, resolve } = Promise.withResolvers<void>();
-        setTimeout(resolve, 1200);
-        await promise;
-        try {
-          process.kill(pid, 0);
-          process.kill(pid, "SIGKILL");
-        } catch { /* already gone */ }
-      } catch {
-        return Response.json({ error: `failed to stop pid ${pid}`, code: "stop_failed" }, { status: 500 });
+        await terminateInstanceProcess(pid);
+      } catch (error) {
+        return Response.json({
+          error: `failed to stop pid ${pid}: ${error instanceof Error ? error.message : String(error)}`,
+          code: "stop_failed",
+        }, { status: 500 });
+      }
+      // The listener, not the kill call, decides: on Windows taskkill exits
+      // nonzero both for an already-gone process and for a refused elevated
+      // one, and on POSIX SIGTERM needs its escalation window. A success
+      // answer is only made once the port stopped answering — the previous
+      // silent no-op on Windows (lsof is not shipped there, so the lookup
+      // always failed) toasted "instance stopped" while both instances kept
+      // running behind the still-occupied ports.
+      if (!(await waitForPortRelease(port, 3000))) {
+        return Response.json({
+          error: `pid ${pid} is still listening on :${port} — if that instance was started from an elevated shell, stop it from an elevated shell too`,
+          code: "stop_failed",
+        }, { status: 500 });
       }
       return Response.json({ success: true, stopped: true, pid });
     }
@@ -119,23 +131,9 @@ export async function POST(request: Request, { disableIdleTimeout }: { disableId
   }
 }
 
-/** 找出监听指定 TCP 端口的进程 pid（macOS/Linux lsof）。 */
-function pidOnPort(port: number): number | null {
-  try {
-    const out = execFileSync("lsof", ["-ti", `TCP:${port}`, "-sTCP:LISTEN"], {
-      encoding: "utf8",
-      timeout: 3000,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    const pid = Number(out.trim().split("\n")[0]);
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Best-effort self-healing for stale local ompweb servers. Never targets the
- * current listener and never uses a broad pkill pattern. */
+ * current listener and never uses a broad pkill pattern; a port is counted as
+ * stopped only when its listener is actually gone. */
 async function stopOtherOmpWebInstances(): Promise<number[]> {
   const selfPort = Number(process.env.OMP_WEB_PORT ?? process.env.OMP_WEB_APP_PORT ?? process.env.PORT ?? (process.env.NODE_ENV === "production" ? "30177" : "30178"));
   const stopped: number[] = [];
@@ -144,8 +142,8 @@ async function stopOtherOmpWebInstances(): Promise<number[]> {
     const pid = pidOnPort(port);
     if (!pid || pid === process.pid) continue;
     try {
-      process.kill(pid, "SIGTERM");
-      stopped.push(port);
+      await terminateInstanceProcess(pid);
+      if (await waitForPortRelease(port, 2000)) stopped.push(port);
     } catch { /* stale race / permission: leave it visible to diagnostics */ }
   }
   return stopped;

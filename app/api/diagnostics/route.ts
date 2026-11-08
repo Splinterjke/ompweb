@@ -136,14 +136,22 @@ export async function POST(req: Request) {
 /** 探测本机另一端口上是否有 ompweb 服务（快速 GET，1s 超时）。
  * Use the non-recursive health endpoint: probing /api/diagnostics here would
  * make two ompweb instances call each other's diagnostics routes recursively,
- * multiplying latency whenever both dev and packaged App are running. */
+ * multiplying latency whenever both dev and packaged App are running.
+ * Only ompweb itself counts: the body must be the health route's JSON
+ * contract (`ok:true` plus the app version). A bare `res.ok` made ANY server
+ * behind a candidate port look like a conflicting ompweb instance — a dev
+ * server with an SPA fallback answers /api/health with 200 and its own
+ * index.html, which surfaced as a "port-conflicting instance" card with a
+ * "Close this instance" button pointed at an unrelated process. */
 async function probeOmpWebPort(port: number): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1000);
     try {
       const res = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: controller.signal });
-      return res.ok;
+      if (!res.ok) return false;
+      const body = (await res.json().catch(() => null)) as { ok?: unknown; app?: unknown } | null;
+      return body?.ok === true && typeof body.app === "string";
     } finally {
       clearTimeout(timer);
     }
