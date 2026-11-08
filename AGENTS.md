@@ -2863,3 +2863,28 @@ the whole travel. `createSwipeTracker` cancels a swipe the finger turned back
 converted into the `pointercancel` base-ui treats as "snap back".
 Icons come from `lucide-react` — do not add new inline SVGs. The command
 palette (`components/CommandPalette.tsx`, ⌘K/Ctrl+K) is built on `cmdk`.
+
+### The pre-paint theme script must know no palettes (`app/index.html`)
+- The shell carries one inline script that runs before the bundle. It writes
+  **only** `data-theme` — plus `.dark` for a `system` visitor, whose palette
+  selector is `html.dark:not([data-theme])`. Every theme block in
+  `app/globals.css` is self-sufficient through `[data-theme="…"]` (it sets its
+  own `color-scheme` and every variable), and `hooks/useTheme.ts` owns the
+  palette table, so nothing here may enumerate themes.
+- Never write theme **classes** from the shell. Every preset selector is
+  `html[data-theme="x"], html.theme-x` — specificity `(0,1,1)` for all of them,
+  so with both an attribute and a leftover class on `<html>`, **source order
+  decides**: `html.omp` (globals.css:1190) outranks Nord (269), and
+  `html.theme-dark` (418) outranks everything above it. React only toggles
+  `.dark`, `data-theme`, `theme-transition` and `theme-flow-active`, so a class
+  the script adds is never removed — shipped that way until 2026-11-08: the
+  script knew 14 of 40 themes, forced the other 26 to `omp`, and those users saw
+  omp Midnight with their theme "selected" and could not change it until a
+  reload. `stripLegacyThemeClasses()` (hooks/useTheme.ts) clears such classes
+  for pages served by an older shell.
+- Consequence accepted: the boot script cannot know whether a preset is dark, so
+  `--shadow-*` (globals.css:1511) and the native-select colors (3326) wait for
+  React's mount to get `.dark`. A preset's own palette never waits.
+- Pinned by `app/theme-boot.test.mjs`, which runs the inline script from the
+  real HTML in jsdom for every `THEME_OPTIONS` id and for hostile stored values
+  (a reintroduced palette list or class write fails it).

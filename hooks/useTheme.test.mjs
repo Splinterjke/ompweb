@@ -44,3 +44,18 @@ test("applyThemeChrome publishes a plain hex to the meta, cookie and manifest hr
     manifest.remove();
   }
 });
+
+// Shells served before 2026-11-08 pre-painted the theme as CLASSES
+// (`html.omp`, `html.theme-dark`) that nothing owned afterwards. All the preset
+// selectors are `html[data-theme="x"], html.theme-x` at equal specificity, so a
+// leftover class outranked the theme the user picked by source order; applyTheme
+// strips them so a page from the old build repairs itself on mount. The classes
+// the hook owns (`theme-transition`, `theme-flow-active`) must survive.
+const { stripLegacyThemeClasses } = await import("./useTheme.ts");
+
+test("the theme cleanup drops the old shell's classes and keeps the ones React owns", () => {
+  const root = document.createElement("html");
+  root.className = "notranslate omp dark theme-dark theme-aurora-flow theme-nord theme-transition theme-flow-active";
+  stripLegacyThemeClasses(root);
+  assert.deepEqual(root.className.split(/\s+/).sort(), ["dark", "notranslate", "theme-flow-active", "theme-transition"]);
+});

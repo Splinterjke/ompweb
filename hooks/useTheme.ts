@@ -277,8 +277,25 @@ function syncThemeChrome(): void {
   applyThemeChrome(getComputedStyle(document.documentElement).getPropertyValue("--bg-panel").trim());
 }
 
+/** Shells served before 2026-11-08 pre-painted the theme as `html.omp` /
+ *  `html.theme-<id>` CLASSES that nothing owned afterwards. Every preset
+ *  selector in globals.css is `html[data-theme="x"], html.theme-x` at the same
+ *  specificity, so one leftover class beat whatever theme the user then picked
+ *  (a stored theme the old script's palette list did not know rendered as omp
+ *  Midnight and could not be changed until a reload). React owns `dark`,
+ *  `theme-transition` and `theme-flow-active`; every other theme class is the
+ *  old script's, and goes. */
+export function stripLegacyThemeClasses(root: HTMLElement): void {
+  for (const cls of Array.from(root.classList)) {
+    if (cls === "omp" || (cls.startsWith("theme-") && cls !== "theme-transition" && cls !== "theme-flow-active")) {
+      root.classList.remove(cls);
+    }
+  }
+}
+
 function applyTheme(preference: ThemePreference): void {
   const root = document.documentElement;
+  stripLegacyThemeClasses(root);
   // Clear any inline custom variables when switching to preset
   if (preference !== "custom") {
     root.style.removeProperty("--accent");
