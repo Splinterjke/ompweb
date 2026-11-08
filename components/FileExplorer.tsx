@@ -232,6 +232,8 @@ interface ExplorerRowProps {
   highlighted: boolean;
   isActiveFile: boolean;
   focused: boolean;
+  /** Touch layout: a hover-only affordance would be unreachable, so rows keep theirs shown. */
+  revealRowActions: boolean;
   gitStatusByPath: Map<string, GitFileStatus>;
   changedDirectoryPaths: Set<string>;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
@@ -255,6 +257,7 @@ const ExplorerRow = memo(function ExplorerRow({
   highlighted,
   isActiveFile,
   focused,
+  revealRowActions,
   gitStatusByPath,
   changedDirectoryPaths,
   onAtMention,
@@ -264,6 +267,9 @@ const ExplorerRow = memo(function ExplorerRow({
 }: ExplorerRowProps) {
   const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
+  // Focus-within, emulated: Tab reaches the row's own buttons, and a control
+  // that appears on hover must appear for the keyboard path too.
+  const [focusWithin, setFocusWithin] = useState(false);
 
   if (row.kind === "empty") {
     return (
@@ -287,6 +293,12 @@ const ExplorerRow = memo(function ExplorerRow({
   const blocked = node.outsideRoot === true;
   const outsideLabel = t("fileExplorer.outsideRoot");
   const linkSuffix = node.linkTarget !== undefined ? ", link to " + node.linkTarget : "";
+  // The @ affordance is secondary: on every row it eats the width names need in
+  // these narrow panels and reads as noise. It comes up for the row the pointer
+  // or the keyboard is on, and stays shown in the touch layout (no hover there).
+  // Roving-tabindex focus is not part of this: row 0 owns it from the first
+  // render, which would leave one row shown forever.
+  const showMention = revealRowActions || hovered || focusWithin;
 
   return (
     <div
@@ -295,6 +307,8 @@ const ExplorerRow = memo(function ExplorerRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={(e) => { if (e.target === e.currentTarget) onFocusRow(index); }}
+      onFocusCapture={() => setFocusWithin(true)}
+      onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusWithin(false); }}
       role="treeitem"
       tabIndex={focused ? 0 : -1}
       data-index={index}
@@ -452,15 +466,22 @@ const ExplorerRow = memo(function ExplorerRow({
             }}
             aria-label={mentionLabel}
             style={{
+              // Collapsed it takes no slot at all, so the name keeps the row's
+              // whole width; revealing it only moves where the ellipsis lands.
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 4,
-              padding: "0 8px",
-              minWidth: 24, height: 24,
+              gap: showMention ? 4 : 0,
+              padding: showMention ? "0 8px" : 0,
+              minWidth: showMention ? 24 : 0,
+              width: showMention ? undefined : 0,
+              height: 24,
+              overflow: "hidden",
+              opacity: showMention ? 1 : 0,
+              pointerEvents: showMention ? "auto" : "none",
               background: "var(--bg-panel)",
-              border: "1px solid var(--border)",
+              border: showMention ? "1px solid var(--border)" : "none",
               borderRadius: "var(--radius-control)",
               color: "var(--accent)",
               cursor: "pointer",
@@ -1170,6 +1191,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                   highlighted={false}
                   isActiveFile={false}
                   focused={false}
+                  revealRowActions={isMobile}
                   gitStatusByPath={gitStatusByPath}
                   changedDirectoryPaths={changedDirectoryPaths}
                   onAtMention={onAtMention}
@@ -1198,6 +1220,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(function FileE
                 highlighted={highlightedPaths.has(node.fullPath)}
                 isActiveFile={!node.isDir && normalizedActiveFilePath === normalizeFilePathSlashes(node.fullPath)}
                 focused={index === focusedIndex}
+                revealRowActions={isMobile}
                 gitStatusByPath={gitStatusByPath}
                 changedDirectoryPaths={changedDirectoryPaths}
                 onAtMention={onAtMention}

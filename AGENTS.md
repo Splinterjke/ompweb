@@ -2255,6 +2255,33 @@ stored `omp-web:submit-during-run` choice overrides it.
 - The Explorer's `type=list` hides nothing by name and there is no "show hidden" switch (no ignore lists; `/api/file-index` follows `.gitignore` in a Git repo and otherwise indexes regular files under its caps, skipping symlinks to both files and directories; when `git ls-files` fails it falls back to that walk, ignored files included). The tree sends `&root=<its cwd>` to the owning daemon: the listed directory's realpath must be inside the root's realpath (403 `outside_root`, also for an unknown or relative root; the root needs no allow-list check of its own, since the listed path already passed `authorizeFileAccess` and a root can only narrow it), and each symlink entry gets `linkTarget` (raw `readlink`) and, when it leaves the root or dangles, `outsideRoot` — the row is dimmed, with no expand or open from the tree. `flattenVisibleRows` never descends into an `outsideRoot` node, so a listing read before the flag cannot keep rendering stale children.
   The non-Git index walk uses asynchronous directory reads so other daemon requests can progress during a scan. Preserve breadth-first ordering, the existing depth/file/directory caps, truncation reporting and shared in-flight scans when changing this path.
 - The Explorer calls the additive daemon capability `listFilesInRoot(input, root)`. Missing capability returns 501 `workspace_unsupported` with upgrade advice; never fall back to an unconfined listing. Keep the original `listFiles(input, showHidden: boolean)` wire contract for older web servers; it validates the flag but follows the current all-names listing policy. Both operations share one daemon-side listing implementation.
+
+### Explorer row actions reveal on hover (`ExplorerRow` in `components/FileExplorer.tsx`)
+- The `@mention` chip is secondary and appears only for the row the pointer or the
+  keyboard is on — both the sidebar's Explorer section and the workbench's Files
+  tab mount this one component, so the rule lives in the row, not per surface.
+  It **collapses instead of fading**: collapsed is `width:0; min-width:0; padding:0;
+  border:none; overflow:hidden` (a flex item with `white-space:nowrap` content needs
+  the explicit `min-width:0`, or the automatic minimum size keeps it at min-content
+  width), revealed is its natural width (measured in the box's Chromium through
+  chrome-agent: 0 → 75.8px at a 264px panel, the name's box 186px → 110px). Hiding
+  it with `opacity` alone would keep the
+  ~76px reserved on all the time, which is what made names truncate in these narrow
+  panels; `display:none` would move the row's other chips. Only the ellipsis point
+  moves on hover.
+- `opacity:0` without `pointer-events:none` leaves an invisible click target, so
+  both are toggled together. Keyboard access: the row emulates `:focus-within`
+  (`onFocusCapture` / `onBlurCapture` with a `contains(relatedTarget)` check, which
+  is what keeps the chip from flickering when focus moves between the two row
+  actions) — Tab lands on the row's buttons because they carry no explicit
+  `tabIndex`. `focused` (the tree's roving tabindex) is deliberately NOT part of the
+  condition: row 0 owns it from the first render, which would leave one chip shown
+  forever.
+- Touch has no hover, so the chip stays shown whenever the layout is mobile
+  (`revealRowActions={isMobile}`). A test that asserts the reveal must leave
+  `useIsMobile` false — the DOM harness stubs `matchMedia` to `matches: false`.
+  Regression: `components/FileExplorer.mention.test.mjs`.
+
 ### Session list caching — new sessions must appear immediately
 - The sidebar and command palette list sessions per host: `listSessionsAllHosts()` (`lib/hosts/session-index.ts`) calls each host's `listSessions` op and caches it 30 s per host (`LIST_TTL_MS`, the daemon's own TTL). **This machine's list is its daemon's**; a host that fails or is offline keeps its last list. Nothing on main parses session files to build it.
 - **A lookup miss is not deletion while any host's list is unavailable.** `hostForSessionId()` returns no host only after successful current-generation discovery across all registered hosts; offline or failed-refresh lists produce retryable 503, including a cold remote cache after main restarts while the local daemon is already online. Cached positive mappings remain usable. Outbox acceptance retains validated messages during unknown ownership and normal host-hello dispatch resolves them later; never guess a local owner or trust a caller's host hint.
