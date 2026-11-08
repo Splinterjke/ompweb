@@ -48,6 +48,10 @@ export const SSE_FRAME_CLASSES: Readonly<Record<string, EventClass>> = Object.fr
   goal_updated: "reliable",
   host_status: "reliable",
   host_tool_call: "reliable",
+  // The cancellation of an open `host_tool_call`: the call itself is reliable,
+  // so a dropped cancel would leave a dialog on screen that nothing else
+  // closes. It carries no replacement state, so it cannot coalesce.
+  host_tool_cancel: "reliable",
   host_uri_request: "reliable",
   subagent_progress: "coalesced",
   subagent_event: "coalesced",
