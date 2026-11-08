@@ -4596,9 +4596,8 @@ export const SessionItem = memo(function SessionItem({
  }
  }, [session.id, onDeleted, t]);
 
-  // The Archived Sessions browser lists this machine's archive only, so a remote archive could not be restored.
-  const archiveBlocked = hasChildren || remoteHostId(session.hostId) !== undefined;
-  const archiveTitle = hasChildren ? t("sessionSidebar.archiveLeafOnly") : archiveBlocked ? t("hosts.notAvailableRemote") : t("sessionSidebar.archive");
+  const archiveBlocked = hasChildren;
+  const archiveTitle = hasChildren ? t("sessionSidebar.archiveLeafOnly") : t("sessionSidebar.archive");
 
   const handleDelete = useCallback(async () => {
     setConfirmDelete(false);

@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import type { Dirent } from "fs";
 import {
   closeSync,
+  constants as fsConstants,
+  fstatSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -519,16 +521,29 @@ export function loadSessionFile(filePath: string, options: LoadSessionOptions = 
  * the second when line 1 is a title slot), capped at 64 KiB. The slot title is
  * folded into the returned header.
  */
-export function readSessionHeaderSync(filePath: string): SessionHeader | null {
+export function readSessionHeaderSync(filePath: string, strict = false): SessionHeader | null {
   const maxHeaderBytes = 64 * 1024 + SESSION_TITLE_SLOT_BYTES;
+  if (strict && !lstatSync(path.dirname(filePath)).isDirectory()) throw new Error(`Cannot inventory symlinked session project at ${filePath}`);
+  const expected = strict ? lstatSync(filePath, { bigint: true }) : null;
+  if (expected && !expected.isFile()) throw new Error(`Cannot inventory non-regular session path ${filePath}`);
   let fd: number;
   try {
-    fd = openSync(filePath, "r");
-  } catch {
+    fd = openSync(filePath, strict ? fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) : "r");
+  } catch (error) {
+    if (strict) throw error;
     return null;
   }
   let head: string;
   try {
+    if (expected) {
+      const opened = fstatSync(fd, { bigint: true });
+      const current = lstatSync(filePath, { bigint: true });
+      if (!lstatSync(path.dirname(filePath)).isDirectory()) throw new Error(`Session project changed during strict discovery: ${filePath}`);
+      if (!current.isFile() || expected.dev !== opened.dev || expected.ino !== opened.ino
+        || current.dev !== opened.dev || current.ino !== opened.ino) {
+        throw new Error(`Session path changed during strict discovery: ${filePath}`);
+      }
+    }
     const buffer = Buffer.allocUnsafe(maxHeaderBytes);
     const bytesRead = readSync(fd, buffer, 0, buffer.length, 0);
     head = buffer.subarray(0, bytesRead).toString("utf8");
@@ -1117,7 +1132,7 @@ export function invalidateSessionFileListCache(): void {
   globalThis.__ompSessionFileListCache?.clear();
 }
 
-async function listSessionFiles(sessionsRoot: string): Promise<string[]> {
+export async function listSessionFiles(sessionsRoot: string): Promise<string[]> {
   let rootStat: { mtimeMs: number };
   try {
     rootStat = statSync(sessionsRoot);
@@ -1161,33 +1176,67 @@ async function listSessionFiles(sessionsRoot: string): Promise<string[]> {
   return files;
 }
 
-function collectSessionFiles(sessionsRoot: string): string[] {
+/** Restore conflict preflight only: an uncached, complete ID inventory. Never populate or trust the best-effort sidebar
+ * caches: skipped directories or unreadable/unidentifiable headers cannot prove a session absent on this machine. */
+export function listSessionIdsForRestore(sessionsRoot = getSessionsDir()): string[] {
+  const ids: string[] = [];
+  for (const file of collectSessionFiles(sessionsRoot, true)) {
+    const header = readSessionHeaderSync(file, true);
+    if (!header || typeof header.id !== "string" || !header.id) throw new Error(`Cannot identify active session at ${file}`);
+    ids.push(header.id);
+  }
+  return ids;
+}
+
+function collectSessionFiles(sessionsRoot: string, strict = false): string[] {
   const files: string[] = [];
+  let projects: Dirent[];
+  let observedRoot = false;
   try {
-    for (const dirent of readDirectorySyncRuntime(sessionsRoot, { withFileTypes: true })) {
-      if (!dirent.isDirectory()) continue;
-      // omp's artifacts directory for a session is literally the session
-      // file name minus `.jsonl` — it must never be scanned as a project
-      // dir, because its subagent transcripts (`<subagent-id>.jsonl`, e.g.
-      // `CodeQualityReview.jsonl`) are NOT sessions. Real project slugs are
-      // cwd encodings (e.g. `-code-ompweb`, `-private-tmp`) and never match
-      // this timestamp+uuid shape.
-      if (isOmpSessionFileName(dirent.name + ".jsonl")) continue;
-      const dirPath = path.join(sessionsRoot, dirent.name);
-      let inner: Dirent[];
-      try {
-        inner = readDirectorySyncRuntime(dirPath, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const file of inner) {
-        if (file.isFile() && (isOmpSessionFileName(file.name) || isSessionHeaderFile(path.join(dirPath, file.name)))) {
-          files.push(path.join(dirPath, file.name));
-        }
-      }
+    if (strict) {
+      const root = lstatSync(sessionsRoot);
+      observedRoot = true;
+      if (!root.isDirectory()) throw new Error(`Cannot inventory non-directory sessions root ${sessionsRoot}`);
     }
-  } catch {
+    projects = readDirectorySyncRuntime(sessionsRoot, { withFileTypes: true });
+  } catch (error) {
+    // Only a root absent from the outset is an empty inventory. Once observed, disappearance is uncertainty.
+    if (strict && (observedRoot || !(error && typeof error === "object" && "code" in error && error.code === "ENOENT"))) throw error;
     return [];
+  }
+  for (const dirent of projects) {
+    const dirPath = path.join(sessionsRoot, dirent.name);
+    if (strict && dirent.isSymbolicLink()) throw new Error(`Cannot inventory symlinked session project ${dirPath}`);
+    if (!dirent.isDirectory()) continue;
+    // omp's artifacts directory for a session is literally the session file
+    // name minus `.jsonl` — it must never be scanned as a project dir, because
+    // its subagent transcripts (`<subagent-id>.jsonl`, e.g.
+    // `CodeQualityReview.jsonl`) are NOT sessions. Real project slugs are cwd
+    // encodings (e.g. `-code-ompweb`, `-private-tmp`) and never match this
+    // timestamp+uuid shape. Strict preflight needs this too: those transcripts
+    // would otherwise be reported as sessions active on this machine.
+    if (isOmpSessionFileName(dirent.name + ".jsonl")) continue;
+    let inner: Dirent[];
+    try {
+      if (strict && !lstatSync(dirPath).isDirectory()) throw new Error(`Session project changed during strict discovery: ${dirPath}`);
+      inner = readDirectorySyncRuntime(dirPath, { withFileTypes: true });
+    } catch (error) {
+      // This project was enumerated: even ENOENT may mean it was renamed with active sessions inside. Never skip it in preflight.
+      if (strict) throw error;
+      continue;
+    }
+    for (const file of inner) {
+      if (strict && file.isSymbolicLink() && file.name.endsWith(".jsonl")) {
+        throw new Error(`Cannot inventory symlinked session file ${path.join(dirPath, file.name)}`);
+      }
+      if (!file.isFile() || !file.name.endsWith(".jsonl")) continue;
+      // The best-effort sidebar walk also picks up legacy/imported files whose
+      // name is not omp's shape but whose content is a session. A strict
+      // preflight keeps every `.jsonl` candidate and lets the strict header
+      // read fail closed on anything it cannot identify.
+      if (!strict && !isOmpSessionFileName(file.name) && !isSessionHeaderFile(path.join(dirPath, file.name))) continue;
+      files.push(path.join(dirPath, file.name));
+    }
   }
   return files;
 }
