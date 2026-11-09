@@ -5,9 +5,9 @@ import { AgentLinkContext, agentLinkTarget } from "../lib/agent-links";
 import { GithubRepoContext } from "../lib/github-refs";
 import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
-import type { AgentMessage, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
+import type { AgentMessage, AssistantMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
 import { isGroupAnchor } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
@@ -39,7 +39,7 @@ import type { SessionStatsInfo, GenerationSpeedInfo } from "@/lib/pi-types";
 import { normalizeCustomPanelLines, parseAnsiLine } from "@/lib/ansi";
 import { resolveAvailableThinkingLevels } from "@/lib/thinking-levels";
 import { asBracketedPaste, toTerminalKeyData } from "@/lib/terminal-input";
-import { OmpBouncingLetter } from "./OmpBouncingLetter";
+
 import {
   buildChatGroups,
   computeWindow,
