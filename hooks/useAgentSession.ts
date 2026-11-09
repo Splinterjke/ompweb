@@ -596,7 +596,9 @@ function fillPendingNotices(visible: NoticeItem[], pending: NoticeItem[]): Notic
   return { visible: nextVisible, pending: nextPending };
 }
 
-function noticeReducer(state: NoticeState, action: NoticeAction): NoticeState {
+/** Exported for the reducer-contract test (`useAgentSession-notices.test.mjs`);
+ *  mirrors the reducer upstream extracts into `useAgentSession-notices.ts`. */
+export function noticeReducer(state: NoticeState, action: NoticeAction): NoticeState {
   switch (action.type) {
     case "add": {
       if (state.visible.some((notice) => notice.exiting) || state.visible.length >= MAX_NOTICES) {
@@ -613,7 +615,9 @@ function noticeReducer(state: NoticeState, action: NoticeAction): NoticeState {
       return { ...state, visible: markOldestNoticeExiting(state.visible) };
     case "remove": {
       const visible = state.visible.filter((notice) => notice.id !== action.id);
-      return fillPendingNotices(visible, state.pending);
+      // Drop the id from the queue too: a dismissed notice must never
+      // resurface from `pending` when another one is removed.
+      return fillPendingNotices(visible, state.pending.filter((notice) => notice.id !== action.id));
     }
     default:
       return state;
