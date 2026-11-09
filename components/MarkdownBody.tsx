@@ -15,7 +15,8 @@ import { TableChart } from "./TableChart";
 // The default sanitizer reads `C:` as a scheme; a drive path (`\` arrives as `%5C`) is a local file the `a` renderer opens.
 const urlTransform: UrlTransform = (url, key, node) => (/^[A-Za-z]:(?:\/|%5C)/i.test(url) ? url : agentAwareUrlTransform(url, key, node));
 
-interface MarkdownBodyProps {
+/** Props accepted by `MarkdownBody`. */
+export interface MarkdownBodyProps {
   children: string;
   className?: string;
   isStreaming?: boolean;
@@ -26,7 +27,17 @@ interface MarkdownBodyProps {
   autoCharts?: boolean;
 }
 
-export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile, suppressImages = false, autoCharts = false }: MarkdownBodyProps) {
+/** Everything `MarkdownBody` hands to `ReactMarkdown`: source text, plugins, element renderers and URL transform. */
+export interface MarkdownBodyRendering {
+  markdown: string;
+  remarkPlugins: MarkdownPlugins["remarkPlugins"];
+  rehypePlugins: MarkdownPlugins["rehypePlugins"];
+  components: Components;
+  urlTransform: UrlTransform;
+}
+
+/** Builds omp-web's markdown rendering setup (links, images, tables, code) so any renderer can reuse it. */
+export function useMarkdownBodyRendering({ children, isStreaming, cwd, onOpenFile, suppressImages = false, autoCharts = false }: Omit<MarkdownBodyProps, "className">): MarkdownBodyRendering {
   // Skip normalizeDisplayMath while streaming: it scans the entire document
   // on every token batch but math content almost never arrives mid-stream.
   // The normalization runs once on the final committed message instead.
@@ -177,15 +188,22 @@ export function MarkdownBody({ children, className, isStreaming, cwd, onOpenFile
     };
   }, [isStreaming, cwd, onOpenFile, suppressImages, openAgentLink, autoCharts, fileSource]);
 
+  return { markdown: normalizedMarkdown, remarkPlugins, rehypePlugins, components, urlTransform };
+}
+
+/** Render agent markdown with `useMarkdownBodyRendering`'s setup. */
+export function MarkdownBody({ className, ...props }: MarkdownBodyProps) {
+  const rendering = useMarkdownBodyRendering(props);
+
   return (
     <div className={["markdown-body", className].filter(Boolean).join(" ")}>
       <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        components={components}
-        urlTransform={urlTransform}
+        remarkPlugins={rendering.remarkPlugins}
+        rehypePlugins={rendering.rehypePlugins}
+        components={rendering.components}
+        urlTransform={rendering.urlTransform}
       >
-        {normalizedMarkdown}
+        {rendering.markdown}
       </ReactMarkdown>
     </div>
   );

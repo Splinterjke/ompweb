@@ -7,7 +7,7 @@ const jiti = createJiti(import.meta.url, {
   jsx: { runtime: "automatic" },
   tsconfigPaths: true,
 });
-const { buildTurnPlan, renderActivityPieces } = await jiti.import("./ChatWindow.tsx");
+const { buildTurnPlan, renderActivityPieces } = await jiti.import("./ChatWindow-transcript-group-row.tsx");
 
 const call = (id, name = "bash") => ({ type: "toolCall", toolCallId: id, toolName: name, input: { command: id } });
 const text = (t) => ({ type: "text", text: t });

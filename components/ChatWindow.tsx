@@ -7,11 +7,13 @@ import { registerAbortHandler } from "@/hooks/useKeyboardShortcuts";
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ChevronDown, Loader2 } from "lucide-react";
 import { useSpeechSynthesis, SpeechSynthesisProvider } from "@/hooks/useSpeechSynthesis";
-import type { AgentMessage, AssistantContentBlock, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
+import type { AgentMessage, AssistantMessage, BashExecutionMessage, CustomMessage, ExtensionUiRequest, SessionInfo, SessionTreeNode, ToolResultMessage } from "@/lib/types";
 import { translate, useI18n } from "@/lib/i18n";
-import { planTurnSegments, isGroupAnchor, type ActivityPiece, type PlanOptions, type TranscriptSegment } from "@/lib/chat-segments";
+import { isGroupAnchor } from "@/lib/chat-segments";
 import { collectToolResults } from "@/lib/passive-tool-context";
 import { isReplyBlock } from "@/lib/message-display";
+import { buildTurnPlan, renderTranscriptGroupRow, type RenderMessage, type TurnPlan } from "./ChatWindow-transcript-group-row";
+import { ChatLiveTail } from "./ChatWindow-live-tail";
 import { HeldMessageView, MessageView } from "./MessageView";
 import { ToolExpansionProvider } from "./tool-expansion";
 import type { MessageTimeFormat, HubBarLayout, HubBarsVisibility, LiveStatusPlacement, ComposerAccentBg, ContextRingMobilePlacement } from "./AppShell";
@@ -201,116 +203,6 @@ function assistantSpeech(
     return { id: entryIds[i] ?? (message.timestamp ? String(message.timestamp) : "msg"), text };
   }
   return null;
-}
-
-function withAssistantBlocks(
-  message: AssistantMessage,
-  content: AssistantContentBlock[],
-  options: { omitUsage?: boolean } = {},
-): AssistantMessage {
-  const next = { ...message, content };
-  if (options.omitUsage) next.usage = undefined;
-  return next;
-}
-
-type RenderMessage = (idx: number, options?: { attachRef?: boolean; keyPrefix?: string; messageOverride?: AgentMessage; showTimestamp?: boolean; sourceBlockIndices?: number[] }) => ReactNode;
-/** One anchored turn's folded-render plan: the segment split plus the
- * message-override objects it implies. Built once per turn-content change and
- * cached by the transcript — building overrides inline produces NEW objects on
- * every render, which failed every row's memo comparator and re-rendered the
- * whole visible transcript on every token batch / tool commit (the "everything
- * refreshes when a tool ends" symptom; invisible on fresh single-turn sessions,
- * brutal on aged ones). */
-export interface TurnPlan {
-  /** The turn's messages at build time; identity-checked to invalidate. */
-  slice: AgentMessage[];
-  endIdx: number;
-  /** The planning options the cache entry was built with (invalidation keys). */
-  hideThinking: boolean;
-  showThinking: boolean;
-  showToolCalls: boolean;
-  segments: TranscriptSegment[];
-  /** Per text segment (indexed by segmentIdx): the split-message override. */
-  textOverrides: (AssistantMessage | undefined)[];
-  /** Per activity segment: one override per piece (undefined = whole message). */
-  activityOverrides: Map<number, (AssistantMessage | undefined)[]>;
-}
-
-export function buildTurnPlan(messages: AgentMessage[], userIdx: number, endIdx: number, options: PlanOptions = {}): TurnPlan {
-  const hideThinking = options.hideThinking ?? false;
-  const showThinking = options.showThinking ?? false;
-  const showToolCalls = options.showToolCalls ?? false;
-  const segments = planTurnSegments(messages, userIdx, endIdx, { hideThinking, showThinking, showToolCalls });
-  const textOverrides: (AssistantMessage | undefined)[] = [];
-  const activityOverrides = new Map<number, (AssistantMessage | undefined)[]>();
-  segments.forEach((segment, segmentIdx) => {
-    if (segment.kind === "text") {
-      const msg = messages[segment.index] as AssistantMessage;
-      const override = withAssistantBlocks(msg, segment.blocks, { omitUsage: !segment.last });
-      if (!segment.last) override.errorMessage = undefined;
-      textOverrides[segmentIdx] = override;
-      return;
-    }
-    activityOverrides.set(segmentIdx, segment.pieces.map((piece) =>
-      piece.blocks
-        ? { ...withAssistantBlocks(messages[piece.index] as AssistantMessage, piece.blocks, { omitUsage: true }), errorMessage: undefined }
-        : undefined,
-    ));
-  });
-  return { slice: messages.slice(userIdx, endIdx), endIdx, hideThinking, showThinking, showToolCalls, segments, textOverrides, activityOverrides };
-}
-
-/** Render a folded activity run exactly as it streamed: one entry per piece, never merged across messages. */
-export function renderActivityPieces(messages: AgentMessage[], pieces: ActivityPiece[], renderMessage: RenderMessage, overrides?: (AssistantMessage | undefined)[]): ReactNode[] {
-  return pieces.map((piece, pieceIdx) => {
-    if (!piece.blocks) return renderMessage(piece.index, { attachRef: false, keyPrefix: "activity" });
-    const msg = messages[piece.index] as AssistantMessage;
-    return renderMessage(piece.index, {
-      attachRef: false,
-      keyPrefix: `activity-${pieceIdx}`,
-      messageOverride: overrides?.[pieceIdx] ?? { ...withAssistantBlocks(msg, piece.blocks, { omitUsage: true }), errorMessage: undefined },
-      showTimestamp: false,
-      sourceBlockIndices: piece.blocks.map((block) => msg.content.indexOf(block)),
-    });
-  });
-}
-
-function ProcessDetailsGroup({ messageCount, toolCallCount, expanded, onToggle, children }: { messageCount: number; toolCallCount: number; expanded: boolean; onToggle: (expanded: boolean) => void; children: ReactNode }) {
-  const { t, tn } = useI18n();
-  const parts = [t("chatWindow.processDetails"), tn("chatWindow.messageCount", messageCount)];
-  if (toolCallCount > 0) parts.push(tn("chatWindow.toolCallCount", toolCallCount));
-
-  return (
-    <div style={{ marginBottom: 4 }}>
-      <Tooltip content={expanded ? t("chatWindow.collapseProcessDetails") : t("chatWindow.expandProcessDetails")}>
-        <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={() => onToggle(!expanded)}
-        className="process-details-toggle"
-      >
-        <ChevronDown
-          size={12}
-          strokeWidth={1.8}
-          aria-hidden="true"
-          style={{
-            flexShrink: 0,
-            transform: expanded ? "rotate(180deg)" : "none",
-            transition: "transform var(--dur-fast) var(--ease-out-warm)",
-          }}
-        />
-        <span className="process-details-label">
-          {parts.join(" · ")}
-        </span>
-      </button>
-      </Tooltip>
-      {expanded && (
-        <div style={{ marginTop: 3 }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
 }
 
 interface CommittedTranscriptProps {
@@ -619,7 +511,6 @@ const CommittedTranscript = memo(function CommittedTranscript({
         </Fragment>
       );
     }
-    const nodes: ReactNode[] = [renderMessage(userIdx)];
     const processGroupKey = entryIds[userIdx] ?? String(userIdx);
     // TUI-style folding: agent text is always visible; each run of activity
     // text folds into one collapsed row.
@@ -637,43 +528,19 @@ const CommittedTranscript = memo(function CommittedTranscript({
       plan = buildTurnPlan(messages, userIdx, endIdx, { hideThinking: hideThinkingBlock, showThinking, showToolCalls: showToolCallsUnfolded });
       turnPlansRef.current.set(processGroupKey, plan);
     }
-    const attached = new Set<number>();
-    plan.segments.forEach((segment, segmentIdx) => {
-      if (segment.kind === "text") {
-        const msg = messages[segment.index] as AssistantMessage;
-        const override = plan.textOverrides[segmentIdx];
-        nodes.push(renderMessage(segment.index, {
-          attachRef: !attached.has(segment.index),
-          keyPrefix: `text-${segmentIdx}`,
-          messageOverride: override,
-          ...(segment.last ? {} : { showTimestamp: false }),
-          // Thinking can ride in a text segment; deferred text loads by source index.
-          sourceBlockIndices: segment.blocks.map((block) => msg.content.indexOf(block)),
-        }));
-        attached.add(segment.index);
-        return;
-      }
-      const foldKey = `${processGroupKey}:${segmentIdx}`;
-      const refIdx = segment.pieces
-        .filter((p) => !attached.has(p.index))
-        .map((p) => visibleRefIndexByMessage.get(p.index))
-        .find((value): value is number => typeof value === "number");
-      for (const p of segment.pieces) attached.add(p.index);
-      nodes.push(
-        <div
-          key={"activity-" + (entryIds[userIdx] ?? userIdx) + "-" + segmentIdx}
-          ref={refIdx === undefined ? undefined : (el) => { messageRefs.current[refIdx] = el; }}
-        >
-          <ProcessDetailsGroup
-            messageCount={segment.stepCount}
-            toolCallCount={segment.toolCallCount}
-            expanded={processExpanded[foldKey] === true}
-            onToggle={(next) => handleProcessToggle(foldKey, next)}
-          >
-            {renderActivityPieces(messages, segment.pieces, renderMessage, plan.activityOverrides.get(segmentIdx))}
-          </ProcessDetailsGroup>
-        </div>,
-      );
+    // The segment split, message overrides and Process details folds render
+    // through the transcript-group seam; expansion state stays here so a
+    // user's open/collapse choice survives remounts and window recycling.
+    const nodes = renderTranscriptGroupRow({
+      messages,
+      userIdx,
+      plan,
+      renderMessage,
+      entryKey: processGroupKey,
+      messageRefs,
+      visibleRefIndexByMessage,
+      isExpanded: (foldKey) => processExpanded[foldKey] === true,
+      onToggle: handleProcessToggle,
     });
     return <Fragment key={"g-" + (entryIds[userIdx] ?? userIdx)}>{nodes}</Fragment>;
   };
@@ -1807,78 +1674,28 @@ export function ChatWindow({ session, newSessionCwd, newSessionHostId, hostStatu
               window={win}
               onLayoutChanged={() => setLayoutRevision((v) => v + 1)}
             />
-            {streamState.isStreaming && streamState.streamingMessage && (
-              <MessageView
-                message={streamState.streamingMessage as AgentMessage}
-                isStreaming
-                modelNames={modelNames}
-                cwd={messageCwd}
-                onOpenFile={onOpenFile}
-                toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
-                toolInputExpanded={toolInputExpanded}
-                toolResults={toolResultsWithLive}
-                thinkingDisplayMode={thinkingDisplayMode}
-                thinkingAutoFollow={thinkingAutoFollow}
-                timeFormat={messageTimeFormat}
-                liveTokensPerSecond={tokensPerSecond}
-              />
-            )}
+            <ChatLiveTail
+              streamingMessage={streamState.streamingMessage}
+              isStreaming={streamState.isStreaming}
+              tokensPerSecond={tokensPerSecond}
+              pendingToolHeaders={pendingToolHeaders}
+              liveStatusText={liveStatusText}
+              statusHostExists={statusHostExists}
+              bashRunning={bashRunning}
+              deferredBash={deferredBash}
+              pendingBash={pendingBash}
+              toolResults={toolResultsWithLive}
+              modelNames={modelNames}
+              cwd={messageCwd}
+              onOpenFile={onOpenFile}
+              sessionId={session?.id ?? sessionIdRef.current ?? undefined}
+              toolCallsDefaultCollapsed={toolCallsDefaultCollapsed}
+              toolInputExpanded={toolInputExpanded}
+              thinkingDisplayMode={thinkingDisplayMode}
+              thinkingAutoFollow={thinkingAutoFollow}
+              timeFormat={messageTimeFormat}
+            />
             </ToolExpansionProvider>
-
-            {toolCallsDefaultCollapsed && pendingToolHeaders.map((tool) => (
-              <div
-                key={tool.id}
-                role="status"
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  marginBottom: 8, padding: "6px 10px",
-                  border: "1px solid color-mix(in srgb, var(--status-success) 25%, transparent)",
-                  borderRadius: "var(--radius-control)",
-                  background: "color-mix(in srgb, var(--status-success) 4%, transparent)",
-                  color: "var(--text-muted)", fontSize: "calc(12px * var(--ui-font-scale-lg, 1))",
-                }}
-              >
-                <span aria-hidden className="live-status-dot live-pulse inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span style={{ color: "var(--status-success)", fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: "calc(11px * var(--ui-font-scale-sm, 1))" }}>{tool.name}</span>
-              </div>
-            ))}
-
-            {liveStatusText !== null && !statusHostExists && (
-              <div role="status" aria-live="polite" className="pt-2 pb-4 mb-3 text-[13px] text-text-muted flex items-center gap-2.5">
-                <OmpBouncingLetter />
-                <span>{liveStatusText}</span>
-              </div>
-            )}
-
-            {bashRunning && !pendingBash && (
-              <div role="status" aria-live="polite" className="py-2 text-[13px] text-text-muted flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="live-status-dot live-pulse inline-block h-2 w-2 shrink-0 rounded-full bg-accent"
-                />
-                <span>{t("chatWindow.runningCommand")}</span>
-              </div>
-            )}
-
-            {deferredBash.map((message, index) => (
-              <MessageView
-                key={index}
-                message={message}
-                sessionId={session?.id ?? sessionIdRef.current ?? undefined}
-              />
-            ))}
-
-            {pendingBash && (
-              <MessageView
-                message={{
-                  role: "bashExecution",
-                  command: pendingBash.command,
-                  output: "",
-                  excludeFromContext: pendingBash.excludeFromContext,
-                } as BashExecutionMessage}
-                sessionId={session?.id ?? sessionIdRef.current ?? undefined}
-              />
-            )}
 
             {/* After the live turn, in submission order: what omp does not have yet. */}
             {heldMessages.map((held) => (

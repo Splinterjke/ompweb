@@ -550,7 +550,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, f
 
         {/* Bottom row: action buttons + timestamp — inside the bubble's column,
             spanning its width, so the timestamp aligns with its right edge. */}
-          <div style={{
+          <div className="message-user-footer" style={{
             display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end",
             gap: 6, marginTop: 3, width: "100%",
           }}>
@@ -707,7 +707,7 @@ function AssistantMessageView({
   );
   const actionRow =
     !isStreaming && (time || (messageActionsVisible && (texts.some((text) => text.trim()) || canFork))) ? (
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
+      <div className="message-assistant-footer" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
         {messageActionsVisible && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 3 }}>
             <MessageCopyActions texts={texts} bodyRef={bodyRef} />
@@ -874,6 +874,7 @@ function AssistantMessageView({
     >
       {/* Model label */}
       <div
+        className="message-model-label"
         style={{
           fontSize: "calc(11px * var(--ui-font-scale-sm, 1))",
           color: "var(--text-dim)",
