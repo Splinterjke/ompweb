@@ -1993,9 +1993,17 @@ export function SessionSidebar({ selectedSessionId, optimisticSession, optimisti
   const handleUpdateProjectPresentation = useCallback(async (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }) => {
     try {
       const response = await fetch("/api/projects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: project.path, hostId: remoteHostId(hostOf(project)), ...updates }) });
-      if (!response.ok) throw new Error(t("projects.updateFailed"));
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string; code?: string };
+        throw new Error(body.error || body.code ? formatApiError(body) : t("projects.updateFailed"));
+      }
       await loadProjects();
-    } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+      // Rethrow: the launch-config dialog stays open on a failed save and
+      // shows the error inline; the toast still covers fire-and-forget callers.
+      throw error;
+    }
   }, [loadProjects, t]);
 
   /** Projects of one host that Move up/down and drag can reorder: all of them
@@ -3242,7 +3250,7 @@ interface ProjectRowProps {
   onActivate: (project: ManagedProject) => void;
   onToggleExpand: (project: ManagedProject) => void;
   onRemoveProject: (project: ManagedProject) => Promise<void>;
-  onUpdatePresentation: (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }) => void;
+  onUpdatePresentation: (project: ManagedProject, updates: { alias?: string | null; sortOrder?: number | null; pinOrder?: number | null; launchConfig?: ProjectLaunchConfig | null }) => Promise<void>;
   onEditLaunchConfig: (project: ManagedProject) => void;
   onDragProjectChange: (project: ManagedProject | null) => void;
   onDropProject: (project: ManagedProject) => void;
@@ -3377,7 +3385,8 @@ function ProjectRow({
     const alias = aliasValue.trim();
     setAliasEditing(false);
     if (alias === (project.alias ?? "")) return;
-    void onUpdatePresentation(project, { alias });
+    // The sidebar already reports failed presentation writes in a toast.
+    void onUpdatePresentation(project, { alias }).catch(() => {});
   }, [aliasValue, project, onUpdatePresentation]);
   const revealInFileManager = useCallback(async (dir: string) => {
     try {
