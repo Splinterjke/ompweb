@@ -1,4 +1,3 @@
-import path from "path";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed, isWindowsAbsolutePath } from "@/lib/file-access";
 import { defaultGitGraphViewConfig, DEFAULT_LIGHT_PALETTE } from "@/lib/git-graph/default-config";
 import type * as GG from "@/vendor/vscode-git-graph/types";
@@ -100,10 +99,10 @@ export async function GET(request: Request) {
 		<div id="filterControls" style="display: flex; flex-wrap: wrap; justify-content: center">
 			<span id="repoControl" style="flex: 1; "><span class="unselectable">Repo: </span><div id="repoDropdown" class="dropdown"></div></span>
 			<span id="branchControl" style="flex: 2; max-width: ${50 - 6 * 2}vw;"><span class="unselectable">Branches: </span><div id="branchDropdown" class="dropdown"></div></span>
-			<span id="pathFilterControl" style="display: none" title="Select path by context menu in file explorer"><span class="unselectable">Paths: </span><div id="pathFilterDropdown" class="dropdown"></div></span>
+			<span id="pathFilterControl" style="flex: 2; max-width: 28vw;" title="Filter the graph by a file or directory path (type a path in the dropdown's filter field)"><span class="unselectable">Paths: </span><div id="pathFilterDropdown" class="dropdown"></div></span>
 			<span id="authorControl" style="flex: 1; max-width: ${30 - 3 * 2}vw;"><span class="unselectable">Authors: </span><div id="authorDropdown" class="dropdown"></div></span>
 			<label id="showRemoteBranchesControl"  title="Show Remote Branches"><input type="checkbox" id="showRemoteBranchesCheckbox" tabindex="-1"><span class="customCheckbox"></span>Remotes</label>
-			<label id="simplifyByDecorationControl" style="display: none" title="Simplify By Decoration"><input type="checkbox" id="simplifyByDecorationCheckbox" tabindex="-1"><span class="customCheckbox"></span>Simplify</label>
+			<label id="simplifyByDecorationControl" title="Simplify By Decoration"><input type="checkbox" id="simplifyByDecorationCheckbox" tabindex="-1"><span class="customCheckbox"></span>Simplify</label>
 			<div id="currentBtn" title="Current"></div>
 			<div id="findBtn" title="Find"></div>
 			<div id="terminalBtn" title="Open a Terminal for this Repository"></div>
